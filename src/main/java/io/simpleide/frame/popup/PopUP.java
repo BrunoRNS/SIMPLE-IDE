@@ -6,11 +6,12 @@ import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
+import javax.swing.SwingUtilities;
 
 public abstract class PopUP implements Runnable {
 
-    protected boolean on = false;
-    protected String title;
+    protected volatile boolean on = false;
+    protected volatile String title;
 
     protected JComponent parent = null;
     protected JDialog jd = null;
@@ -51,17 +52,25 @@ public abstract class PopUP implements Runnable {
     }
 
     @Override 
-    public void run() throws NullPointerException {
+    public void run() throws NullPointerException, IllegalStateException {
+
         if (this.jp == null) {
             throw new NullPointerException("JOptionPane can't be null!");
         }
-        if (this.jd == null) {
-            this.jd = jp.createDialog(this.parent, this.title);
+
+        if (this.on) { 
+            throw new IllegalStateException("PopUP is already on!");
         }
 
         this.on = true;
-        this.jd.setVisible(true);
-        this.on = false;
+
+        SwingUtilities.invokeLater(() -> {
+            if (this.jd == null) {
+                this.jd = jp.createDialog(this.parent, this.title);
+            }
+            this.jd.setVisible(true);
+            this.on = false;
+        });
 
     }
 
@@ -73,14 +82,14 @@ public abstract class PopUP implements Runnable {
     public String toString() {
 
         StringBuilder sb = new StringBuilder();
-        sb.append("The PopUP is on? " + this.on + "\n");
-        sb.append("Class Data:\n");
+        sb.append("The PopUP is on? ").append(this.on).append("\n");
+        sb.append("Class ").append(this.title).append(" Data:\n");
 
         Map<String, Object> m = getMap();
         if (m == null) {
             sb.append("null\n");
         } else {
-            m.forEach((name, obj) -> {sb.append(name + " : " + obj.toString() + "\n");});
+            m.forEach((name, obj) -> {sb.append(name).append(" : ").append(obj.toString()).append("\n");});
         }
 
         return sb.toString();
