@@ -20,10 +20,10 @@ import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 public class ErrorPopUPTest {
     @Test
     public void createsPopupWithErrorMessageTypeAndIcon() {
-        ErrorPopUP popup = new ErrorPopUP("Falha ao compilar", ErrorTypePopUp.COMPILE_ERROR);
+        ErrorPopUP popup = new ErrorPopUP("Failed to compile", ErrorTypePopUp.COMPILE_ERROR);
 
         assertThat(popup.getTitle()).isEqualTo("Compile error");
-        assertThat(popup.jp.getMessage()).isEqualTo("Falha ao compilar");
+        assertThat(popup.jp.getMessage()).isEqualTo("Failed to compile");
         assertThat(popup.jp.getMessageType()).isEqualTo(JOptionPane.ERROR_MESSAGE);
         assertThat(popup.jp.getOptionType()).isEqualTo(JOptionPane.DEFAULT_OPTION);
         assertThat(popup.jp.getOptions()).containsExactly("Ok");
@@ -51,14 +51,14 @@ public class ErrorPopUPTest {
 
         assertThat(popup.getMap()).containsEntry("title", "Internal error");
 
-        popup.setMap(Collections.<String, Object>singletonMap("title", "Erro atualizado"));
+        popup.setMap(Collections.<String, Object>singletonMap("title", "Update error"));
 
-        assertThat(popup.getTitle()).isEqualTo("Erro atualizado");
+        assertThat(popup.getTitle()).isEqualTo("Update error");
     }
 
     @Test
     public void addsErrorIconToOptionPaneForRendering() {
-        ErrorPopUP popup = new ErrorPopUP("Falha fatal", ErrorTypePopUp.FATAL_ERROR);
+        ErrorPopUP popup = new ErrorPopUP("eror fatal", ErrorTypePopUp.FATAL_ERROR);
 
         assertThat(containsIcon(popup.jp, popup.jp.getIcon())).isTrue();
     }
