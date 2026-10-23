@@ -7,8 +7,8 @@ import javax.swing.JComponent;
 
 public class SuccessPopUP extends PopUP{
 
-    public SuccessPopUP(JComponent parent, String title, Object message, int messageType, int optionType, Icon icon, Object[] options, Object initialValue) {
-        super(parent, title, message, messageType, optionType, icon, options, initialValue);
+    public SuccessPopUP(JComponent parent, String title, Object message, int messageType, int optionType, Icon icon, Object initialValue) {
+        super(parent, title, message, messageType, optionType, icon, initialValue);
     }
     
     @Override

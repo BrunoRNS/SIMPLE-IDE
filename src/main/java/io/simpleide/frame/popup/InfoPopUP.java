@@ -8,8 +8,8 @@ import javax.swing.JComponent;
 public class InfoPopUP extends PopUP {
 
     public InfoPopUP(JComponent parent, String title, Object message, int messageType, int optionType, Icon icon,
-            Object[] options, Object initialValue) {
-        super(parent, title, message, messageType, optionType, icon, options, initialValue);
+             Object initialValue) {
+        super(parent, title, message, messageType, optionType, icon, initialValue);
         //TODO Auto-generated constructor stub
     }
 
