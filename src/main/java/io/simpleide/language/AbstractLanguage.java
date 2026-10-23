@@ -1,7 +1,10 @@
 package io.simpleide.language;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Scanner;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -15,8 +18,11 @@ implements Runnable
     protected ProcessBuilder pb;
     protected volatile Process p;
     protected volatile boolean stopped = false;
+    
     protected final StringBuffer systemLog = new StringBuffer();
     protected final StringBuffer userLog = new StringBuffer();
+
+    protected String input = "";
 
     protected String langFriendly = null;
     protected String langConstant = null;
@@ -29,6 +35,14 @@ implements Runnable
         return this.langConstant;
     }
 
+    public void setInput(String s) {
+        input = s;
+    }
+
+    public void appendInput(String s) {
+        input += "\n" + s;
+    }
+
     public void run() {
         if (this.p != null) {
             throw new ProcessAlreadyExistsException(
@@ -36,6 +50,22 @@ implements Runnable
                 this.p);
         }
         try {
+
+            File f = null;
+
+            if (input != null && !input.isEmpty() && !input.isBlank()) {
+
+                f = File.createTempFile(
+                    UUID.randomUUID().toString().replace("-", ""),
+                    ".in"
+                );
+                Files.writeString(f.toPath(), input);
+
+            }
+
+            if (f != null) {
+                pb.redirectInput(f);
+            }
 
             pb.redirectErrorStream(true); 
             p = pb.start();
@@ -71,7 +101,11 @@ implements Runnable
     }
 
     protected void addUserLog(String s) {
-        userLog.append("[OUTPUT] ").append(s).append('\n');
+        userLog.append(s).append('\n');
+    }
+
+    protected void addSystemLog(String s) {
+        systemLog.append(s).append('\n');
     }
 
     public Thread getThread() {
@@ -100,16 +134,15 @@ implements Runnable
         if (exitCode != 0) {
             if (stopped) {
                 stopped = false;
-                systemLog.append("[IDE] Process manually interrupted by the user.\n");
+                addSystemLog("[IDE] Process manually interrupted by the user.\n");
                 return;
             }
 
             addUserLog("RUNTIME ERROR: " + exitCode);
-            systemLog.append("[Runtime Error] The developer's program broke with code: ").append(exitCode).append('\n');
-            
+            addSystemLog("[Runtime Error] The developer's program broke with code: " + exitCode + "\n");
             
         } else {
-            systemLog.append("[IDE] Process completed successfully.\n");
+            addSystemLog("[IDE] Process completed successfully.\n");
         }
 
         this.p = null;
@@ -132,7 +165,7 @@ implements Runnable
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            systemLog.append("[Debug] The interrupt thread was itself interrupted.\n");
+            addSystemLog("[Debug] The interrupt thread was itself interrupted.\n");
         }
     
     }
