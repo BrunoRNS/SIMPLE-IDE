@@ -12,6 +12,7 @@ public class MainFrame extends JFrame implements Runnable {
     public void run() {
         PopUP pop = new ErrorPopUP("Sla", null, ErrorTypePopUp.RUNTIME_ERROR);
         pop.run();
+        System.out.println(pop.getMap());
     }
-    
+
 }
