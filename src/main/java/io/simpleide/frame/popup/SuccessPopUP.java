@@ -16,6 +16,18 @@ public class SuccessPopUP extends PopUP implements MappeableSupport {
     super(parent, title, message, JOptionPane.INFORMATION_MESSAGE, LoadIcon.loadingIcon("sucess.png"), option);
   }
 
+  public SuccessPopUP(String title, String message) {
+    this(title, message, null, "Ok");
+  }
+
+  public SuccessPopUP(String title, String message, Object option) {
+    this(title, message, null, option);
+  }
+
+  public SuccessPopUP(String title, String message, JComponent parent) {
+    this(title, message, parent, "Ok");
+  }
+
   @Override
   public Map<String, Object> getMap() {
     return getMaping();

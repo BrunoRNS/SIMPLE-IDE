@@ -45,6 +45,15 @@ public class InfoPopUPTest {
   }
 
   @Test
+  public void supportsConvenienceConstructors() {
+    InfoPopUP defaultPopup = new InfoPopUP("information", "Details");
+    InfoPopUP customOptionPopup = new InfoPopUP("information", "Details", "Continue");
+
+    assertThat(defaultPopup.jp.getInitialValue()).isEqualTo("Ok");
+    assertThat(customOptionPopup.jp.getInitialValue()).isEqualTo("Continue");
+  }
+
+  @Test
   public void mapsAndUpdatesTitle() {
     InfoPopUP popup = new InfoPopUP("Info", "Informational message", "Ok");
 

@@ -47,6 +47,16 @@ public class SuccessPopUPTest {
     }
 
     @Test
+    public void supportsConvenienceConstructors() {
+        SuccessPopUP defaultPopup = new SuccessPopUP("Success", "Operation completed");
+        SuccessPopUP customOptionPopup = new SuccessPopUP(
+                "Success", "Operation completed", "Continue");
+
+        assertThat(defaultPopup.jp.getInitialValue()).isEqualTo("Ok");
+        assertThat(customOptionPopup.jp.getInitialValue()).isEqualTo("Continue");
+    }
+
+    @Test
     public void mapsAndUpdatesTitle() {
         SuccessPopUP popup = new SuccessPopUP("Success", "Completed", null, "Ok");
 
