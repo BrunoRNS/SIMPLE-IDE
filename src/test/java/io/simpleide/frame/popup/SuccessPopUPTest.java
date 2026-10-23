@@ -20,10 +20,10 @@ public class SuccessPopUPTest {
     @Test
     public void createsPopupWithSuccessMessageAndIcon() {
         SuccessPopUP popup = new SuccessPopUP(
-                "Sucesso", "Arquivo salvo com sucesso", null, "Ok");
+                "Success", "File saved successfully", null, "Ok");
 
-        assertThat(popup.getTitle()).isEqualTo("Sucesso");
-        assertThat(popup.jp.getMessage()).isEqualTo("Arquivo salvo com sucesso");
+        assertThat(popup.getTitle()).isEqualTo("Success");
+        assertThat(popup.jp.getMessage()).isEqualTo("File saved successfully");
         assertThat(popup.jp.getMessageType()).isEqualTo(JOptionPane.INFORMATION_MESSAGE);
         assertThat(popup.jp.getOptionType()).isEqualTo(JOptionPane.DEFAULT_OPTION);
         assertThat(popup.jp.getOptions()).containsExactly("Ok");
@@ -39,27 +39,27 @@ public class SuccessPopUPTest {
     public void acceptsParentComponentInConstructor() {
         JComponent parent = new JPanel();
 
-        SuccessPopUP popup = new SuccessPopUP("Sucesso", "Operação concluída", parent, "Fechar");
+        SuccessPopUP popup = new SuccessPopUP("Success", "Operation completed", parent, "Close");
 
         assertThat(popup.parent).isSameAs(parent);
-        assertThat(popup.getTitle()).isEqualTo("Sucesso");
-        assertThat(popup.jp.getInitialValue()).isEqualTo("Fechar");
+        assertThat(popup.getTitle()).isEqualTo("Success");
+        assertThat(popup.jp.getInitialValue()).isEqualTo("Close");
     }
 
     @Test
     public void mapsAndUpdatesTitle() {
-        SuccessPopUP popup = new SuccessPopUP("Sucesso", "Concluído", null, "Ok");
+        SuccessPopUP popup = new SuccessPopUP("Success", "Completed", null, "Ok");
 
-        assertThat(popup.getMap()).containsEntry("title", "Sucesso");
+        assertThat(popup.getMap()).containsEntry("title", "Success");
 
-        popup.setMap(Collections.<String, Object>singletonMap("title", "Atualizado"));
+        popup.setMap(Collections.<String, Object>singletonMap("title", "Updated"));
 
-        assertThat(popup.getTitle()).isEqualTo("Atualizado");
+        assertThat(popup.getTitle()).isEqualTo("Updated");
     }
 
     @Test
     public void addsSuccessIconToOptionPaneForRendering() {
-        SuccessPopUP popup = new SuccessPopUP("Sucesso", "Concluído", null, "Ok");
+        SuccessPopUP popup = new SuccessPopUP("Success", "Completed", null, "Ok");
 
         assertThat(containsIcon(popup.jp, popup.jp.getIcon())).isTrue();
     }
