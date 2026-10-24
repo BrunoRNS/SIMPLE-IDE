@@ -12,7 +12,6 @@ import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
 import io.simpleide.language.exceptions.ProcessFatalException;
 
 public abstract class AbstractLanguage 
-implements Runnable
 {
     
     protected ProcessBuilder pb;
@@ -43,8 +42,7 @@ implements Runnable
         input += "\n" + s;
     }
 
-    @Override
-    public void run() {
+    protected void pbinit() {
         if (this.p != null) {
             throw new ProcessAlreadyExistsException(
                 "Impossible to Run the script while still running another",
@@ -54,7 +52,7 @@ implements Runnable
 
             File f = null;
 
-            if (input != null && !input.isEmpty()) {
+            if (input != null && !input.isBlank()) {
 
                 f = File.createTempFile(
                     UUID.randomUUID().toString().replace("-", ""),
@@ -109,9 +107,8 @@ implements Runnable
         systemLog.append(s).append('\n');
     }
 
-    public Thread getThread() {
-        return new Thread(this);
-    }
+    protected abstract Thread getThread();
+    public abstract void execute();
 
     protected Consumer<Process> getHandler() {
         return new InternalExitHandler();
