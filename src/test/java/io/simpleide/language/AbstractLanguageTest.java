@@ -1,16 +1,16 @@
 package io.simpleide.language;
 
+import java.io.File;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import java.io.File;
-import java.util.Arrays;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
@@ -33,7 +33,7 @@ class AbstractLanguageTest {
         language.run();
         language.awaitExitHandler();
 
-        assertEquals("[OUTPUT] child output\n", language.getUserLog());
+        assertEquals("child output\n", language.getUserLog());
         assertEquals("[IDE] Process completed successfully.\n", language.getSystemLog());
     }
 
@@ -44,7 +44,7 @@ class AbstractLanguageTest {
         language.run();
         language.awaitExitHandler();
 
-        assertEquals("[OUTPUT] child output\n[OUTPUT] RUNTIME ERROR: 7\n", language.getUserLog());
+        assertEquals("child output\nRUNTIME ERROR: 7\n", language.getUserLog());
         assertEquals(
             "[Runtime Error] The developer's program broke with code: 7\n",
             language.getSystemLog()
@@ -112,7 +112,7 @@ class AbstractLanguageTest {
         private void awaitOutput(String output) throws InterruptedException {
             long deadline = System.nanoTime() + 5_000_000_000L;
             while (!getUserLog().contains(output) && System.nanoTime() < deadline) {
-                Thread.sleep(10);
+                TimeUnit.MILLISECONDS.sleep(10);
             }
             assertTrue(getUserLog().contains(output), "Expected process output: " + output);
         }
@@ -120,7 +120,7 @@ class AbstractLanguageTest {
         private void awaitExitHandler() throws InterruptedException {
             long deadline = System.nanoTime() + 5_000_000_000L;
             while (p != null && System.nanoTime() < deadline) {
-                Thread.sleep(10);
+                TimeUnit.MILLISECONDS.sleep(10);
             }
             assertNull(p, "The process exit handler should clear the process reference.");
         }
