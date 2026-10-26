@@ -53,7 +53,7 @@ implements Runnable
 
             File f = null;
 
-            if (input != null && !input.isEmpty() && !input.isBlank()) {
+            if (input != null && !input.isBlank()) {
 
                 f = File.createTempFile(
                     UUID.randomUUID().toString().replace("-", ""),
@@ -108,7 +108,7 @@ implements Runnable
         systemLog.append(s).append('\n');
     }
 
-    public Thread getThread() {
+    protected Thread getThread() {
         return new Thread(this);
     }
 

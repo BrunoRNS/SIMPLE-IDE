@@ -2,23 +2,40 @@ package io.simpleide.frame.popup;
 
 import java.util.Map;
 
-import javax.swing.Icon;
+
 import javax.swing.JComponent;
+import javax.swing.JOptionPane;
 
-public class ErrorPopUP extends PopUP {
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.frame.utils.LoadIcon;
+import io.simpleide.utils.mappeable.Mappeable;
+import io.simpleide.utils.mappeable.MappeableSupport;
 
-    public ErrorPopUP(JComponent parent, String title, Object message, int messageType, int optionType, Icon icon, Object[] options, Object initialValue) {
-        super(parent, title, message, messageType, optionType, icon, options, initialValue);
+@Mappeable 
+public class ErrorPopUP extends PopUP implements  MappeableSupport {
+
+   
+    
+    public ErrorPopUP(
+        String error,
+        JComponent parent,
+        ErrorTypePopUp type
+    ){
+        super(parent, type.toString(), error, JOptionPane.ERROR_MESSAGE, LoadIcon.loadingIcon("error.png"), "Ok");
+    }
+
+    public ErrorPopUP(String error, ErrorTypePopUp typeError){
+        this(error, null, typeError);
     }
 
     @Override
     public Map<String, Object> getMap() {
-        throw new UnsupportedOperationException("Not supported yet.");
+        return getMaping();
     }
 
     @Override
     public void setMap(Map<String, Object> m) {
-        throw new UnsupportedOperationException("Not supported yet.");
+        setMaping(m);
     }
     
 }

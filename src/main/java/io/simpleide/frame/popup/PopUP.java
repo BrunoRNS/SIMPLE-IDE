@@ -16,24 +16,33 @@ public abstract class PopUP implements Runnable {
     protected JComponent parent = null;
     protected JDialog jd = null;
     protected JOptionPane jp;
-    
+    protected final Object[] options = {"Ok"};
 
     public PopUP(
-        JComponent parent,
-        String title,
-        Object message,
-        int messageType, 
-        int optionType, 
-        Icon icon, 
-        Object[] options,
-        Object initialValue) {
+            JComponent parent,
+            String title,
+            Object message,
+            int messageType,
+            int optionType,
+            Icon icon,
+            Object initialValue) {
 
-            this.parent = parent;
-            this.title = title;
-            this.jp = new JOptionPane(
+        this.parent = parent;
+        this.title = title;
+        this.jp = new JOptionPane(
                 message, messageType, optionType, icon, options, initialValue);
-        
-        }
+
+    }
+
+    public PopUP(
+            JComponent parent,
+            String title,
+            Object message,
+            int messageType,
+            Icon icon,
+            Object initialValue) {
+        this(parent, title, message, messageType, JOptionPane.DEFAULT_OPTION, icon, initialValue);
+    }
 
     public String getTitle() {
         return this.title;
@@ -51,14 +60,14 @@ public abstract class PopUP implements Runnable {
         this.jd = jd;
     }
 
-    @Override 
+    @Override
     public void run() throws NullPointerException, IllegalStateException {
 
         if (this.jp == null) {
             throw new NullPointerException("JOptionPane can't be null!");
         }
 
-        if (this.on) { 
+        if (this.on) {
             throw new IllegalStateException("PopUP is already on!");
         }
 
@@ -78,7 +87,7 @@ public abstract class PopUP implements Runnable {
         return new Thread(this);
     }
 
-    @Override 
+    @Override
     public String toString() {
 
         StringBuilder sb = new StringBuilder();
@@ -89,7 +98,9 @@ public abstract class PopUP implements Runnable {
         if (m == null) {
             sb.append("null\n");
         } else {
-            m.forEach((name, obj) -> {sb.append(name).append(" : ").append(obj.toString()).append("\n");});
+            m.forEach((name, obj) -> {
+                sb.append(name).append(" : ").append(obj.toString()).append("\n");
+            });
         }
 
         return sb.toString();
@@ -97,6 +108,7 @@ public abstract class PopUP implements Runnable {
     }
 
     public abstract Map<String, Object> getMap();
+
     public abstract void setMap(Map<String, Object> m);
-    
+
 }
