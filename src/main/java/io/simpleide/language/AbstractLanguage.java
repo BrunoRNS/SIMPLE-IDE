@@ -42,7 +42,7 @@ public abstract class AbstractLanguage
         input += "\n" + s;
     }
 
-    protected void pbinit() {
+    public void run() {
         if (this.p != null) {
             throw new ProcessAlreadyExistsException(
                 "Impossible to Run the script while still running another",
@@ -52,7 +52,7 @@ public abstract class AbstractLanguage
 
             File f = null;
 
-            if (input != null && !input.isBlank()) {
+            if (input != null && !input.isEmpty() && !input.isBlank()) {
 
                 f = File.createTempFile(
                     UUID.randomUUID().toString().replace("-", ""),
@@ -127,19 +127,20 @@ public abstract class AbstractLanguage
     protected void handleExit(Process t) {
         int exitCode = t.exitValue();
 
+        this.p = null;
+
         if (exitCode != 0) {
             if (stopped) {
                 stopped = false;
-                addSystemLog("[IDE] Process manually interrupted by the user.");
-                this.p = null;
+                addSystemLog("[IDE] Process manually interrupted by the user.\n");
                 return;
             }
 
             addUserLog("RUNTIME ERROR: " + exitCode);
-            addSystemLog("[Runtime Error] The developer's program broke with code: " + exitCode);
+            addSystemLog("[Runtime Error] The developer's program broke with code: " + exitCode + "\n");
             
         } else {
-            addSystemLog("[IDE] Process completed successfully.");
+            addSystemLog("[IDE] Process completed successfully.\n");
         }
 
         this.p = null;
@@ -162,7 +163,7 @@ public abstract class AbstractLanguage
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            addSystemLog("[Debug] The interrupt thread was itself interrupted.");
+            addSystemLog("[Debug] The interrupt thread was itself interrupted.\n");
         }
     
     }
