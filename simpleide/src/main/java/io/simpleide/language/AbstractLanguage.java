@@ -101,7 +101,7 @@ implements Runnable
     }
 
     protected void addUserLog(String s) {
-        userLog.append(s).append('\n');
+        userLog.append("[OUTPUT] ").append(s).append('\n');
     }
 
     protected void addSystemLog(String s) {
@@ -129,20 +129,19 @@ implements Runnable
     protected void handleExit(Process t) {
         int exitCode = t.exitValue();
 
-        this.p = null;
-
         if (exitCode != 0) {
             if (stopped) {
                 stopped = false;
-                addSystemLog("[IDE] Process manually interrupted by the user.\n");
+                addSystemLog("[IDE] Process manually interrupted by the user.");
+                this.p = null;
                 return;
             }
 
             addUserLog("RUNTIME ERROR: " + exitCode);
-            addSystemLog("[Runtime Error] The developer's program broke with code: " + exitCode + "\n");
+            addSystemLog("[Runtime Error] The developer's program broke with code: " + exitCode);
             
         } else {
-            addSystemLog("[IDE] Process completed successfully.\n");
+            addSystemLog("[IDE] Process completed successfully.");
         }
 
         this.p = null;
@@ -165,7 +164,7 @@ implements Runnable
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            addSystemLog("[Debug] The interrupt thread was itself interrupted.\n");
+            addSystemLog("[Debug] The interrupt thread was itself interrupted.");
         }
     
     }
