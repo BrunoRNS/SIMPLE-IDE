@@ -12,6 +12,7 @@ import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
 import io.simpleide.language.exceptions.ProcessFatalException;
 
 public abstract class AbstractLanguage 
+implements Runnable
 {
     
     protected ProcessBuilder pb;
@@ -52,7 +53,7 @@ public abstract class AbstractLanguage
 
             File f = null;
 
-            if (input != null && !input.isEmpty() && !input.isBlank()) {
+            if (input != null && !input.isBlank()) {
 
                 f = File.createTempFile(
                     UUID.randomUUID().toString().replace("-", ""),
@@ -107,8 +108,9 @@ public abstract class AbstractLanguage
         systemLog.append(s).append('\n');
     }
 
-    protected abstract Thread getThread();
-    public abstract void execute();
+    protected Thread getThread() {
+        return new Thread(this);
+    }
 
     protected Consumer<Process> getHandler() {
         return new InternalExitHandler();
