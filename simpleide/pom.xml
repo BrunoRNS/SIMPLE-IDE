@@ -1,21 +1,17 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>io</groupId>
-  <artifactId>simpleide</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
-  <name>Archetype - simpleide</name>
-  <url>http://maven.apache.org</url>
 
-  <properties>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <maven.compiler.release>17</maven.compiler.release>
-    <junit.version>5.14.4</junit.version>
-    <junit.platform.version>1.14.4</junit.platform.version>
-    <pitest.version>1.30.1</pitest.version>
-    <groovy.version>4.0.16</groovy.version>
-    <kotlin.version>1.9.22</kotlin.version>
-  </properties>
+  <parent>
+    <groupId>io</groupId>
+    <artifactId>simpleide-parent</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>simpleide</artifactId>
+  <name>Simple IDE application</name>
+  <url>http://maven.apache.org</url>
 
   <dependencies>
     <dependency>
@@ -44,16 +40,6 @@
       <groupId>com.fifesoft</groupId>
       <artifactId>autocomplete</artifactId>
       <version>3.3.3</version>
-    </dependency>
-    <dependency>
-        <groupId>org.jetbrains.kotlin</groupId>
-        <artifactId>kotlin-scripting-jsr223</artifactId>
-        <version>${kotlin.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>org.apache.groovy</groupId>
-        <artifactId>groovy</artifactId>
-        <version>${groovy.version}</version>
     </dependency>
   </dependencies>
 

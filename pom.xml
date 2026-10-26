@@ -1,0 +1,25 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io</groupId>
+  <artifactId>simpleide-parent</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <packaging>pom</packaging>
+  <name>Simple IDE parent</name>
+
+  <modules>
+    <module>simplebytecode-compiler</module>
+    <module>simpleide</module>
+  </modules>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+    <junit.version>5.14.4</junit.version>
+    <junit.platform.version>1.14.4</junit.platform.version>
+    <pitest.version>1.30.1</pitest.version>
+    <groovy.version>4.0.16</groovy.version>
+    <kotlin.version>1.9.22</kotlin.version>
+  </properties>
+</project>

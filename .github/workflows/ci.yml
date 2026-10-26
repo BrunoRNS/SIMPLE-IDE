@@ -25,12 +25,15 @@ jobs:
       - name: Run tests
         run: ./mvnw -B -Djava.awt.headless=true test-compile surefire:test
 
+      - name: Run bytecode compiler tests
+        run: ./mvnw -B -pl simplebytecode-compiler verify
+
       - name: Build application
-        run: ./mvnw -B -DskipTests compile jar:jar assembly:single
+        run: ./mvnw -B -DskipTests package
 
       - name: Upload packaged application
         uses: actions/upload-artifact@v4
         with:
           name: simple-ide
-          path: target/maven-mutation-testing-jar-with-dependencies.jar
+          path: simpleide/target/maven-mutation-testing-jar-with-dependencies.jar
           if-no-files-found: error
