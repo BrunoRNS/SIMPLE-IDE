@@ -3,30 +3,28 @@ package io.simpleide.thread.nodes;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-public class ActionNode extends Node implements ActionListener {
+import io.simpleide.thread.ThreadMaster;
 
-    public ActionNode(NodePattern superNode, NodePattern actual) {
-        super(superNode, actual);
+public class ActionNode extends EDTNode implements ActionListener {
+
+    protected ActionEvent event;
+
+    public ActionNode(NodePattern actual) {
+        super(actual);
+    }
+
+    public ActionNode(Runnable onStart) {
+        super(onStart);
+    }
+
+    public ActionNode(Runnable onStart, Runnable onClose) {
+        super(onStart, onClose);
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Runnable onStart() {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Runnable onClose() {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-
-    @Override
-    public Integer level() {
-        throw new UnsupportedOperationException("Not supported yet.");
+        this.event = e;
+        ThreadMaster.getInstance().register(this);
     }
     
 }

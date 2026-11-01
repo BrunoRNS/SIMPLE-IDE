@@ -21,5 +21,13 @@ public final class ThreadMaster {
         }
     };
 
+    public static ThreadMaster getInstance() {
+        return ThreadMasterHolder.INSTANCE;
+    }
+
+    public void register(NodePattern node) {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
     
 }
