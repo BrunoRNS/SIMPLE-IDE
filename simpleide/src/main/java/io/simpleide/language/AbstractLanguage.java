@@ -149,18 +149,19 @@ implements Runnable
     }
 
     public void forceStop() throws ProcessFatalException {
-        if (this.p == null || !this.p.isAlive()) {
+        Process process = this.p;
+        if (process == null || !process.isAlive()) {
             return;
         }
 
         this.stopped = true;
-        this.p.destroyForcibly();
+        process.destroyForcibly();
 
         try {
-            boolean killed = this.p.waitFor(3, TimeUnit.SECONDS);
+            boolean killed = process.waitFor(3, TimeUnit.SECONDS);
             
             if (!killed) {
-                throw new ProcessFatalException("The process refused to die within 3 seconds.", this.p);
+                throw new ProcessFatalException("The process refused to die within 3 seconds.", process);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
