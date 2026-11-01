@@ -3,8 +3,9 @@
  */
 package io.simpleide;
 
-import io.simpleide.frame.MainFrame;
 import javax.swing.SwingUtilities;
+
+import io.simpleide.frame.MainFrame;
 
 /**
  * 
