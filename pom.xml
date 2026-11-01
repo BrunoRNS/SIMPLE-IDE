@@ -12,6 +12,14 @@
     <module>simplebytecode-compiler</module>
     <module>simpleide</module>
   </modules>
+  
+  <dependencies>
+    <dependency>
+      <groupId>ch.qos.logback</groupId>
+      <artifactId>logback-classic</artifactId>
+      <version>1.6.6</version>
+    </dependency>   
+  </dependencies>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
