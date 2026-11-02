@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Logger;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
+import io.simpleide.frame.menubar.MenuBarFactory;
+import io.simpleide.frame.menubar.ThemeManager;
 
 public class MainFrame extends JFrame implements Runnable {
 
@@ -22,6 +24,8 @@ public class MainFrame extends JFrame implements Runnable {
     add(logPanel);
     attachLogAppender(logPanel);
 
+    ThemeManager.getInstance().register(this);
+    MenuBarFactory.createMenuBar(this);
     logger.info("start IDE");
 
     pack();
