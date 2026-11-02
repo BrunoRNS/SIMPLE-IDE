@@ -2,7 +2,11 @@ package io.simpleide.thread;
 
 import io.simpleide.thread.nodes.NodePattern;
 
-public final class ThreadMaster {
+public final class ThreadMaster extends AbstractThreadMaster {
+
+    private ThreadMaster() {
+        super(ThreadMaster.ROOT);
+    }
 
     public static final NodePattern ROOT = new NodePattern() {
         @Override
@@ -22,17 +26,15 @@ public final class ThreadMaster {
 
         @Override
         public boolean isEDT() {
-            throw new UnsupportedOperationException("Not supported yet.");
+            return false;
         }
     };
 
     public static ThreadMaster getInstance() {
-        return ThreadMasterHolder.INSTANCE;
+        return Holder.INSTANCE;
     }
 
-    public void register(NodePattern node) {
-        throw new UnsupportedOperationException("Not supported yet.");
+    private static final class Holder {
+        private static final ThreadMaster INSTANCE = new ThreadMaster();
     }
-
-    
 }

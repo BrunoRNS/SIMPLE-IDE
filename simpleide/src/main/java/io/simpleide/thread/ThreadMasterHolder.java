@@ -1,8 +1,10 @@
 package io.simpleide.thread;
 
 
-public class ThreadMasterHolder {
+public final class ThreadMasterHolder {
 
-    public static final ThreadMaster INSTANCE = new ThreadMaster();
+    public static final ThreadMaster INSTANCE = ThreadMaster.getInstance();
+
+    private ThreadMasterHolder() {}
 
 }

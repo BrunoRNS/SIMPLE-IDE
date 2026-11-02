@@ -8,17 +8,21 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
 import io.simpleide.language.exceptions.ProcessFatalException;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 public abstract class AbstractLanguage implements Runnable {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractLanguage.class);
     
     protected ProcessBuilder pb;
     protected volatile Process p;
     protected volatile boolean stopped = false;
-    
-    protected final StringBuilder systemLog = new StringBuilder();
-    protected final StringBuilder userLog = new StringBuilder();
 
     protected String input = "";
     protected String langFriendly = null;
@@ -64,7 +68,7 @@ public abstract class AbstractLanguage implements Runnable {
             try (Scanner scanner = new Scanner(p.getInputStream())) {
                 while (scanner.hasNextLine()) {
                     String line = scanner.nextLine();
-                    addUserLog(line);
+                    LOGGER.info("[OUTPUT] {}", line);
                 }
             } catch (Exception e) {
                 if (!stopped) {
@@ -77,21 +81,12 @@ public abstract class AbstractLanguage implements Runnable {
         }
     }
 
-    protected synchronized void addUserLog(String s) {
-        userLog.append("[OUTPUT] ").append(s).append('\n');
-    }
-
-    protected synchronized void addSystemLog(String s) {
-        systemLog.append(s).append('\n');
-    }
-
-    public synchronized String getUserLog() { return userLog.toString(); }
-    public synchronized String getSystemLog() { return systemLog.toString(); }
-
-    protected Thread getThread() {
-        Thread t = new Thread(this);
-        t.setDaemon(true);
-        return t;
+    protected RunnableNode startManaged() {
+        ThreadMaster threadMaster = ThreadMaster.getInstance();
+        threadMaster.initialize();
+        RunnableNode node = new RunnableNode(this);
+        threadMaster.register(node);
+        return node;
     }
 
     protected Consumer<Process> getHandler() {
@@ -111,13 +106,13 @@ public abstract class AbstractLanguage implements Runnable {
 
             if (exitCode != 0) {
                 if (stopped) {
-                    addSystemLog("[IDE] Process manually interrupted by the user.");
+                    LOGGER.info("[IDE] Process manually interrupted by the user.");
                     return;
                 }
-                addUserLog("RUNTIME ERROR: " + exitCode);
-                addSystemLog("[Runtime Error] The developer's program broke with code: " + exitCode);
+                LOGGER.error("[OUTPUT] RUNTIME ERROR: {}", exitCode);
+                LOGGER.error("[Runtime Error] The developer's program broke with code: {}", exitCode);
             } else {
-                addSystemLog("[IDE] Process completed successfully.");
+                LOGGER.info("[IDE] Process completed successfully.");
             }
         } finally {
             if (currentTempInputFile != null && currentTempInputFile.exists()) {
@@ -143,11 +138,10 @@ public abstract class AbstractLanguage implements Runnable {
                 throw new ProcessFatalException("The process refused to die within 3 seconds.", process);
             }
         } catch (InterruptedException e) {
-            addSystemLog("[Debug] The interrupt thread was itself interrupted.");
+            LOGGER.debug("[Debug] The interrupt thread was itself interrupted.", e);
             Thread.currentThread().interrupt();
         }
 
     }
 
 }
-

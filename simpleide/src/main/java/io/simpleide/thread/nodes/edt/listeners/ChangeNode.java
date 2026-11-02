@@ -30,20 +30,18 @@ public class ChangeNode extends EDTNode implements ChangeListener {
 
     @Override
     public Runnable onStart() {
-        return new ChangeNodeStartRunnable(this);
+        return new ChangeNodeStartRunnable(this, event);
     }
 
     @Override 
     public Runnable onClose() {
-        return new ChangeNodeCloseRunnable(this);
+        return new ChangeNodeCloseRunnable(this, event);
     }
 
     @Override
     public void stateChanged(ChangeEvent e) {
         this.event = e;
-        this.start = this.onStart();
-        this.close = this.onClose();
-        ThreadMaster.getInstance().register(this);
+        ThreadMaster.getInstance().executeOnEDT(this.onStart(), this.onClose());
     }
     
 }
@@ -51,15 +49,17 @@ public class ChangeNode extends EDTNode implements ChangeListener {
 class ChangeNodeStartRunnable implements Runnable {
 
     private final ChangeNode node;
+    private final ChangeEvent event;
 
-    public ChangeNodeStartRunnable(ChangeNode node) {
+    public ChangeNodeStartRunnable(ChangeNode node, ChangeEvent event) {
         this.node = node;
+        this.event = event;
     }
 
     @Override
     public void run() {
         if (this.node.c_onStart != null) {
-            this.node.c_onStart.accept(this.node.event);
+            this.node.c_onStart.accept(this.event);
         }
     }
     
@@ -68,15 +68,17 @@ class ChangeNodeStartRunnable implements Runnable {
 class ChangeNodeCloseRunnable implements Runnable {
 
     private final ChangeNode node;
+    private final ChangeEvent event;
 
-    public ChangeNodeCloseRunnable(ChangeNode node) {
+    public ChangeNodeCloseRunnable(ChangeNode node, ChangeEvent event) {
         this.node = node;
+        this.event = event;
     }
 
     @Override
     public void run() {
         if (this.node.c_onClose != null) {
-            this.node.c_onClose.accept(this.node.event);
+            this.node.c_onClose.accept(this.event);
         }
     }
     

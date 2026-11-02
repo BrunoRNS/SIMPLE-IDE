@@ -29,20 +29,18 @@ public class ActionNode extends EDTNode implements ActionListener {
 
     @Override
     public Runnable onStart() {
-        return new ActionNodeStartRunnable(this);
+        return new ActionNodeStartRunnable(this, event);
     }
 
-    @Override 
+    @Override
     public Runnable onClose() {
-          return new ActionNodeCloseRunnable(this);
-     }
+        return new ActionNodeCloseRunnable(this, event);
+    }
 
     @Override
     public void actionPerformed(ActionEvent e) {
         this.event = e;
-        this.start = this.onStart();
-        this.close = this.onClose();
-        ThreadMaster.getInstance().register(this);
+        ThreadMaster.getInstance().executeOnEDT(this.onStart(), this.onClose());
     }
     
 }
@@ -50,15 +48,17 @@ public class ActionNode extends EDTNode implements ActionListener {
 class ActionNodeStartRunnable implements Runnable {
 
     private final ActionNode node;
+    private final ActionEvent event;
 
-    public ActionNodeStartRunnable(ActionNode node) {
+    public ActionNodeStartRunnable(ActionNode node, ActionEvent event) {
         this.node = node;
+        this.event = event;
     }
 
     @Override
     public void run() {
         if (this.node.c_onStart != null) {
-            this.node.c_onStart.accept(this.node.event);
+            this.node.c_onStart.accept(this.event);
         }
     }
     
@@ -67,15 +67,17 @@ class ActionNodeStartRunnable implements Runnable {
 class ActionNodeCloseRunnable implements Runnable {
 
     private final ActionNode node;
+    private final ActionEvent event;
 
-    public ActionNodeCloseRunnable(ActionNode node) {
+    public ActionNodeCloseRunnable(ActionNode node, ActionEvent event) {
         this.node = node;
+        this.event = event;
     }
 
     @Override
     public void run() {
         if (this.node.c_onClose != null) {
-            this.node.c_onClose.accept(this.node.event);
+            this.node.c_onClose.accept(this.event);
         }
     }
     
