@@ -19,6 +19,11 @@ public final class ThreadMaster {
         public Integer level() {
             return 0;
         }
+
+        @Override
+        public boolean isEDT() {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
     };
 
     public static ThreadMaster getInstance() {

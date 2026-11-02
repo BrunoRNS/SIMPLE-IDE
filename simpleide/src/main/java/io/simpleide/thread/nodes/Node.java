@@ -1,5 +1,8 @@
 package io.simpleide.thread.nodes;
 
+import io.simpleide.thread.nodes.record.NodeRecord;
+import io.simpleide.thread.nodes.record.NodeRecordFactory;
+
 public abstract class Node implements NodePattern {
 
     protected Runnable start;
@@ -21,6 +24,13 @@ public abstract class Node implements NodePattern {
         this.start = actual.onStart();
         this.close = actual.onClose();
         this.level = actual.level();
+    }
+
+    public Node(NodePattern superNode) {
+        this.superNode = NodeRecordFactory.create(superNode);
+        this.start = null;
+        this.close = null;
+        this.level = null;
     }
 
     public Node(NodePattern superNode, Runnable onStart) {

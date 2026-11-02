@@ -1,4 +1,6 @@
-package io.simpleide.thread.nodes;
+package io.simpleide.thread.nodes.record;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 public class NodeRecordFactory {
 

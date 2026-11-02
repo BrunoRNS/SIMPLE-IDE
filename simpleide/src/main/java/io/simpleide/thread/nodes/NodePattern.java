@@ -6,5 +6,6 @@ public interface NodePattern {
     public abstract Runnable onClose();
 
     public abstract Integer level();
+    public abstract boolean isEDT();
     
 }

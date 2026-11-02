@@ -1,8 +1,14 @@
-package io.simpleide.thread.nodes;
+package io.simpleide.thread.nodes.edt;
 
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.Node;
+import io.simpleide.thread.nodes.NodePattern;
 
 public class EDTNode extends Node {
+
+    public EDTNode() {
+        super(ThreadMaster.ROOT);
+    }
 
     public EDTNode(NodePattern actual) {
         super(ThreadMaster.ROOT, actual);
@@ -30,6 +36,11 @@ public class EDTNode extends Node {
     @Override
     public Integer level() {
         return 1;
+    }
+
+    @Override
+    public boolean isEDT() {
+        return true;
     }
     
 }
