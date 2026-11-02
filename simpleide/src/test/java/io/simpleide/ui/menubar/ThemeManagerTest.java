@@ -1,4 +1,4 @@
-package io.simpleide.frame.menubar;
+package io.simpleide.ui.menubar;
 
 import static org.assertj.core.api.Assertions.assertThat;
 

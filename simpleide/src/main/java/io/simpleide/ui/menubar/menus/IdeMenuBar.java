@@ -1,4 +1,4 @@
-package io.simpleide.frame.menubar.menus;
+package io.simpleide.ui.menubar.menus;
 
 import javax.swing.JMenuBar;
 

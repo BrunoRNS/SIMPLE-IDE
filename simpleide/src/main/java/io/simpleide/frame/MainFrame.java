@@ -7,8 +7,8 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Logger;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
-import io.simpleide.frame.menubar.MenuBarFactory;
-import io.simpleide.frame.menubar.ThemeManager;
+import io.simpleide.ui.menubar.MenuBarFactory;
+import io.simpleide.ui.menubar.ThemeManager;
 
 public class MainFrame extends JFrame implements Runnable {
 

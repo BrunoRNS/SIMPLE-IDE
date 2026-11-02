@@ -1,4 +1,4 @@
-package io.simpleide.frame.menubar.menus;
+package io.simpleide.ui.menubar.menus;
 
 import javax.swing.ButtonGroup;
 import javax.swing.JMenu;
@@ -7,7 +7,7 @@ import javax.swing.JRadioButtonMenuItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.frame.menubar.ThemeManager;
+import io.simpleide.ui.menubar.ThemeManager;
 
 public class ThemeMenu extends JMenu {
 

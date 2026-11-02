@@ -1,4 +1,4 @@
-package io.simpleide.frame.menubar.actions;
+package io.simpleide.ui.menubar.actions;
 
 import java.awt.Font;
 import java.awt.Window;

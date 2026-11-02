@@ -1,10 +1,10 @@
-package io.simpleide.frame.menubar.menus;
+package io.simpleide.ui.menubar.menus;
 
 import javax.swing.JMenu;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
 
-import io.simpleide.frame.menubar.actions.FontSizeAction;
+import io.simpleide.ui.menubar.actions.FontSizeAction;
 
 public class SettingsMenu extends JMenu {
 
