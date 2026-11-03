@@ -1,18 +1,17 @@
 package io.simpleide.utils;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.Test;
 
 class ResourceAndFileUtilTest {
     @Test
-    void readsUtf8FilesFromPath() throws IOException {
+    public void readsUtf8FilesFromPath() throws IOException {
         Path file = Files.createTempFile("simpleide-file-util-", ".txt");
         try {
             Files.writeString(file, "olá, mundo", StandardCharsets.UTF_8);
@@ -24,7 +23,7 @@ class ResourceAndFileUtilTest {
     }
 
     @Test
-    void resolvesResourcesByPackageNameOrClass() throws IOException {
+    public void resolvesResourcesByPackageNameOrClass() throws IOException {
         Path fromPackage = ResourceUtil.getResourcePath("io.simpleide.utils", "sample.txt");
         Path fromClass = ResourceUtil.getResourcePath(FileUtil.class, "sample.txt");
 
@@ -32,11 +31,12 @@ class ResourceAndFileUtilTest {
         assertEquals("resource content\n", FileUtil.readString(fromClass));
     }
 
+    
     @Test
-    void rejectsResourcePathTraversal() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> ResourceUtil.getResourcePath("io.simpleide.utils", "../sample.txt")
-        );
+    public void rejectsResourcePathTraversal() {
+        assertThatThrownBy(() -> ResourceUtil.getResourcePath("io.simpleide.utils", "../sample.txt"))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("..");
     }
+
 }

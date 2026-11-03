@@ -15,9 +15,7 @@ public final class LoadIcon {
             throw new MissingResourceException("Icon resource not found", url, url);
         }
 
-        Icon icon = null;
-
-        icon =  new ImageIcon(urlIcon);
+        Icon icon = new ImageIcon(urlIcon);
 
         return icon;
     }
