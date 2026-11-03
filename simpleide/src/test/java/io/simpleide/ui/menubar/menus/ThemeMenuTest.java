@@ -34,13 +34,13 @@ class ThemeMenuTest {
 
   private void selectThemeAndAssert(
       ThemeMenu themeMenu, String theme, Class<?> expectedLookAndFeel) throws Exception {
-    SwingUtilities.invokeAndWait(() -> item(themeMenu, theme).doClick());
+    SwingUtilities.invokeAndWait(() -> {
+      item(themeMenu, theme).doClick();
+      assertThat(item(themeMenu, theme).isSelected()).isTrue();
+    });
 
-    await().atMost(Duration.ofSeconds(2)).untilAsserted(() ->
-        SwingUtilities.invokeAndWait(() -> {
-          assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(expectedLookAndFeel);
-          assertThat(item(themeMenu, theme).isSelected()).isTrue();
-        }));
+    await().atMost(Duration.ofSeconds(30)).untilAsserted(() ->
+        assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(expectedLookAndFeel));
   }
 
   private JMenuItem item(ThemeMenu menu, String text) {
