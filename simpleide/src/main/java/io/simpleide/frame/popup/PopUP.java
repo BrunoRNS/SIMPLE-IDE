@@ -6,7 +6,9 @@ import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
-import javax.swing.SwingUtilities;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.NodePattern;
 
 public abstract class PopUP implements Runnable {
 
@@ -62,29 +64,39 @@ public abstract class PopUP implements Runnable {
 
     @Override
     public void run() throws NullPointerException, IllegalStateException {
-
-        if (this.jp == null) {
-            throw new NullPointerException("JOptionPane can't be null!");
-        }
-
-        if (this.on) {
-            throw new IllegalStateException("PopUP is already on!");
-        }
-
-        this.on = true;
-
-        SwingUtilities.invokeLater(() -> {
-            if (this.jd == null) {
-                this.jd = jp.createDialog(this.parent, this.title);
-            }
-            this.jd.setVisible(true);
-            this.on = false;
-        });
-
+        startManaged();
     }
 
-    public Thread getThread() {
-        return new Thread(this);
+    public NodePattern startManaged() {
+        synchronized (this) {
+            if (this.jp == null) {
+                throw new NullPointerException("JOptionPane can't be null!");
+            }
+            if (this.on) {
+                throw new IllegalStateException("PopUP is already on!");
+            }
+            this.on = true;
+        }
+
+        try {
+            return ThreadMaster.getInstance().executeOnEDT(this::showDialog, () -> {
+                synchronized (PopUP.this) {
+                    PopUP.this.on = false;
+                }
+            });
+        } catch (RuntimeException | Error exception) {
+            synchronized (this) {
+                this.on = false;
+            }
+            throw exception;
+        }
+    }
+
+    private void showDialog() {
+        if (this.jd == null) {
+            this.jd = jp.createDialog(this.parent, this.title);
+        }
+        this.jd.setVisible(true);
     }
 
     @Override

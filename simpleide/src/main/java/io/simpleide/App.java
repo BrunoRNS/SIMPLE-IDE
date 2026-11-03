@@ -4,7 +4,8 @@
 package io.simpleide;
 
 import io.simpleide.frame.MainFrame;
-import javax.swing.SwingUtilities;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.EDTNode;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 
@@ -17,11 +18,9 @@ public class App {
    * @param args
    */
   public static void main(String[] args) {
-
-    FlatDarkLaf.setup();
-    Runnable frame = new MainFrame();
-    SwingUtilities.invokeLater(frame);
-
+    ThreadMaster threadMaster = ThreadMaster.getInstance();
+    threadMaster.register(new EDTNode(() -> new MainFrame().run()));
+    threadMaster.initialize();
   }
 
 }
