@@ -7,19 +7,19 @@ import io.simpleide.thread.nodes.NodePattern;
 public class EDTNode extends Node {
 
     public EDTNode() {
-        super(ThreadMaster.ROOT);
+        super(ThreadMaster.getInstance().getROOT());
     }
 
     public EDTNode(NodePattern actual) {
-        super(ThreadMaster.ROOT, actual);
+        super(ThreadMaster.getInstance().getROOT(), actual);
     }
 
     public EDTNode(Runnable onStart) {
-        super(ThreadMaster.ROOT, onStart);
+        super(ThreadMaster.getInstance().getROOT(), onStart);
     }
 
     public EDTNode(Runnable onStart, Runnable onClose) {
-        super(ThreadMaster.ROOT, onStart, onClose);
+        super(ThreadMaster.getInstance().getROOT(), onStart, onClose);
     }
 
 

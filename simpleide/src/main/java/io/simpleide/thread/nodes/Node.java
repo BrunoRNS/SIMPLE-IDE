@@ -9,9 +9,9 @@ public abstract class Node implements NodePattern {
     protected Runnable close;
     protected Integer level;
 
-    protected NodeRecord superNode;
+    protected NodePattern superNode;
 
-    public NodeRecord getSuperNode() {
+    public NodePattern getSuperNode() {
         return superNode;
     }
 
@@ -20,7 +20,7 @@ public abstract class Node implements NodePattern {
     }
 
     public Node(NodePattern superNode, NodePattern actual) {
-        this.superNode = NodeRecordFactory.create(superNode);
+        this.superNode = superNode;
         this.start = actual.onStart();
         this.close = actual.onClose();
         Integer actualLevel = actual.level();
@@ -29,7 +29,7 @@ public abstract class Node implements NodePattern {
     }
 
     public Node(NodePattern superNode) {
-        this.superNode = NodeRecordFactory.create(superNode);
+        this.superNode = superNode;
         this.start = null;
         this.close = null;
         this.level = nextLevel(superNode);
@@ -37,7 +37,7 @@ public abstract class Node implements NodePattern {
     }
 
     public Node(NodePattern superNode, Runnable onStart) {
-        this.superNode = NodeRecordFactory.create(superNode);
+        this.superNode = superNode;
         this.start = onStart;
         this.close = null;
         this.level = nextLevel(superNode);
@@ -45,7 +45,7 @@ public abstract class Node implements NodePattern {
     }
 
     public Node(NodePattern superNode, Runnable onStart, Integer level) {
-        this.superNode = NodeRecordFactory.create(superNode);
+        this.superNode = superNode;
         this.start = onStart;
         this.close = null;
         this.level = level == null ? nextLevel(superNode) : level;
@@ -53,7 +53,7 @@ public abstract class Node implements NodePattern {
     }
 
     public Node(NodePattern superNode, Runnable onStart, Runnable onClose) {
-        this.superNode = NodeRecordFactory.create(superNode);
+        this.superNode = superNode;
         this.start = onStart;
         this.close = onClose;
         this.level = nextLevel(superNode);
@@ -61,7 +61,7 @@ public abstract class Node implements NodePattern {
     }
 
     public Node(NodePattern superNode, Runnable onStart, Runnable onClose, Integer level) {
-        this.superNode = NodeRecordFactory.create(superNode);
+        this.superNode = superNode;
         this.start = onStart;
         this.close = onClose;
         this.level = level == null ? nextLevel(superNode) : level;

@@ -16,13 +16,15 @@ import io.simpleide.thread.ThreadMaster;
 
 class EDTNodeListenerTest {
 
+    private static final int TEST_TIMEOUT_SECONDS = 2;
+
     @BeforeAll
-    public static void initializeThreadManager() {
+    static void initializeThreadManager() {
         ThreadMaster.getInstance().initialize();
     }
 
     @Test
-    public void actionNodeRegistersAndRunsCallbacksOnEdtWithItsEvent() throws Exception {
+    void actionNodeRegistersAndRunsCallbacksOnEdtWithItsEvent() throws Exception {
         ThreadMaster master = ThreadMaster.getInstance();
         int treeSizeBefore = master.showTree().size();
         Object source = new Object();
@@ -47,15 +49,15 @@ class EDTNodeListenerTest {
 
         SwingUtilities.invokeAndWait(() -> node.actionPerformed(event));
 
-        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
-        assertThat(closed.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+        assertThat(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
         assertThat(master.showTree()).hasSize(treeSizeBefore);
         assertThat(startedEvent.get()).isSameAs(event);
         assertThat(closedEvent.get()).isSameAs(event);
     }
 
     @Test
-    public void changeNodeRegistersAndRunsCallbacksOnEdtWithItsEvent() throws Exception {
+    void changeNodeRegistersAndRunsCallbacksOnEdtWithItsEvent() throws Exception {
         ThreadMaster master = ThreadMaster.getInstance();
         int treeSizeBefore = master.showTree().size();
         Object source = new Object();
@@ -80,8 +82,8 @@ class EDTNodeListenerTest {
 
         SwingUtilities.invokeAndWait(() -> node.stateChanged(event));
 
-        assertThat(started.await(5, TimeUnit.SECONDS)).isTrue();
-        assertThat(closed.await(5, TimeUnit.SECONDS)).isTrue();
+        assertThat(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+        assertThat(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
         assertThat(master.showTree()).hasSize(treeSizeBefore);
         assertThat(startedEvent.get()).isSameAs(event);
         assertThat(closedEvent.get()).isSameAs(event);

@@ -19,15 +19,15 @@ public class RunnableNode extends Node {
     }
 
     public RunnableNode(NodePattern actual) {
-        super(ThreadMaster.ROOT, actual);
+        super(ThreadMaster.getInstance().getROOT(), actual);
     }
 
     public RunnableNode(Runnable onStart) {
-        super(ThreadMaster.ROOT, onStart);
+        super(ThreadMaster.getInstance().getROOT(), onStart);
     }
 
     public RunnableNode(Runnable onStart, Runnable onClose) {
-        super(ThreadMaster.ROOT, onStart, onClose);
+        super(ThreadMaster.getInstance().getROOT(), onStart, onClose);
     }
 
     @Override

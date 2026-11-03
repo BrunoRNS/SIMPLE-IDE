@@ -65,7 +65,7 @@
         <executions>
           <execution>
             <id>pit-report</id>
-            <phase>test</phase>
+            <phase>verify</phase>
             <goals>
               <goal>mutationCoverage</goal>
             </goals>
