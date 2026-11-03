@@ -7,12 +7,13 @@ import javax.swing.AbstractAction;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.table.DefaultTableModel;
+
+import io.simpleide.frame.popup.InfoPopUP;
 
 public class HelpMenu extends JMenu {
 
@@ -48,8 +49,7 @@ public class HelpMenu extends JMenu {
     panel.add(new JLabel("No keyboard shortcuts are currently configured."));
     panel.add(new JScrollPane(shortcutsTable));
 
-    JOptionPane.showMessageDialog(
-        this, panel, "Keyboard Shortcuts", JOptionPane.INFORMATION_MESSAGE);
+    new InfoPopUP("Keyboard Shortcuts", panel, this).startManaged();
   }
 
   private void showMachineInformation() {
@@ -71,16 +71,14 @@ public class HelpMenu extends JMenu {
     textArea.setEditable(false);
     textArea.setOpaque(false);
     textArea.setFocusable(false);
-    JOptionPane.showMessageDialog(
-        this, textArea, "Machine Information", JOptionPane.INFORMATION_MESSAGE);
+    new InfoPopUP("Machine Information", textArea, this).startManaged();
   }
 
   private void showAbout() {
-    JOptionPane.showMessageDialog(
-        this,
-        "Simple IDE\nA lightweight, extensible development environment.",
+    new InfoPopUP(
         "About Simple IDE",
-        JOptionPane.INFORMATION_MESSAGE);
+        "Simple IDE\nA lightweight, extensible development environment.",
+        this).startManaged();
   }
 
   private String formatBytes(long bytes) {

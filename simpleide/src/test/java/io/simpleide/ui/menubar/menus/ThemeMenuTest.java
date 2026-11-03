@@ -1,7 +1,9 @@
 package io.simpleide.ui.menubar.menus;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
+import java.time.Duration;
 import javax.swing.JMenuItem;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -22,21 +24,23 @@ class ThemeMenuTest {
 
   @Test
   void selectingThemeShouldApplyItAndSelectTheMenuItem() throws Exception {
-    SwingUtilities.invokeAndWait(() -> {
-      ThemeMenu themeMenu = new ThemeMenu();
+    ThemeMenu[] themeMenu = new ThemeMenu[1];
+    SwingUtilities.invokeAndWait(() -> themeMenu[0] = new ThemeMenu());
 
-      item(themeMenu, "Light").doClick();
-      assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(FlatLightLaf.class);
-      assertThat(item(themeMenu, "Light").isSelected()).isTrue();
+    selectThemeAndAssert(themeMenu[0], "Light", FlatLightLaf.class);
+    selectThemeAndAssert(themeMenu[0], "Darcula", FlatDarculaLaf.class);
+    selectThemeAndAssert(themeMenu[0], "Dark", FlatDarkLaf.class);
+  }
 
-      item(themeMenu, "Darcula").doClick();
-      assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(FlatDarculaLaf.class);
-      assertThat(item(themeMenu, "Darcula").isSelected()).isTrue();
+  private void selectThemeAndAssert(
+      ThemeMenu themeMenu, String theme, Class<?> expectedLookAndFeel) throws Exception {
+    SwingUtilities.invokeAndWait(() -> item(themeMenu, theme).doClick());
 
-      item(themeMenu, "Dark").doClick();
-      assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(FlatDarkLaf.class);
-      assertThat(item(themeMenu, "Dark").isSelected()).isTrue();
-    });
+    await().atMost(Duration.ofSeconds(2)).untilAsserted(() ->
+        SwingUtilities.invokeAndWait(() -> {
+          assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(expectedLookAndFeel);
+          assertThat(item(themeMenu, theme).isSelected()).isTrue();
+        }));
   }
 
   private JMenuItem item(ThemeMenu menu, String text) {

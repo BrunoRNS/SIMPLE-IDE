@@ -7,6 +7,7 @@ import javax.swing.JRadioButtonMenuItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.ui.menubar.ThemeManager;
 
 public class ThemeMenu extends JMenu {
@@ -45,19 +46,19 @@ public class ThemeMenu extends JMenu {
   }
 
   protected void configureActions() {
-    light.addActionListener(e -> {
+    light.addActionListener(new ActionNode(e -> {
       log.info("Set light theme");
       ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.LIGHT);
-    });
+    }));
 
-    dark.addActionListener(e -> {
+    dark.addActionListener(new ActionNode(e -> {
       log.info("Set dark theme");
       ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DARK);
-    });
+    }));
 
-    darcula.addActionListener(e -> {
+    darcula.addActionListener(new ActionNode(e -> {
       log.info("Set Darcula theme");
       ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DRACULA);
-    });
+    }));
   }
 }
