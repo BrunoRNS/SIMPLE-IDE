@@ -27,11 +27,14 @@ class ResourceAndFileUtilTest {
         Path fromPackage = ResourceUtil.getResourcePath("io.simpleide.utils", "sample.txt");
         Path fromClass = ResourceUtil.getResourcePath(FileUtil.class, "sample.txt");
 
-        assertEquals("resource content\n", FileUtil.readString(fromPackage));
-        assertEquals("resource content\n", FileUtil.readString(fromClass));
+        assertEquals("resource content\n", normalizeNewlines(FileUtil.readString(fromPackage)));
+        assertEquals("resource content\n", normalizeNewlines(FileUtil.readString(fromClass)));
     }
 
-    
+    private static String normalizeNewlines(String value) {
+        return value.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
     @Test
     public void rejectsResourcePathTraversal() {
         assertThatThrownBy(() -> ResourceUtil.getResourcePath("io.simpleide.utils", "../sample.txt"))
