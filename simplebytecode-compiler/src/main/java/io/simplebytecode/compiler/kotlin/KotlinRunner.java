@@ -1,27 +1,47 @@
 package io.simplebytecode.compiler.kotlin;
 
-import java.nio.file.Path;
+import java.util.Objects;
+import javax.script.Compilable;
+import javax.script.CompiledScript;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 
 import io.simplebytecode.compiler.RunnerInterface;
 
 public class KotlinRunner implements RunnerInterface {
 
-    @Override
-    public void run() {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'run'");
-    }
+    private CompiledScript script;
 
     @Override
-    public String loadFile(Path file) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'loadFile'");
+    public void run() {
+        if (script == null) {
+            throw new IllegalStateException("Kotlin source has not been prepared.");
+        }
+        try {
+            script.eval();
+        } catch (ScriptException exception) {
+            throw new IllegalStateException("Could not run Kotlin script.", exception);
+        }
     }
 
     @Override
     public void prepare(String src) {
-        // TODO Auto-generated method stub
-        throw new UnsupportedOperationException("Unimplemented method 'prepare'");
+        script = null;
+        Objects.requireNonNull(src, "Kotlin source must not be null.");
+        ScriptEngine engine = new ScriptEngineManager(Thread.currentThread().getContextClassLoader())
+            .getEngineByExtension("kts");
+        if (engine == null) {
+            throw new IllegalStateException("Kotlin script engine is not available.");
+        }
+        if (!(engine instanceof Compilable compilable)) {
+            throw new IllegalStateException("The Kotlin script engine does not support compilation.");
+        }
+        try {
+            script = compilable.compile(src);
+        } catch (ScriptException exception) {
+            script = null;
+            throw new IllegalArgumentException("Could not compile Kotlin script.", exception);
+        }
     }
-    
 }
