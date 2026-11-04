@@ -1,5 +1,8 @@
 package io.simpleide.frame;
 
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+
 import javax.swing.JFrame;
 
 import org.slf4j.LoggerFactory;
@@ -7,6 +10,9 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Logger;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
+import io.simpleide.ui.menubar.MenuBarFactory;
+import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.thread.ThreadMaster;
 
 public class MainFrame extends JFrame implements Runnable {
 
@@ -15,13 +21,21 @@ public class MainFrame extends JFrame implements Runnable {
   @Override
   public void run() {
 
-    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     setLocationRelativeTo(null);
+    addWindowListener(new WindowAdapter() {
+      @Override
+      public void windowClosed(WindowEvent event) {
+        ThreadMaster.getInstance().shutdown();
+      }
+    });
 
     LogPanel logPanel = new LogPanel();
     add(logPanel);
     attachLogAppender(logPanel);
 
+    ThemeManager.getInstance().register(this);
+    MenuBarFactory.createMenuBar(this);
     logger.info("start IDE");
 
     pack();

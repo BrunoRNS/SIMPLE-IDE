@@ -56,7 +56,7 @@ public final class ResourceUtil {
         if (fileName == null || fileName.isBlank()
             || ".".equals(fileName) || "..".equals(fileName)
             || fileName.indexOf('/') >= 0 || fileName.indexOf('\\') >= 0) {
-            throw new IllegalArgumentException("File name must be a single resource name.");
+            throw new IllegalArgumentException("File name must be a single resource name: " + fileName);
         }
         return String.join("/", segments) + "/" + fileName;
     }
