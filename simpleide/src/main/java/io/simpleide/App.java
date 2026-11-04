@@ -12,13 +12,13 @@ import io.simpleide.thread.nodes.edt.EDTNode;
  */
 public class App {
 
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) {
-		ThreadMaster threadMaster = ThreadMaster.getInstance();
-		threadMaster.register(new EDTNode(() -> new MainFrame().run()));
-		threadMaster.initialize();
-	}
+  /**
+   * @param args
+   */
+  public static void main(String[] args) {
+    ThreadMaster threadMaster = ThreadMaster.getInstance();
+    threadMaster.register(new EDTNode(() -> new MainFrame().run()));
+    threadMaster.initialize();
+  }
 
 }

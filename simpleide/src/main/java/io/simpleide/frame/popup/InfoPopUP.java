@@ -12,19 +12,19 @@ import io.simpleide.utils.mappeable.MappeableSupport;
 @Mappeable
 public class InfoPopUP extends PopUP implements MappeableSupport {
 
-  public InfoPopUP(String title, String message, JComponent parent, Object option) {
+  public InfoPopUP(String title, Object message, JComponent parent, Object option) {
     super(parent, title, message, JOptionPane.INFORMATION_MESSAGE, LoadIcon.loadingIcon("info.png"), option);
   }
 
-  public InfoPopUP(String title, String message) {
+  public InfoPopUP(String title, Object message) {
     this(title, message, null, "Ok");
   }
 
-  public InfoPopUP(String title, String message, Object option) {
+  public InfoPopUP(String title, Object message, Object option) {
     this(title, message, null, option);
   }
 
-  public InfoPopUP(String title, String message, JComponent parent) {
+  public InfoPopUP(String title, Object message, JComponent parent) {
     this(title, message, parent, "Ok");
   }
 

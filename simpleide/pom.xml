@@ -47,11 +47,24 @@
       <artifactId>autocomplete</artifactId>
       <version>3.3.3</version>
     </dependency>
+    <dependency>
+      <groupId>com.formdev</groupId>
+      <artifactId>flatlaf</artifactId>
+      <version>3.7.2</version>
+    </dependency>
   </dependencies>
 
   <build>
     <finalName>maven-mutation-testing</finalName>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+        <configuration>
+          <overwrite>true</overwrite>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>

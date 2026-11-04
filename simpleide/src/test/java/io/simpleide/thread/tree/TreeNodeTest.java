@@ -1,10 +1,9 @@
 package io.simpleide.thread.tree;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.NodePattern;
@@ -24,7 +23,8 @@ class TreeNodeTest {
         assertSame(rootPattern, snapshot.getNode());
         assertNotSame(root.getChildren().get(0), snapshot.getChildren().get(0));
         assertSame(childPattern, snapshot.getChildren().get(0).getNode());
-        assertThrows(UnsupportedOperationException.class, () -> snapshot.getChildren().clear());
+        assertThatThrownBy(() -> snapshot.getChildren().clear())
+            .isInstanceOf(UnsupportedOperationException.class);
         assertTrue(root.hasChildren());
     }
 

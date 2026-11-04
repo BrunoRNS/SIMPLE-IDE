@@ -4,11 +4,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
-
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.NodePattern;
@@ -89,10 +88,8 @@ class ThreadTaskSchedulerTest {
         ThreadTaskScheduler scheduler = new ThreadTaskScheduler();
         scheduler.shutdown();
 
-        assertThrows(
-            IllegalStateException.class,
-            () -> scheduler.schedule(new TestPattern(false, () -> {}, () -> {}))
-        );
+        assertThatThrownBy(() -> scheduler.schedule(new TestPattern(false, () -> {}, () -> {})))
+            .isInstanceOf(IllegalStateException.class);
     }
 
     private record TestPattern(boolean edt, Runnable start, Runnable close) implements NodePattern {

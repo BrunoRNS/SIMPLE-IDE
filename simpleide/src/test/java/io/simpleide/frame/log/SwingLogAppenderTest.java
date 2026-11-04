@@ -24,6 +24,6 @@ class SwingLogAppenderTest {
     SwingUtilities.invokeAndWait(() -> {
     });
 
-    assertThat(logPanel.getText()).isEqualTo("[ERROR][MyLogger] algo deu errado\n");
+    assertThat(logPanel.getText()).isEqualToNormalizingNewlines("[ERROR][MyLogger] algo deu errado\n");
   }
 }

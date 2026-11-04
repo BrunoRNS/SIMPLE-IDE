@@ -14,7 +14,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 
@@ -271,8 +270,7 @@ class ThreadMasterTest {
 
         assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         assertEquals(1, closeCount.get());
-        IllegalStateException exception = assertThrows(IllegalStateException.class, master::initialize);
-        assertSame(IllegalStateException.class, exception.getClass());
+        assertThatThrownBy(master::initialize).isExactlyInstanceOf(IllegalStateException.class);
     }
 
     @Test
