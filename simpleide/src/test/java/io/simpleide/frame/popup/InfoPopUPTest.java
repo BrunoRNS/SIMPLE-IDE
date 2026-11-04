@@ -45,6 +45,15 @@ public class InfoPopUPTest {
   }
 
   @Test
+  public void acceptsSwingComponentAsMessage() {
+    JPanel message = new JPanel();
+
+    InfoPopUP popup = new InfoPopUP("information", message);
+
+    assertThat(popup.jp.getMessage()).isSameAs(message);
+  }
+
+  @Test
   public void supportsConvenienceConstructors() {
     InfoPopUP defaultPopup = new InfoPopUP("information", "Details");
     InfoPopUP customOptionPopup = new InfoPopUP("information", "Details", "Continue");

@@ -1,9 +1,8 @@
 package io.simpleide.thread.validation;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.ThreadMaster;
@@ -32,19 +31,14 @@ class NodeRegistrationValidationTest {
 
     @Test
     void rejectsNullRootsInvalidLevelsAndMismatchedBuiltInNodeTypes() {
-        assertThrows(IllegalArgumentException.class, () -> NodeRegistrationValidation.validateRoot(null));
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> NodeRegistrationValidation.validateRoot(new TestPattern(null, false))
-        );
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> NodeRegistrationValidation.INSTANCE.validate(null)
-        );
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> NodeRegistrationValidation.INSTANCE.validate(new TestPattern(0, false))
-        );
+        assertThatThrownBy(() -> NodeRegistrationValidation.validateRoot(null))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> NodeRegistrationValidation.validateRoot(new TestPattern(null, false)))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> NodeRegistrationValidation.INSTANCE.validate(null))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> NodeRegistrationValidation.INSTANCE.validate(new TestPattern(0, false)))
+            .isInstanceOf(IllegalArgumentException.class);
 
         RunnableNode runnableOnEdt = new RunnableNode(
             ThreadMaster.getInstance().getROOT(),
@@ -62,14 +56,10 @@ class NodeRegistrationValidationTest {
             }
         };
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> NodeRegistrationValidation.INSTANCE.validate(runnableOnEdt)
-        );
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> NodeRegistrationValidation.INSTANCE.validate(edtOffEdt)
-        );
+        assertThatThrownBy(() -> NodeRegistrationValidation.INSTANCE.validate(runnableOnEdt))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> NodeRegistrationValidation.INSTANCE.validate(edtOffEdt))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     private record TestPattern(Integer level, boolean edt) implements NodePattern {

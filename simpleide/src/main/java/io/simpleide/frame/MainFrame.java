@@ -15,6 +15,8 @@ import ch.qos.logback.classic.Logger;
 import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
+import io.simpleide.ui.menubar.MenuBarFactory;
+import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.treefile.Directory;
@@ -50,6 +52,8 @@ public class MainFrame extends JFrame implements Runnable {
 
     attachLogAppender(logPanel);
     setLayout(mainLayout);
+    ThemeManager.getInstance().register(this);
+    MenuBarFactory.createMenuBar(this);
     logger.info("start IDE");
     pack();
     setLocationRelativeTo(null);

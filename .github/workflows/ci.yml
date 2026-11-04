@@ -10,7 +10,13 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -22,18 +28,39 @@ jobs:
           java-version: "17"
           cache: maven
 
-      - name: Run tests
+      - name: Run tests (Linux)
+        if: runner.os != 'Windows'
+        shell: bash
         run: ./mvnw -B -Djava.awt.headless=true test-compile surefire:test
 
-      - name: Run bytecode compiler tests
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: mvnw.cmd -B -Djava.awt.headless=true test-compile surefire:test
+
+      - name: Run bytecode compiler tests (Linux)
+        if: runner.os != 'Windows'
+        shell: bash
         run: ./mvnw -B -pl simplebytecode-compiler verify
 
-      - name: Build application
+      - name: Run bytecode compiler tests (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: mvnw.cmd -B -pl simplebytecode-compiler verify
+
+      - name: Build application (Linux)
+        if: runner.os != 'Windows'
+        shell: bash
         run: ./mvnw -B -DskipTests package
+
+      - name: Build application (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: mvnw.cmd -B -DskipTests package
 
       - name: Upload packaged application
         uses: actions/upload-artifact@v4
         with:
-          name: simple-ide
+          name: simple-ide-${{ matrix.os }}
           path: simpleide/target/maven-mutation-testing-jar-with-dependencies.jar
           if-no-files-found: error

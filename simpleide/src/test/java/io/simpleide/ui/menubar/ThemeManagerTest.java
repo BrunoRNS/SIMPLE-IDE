@@ -1,0 +1,42 @@
+package io.simpleide.ui.menubar;
+
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+
+import com.formdev.flatlaf.FlatDarculaLaf;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+
+class ThemeManagerTest {
+
+  private final ThemeManager themeManager = ThemeManager.getInstance();
+
+  @AfterEach
+  void resetTheme() throws Exception {
+    themeManager.setTheme(ThemeManager.ThemeType.DARK);
+    flushEdt();
+  }
+
+  @Test
+  void setThemeShouldApplyCorrespondingLookAndFeel() throws Exception {
+    assertTheme(ThemeManager.ThemeType.LIGHT, FlatLightLaf.class);
+    assertTheme(ThemeManager.ThemeType.DRACULA, FlatDarculaLaf.class);
+    assertTheme(ThemeManager.ThemeType.DARK, FlatDarkLaf.class);
+  }
+
+  private void assertTheme(ThemeManager.ThemeType theme, Class<?> expectedLookAndFeel)
+      throws Exception {
+    themeManager.setTheme(theme);
+    flushEdt();
+
+    assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(expectedLookAndFeel);
+  }
+
+  private void flushEdt() throws Exception {
+    SwingUtilities.invokeAndWait(() -> {});
+  }
+}
