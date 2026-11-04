@@ -40,26 +40,16 @@ public class MainFrame extends JFrame implements Runnable {
     LogPanel logPanel = new LogPanel();
     JScrollPane treePane = new JScrollPane();
     JScrollPane logPane = new JScrollPane(logPanel);
-    MainLayout leftLayout = new MainLayout();
-    JPanel leftPane = new JPanel(leftLayout);
-    leftPane.setPreferredSize(new Dimension(320, 600));
-    leftLayout.addComponent(treePane, 0, 0, 1, 1, 1.0, 0.7);
-    leftLayout.addComponent(logPane, 0, 1, 1, 1, 1.0, 0.3);
-    leftPane.add(treePane);
-    leftPane.add(logPane);
-
-    JPanel editorPane = new JPanel();
-    editorPane.setPreferredSize(new Dimension(700, 600));
     MainLayout mainLayout = new MainLayout();
-    JPanel mainPane = new JPanel(mainLayout);
-    mainLayout.addComponent(leftPane, 0, 0, 1, 1, 0.3, 1.0);
-    mainLayout.addComponent(editorPane, 1, 0, 1, 1, 0.7, 1.0);
-    mainPane.add(leftPane);
-    mainPane.add(editorPane);
-    setContentPane(mainPane);
+
+    mainLayout.addComponent(treePane, 0, 0, 1, 3, 1.0, 1.0);
+    add(treePane);
+
+    mainLayout.addComponent(logPane, 0, 4, 3, 1, 1.0, 1.0);
+    add(logPane);
 
     attachLogAppender(logPanel);
-
+    setLayout(mainLayout);
     logger.info("start IDE");
     pack();
     setLocationRelativeTo(null);
