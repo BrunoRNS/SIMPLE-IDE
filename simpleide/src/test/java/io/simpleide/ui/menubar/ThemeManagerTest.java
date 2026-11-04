@@ -18,7 +18,8 @@ class ThemeManagerTest {
 
   @AfterEach
   void resetTheme() throws Exception {
-    SwingUtilities.invokeAndWait(() -> themeManager.setTheme(ThemeManager.ThemeType.DARK));
+    themeManager.setTheme(ThemeManager.ThemeType.DARK);
+    flushEdt();
   }
 
   @Test
@@ -30,8 +31,13 @@ class ThemeManagerTest {
 
   private void assertTheme(ThemeManager.ThemeType theme, Class<?> expectedLookAndFeel)
       throws Exception {
-    SwingUtilities.invokeAndWait(() -> themeManager.setTheme(theme));
+    themeManager.setTheme(theme);
+    flushEdt();
 
     assertThat(UIManager.getLookAndFeel().getClass()).isEqualTo(expectedLookAndFeel);
+  }
+
+  private void flushEdt() throws Exception {
+    SwingUtilities.invokeAndWait(() -> {});
   }
 }

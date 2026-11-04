@@ -8,6 +8,8 @@ import com.formdev.flatlaf.FlatDarculaLaf;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 
+import io.simpleide.thread.ThreadMaster;
+
 public final class ThemeManager {
 
   private static final ThemeManager INSTANCE = new ThemeManager();
@@ -41,18 +43,22 @@ public final class ThemeManager {
   }
 
   private void applyTheme(ThemeType theme) {
-    switch (theme) {
-      case LIGHT -> FlatLightLaf.setup();
-      case DARK -> FlatDarkLaf.setup();
-      case DRACULA -> FlatDarculaLaf.setup();
-    }
-    for (Window window : Window.getWindows()) {
-      if (window == null) {
-        continue;
+    ThreadMaster register = ThreadMaster.getInstance();
+    register.executeOnEDT(() -> {
+      switch (theme) {
+        case LIGHT -> FlatLightLaf.setup();
+        case DARK -> FlatDarkLaf.setup();
+        case DRACULA -> FlatDarculaLaf.setup();
       }
-      SwingUtilities.updateComponentTreeUI(window);
-      window.pack();
-      window.repaint();
-    }
+      for (Window window : Window.getWindows()) {
+        if (window == null) {
+          continue;
+        }
+        SwingUtilities.updateComponentTreeUI(window);
+        window.pack();
+        window.repaint();
+      }
+
+    });
   }
 }
