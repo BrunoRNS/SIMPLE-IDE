@@ -1,10 +1,9 @@
 package io.simpleide.thread.nodes;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.record.NodeRecord;
@@ -39,14 +38,10 @@ class NodeTest {
 
     @Test
     void rejectsParentsWithoutAUsableLevel() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> new RunnableNode(new TestPattern(null), () -> {})
-        );
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> new RunnableNode(new TestPattern(Integer.MAX_VALUE), () -> {})
-        );
+        assertThatThrownBy(() -> new RunnableNode(new TestPattern(null), () -> {}))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new RunnableNode(new TestPattern(Integer.MAX_VALUE), () -> {}))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

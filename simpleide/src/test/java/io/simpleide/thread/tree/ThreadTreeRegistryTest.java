@@ -3,11 +3,10 @@ package io.simpleide.thread.tree;
 import java.util.LinkedList;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.NodePattern;
@@ -47,7 +46,8 @@ class ThreadTreeRegistryTest {
         );
         assertEquals(4, tree.size());
         assertEquals(4, tree.showTree().size());
-        assertThrows(UnsupportedOperationException.class, () -> tree.showTree().clear());
+        assertThatThrownBy(() -> tree.showTree().clear())
+            .isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
@@ -78,22 +78,20 @@ class ThreadTreeRegistryTest {
         assertEquals(1, tree.size());
         assertFalse(tree.showTree().containsKey(parent.getId()));
         assertFalse(tree.showTree().containsKey(child.getId()));
-        assertThrows(IllegalArgumentException.class, () -> tree.removeNodeCascade(root));
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> tree.addNode(new RunnableNode(new TestPattern(0), () -> {}))
-        );
+        assertThatThrownBy(() -> tree.removeNodeCascade(root))
+            .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> tree.addNode(new RunnableNode(new TestPattern(0), () -> {})))
+            .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     void rejectsInvalidRootsAndInconsistentLevels() {
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> new ThreadTreeRegistry(new TestPattern(1))
-        );
+        assertThatThrownBy(() -> new ThreadTreeRegistry(new TestPattern(1)))
+            .isInstanceOf(IllegalArgumentException.class);
         NodePattern root = new TestPattern(0);
         ThreadTreeRegistry tree = new ThreadTreeRegistry(root);
-        assertThrows(IllegalArgumentException.class, () -> tree.addNode(new TestPattern(3)));
+        assertThatThrownBy(() -> tree.addNode(new TestPattern(3)))
+            .isInstanceOf(IllegalArgumentException.class);
         assertTrue(tree.showTree().containsKey(root.getId()));
     }
 

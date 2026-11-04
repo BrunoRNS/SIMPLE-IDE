@@ -10,9 +10,9 @@ import org.slf4j.LoggerFactory;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.ui.menubar.ThemeManager;
 
-public class ThemeMenu extends JMenu {
+public final class ThemeMenu extends JMenu {
 
-  private static final Logger log = LoggerFactory.getLogger(ThemeMenu.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(ThemeMenu.class);
 
   protected JRadioButtonMenuItem dark;
   protected JRadioButtonMenuItem light;
@@ -47,17 +47,17 @@ public class ThemeMenu extends JMenu {
 
   protected void configureActions() {
     light.addActionListener(new ActionNode(e -> {
-      log.info("Set light theme");
+      LOGGER.info("Set light theme");
       ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.LIGHT);
     }));
 
     dark.addActionListener(new ActionNode(e -> {
-      log.info("Set dark theme");
+      LOGGER.info("Set dark theme");
       ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DARK);
     }));
 
     darcula.addActionListener(new ActionNode(e -> {
-      log.info("Set Darcula theme");
+      LOGGER.info("Set Darcula theme");
       ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DRACULA);
     }));
   }

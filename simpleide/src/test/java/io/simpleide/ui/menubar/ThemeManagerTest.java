@@ -1,10 +1,9 @@
 package io.simpleide.ui.menubar;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 

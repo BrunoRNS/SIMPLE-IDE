@@ -36,13 +36,13 @@ public class HelpMenu extends JMenu {
 
   private void showKeyboardShortcuts() {
     String[] columns = {"Shortcut", "Action"};
-    DefaultTableModel model = new DefaultTableModel(columns, 0) {
+    DefaultTableModel model_ = new DefaultTableModel(columns, 0) {
       @Override
       public boolean isCellEditable(int row, int column) {
         return false;
       }
     };
-    JTable shortcutsTable = new JTable(model);
+    JTable shortcutsTable = new JTable(model_);
     shortcutsTable.setFillsViewportHeight(true);
 
     JPanel panel = new JPanel(new GridLayout(0, 1, 0, 8));

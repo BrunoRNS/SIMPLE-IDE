@@ -6,12 +6,11 @@ import javax.swing.JMenuItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.ui.menubar.actions.NewFileAction;
-import io.simpleide.ui.menubar.actions.NewFolderAction;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 
 public class FileMenu extends JMenu {
 
-  private static final Logger log = LoggerFactory.getLogger(FileMenu.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(FileMenu.class);
 
   private JMenuItem newFile;
   private JMenuItem newFolder;
@@ -21,7 +20,7 @@ public class FileMenu extends JMenu {
     createItems();
     configureMenu();
     configureActions();
-    log.info("Created File menu");
+    LOGGER.info("Created File menu");
   }
 
   private void configureMenu() {
@@ -30,8 +29,8 @@ public class FileMenu extends JMenu {
   }
 
   private void configureActions() {
-    newFile.addActionListener(e -> new NewFileAction());
-    newFolder.addActionListener(e -> new NewFolderAction());
+    newFile.addActionListener(new ActionNode(e -> LOGGER.info("Create new file")));
+    newFolder.addActionListener(new ActionNode(e -> LOGGER.info("Create new folder")));
   }
 
   private void createItems() {

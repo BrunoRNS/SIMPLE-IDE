@@ -7,8 +7,6 @@ import io.simpleide.frame.MainFrame;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.EDTNode;
 
-import com.formdev.flatlaf.FlatDarkLaf;
-
 /**
  * 
  */

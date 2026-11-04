@@ -1,9 +1,8 @@
 package io.simpleide.ui.menubar.menus;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import javax.swing.JMenuItem;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 class HelpMenuTest {
