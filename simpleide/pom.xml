@@ -15,6 +15,13 @@
 
   <dependencies>
     <dependency>
+      <groupId>io</groupId>
+      <artifactId>simplebytecode-compiler</artifactId>
+      <version>${project.version}</version>
+      <classifier>jar-with-dependencies</classifier>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
       <groupId>org.junit.jupiter</groupId>
       <artifactId>junit-jupiter-engine</artifactId>
       <version>${junit.version}</version>
@@ -64,6 +71,33 @@
         <configuration>
           <overwrite>true</overwrite>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.8.1</version>
+        <executions>
+          <execution>
+            <id>copy-bytecode-compiler-jar</id>
+            <phase>process-resources</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>io</groupId>
+                  <artifactId>simplebytecode-compiler</artifactId>
+                  <version>${project.version}</version>
+                  <type>jar</type>
+                  <classifier>jar-with-dependencies</classifier>
+                  <outputDirectory>${project.build.outputDirectory}/io/simpleide/language/jvmbytecode</outputDirectory>
+                  <destFileName>simplebytecode-compiler.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

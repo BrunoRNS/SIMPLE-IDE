@@ -18,7 +18,7 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 public abstract class AbstractLanguage implements Runnable {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractLanguage.class);
+    protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractLanguage.class);
     
     protected ProcessBuilder pb;
     protected volatile Process p;
@@ -40,6 +40,10 @@ public abstract class AbstractLanguage implements Runnable {
 
     @Override
     public void run() {
+        if (pb == null) {
+            LOGGER.error("[IDE] Cannot run language process because its command was not configured.");
+            return;
+        }
 
         synchronized (this) {
             if (this.p != null && this.p.isAlive()) {

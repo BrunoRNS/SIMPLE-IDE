@@ -1,6 +1,7 @@
 package io.simpleide.thread;
 
 import java.awt.EventQueue;
+import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -27,7 +28,7 @@ final class ManagedTask implements Runnable {
         this.onFinished = onFinished;
     }
 
-    int getNodeId() {
+    BigInteger getNodeId() {
         return node.getId();
     }
 

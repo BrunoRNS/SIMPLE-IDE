@@ -1,5 +1,6 @@
 package io.simpleide.thread.tree;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -14,7 +15,7 @@ import io.simpleide.thread.validation.NodeRegistrationValidation;
 public final class ThreadTreeRegistry implements Tree {
 
     private final TreeNode root;
-    private final Map<Integer, TreeNode> nodes = new LinkedHashMap<>();
+    private final Map<BigInteger, TreeNode> nodes = new LinkedHashMap<>();
 
     public ThreadTreeRegistry(NodePattern root) {
         NodeRegistrationValidation.validateRoot(root);
@@ -25,7 +26,7 @@ public final class ThreadTreeRegistry implements Tree {
     @Override
     public synchronized void addNode(NodePattern node) {
         NodeRegistrationValidation.INSTANCE.validate(node);
-        int id = node.getId();
+        BigInteger id = node.getId();
         TreeNode existing = nodes.get(id);
         if (existing != null) {
             if (existing.getNode() != node) {
@@ -56,8 +57,8 @@ public final class ThreadTreeRegistry implements Tree {
     }
 
     @Override
-    public synchronized Map<Integer, TreeNode> showTree() {
-        Map<Integer, TreeNode> snapshot = new LinkedHashMap<>();
+    public synchronized Map<BigInteger, TreeNode> showTree() {
+        Map<BigInteger, TreeNode> snapshot = new LinkedHashMap<>();
         TreeNode snapshotRoot = root.snapshot();
         LinkedList<TreeNode> queue = new LinkedList<>();
         queue.add(snapshotRoot);
@@ -97,7 +98,7 @@ public final class ThreadTreeRegistry implements Tree {
         return registeredNode != null && registeredNode.getNode() == node;
     }
 
-    public LinkedList<Integer> bfs(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> bfs(TreeNode node, LinkedList<BigInteger> result) {
         if (node == null || result == null) {
             throw new IllegalArgumentException("Node and result must not be null.");
         }
@@ -111,7 +112,7 @@ public final class ThreadTreeRegistry implements Tree {
         return result;
     }
 
-    public LinkedList<Integer> dfsPreorder(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> dfsPreorder(TreeNode node, LinkedList<BigInteger> result) {
         if (node == null || result == null) {
             throw new IllegalArgumentException("Node and result must not be null.");
         }
@@ -122,7 +123,7 @@ public final class ThreadTreeRegistry implements Tree {
         return result;
     }
 
-    public LinkedList<Integer> dfsInorder(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> dfsInorder(TreeNode node, LinkedList<BigInteger> result) {
         if (node == null || result == null) {
             throw new IllegalArgumentException("Node and result must not be null.");
         }
@@ -136,7 +137,7 @@ public final class ThreadTreeRegistry implements Tree {
         return result;
     }
 
-    public LinkedList<Integer> dfsPostorder(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> dfsPostorder(TreeNode node, LinkedList<BigInteger> result) {
         if (node == null || result == null) {
             throw new IllegalArgumentException("Node and result must not be null.");
         }
@@ -151,7 +152,7 @@ public final class ThreadTreeRegistry implements Tree {
         if (node == null) {
             throw new IllegalArgumentException("Node must not be null.");
         }
-        int id = node.getId();
+        BigInteger id = node.getId();
         TreeNode treeNode = nodes.get(id);
         if (treeNode == null || treeNode.getNode() != node) {
             return List.of();
@@ -175,7 +176,7 @@ public final class ThreadTreeRegistry implements Tree {
 
     private TreeNode findParentFor(NodePattern node, int level) {
         if (node instanceof Node managedNode) {
-            int parentId = managedNode.getSuperNode().getId();
+            BigInteger parentId = managedNode.getSuperNode().getId();
             TreeNode parent = nodes.get(parentId);
             if (parent == null) {
                 throw new IllegalArgumentException("The node's parent must be registered first.");

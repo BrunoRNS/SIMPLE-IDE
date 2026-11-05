@@ -1,3 +1,5 @@
 package io.simpleide.thread.nodes.record;
 
-public record NodeRecord(Runnable onStart, Runnable onClose, Integer level, int id) {}
+import java.math.BigInteger;
+
+public record NodeRecord(Runnable onStart, Runnable onClose, Integer level, BigInteger id) {}
