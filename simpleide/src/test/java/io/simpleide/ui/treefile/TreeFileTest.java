@@ -5,8 +5,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.SwingUtilities;
+import javax.swing.event.TreeModelEvent;
+import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 
@@ -17,6 +23,7 @@ import org.slf4j.LoggerFactory;
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
+import io.simpleide.thread.ThreadMaster;
 
 class TreeFileTest {
 
@@ -69,9 +76,33 @@ class TreeFileTest {
       Files.writeString(nested.resolve("Nested.java"), "class Nested {}");
       Files.writeString(deeper.resolve("Deep.java"), "class Deep {}");
       Directory rootDirectory = new Directory(root);
+      CountDownLatch childrenLoaded = new CountDownLatch(1);
+      AtomicBoolean modelUpdatedOnEdt = new AtomicBoolean();
+      AtomicReference<Tree> treeReference = new AtomicReference<>();
+      ThreadMaster.getInstance().initialize();
 
       SwingUtilities.invokeAndWait(() -> {
         Tree tree = new Tree(rootDirectory);
+        treeReference.set(tree);
+        tree.getModel().addTreeModelListener(new TreeModelListener() {
+          @Override
+          public void treeNodesChanged(TreeModelEvent event) {
+          }
+
+          @Override
+          public void treeNodesInserted(TreeModelEvent event) {
+          }
+
+          @Override
+          public void treeNodesRemoved(TreeModelEvent event) {
+          }
+
+          @Override
+          public void treeStructureChanged(TreeModelEvent event) {
+            modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
+            childrenLoaded.countDown();
+          }
+        });
         DefaultMutableTreeNode rootNode =
             (DefaultMutableTreeNode) tree.getModel().getRoot();
         DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
@@ -81,7 +112,16 @@ class TreeFileTest {
         assertThat(nestedNode.getChildCount()).isEqualTo(1);
 
         tree.expandPath(new TreePath(nestedNode.getPath()));
+      });
 
+      assertThat(childrenLoaded.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(modelUpdatedOnEdt).isTrue();
+      SwingUtilities.invokeAndWait(() -> {
+        Tree tree = treeReference.get();
+        DefaultMutableTreeNode rootNode =
+            (DefaultMutableTreeNode) tree.getModel().getRoot();
+        DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+        Directory nestedDirectory = (Directory) nestedNode.getUserObject();
         assertThat(nestedDirectory.areChildrenLoaded()).isTrue();
         assertThat(nestedNode.getChildCount()).isEqualTo(2);
         Directory deeperDirectory = (Directory) nestedDirectory.getChildren().stream()

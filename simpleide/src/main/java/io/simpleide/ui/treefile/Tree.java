@@ -1,7 +1,9 @@
 package io.simpleide.ui.treefile;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
 
 import javax.swing.JTree;
 import javax.swing.event.TreeExpansionEvent;
@@ -13,10 +15,15 @@ import javax.swing.tree.TreePath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
+
 public class Tree extends JTree {
   private static final Logger LOGGER = LoggerFactory.getLogger(Tree.class);
 
   private final TreeState state;
+  private final Set<Directory> loadingDirectories =
+      Collections.newSetFromMap(new IdentityHashMap<>());
 
   public Tree(Directory root) {
     super(createNode(root));
@@ -67,21 +74,33 @@ public class Tree extends JTree {
   private void loadChildren(TreePath path) {
     DefaultMutableTreeNode node = (DefaultMutableTreeNode) path.getLastPathComponent();
     if (!(node.getUserObject() instanceof Directory directory)
-        || directory.areChildrenLoaded()) {
+        || directory.areChildrenLoaded()
+        || !loadingDirectories.add(directory)) {
       return;
     }
 
+    ThreadMaster threadMaster = ThreadMaster.getInstance();
     try {
-      directory.loadChildren();
-    } catch (IOException e) {
-      throw new UncheckedIOException("Unable to load directory " + directory.getPath(), e);
+      threadMaster.register(new RunnableNode(() -> {
+        try {
+          directory.loadChildren();
+          threadMaster.executeOnEDT(() -> {
+            node.removeAllChildren();
+            for (TreeFile child : directory.getChildren()) {
+              node.add(createNode(child));
+            }
+            ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
+            loadingDirectories.remove(directory);
+          });
+        } catch (IOException exception) {
+          LOGGER.error("Unable to load directory {}.", directory.getPath(), exception);
+          threadMaster.executeOnEDT(() -> loadingDirectories.remove(directory));
+        }
+      }));
+    } catch (RuntimeException exception) {
+      loadingDirectories.remove(directory);
+      throw exception;
     }
-
-    node.removeAllChildren();
-    for (TreeFile child : directory.getChildren()) {
-      node.add(createNode(child));
-    }
-    ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
   }
 
   private static DefaultMutableTreeNode createNode(TreeFile file) {
