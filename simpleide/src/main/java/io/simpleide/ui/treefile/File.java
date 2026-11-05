@@ -7,8 +7,6 @@ import java.nio.file.Path;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.utils.FileUtil;
-
 public class File extends TreeFile {
   private static final Logger LOGGER = LoggerFactory.getLogger(File.class);
 
