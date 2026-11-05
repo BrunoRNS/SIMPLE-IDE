@@ -22,18 +22,6 @@ public class Runner implements Runnable {
         }
     }
 
-    private String getFileExtension(Path file) {
-        if (file.getFileName() == null) {
-            return "";
-        }
-        String name = file.getFileName().toString();
-        int lastIndex = name.lastIndexOf('.');
-        if (lastIndex < 0 || lastIndex == name.length() - 1) {
-            return "";
-        }
-        return name.substring(lastIndex + 1);
-    }
-
     @Override
     public void run() {
         try {
@@ -45,4 +33,17 @@ public class Runner implements Runnable {
             throw new IllegalStateException("Could not create runner: " + runner.getName(), exception);
         }
     }
+
+    private String getFileExtension(Path file) {
+        if (file.getFileName() == null) {
+            return "";
+        }
+        String name = file.getFileName().toString();
+        int lastIndex = name.lastIndexOf('.');
+        if (lastIndex < 0 || lastIndex == name.length() - 1) {
+            return "";
+        }
+        return name.substring(lastIndex + 1);
+    }
+    
 }
