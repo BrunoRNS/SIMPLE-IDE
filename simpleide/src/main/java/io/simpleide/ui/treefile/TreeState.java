@@ -1,7 +1,7 @@
 package io.simpleide.ui.treefile;
 
 public class TreeState {
-  private final Directory rootDirectory;
+  private Directory rootDirectory;
   private TreeFile selected;
   private Directory currentDirectory;
 
@@ -16,6 +16,11 @@ public class TreeState {
 
   public Directory getCurrentDirectory() {
     return currentDirectory;
+  }
+
+  void setRootDirectory(Directory rootDirectory) {
+    this.rootDirectory = rootDirectory;
+    select(rootDirectory, null);
   }
 
   void select(TreeFile selected, Directory parentDirectory) {

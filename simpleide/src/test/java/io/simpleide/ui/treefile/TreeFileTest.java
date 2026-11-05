@@ -1,6 +1,7 @@
 package io.simpleide.ui.treefile;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -10,6 +11,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.swing.Icon;
+import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
@@ -63,6 +66,47 @@ class TreeFileTest {
       Files.deleteIfExists(root.resolve("src/nested"));
       Files.deleteIfExists(root.resolve("src/Main.java"));
       Files.deleteIfExists(root.resolve("src"));
+      Files.deleteIfExists(root);
+    }
+  }
+
+  @Test
+  void refreshChildrenReflectsFilesystemChanges() throws IOException {
+    Path root = Files.createTempDirectory("simpleide-treefile-refresh-");
+    try {
+      Path originalFile = Files.createFile(root.resolve("original.txt"));
+      Directory directory = new Directory(root);
+      Files.delete(originalFile);
+      Files.createFile(root.resolve("created.txt"));
+
+      directory.refreshChildren();
+
+      assertThat(directory.getChildren()).extracting(TreeFile::getName).containsExactly("created.txt");
+      assertThat(directory.areChildrenLoaded()).isTrue();
+    } finally {
+      Files.deleteIfExists(root.resolve("original.txt"));
+      Files.deleteIfExists(root.resolve("created.txt"));
+      Files.deleteIfExists(root);
+    }
+  }
+
+  @Test
+  void failedRefreshKeepsPreviouslyLoadedChildren() throws IOException {
+    Path root = Files.createTempDirectory("simpleide-treefile-refresh-failure-");
+    Path directoryPath = Files.createDirectory(root.resolve("directory"));
+    try {
+      Files.createFile(directoryPath.resolve("original.txt"));
+      Directory directory = new Directory(directoryPath);
+      Files.delete(directoryPath.resolve("original.txt"));
+      Files.delete(directoryPath);
+
+      assertThatThrownBy(directory::refreshChildren).isInstanceOf(IOException.class);
+
+      assertThat(directory.getChildren()).extracting(TreeFile::getName).containsExactly("original.txt");
+      assertThat(directory.areChildrenLoaded()).isTrue();
+    } finally {
+      Files.deleteIfExists(directoryPath.resolve("original.txt"));
+      Files.deleteIfExists(directoryPath);
       Files.deleteIfExists(root);
     }
   }
@@ -207,6 +251,123 @@ class TreeFileTest {
   }
 
   @Test
+  void settingNewRootUpdatesTreeModelAndState() throws Exception {
+    Path currentRoot = Files.createTempDirectory("simpleide-tree-current-root-");
+    Path newRootPath = Files.createDirectory(currentRoot.resolve("new-root"));
+    try {
+      Files.writeString(newRootPath.resolve("Main.java"), "class Main {}");
+      Directory newRoot = new Directory(newRootPath);
+      Directory currentDirectory = new Directory(currentRoot);
+      CountDownLatch rootUpdated = new CountDownLatch(1);
+      AtomicBoolean modelUpdatedOnEdt = new AtomicBoolean();
+      AtomicReference<Tree> treeReference = new AtomicReference<>();
+
+      SwingUtilities.invokeAndWait(() -> {
+        Tree tree = new Tree(currentDirectory);
+        treeReference.set(tree);
+        tree.addPropertyChangeListener("model", event -> {
+          modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
+          rootUpdated.countDown();
+        });
+      });
+
+      treeReference.get().setRoot(newRoot);
+
+      assertThat(rootUpdated.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(modelUpdatedOnEdt).isTrue();
+      SwingUtilities.invokeAndWait(() -> {
+        Tree tree = treeReference.get();
+        DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+        assertThat(((TreeFile) rootNode.getUserObject()).getPath()).isEqualTo(newRootPath);
+        assertThat(tree.getState().getSelected()).isSameAs(newRoot);
+        assertThat(tree.getState().getCurrentDirectory()).isSameAs(newRoot);
+        assertThat(rootNode.getChildCount()).isEqualTo(1);
+      });
+    } finally {
+      Files.deleteIfExists(newRootPath.resolve("Main.java"));
+      Files.deleteIfExists(newRootPath);
+      Files.deleteIfExists(currentRoot);
+    }
+  }
+
+  @Test
+  void settingNullRootIsRejected() throws IOException {
+    Path root = Files.createTempDirectory("simpleide-tree-null-root-");
+    try {
+      Tree tree = new Tree(new Directory(root));
+
+      assertThatThrownBy(() -> tree.setRoot(null))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessage("Tree root must not be null.");
+    } finally {
+      Files.deleteIfExists(root);
+    }
+  }
+
+  @Test
+  void deletingSelectedFileRefreshesParentAndSelectsIt() throws Exception {
+    Path root = Files.createTempDirectory("simpleide-tree-delete-file-");
+    Path filePath = Files.writeString(root.resolve("remove.txt"), "remove me");
+    try {
+      Directory rootDirectory = new Directory(root);
+      Tree tree = new Tree(rootDirectory);
+      DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+      DefaultMutableTreeNode fileNode = childNamed(rootNode, "remove.txt");
+      TreeFileActions actions = new TreeFileActions(tree, tree.getState());
+
+      SwingUtilities.invokeAndWait(() -> {
+        try {
+          actions.deleteSelected(new TreePath(fileNode.getPath()), (TreeFile) fileNode.getUserObject());
+        } catch (IOException exception) {
+          throw new AssertionError(exception);
+        }
+      });
+
+      assertThat(Files.exists(filePath)).isFalse();
+      assertThat(rootDirectory.getChildren()).isEmpty();
+      assertThat(tree.getState().getSelected()).isSameAs(rootDirectory);
+    } finally {
+      Files.deleteIfExists(filePath);
+      Files.deleteIfExists(root);
+    }
+  }
+
+  @Test
+  void deletingSelectedRootMovesTreeToParentDirectory() throws Exception {
+    Path parentPath = Files.createTempDirectory("simpleide-tree-delete-root-");
+    Path rootPath = Files.createDirectory(parentPath.resolve("project"));
+    Path childPath = Files.writeString(rootPath.resolve("Main.java"), "class Main {}");
+    try {
+      Directory rootDirectory = new Directory(rootPath);
+      Tree tree = new Tree(rootDirectory);
+      TreePath rootTreePath = new TreePath(((DefaultMutableTreeNode) tree.getModel().getRoot()).getPath());
+      TreeFileActions actions = new TreeFileActions(tree, tree.getState());
+
+      SwingUtilities.invokeAndWait(() -> {
+        try {
+          actions.deleteSelected(rootTreePath, rootDirectory);
+        } catch (IOException exception) {
+          throw new AssertionError(exception);
+        }
+      });
+
+      DefaultMutableTreeNode updatedRoot = (DefaultMutableTreeNode) tree.getModel().getRoot();
+      assertThat(Files.exists(rootPath)).isFalse();
+      assertThat(Files.exists(childPath)).isFalse();
+      assertThat(((TreeFile) updatedRoot.getUserObject()).getPath()).isEqualTo(parentPath);
+      assertThat(tree.getState().getSelected()).isSameAs(tree.getState().getCurrentDirectory());
+      assertThat(tree.getState().getCurrentDirectory().getPath()).isEqualTo(parentPath);
+      assertThat(tree.getState().getCurrentDirectory().getChildren())
+          .extracting(TreeFile::getPath)
+          .doesNotContain(rootPath);
+    } finally {
+      Files.deleteIfExists(childPath);
+      Files.deleteIfExists(rootPath);
+      Files.deleteIfExists(parentPath);
+    }
+  }
+
+  @Test
   void directoryKeepsBinaryFilesWithoutTryingToDecodeThemAsText() throws IOException {
     Path root = Files.createTempDirectory("simpleide-tree-binary-");
     try {
@@ -221,6 +382,56 @@ class TreeFileTest {
       assertThat(binary.getCode()).hasToString("");
     } finally {
       Files.deleteIfExists(root.resolve("image.dat"));
+      Files.deleteIfExists(root);
+    }
+  }
+
+  @Test
+  void fileTypesRecognizePythonJavascriptAndUppercaseExtensions() throws IOException {
+    Path root = Files.createTempDirectory("simpleide-treefile-types-");
+    try {
+      Path pythonPath = Files.writeString(root.resolve("script.PY"), "print('hello')");
+      Path javascriptPath = Files.writeString(root.resolve("app.JS"), "console.log('hello')");
+      Path kotlinPath = Files.writeString(root.resolve("Main.kt"), "fun main() {}");
+
+      assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
+      assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
+      assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
+    } finally {
+      Files.deleteIfExists(root.resolve("script.PY"));
+      Files.deleteIfExists(root.resolve("app.JS"));
+      Files.deleteIfExists(root.resolve("Main.kt"));
+      Files.deleteIfExists(root);
+    }
+  }
+
+  @Test
+  void rendererUsesLanguageAndExpandedFolderIcons() throws IOException {
+    Path root = Files.createTempDirectory("simpleide-treefile-icons-");
+    try {
+      Directory directory = new Directory(root, "folder");
+      TreeFileCellRenderer renderer = new TreeFileCellRenderer();
+      JTree tree = new JTree();
+      DefaultMutableTreeNode directoryNode = new DefaultMutableTreeNode(directory);
+      DefaultMutableTreeNode javaNode = new DefaultMutableTreeNode(
+          new File(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
+      DefaultMutableTreeNode pythonNode = new DefaultMutableTreeNode(
+          new File(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
+
+      renderer.getTreeCellRendererComponent(tree, directoryNode, false, false, false, 0, false);
+      Icon closedFolderIcon = renderer.getIcon();
+      renderer.getTreeCellRendererComponent(tree, directoryNode, false, true, false, 0, false);
+      Icon openFolderIcon = renderer.getIcon();
+      renderer.getTreeCellRendererComponent(tree, javaNode, false, false, true, 1, false);
+      Icon javaIcon = renderer.getIcon();
+      renderer.getTreeCellRendererComponent(tree, pythonNode, false, false, true, 2, false);
+      Icon pythonIcon = renderer.getIcon();
+
+      assertThat(closedFolderIcon).isNotNull().isNotSameAs(openFolderIcon);
+      assertThat(openFolderIcon).isNotNull();
+      assertThat(javaIcon).isNotNull();
+      assertThat(pythonIcon).isNotNull().isNotSameAs(javaIcon);
+    } finally {
       Files.deleteIfExists(root);
     }
   }

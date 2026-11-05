@@ -6,9 +6,11 @@ public enum TypeFile {
   GROOVY("groovy"),
   TXT("txt"),
   KOTLIN("kotlin"),
+  JAVASCRIPT("javascript"),
+  PYTHON("python"),
   BINARY("binary");
 
-  private String name;
+  private final String name;
 
   private TypeFile(String name) {
     this.name = name;
