@@ -1,0 +1,34 @@
+name: macOS Intel CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["17", "21", "25", "27"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Rosetta
+        run: sudo softwareupdate --install-rosetta --agree-to-license
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: ${{ matrix.java }}
+          architecture: x64
+          cache: maven
+
+      - name: Run tests
+        run: arch -x86_64 make test
