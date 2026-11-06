@@ -59,7 +59,7 @@ class FileServiceTest {
 
     assertThatThrownBy(() -> fileService.createNewFile(parent, "  ", false))
         .isInstanceOf(IllegalArgumentException.class);
-    assertThat(Files.exists(root.resolve("  "))).isFalse();
+    assertThat(root.toFile().list()).isEmpty();
   }
 
   @Test
