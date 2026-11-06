@@ -46,6 +46,9 @@ public class File extends TreeFile {
       case "groovy" -> typeFile = TypeFile.GROOVY;
       case "js", "mjs", "cjs" -> typeFile = TypeFile.JAVASCRIPT;
       case "py" -> typeFile = TypeFile.PYTHON;
+      case "c", "h" -> typeFile = TypeFile.C;
+      case "cc", "cpp", "cxx", "hpp" -> typeFile = TypeFile.CPP;
+      case "asm", "s" -> typeFile = TypeFile.ASM;
       default -> typeFile = TypeFile.TXT;
     }
     LOGGER.info("Load file by extension {}", ext);

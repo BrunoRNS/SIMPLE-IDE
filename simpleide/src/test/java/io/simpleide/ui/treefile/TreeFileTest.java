@@ -393,14 +393,23 @@ class TreeFileTest {
       Path pythonPath = Files.writeString(root.resolve("script.PY"), "print('hello')");
       Path javascriptPath = Files.writeString(root.resolve("app.JS"), "console.log('hello')");
       Path kotlinPath = Files.writeString(root.resolve("Main.kt"), "fun main() {}");
+      Path cPath = Files.writeString(root.resolve("main.c"), "int main() {}");
+      Path cppPath = Files.writeString(root.resolve("main.cpp"), "int main() {}");
+      Path assemblyPath = Files.writeString(root.resolve("main.asm"), "lda #$00");
 
       assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
       assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
       assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
+      assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
+      assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
+      assertThat(new File(assemblyPath).getTypeFile()).isEqualTo(TypeFile.ASM);
     } finally {
       Files.deleteIfExists(root.resolve("script.PY"));
       Files.deleteIfExists(root.resolve("app.JS"));
       Files.deleteIfExists(root.resolve("Main.kt"));
+      Files.deleteIfExists(root.resolve("main.c"));
+      Files.deleteIfExists(root.resolve("main.cpp"));
+      Files.deleteIfExists(root.resolve("main.asm"));
       Files.deleteIfExists(root);
     }
   }

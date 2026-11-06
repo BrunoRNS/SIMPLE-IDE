@@ -7,7 +7,6 @@ import java.nio.file.Path;
 
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
-import javax.swing.JOptionPane;
 import javax.swing.JScrollPane;
 
 import org.slf4j.LoggerFactory;
@@ -17,6 +16,7 @@ import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
 import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.InfoPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
@@ -84,7 +84,7 @@ public class MainFrame extends JFrame implements Runnable {
 
   private void createNewFile() {
     if (tree == null) {
-      JOptionPane.showMessageDialog(this, "The project tree is still loading.");
+      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
       return;
     }
     tree.createNewFile();
@@ -92,7 +92,7 @@ public class MainFrame extends JFrame implements Runnable {
 
   private void createNewDirectory() {
     if (tree == null) {
-      JOptionPane.showMessageDialog(this, "The project tree is still loading.");
+      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
       return;
     }
     tree.createNewDirectory();
@@ -100,7 +100,7 @@ public class MainFrame extends JFrame implements Runnable {
 
   private void setDirectory() {
     if (tree == null) {
-      JOptionPane.showMessageDialog(this, "The project tree is still loading.");
+      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
       return;
     }
 
