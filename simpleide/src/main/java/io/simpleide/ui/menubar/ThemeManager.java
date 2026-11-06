@@ -1,20 +1,28 @@
 package io.simpleide.ui.menubar;
 
+import java.awt.Color;
 import java.awt.Window;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 
 import javax.swing.SwingUtilities;
 
 import com.formdev.flatlaf.FlatDarculaLaf;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
+import org.fife.ui.rsyntaxtextarea.Theme;
 
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.editor.Editor;
+import io.simpleide.utils.ResourceUtil;
 
 public final class ThemeManager {
 
   private static final ThemeManager INSTANCE = new ThemeManager();
 
   private ThemeType currentTheme = ThemeType.DARK;
+  private Editor editor;
 
   private ThemeManager() {
   }
@@ -37,6 +45,15 @@ public final class ThemeManager {
     applyTheme(currentTheme);
   }
 
+  public void register(Editor editor) {
+    if (editor == null) {
+      return;
+    }
+
+    this.editor = editor;
+    ThreadMaster.getInstance().executeOnEDT(() -> applyEditorTheme(editor, currentTheme));
+  }
+
   public void setTheme(ThemeType newTheme) {
     this.currentTheme = newTheme;
     applyTheme(newTheme);
@@ -55,10 +72,38 @@ public final class ThemeManager {
           continue;
         }
         SwingUtilities.updateComponentTreeUI(window);
-        window.pack();
+        window.validate();
         window.repaint();
       }
-
+      if (editor != null) {
+        applyEditorTheme(editor, theme);
+      }
     });
+  }
+
+  private void applyEditorTheme(Editor editor, ThemeType theme) {
+    String themeResource = switch (theme) {
+      case LIGHT -> "default.xml";
+      case DARK -> "dark.xml";
+      case DRACULA -> "monokai.xml";
+    };
+
+    try (InputStream input = Files.newInputStream(
+        ResourceUtil.getResourcePath("org.fife.ui.rsyntaxtextarea.themes", themeResource))) {
+      Theme editorTheme = Theme.load(input);
+      if (theme == ThemeType.DRACULA) {
+        editorTheme.bgColor = new Color(0x282A36);
+        editorTheme.caretColor = new Color(0xF8F8F2);
+        editorTheme.selectionBG = new Color(0x44475A);
+        editorTheme.currentLineHighlight = new Color(0x44475A);
+        editorTheme.gutterBackgroundColor = new Color(0x282A36);
+        editorTheme.gutterBorderColor = new Color(0x44475A);
+        editorTheme.lineNumberColor = new Color(0x6272A4);
+        editorTheme.currentLineNumberColor = new Color(0xF8F8F2);
+      }
+      editorTheme.apply(editor);
+    } catch (IOException exception) {
+      throw new IllegalStateException("Unable to load editor theme: " + themeResource, exception);
+    }
   }
 }
