@@ -96,7 +96,14 @@ public abstract class PopUP implements Runnable {
         if (this.jd == null) {
             this.jd = jp.createDialog(this.parent, this.title);
         }
-        this.jd.setVisible(true);
+        try {
+            this.jd.setVisible(true);
+        } finally {
+            onDialogClosed();
+        }
+    }
+
+    protected void onDialogClosed() {
     }
 
     @Override
