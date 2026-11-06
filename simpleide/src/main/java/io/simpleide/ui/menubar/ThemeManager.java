@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Window;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
 
 import javax.swing.SwingUtilities;
 
@@ -14,6 +15,7 @@ import org.fife.ui.rsyntaxtextarea.Theme;
 
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.editor.Editor;
+import io.simpleide.utils.ResourceUtil;
 
 public final class ThemeManager {
 
@@ -81,16 +83,13 @@ public final class ThemeManager {
 
   private void applyEditorTheme(Editor editor, ThemeType theme) {
     String themeResource = switch (theme) {
-      case LIGHT -> "/org/fife/ui/rsyntaxtextarea/themes/default.xml";
-      case DARK -> "/org/fife/ui/rsyntaxtextarea/themes/dark.xml";
-      case DRACULA -> "/org/fife/ui/rsyntaxtextarea/themes/monokai.xml";
+      case LIGHT -> "default.xml";
+      case DARK -> "dark.xml";
+      case DRACULA -> "monokai.xml";
     };
 
-    try (InputStream input = ThemeManager.class.getResourceAsStream(themeResource)) {
-      if (input == null) {
-        throw new IllegalStateException("Editor theme resource not found: " + themeResource);
-      }
-
+    try (InputStream input = Files.newInputStream(
+        ResourceUtil.getResourcePath("org.fife.ui.rsyntaxtextarea.themes", themeResource))) {
       Theme editorTheme = Theme.load(input);
       if (theme == ThemeType.DRACULA) {
         editorTheme.bgColor = new Color(0x282A36);

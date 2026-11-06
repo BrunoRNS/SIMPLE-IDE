@@ -70,8 +70,10 @@ public class MainFrame extends JFrame implements Runnable {
     mainVerticalSplit.setContinuousLayout(true);
     
     
-    setLayout(new java.awt.BorderLayout());
-    add(mainVerticalSplit, java.awt.BorderLayout.CENTER);
+    MainLayout mainLayout = new MainLayout();
+    mainLayout.addComponent(mainVerticalSplit, 0, 0, 1, 1, 1.0, 1.0);
+    setLayout(mainLayout);
+    add(mainVerticalSplit);
 
     attachLogAppender(logPanel);
     
