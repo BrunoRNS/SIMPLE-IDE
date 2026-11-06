@@ -57,10 +57,3 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: mvnw.cmd -B -DskipTests package
-
-      - name: Upload packaged application
-        uses: actions/upload-artifact@v4
-        with:
-          name: simple-ide-${{ matrix.os }}
-          path: simpleide/target/maven-mutation-testing-jar-with-dependencies.jar
-          if-no-files-found: error
