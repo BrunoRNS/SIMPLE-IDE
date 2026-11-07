@@ -30,17 +30,34 @@ public final class ResourceUtil {
     }
 
     public static Path getResourcePath(Class<?> packageClass, String fileName) throws IOException {
+        return getResourcePath(packageClass, new String[] {fileName});
+    }
+
+    public static Path getResourcePath(Class<?> packageClass, String... resourcePath) throws IOException {
         if (packageClass == null) {
             throw new IllegalArgumentException("Package class must not be null.");
         }
+        if (resourcePath == null || resourcePath.length == 0) {
+            throw new IllegalArgumentException("Resource path must not be empty.");
+        }
 
-        String packageName = packageClass.getPackageName();
-        String resourceName = toResourceName(packageName, fileName);
+        StringBuilder resourceName = new StringBuilder(
+            packageClass.getPackageName().replace('.', '/') + "/"
+        );
+        for (String segment : resourcePath) {
+            if (segment == null || segment.isBlank()
+                || ".".equals(segment) || "..".equals(segment)
+                || segment.indexOf('/') >= 0 || segment.indexOf('\\') >= 0) {
+                throw new IllegalArgumentException("Invalid resource path segment: " + segment);
+            }
+            resourceName.append(segment).append('/');
+        }
+        resourceName.setLength(resourceName.length() - 1);
         URL resource = packageClass.getResource("/" + resourceName);
         if (resource == null) {
             throw new FileNotFoundException("Resource not found: " + resourceName);
         }
-        return toPath(resource, fileName);
+        return toPath(resource, resourcePath[resourcePath.length - 1]);
     }
 
     private static String toResourceName(String packageName, String fileName) {
