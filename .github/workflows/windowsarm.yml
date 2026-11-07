@@ -1,7 +1,6 @@
 name: Windows ARM64 CI
 
 on:
-  push:
   pull_request:
   workflow_dispatch:
 
@@ -14,17 +13,54 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        java: ["17", "21", "25", "27"]
+        include:
+          - java: "17"
+            archive: zulu17.70.113-ca-jdk17.0.21.0.3-win_aarch64.zip
+          - java: "21"
+            archive: zulu21.54.109-ca-jdk21.0.13.0.3-win_aarch64.zip
+          - java: "25"
+            archive: zulu25.38.109-ca-jdk25.0.5.0.3-win_aarch64.zip
+          - java: "27"
+            archive: zulu27.30.109-ca-jdk27.0.1.0.3-win_aarch64.zip
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
+      - name: Download and configure Zulu JDK
+        shell: pwsh
+        env:
+          JDK_ARCHIVE: ${{ matrix.archive }}
+        run: |
+          $downloadUrl = "https://github.com/BrunoRNS/homebrew-jdk-holder-windows-arm/releases/download/v1.0.0/$env:JDK_ARCHIVE"
+          $archivePath = Join-Path $env:RUNNER_TEMP $env:JDK_ARCHIVE
+          $extractPath = Join-Path $env:RUNNER_TEMP "zulu-jdk-${{ matrix.java }}"
+
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
+          Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath
+
+          $javaExecutable = Get-ChildItem -LiteralPath $extractPath -Filter java.exe -Recurse |
+            Where-Object { $_.Directory.Name -eq "bin" } |
+            Select-Object -First 1
+          if ($null -eq $javaExecutable) {
+            throw "Could not find java.exe in the downloaded JDK archive."
+          }
+
+          $jdkHome = $javaExecutable.Directory.Parent.FullName
+          Add-Content -Path $env:GITHUB_ENV -Value "JAVA_HOME=$jdkHome"
+          Add-Content -Path $env:GITHUB_PATH -Value "$jdkHome\bin"
+
+          $javaProperties = & $javaExecutable.FullName -XshowSettings:properties -version 2>&1
+          if (-not ($javaProperties | Select-String -Quiet 'os.arch = aarch64|os.arch = arm64')) {
+            throw "Downloaded JDK is not an ARM64 build."
+          }
+          & $javaExecutable.FullName -version
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
         with:
-          distribution: temurin
-          java-version: ${{ matrix.java }}
-          cache: maven
+          path: ~/.m2/repository
+          key: windows-arm64-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: windows-arm64-maven-
 
       - name: Run tests
         run: make test

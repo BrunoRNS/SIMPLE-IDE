@@ -1,7 +1,6 @@
 name: Linux ARM64 CI
 
 on:
-  push:
   pull_request:
   workflow_dispatch:
 

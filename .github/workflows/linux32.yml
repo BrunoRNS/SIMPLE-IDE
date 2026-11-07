@@ -1,7 +1,6 @@
 name: Linux x86 CI
 
 on:
-  push:
   pull_request:
   workflow_dispatch:
 
