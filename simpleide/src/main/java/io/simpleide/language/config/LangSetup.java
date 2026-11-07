@@ -11,7 +11,6 @@ import io.simpleide.language.compiler.Assembly65xLanguage;
 import io.simpleide.language.compiler.CLanguage;
 import io.simpleide.language.compiler.CPPLanguage;
 import io.simpleide.language.compiler.CompilerRequiredFiles;
-import io.simpleide.language.interpreter.AbstractIntepreterLanguage;
 import io.simpleide.language.interpreter.AbstractInterpreterLanguage;
 import io.simpleide.language.jvmbytecode.AbstractBytecodeLanguage;
 import io.simpleide.utils.OSpathUtil;
