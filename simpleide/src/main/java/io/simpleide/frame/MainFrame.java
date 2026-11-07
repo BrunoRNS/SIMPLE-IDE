@@ -3,29 +3,43 @@ package io.simpleide.frame;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
+import java.nio.file.Path;
 
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+import javax.swing.JSplitPane;
 import javax.swing.JScrollPane;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreePath;
 
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+import org.fife.ui.rtextarea.RTextScrollPane;
 import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Logger;
 import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
-import io.simpleide.ui.menubar.MenuBarFactory;
-import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.InfoPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.ui.editor.Editor;
+import io.simpleide.ui.menubar.MenuBarFactory;
+import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.treefile.Directory;
+import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.Tree;
 import io.simpleide.ui.treefile.TreeFileFactory;
 
 public class MainFrame extends JFrame implements Runnable {
 
   private static final org.slf4j.Logger logger = LoggerFactory.getLogger(MainFrame.class);
+  private Tree tree;
+  private static Editor editor;
 
-  @Override
+    @Override
   public void run() {
 
     setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
@@ -40,24 +54,45 @@ public class MainFrame extends JFrame implements Runnable {
     LogPanel logPanel = new LogPanel();
     JScrollPane treePane = new JScrollPane();
     JScrollPane logPane = new JScrollPane(logPanel);
+
+    editor = new Editor();
+    editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
+    RTextScrollPane scrollPane = new RTextScrollPane(editor);
+    
+    
+    JSplitPane editorTreePane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treePane, scrollPane);
+    editorTreePane.setResizeWeight(0.2); 
+    editorTreePane.setContinuousLayout(true);
+    
+    
+    JSplitPane mainVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorTreePane, logPane);
+    mainVerticalSplit.setResizeWeight(0.8); 
+    mainVerticalSplit.setContinuousLayout(true);
+    
+    
     MainLayout mainLayout = new MainLayout();
-
-    mainLayout.addComponent(treePane, 0, 0, 1, 3, 1.0, 1.0);
-    add(treePane);
-
-    mainLayout.addComponent(logPane, 0, 4, 3, 1, 1.0, 1.0);
-    add(logPane);
+    mainLayout.addComponent(mainVerticalSplit, 0, 0, 1, 1, 1.0, 1.0);
+    setLayout(mainLayout);
+    add(mainVerticalSplit);
 
     attachLogAppender(logPanel);
-    setLayout(mainLayout);
+    
+    ThemeManager.getInstance().register(editor);
     ThemeManager.getInstance().register(this);
-    MenuBarFactory.createMenuBar(this);
+    MenuBarFactory.createMenuBar(this, this::createNewFile, this::createNewDirectory, this::setDirectory);
     logger.info("start IDE");
+    
     pack();
     setLocationRelativeTo(null);
     setVisible(true);
+    
+    
+    editorTreePane.setDividerLocation(0.2);
+    mainVerticalSplit.setDividerLocation(0.8);
+    
     loadTree(treePane);
   }
+
 
   private void loadTree(JScrollPane treePane) {
     ThreadMaster threadMaster = ThreadMaster.getInstance();
@@ -65,12 +100,68 @@ public class MainFrame extends JFrame implements Runnable {
       try {
         Directory root = TreeFileFactory.loadRootDirectory();
         threadMaster.executeOnEDT(() -> {
-          treePane.setViewportView(new Tree(root));
+          tree = new Tree(root);
+          tree.addTreeSelectionListener(event -> {
+            TreePath selectedPath = event.getNewLeadSelectionPath();
+            if (selectedPath == null) {
+              return;
+            }
+            Object selectedNode = selectedPath.getLastPathComponent();
+            if (selectedNode instanceof DefaultMutableTreeNode node
+                && node.getUserObject() instanceof File selectedFile) {
+              editor.loadFile(selectedFile);
+            }
+          });
+          treePane.setViewportView(tree);
           treePane.revalidate();
           treePane.repaint();
         });
       } catch (IOException exception) {
         logger.error("Unable to load the project tree.", exception);
+      }
+    }));
+  }
+  public static Editor getEditor(){
+    return editor;
+  }
+  private void createNewFile() {
+    if (tree == null) {
+      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
+      return;
+    }
+    tree.createNewFile();
+  }
+
+  private void createNewDirectory() {
+    if (tree == null) {
+      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
+      return;
+    }
+    tree.createNewDirectory();
+  }
+
+  private void setDirectory() {
+    if (tree == null) {
+      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
+      return;
+    }
+
+    JFileChooser chooser = new JFileChooser(tree.getState().getCurrentDirectory().getPath().toFile());
+    chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+    if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+      return;
+    }
+
+    Path path = chooser.getSelectedFile().toPath();
+    ThreadMaster threadMaster = ThreadMaster.getInstance();
+    threadMaster.register(new RunnableNode(() -> {
+      try {
+        Directory root = new Directory(path);
+        threadMaster.executeOnEDT(() -> tree.setRoot(root));
+      } catch (IOException exception) {
+        logger.error("Unable to load project directory {}.", path, exception);
+        threadMaster.executeOnEDT(() -> new ErrorPopUP(
+            exception.getMessage(), getRootPane(), ErrorTypePopUp.INTERNAL_ERROR).startManaged());
       }
     }));
   }

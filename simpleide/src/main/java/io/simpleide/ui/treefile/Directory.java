@@ -15,7 +15,7 @@ public class Directory extends TreeFile {
   private Directory(Path path, String name, boolean loadImmediately) throws IOException {
     super(path, name);
     if (loadImmediately) {
-      loadChildren(path);
+      loadChildren();
     }
   }
 
@@ -24,7 +24,7 @@ public class Directory extends TreeFile {
   }
 
   public Directory(Path path) throws IOException {
-    this(path, path.getFileName().toString(), true);
+    this(path, path.getFileName() == null ? path.toString() : path.getFileName().toString(), true);
   }
 
   public List<TreeFile> getChildren() {
@@ -44,10 +44,18 @@ public class Directory extends TreeFile {
       return;
     }
 
-    loadChildren(getPath());
+    children.addAll(readChildren(getPath()));
+    childrenLoaded = true;
   }
 
-  private void loadChildren(Path path) throws IOException {
+  void refreshChildren() throws IOException {
+    List<TreeFile> refreshedChildren = readChildren(getPath());
+    children.clear();
+    children.addAll(refreshedChildren);
+    childrenLoaded = true;
+  }
+
+  private List<TreeFile> readChildren(Path path) throws IOException {
     List<TreeFile> loadedChildren = new ArrayList<>();
     try (Stream<Path> entries = Files.list(path)) {
       for (Path entry : entries.toList()) {
@@ -63,7 +71,6 @@ public class Directory extends TreeFile {
         }
       }
     }
-    children.addAll(loadedChildren);
-    childrenLoaded = true;
+    return loadedChildren;
   }
 }

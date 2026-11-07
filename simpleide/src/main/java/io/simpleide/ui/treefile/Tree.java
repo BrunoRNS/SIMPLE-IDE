@@ -6,6 +6,7 @@ import java.util.IdentityHashMap;
 import java.util.Set;
 
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -22,13 +23,16 @@ public class Tree extends JTree {
   private static final Logger LOGGER = LoggerFactory.getLogger(Tree.class);
 
   private final TreeState state;
-  private final Set<Directory> loadingDirectories =
-      Collections.newSetFromMap(new IdentityHashMap<>());
+  private final Set<Directory> loadingDirectories = Collections.newSetFromMap(new IdentityHashMap<>());
+  private final TreeFileActions fileActions;
 
   public Tree(Directory root) {
     super(createNode(root));
+    setCellRenderer(new TreeFileCellRenderer());
     state = new TreeState(root);
+    fileActions = new TreeFileActions(this, state);
     addTreeSelectionListener(event -> updateState(getSelectionPath()));
+    fileActions.installContextMenu();
     LOGGER.info("Tree state initialized: currentDirectory={}", root.getPath());
     addTreeWillExpandListener(new TreeWillExpandListener() {
       @Override
@@ -44,6 +48,26 @@ public class Tree extends JTree {
 
   public TreeState getState() {
     return state;
+  }
+
+  public void setRoot(Directory root) {
+    if (root == null) {
+      throw new IllegalArgumentException("Tree root must not be null.");
+    }
+
+    if (SwingUtilities.isEventDispatchThread()) {
+      setRootOnEDT(root);
+      return;
+    }
+    ThreadMaster.getInstance().executeOnEDT(() -> setRootOnEDT(root));
+  }
+
+  private void setRootOnEDT(Directory root) {
+    DefaultMutableTreeNode rootNode = createNode(root);
+    setModel(new DefaultTreeModel(rootNode));
+    state.setRootDirectory(root);
+    setSelectionPath(new TreePath(rootNode.getPath()));
+    LOGGER.info("Tree root updated: {}", root.getPath());
   }
 
   private void updateState(TreePath path) {
@@ -103,7 +127,7 @@ public class Tree extends JTree {
     }
   }
 
-  private static DefaultMutableTreeNode createNode(TreeFile file) {
+  static DefaultMutableTreeNode createNode(TreeFile file) {
     DefaultMutableTreeNode node = new DefaultMutableTreeNode(file);
     if (file instanceof Directory directory) {
       if (directory.areChildrenLoaded()) {
@@ -115,5 +139,13 @@ public class Tree extends JTree {
       }
     }
     return node;
+  }
+
+  public void createNewFile() {
+    fileActions.createNewFile();
+  }
+
+  public void createNewDirectory() {
+    fileActions.createNewDirectory();
   }
 }

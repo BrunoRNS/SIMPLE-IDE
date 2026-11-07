@@ -3,6 +3,7 @@ package io.simpleide.ui.treefile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,12 +38,17 @@ public class File extends TreeFile {
 
   private static TypeFile getTypeFile(Path path) {
     String name = loadNameFile(path);
-    String ext = name.substring(name.lastIndexOf('.') + 1);
+    String ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
     TypeFile typeFile;
     switch (ext) {
       case "java" -> typeFile = TypeFile.JAVA;
-      case "kts" -> typeFile = TypeFile.KOTLIN;
+      case "kt", "kts" -> typeFile = TypeFile.KOTLIN;
       case "groovy" -> typeFile = TypeFile.GROOVY;
+      case "js", "mjs", "cjs" -> typeFile = TypeFile.JAVASCRIPT;
+      case "py" -> typeFile = TypeFile.PYTHON;
+      case "c", "h" -> typeFile = TypeFile.C;
+      case "cc", "cpp", "cxx", "hpp" -> typeFile = TypeFile.CPP;
+      case "asm", "s" -> typeFile = TypeFile.ASM;
       default -> typeFile = TypeFile.TXT;
     }
     LOGGER.info("Load file by extension {}", ext);

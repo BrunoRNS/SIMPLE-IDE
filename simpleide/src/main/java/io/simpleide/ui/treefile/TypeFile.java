@@ -6,9 +6,14 @@ public enum TypeFile {
   GROOVY("groovy"),
   TXT("txt"),
   KOTLIN("kotlin"),
-  BINARY("binary");
+  JAVASCRIPT("javascript"),
+  PYTHON("python"),
+  BINARY("binary"),
+  CPP("c++"),
+  ASM("Assembly-65x"),
+  C("C");
 
-  private String name;
+  private final String name;
 
   private TypeFile(String name) {
     this.name = name;

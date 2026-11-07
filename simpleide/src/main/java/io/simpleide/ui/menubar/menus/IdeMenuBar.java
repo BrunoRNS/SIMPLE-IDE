@@ -8,13 +8,13 @@ public class IdeMenuBar extends JMenuBar {
   private SettingsMenu settingsMenu;
   private HelpMenu helpMenu;
 
-  public IdeMenuBar() {
-    createItems();
+  public IdeMenuBar(Runnable createFile, Runnable createFolder, Runnable setDirectory) {
+    createItems(createFile, createFolder, setDirectory);
     addMenus();
   }
 
-  private void createItems() {
-    fileMenu = new FileMenu();
+  private void createItems(Runnable createFile, Runnable createFolder, Runnable setDirectory) {
+    fileMenu = new FileMenu(createFile, createFolder, setDirectory);
     settingsMenu = new SettingsMenu();
     helpMenu = new HelpMenu();
   }
