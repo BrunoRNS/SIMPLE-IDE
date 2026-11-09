@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: macos-latest
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: macos-x64
     strategy:
       fail-fast: false
       matrix:

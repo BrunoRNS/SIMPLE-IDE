@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: windows-latest
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: windows-x86
     steps:
       - name: Check out repository
         uses: actions/checkout@v4

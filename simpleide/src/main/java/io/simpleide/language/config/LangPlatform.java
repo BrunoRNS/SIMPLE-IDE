@@ -1,8 +1,13 @@
 package io.simpleide.language.config;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -71,13 +76,13 @@ public enum LangPlatform {
     }
 
     public static LangPlatform getCurrentPlatform() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        String osArch = System.getProperty("os.arch").toLowerCase();
+        String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
+        String jdkArch = getJdkArchitecture(osName);
 
         if (osName.contains("win")) {
-            if (osArch.contains("aarch64") || osArch.contains("arm64")) {
+            if (jdkArch.contains("aarch64") || jdkArch.contains("arm64")) {
                 return WINDOWSARM64;
-            } else if (osArch.contains("64")) {
+            } else if (jdkArch.contains("64")) {
                 return WINDOWSX64UNICODE;
             } else {
                 return WINDOWSX86;
@@ -85,9 +90,9 @@ public enum LangPlatform {
         } 
         
         else if (osName.contains("nix") || osName.contains("nux") || osName.contains("aix")) {
-            if (osArch.contains("aarch64") || osArch.contains("arm64")) {
+            if (jdkArch.contains("aarch64") || jdkArch.contains("arm64")) {
                 return LINUXARM64;
-            } else if (osArch.contains("64")) {
+            } else if (jdkArch.contains("64")) {
                 return LINUXX64;
             } else {
                 return LINUXX86;
@@ -95,14 +100,57 @@ public enum LangPlatform {
         } 
         
         else if (osName.contains("mac") || osName.contains("darwin")) {
-            if (osArch.contains("aarch64") || osArch.contains("arm64")) {
+            if (jdkArch.contains("aarch64") || jdkArch.contains("arm64")) {
                 return MACOSAARCH64;
-            } else {
+            } else if (jdkArch.contains("64")) {
                 return MACOSINTEL;
             }
         }
 
         return UNKNOWN;
+    }
+
+    private static String getJdkArchitecture(String osName) {
+        if (!osName.contains("mac") && !osName.contains("darwin")) {
+            return System.getProperty("os.arch").toLowerCase(Locale.ROOT);
+        }
+
+        Path javaExecutable = Paths.get(System.getProperty("java.home"), "bin", "java");
+        Process process;
+        try {
+            process = new ProcessBuilder("/usr/bin/file", "-L", "-b", javaExecutable.toString())
+                    .redirectErrorStream(true)
+                    .start();
+            String description = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8)
+                    .toLowerCase(Locale.ROOT);
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new IllegalStateException("Could not inspect JDK executable: " + description);
+            }
+            return architectureFromExecutableDescription(
+                    description,
+                    System.getProperty("os.arch").toLowerCase(Locale.ROOT)
+            );
+        } catch (IOException e) {
+            throw new IllegalStateException("Could not inspect JDK executable at " + javaExecutable, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while inspecting JDK executable at " + javaExecutable, e);
+        }
+    }
+
+    static String architectureFromExecutableDescription(String description, String fallbackArchitecture) {
+        String normalizedDescription = description.toLowerCase(Locale.ROOT);
+        if (normalizedDescription.contains("universal")) {
+            return fallbackArchitecture.toLowerCase(Locale.ROOT);
+        }
+        if (normalizedDescription.contains("x86_64")) {
+            return "x86_64";
+        }
+        if (normalizedDescription.contains("arm64")) {
+            return "arm64";
+        }
+        throw new IllegalStateException("Unsupported JDK executable architecture: " + description);
     }
 
 }

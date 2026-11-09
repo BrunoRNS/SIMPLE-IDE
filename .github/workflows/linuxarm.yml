@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04-arm
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: linux-arm64
     strategy:
       fail-fast: false
       matrix:

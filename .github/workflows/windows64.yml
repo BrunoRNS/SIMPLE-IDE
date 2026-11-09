@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: windows-latest
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: windows-x64
     strategy:
       fail-fast: false
       matrix:

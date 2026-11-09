@@ -3,6 +3,7 @@ package io.simpleide.language;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -22,6 +23,7 @@ public abstract class AbstractLanguage implements Runnable {
     private static final Logger LOGGER = LoggerFactory.getLogger(AbstractLanguage.class);
     
     protected ProcessBuilder pb;
+    protected List<ProcessBuilder> processSteps = List.of();
     protected volatile Process p;
     protected volatile boolean stopped = false;
     private volatile RunnableNode inputForwarder;
@@ -34,7 +36,8 @@ public abstract class AbstractLanguage implements Runnable {
 
     @Override
     public void run() {
-        if (pb == null) {
+        List<ProcessBuilder> builders = getProcessBuilders();
+        if (builders.isEmpty()) {
             LOGGER.error("[IDE] Cannot run language process because its command was not configured.");
             return;
         }
@@ -45,29 +48,62 @@ public abstract class AbstractLanguage implements Runnable {
                     "Impossible to Run the script while still running another", this.p);
             }
         }
-        
+
+        stopped = false;
         try {
-            pb.redirectErrorStream(true); 
-            
-            p = pb.start();
-            startInputForwarder(p);
-
-            p.onExit().thenAccept(this.getHandler());
-
-            try (Scanner scanner = new Scanner(p.getInputStream())) {
-                while (scanner.hasNextLine()) {
-                    String line = scanner.nextLine();
-                    Output.getInstance().set(line);
-                    LOGGER.info("[OUTPUT] {}", line);
+            for (int index = 0; index < builders.size(); index++) {
+                Process process = builders.get(index).redirectErrorStream(true).start();
+                p = process;
+                if (index == builders.size() - 1) {
+                    startInputForwarder(process);
                 }
-            } catch (Exception e) {
-                if (!stopped) {
-                    throw new ProcessFatalException("Process Did not Finish Successfully during stream reading", new IOException(e));
+
+                try (Scanner scanner = new Scanner(process.getInputStream())) {
+                    while (scanner.hasNextLine()) {
+                        String line = scanner.nextLine();
+                        Output.getInstance().set(line);
+                        LOGGER.info("[OUTPUT] {}", line);
+                    }
+                    IOException streamFailure = scanner.ioException();
+                    if (streamFailure != null) {
+                        throw streamFailure;
+                    }
                 }
+
+                int exitCode = process.waitFor();
+                if (exitCode != 0 || index == builders.size() - 1) {
+                    getHandler().accept(process);
+                    return;
+                }
+
+                p = null;
             }
         } catch (IOException e) {
+            stopCurrentProcess();
+            onExecutionFinished();
             throw new ProcessFatalException("Process Did not Finish Successfully at startup", e);
+        } catch (InterruptedException e) {
+            stopCurrentProcess();
+            onExecutionFinished();
+            Thread.currentThread().interrupt();
+            throw new ProcessFatalException("Interrupted while waiting for the language process.", new IOException(e));
         }
+    }
+
+    protected List<ProcessBuilder> getProcessBuilders() {
+        if (!processSteps.isEmpty()) {
+            return processSteps;
+        }
+        return pb == null ? List.of() : List.of(pb);
+    }
+
+    private void stopCurrentProcess() {
+        Process process = p;
+        if (process != null && process.isAlive()) {
+            process.destroyForcibly();
+        }
+        p = null;
+        stopped = false;
     }
 
     private void startInputForwarder(Process process) {
@@ -97,7 +133,7 @@ public abstract class AbstractLanguage implements Runnable {
         threadMaster.register(forwarder);
     }
 
-    protected RunnableNode startManaged() {
+    public final RunnableNode startManaged() {
         ThreadMaster threadMaster = ThreadMaster.getInstance();
         threadMaster.initialize();
         RunnableNode node = new RunnableNode(this);
@@ -138,7 +174,11 @@ public abstract class AbstractLanguage implements Runnable {
             }
             this.p = null;
             this.stopped = false;
+            onExecutionFinished();
         }
+    }
+
+    protected void onExecutionFinished() {
     }
 
     public void forceStop() throws ProcessFatalException {

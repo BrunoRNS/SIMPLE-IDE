@@ -1,16 +1,16 @@
 package io.simpleide.language.jvmbytecode;
 
-import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.awaitility.Awaitility.await;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.AfterEach;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -65,8 +65,8 @@ class JvmBytecodeLanguageTest {
             "public class Main { public static void main(String[] args) { System.out.println(\"java-output\"); } }"
         ));
 
-        assertEquals("Java", language.getLangFriendly());
-        assertEquals("java", language.getLangConstant());
+        assertEquals("java", language.getLangFriendly());
+        assertEquals(SyntaxConstants.SYNTAX_STYLE_JAVA, language.getLangConstant());
         runAndAssertOutput(language, "java-output");
     }
 
@@ -74,8 +74,8 @@ class JvmBytecodeLanguageTest {
     void runsKotlinThroughEmbeddedCompilerJar() throws Exception {
         KotlinLanguage language = new KotlinLanguage(writeSource("kts", "println(\"kotlin-output\")"));
 
-        assertEquals("Kotlin", language.getLangFriendly());
-        assertEquals("kotlin", language.getLangConstant());
+        assertEquals("kotlin", language.getLangFriendly());
+        assertEquals(SyntaxConstants.SYNTAX_STYLE_KOTLIN, language.getLangConstant());
         runAndAssertOutput(language, "kotlin-output");
     }
 
@@ -83,8 +83,8 @@ class JvmBytecodeLanguageTest {
     void runsGroovyThroughEmbeddedCompilerJar() throws Exception {
         GroovyLanguage language = new GroovyLanguage(writeSource("groovy", "println 'groovy-output'"));
 
-        assertEquals("Groovy", language.getLangFriendly());
-        assertEquals("groovy", language.getLangConstant());
+        assertEquals("groovy", language.getLangFriendly());
+        assertEquals(SyntaxConstants.SYNTAX_STYLE_GROOVY, language.getLangConstant());
         runAndAssertOutput(language, "groovy-output");
     }
 
