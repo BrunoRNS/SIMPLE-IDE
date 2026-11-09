@@ -8,7 +8,9 @@ APP_JAR := simpleide/target/simpleide.jar
 AMBUS_ZIP := ambus/target/ambus-0.0.1-SNAPSHOT.zip
 AMBUS_HOME := $(CURDIR)/ambus/target/lsp_configurado
 
-.PHONY: build test run jar
+.PHONY: build test run jar all clean
+
+all: build test
 
 build:
 	$(MVNW) -B -DskipTests package
@@ -22,3 +24,6 @@ run: jar
 	java -Dsimpleide.lsp.ambus.home="$(AMBUS_HOME)" -jar "$(APP_JAR)"
 
 jar: build
+
+clean:
+	$(MVNW) -B clean
