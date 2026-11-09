@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.compiler.AbstractCompilerLanguage;
-import io.simpleide.language.compiler.Assembly65xLanguage;
 import io.simpleide.language.compiler.CLanguage;
 import io.simpleide.language.compiler.CPPLanguage;
 import io.simpleide.language.compiler.CompilerRequiredFiles;
@@ -62,12 +61,6 @@ public class LangSetup implements Runnable {
 
     protected void setupCompilerLanguages() {
 
-        if (this.validate(Assembly65xLanguage.class)) {
-            this.setupLanguage(
-                Assembly65xLanguage.class,
-                ".s", ".asm", ".asm65x"
-            );
-        }
         if (this.validate(CLanguage.class)) {
             this.setupLanguage(
                 CLanguage.class,
@@ -179,9 +172,6 @@ public class LangSetup implements Runnable {
     }
 
     protected boolean isInSystemPATH(String filename) {
-        if ("wla65816".equals(filename)) {
-            return OSpathUtil.which("wla65816") != null || OSpathUtil.which("wla-65816") != null;
-        }
         return OSpathUtil.which(filename) != null;
     }
 

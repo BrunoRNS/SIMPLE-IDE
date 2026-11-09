@@ -20,6 +20,10 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.simpleide.language.AbstractLanguage;
+import io.simpleide.language.io.Input;
+import io.simpleide.language.io.Output;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 class JvmBytecodeLanguageTest {
 
@@ -31,7 +35,13 @@ class JvmBytecodeLanguageTest {
     private ThreadSafeListAppender logCapture;
 
     @BeforeEach
-    void captureLanguageLogs() {
+    void captureLanguageLogs() throws InterruptedException {
+        while (Input.getInstance().get(0) != null) {
+            // Clear input from prior process tests.
+        }
+        while (Output.getInstance().get(0) != null) {
+            // Clear output from prior process tests.
+        }
         languageLogger = (Logger) LoggerFactory.getLogger(AbstractLanguage.class);
         bytecodeLanguageLogger = (Logger) LoggerFactory.getLogger(AbstractBytecodeLanguage.class);
         logCapture = new ThreadSafeListAppender();
@@ -71,6 +81,18 @@ class JvmBytecodeLanguageTest {
     }
 
     @Test
+    void forwardsInputToJavaThroughEmbeddedCompilerJar() throws Exception {
+        JavaLanguage language = new JavaLanguage(writeSource(
+            "java",
+            "import java.util.Scanner; public class Main { public static void main(String[] args) { "
+                    + "System.out.println(\"ready\"); "
+                    + "System.out.println(\"java-received:\" + new Scanner(System.in).nextLine()); } }"
+        ));
+
+        runAndAssertInputOutput(language, "message", "java-received:message");
+    }
+
+    @Test
     void runsKotlinThroughEmbeddedCompilerJar() throws Exception {
         KotlinLanguage language = new KotlinLanguage(writeSource("kts", "println(\"kotlin-output\")"));
 
@@ -80,12 +102,32 @@ class JvmBytecodeLanguageTest {
     }
 
     @Test
+    void forwardsInputToKotlinThroughEmbeddedCompilerJar() throws Exception {
+        KotlinLanguage language = new KotlinLanguage(writeSource(
+            "kts",
+            "println(\"ready\")\nprintln(\"kotlin-received:\" + readLine())"
+        ));
+
+        runAndAssertInputOutput(language, "message", "kotlin-received:message");
+    }
+
+    @Test
     void runsGroovyThroughEmbeddedCompilerJar() throws Exception {
         GroovyLanguage language = new GroovyLanguage(writeSource("groovy", "println 'groovy-output'"));
 
         assertEquals("groovy", language.getLangFriendly());
         assertEquals(SyntaxConstants.SYNTAX_STYLE_GROOVY, language.getLangConstant());
         runAndAssertOutput(language, "groovy-output");
+    }
+
+    @Test
+    void forwardsInputToGroovyThroughEmbeddedCompilerJar() throws Exception {
+        GroovyLanguage language = new GroovyLanguage(writeSource(
+            "input.groovy",
+            "println 'ready'\nprintln 'groovy-received:' + System.in.newReader().readLine()"
+        ));
+
+        runAndAssertInputOutput(language, "message", "groovy-received:message");
     }
 
     private Path writeSource(String extension, String source) throws Exception {
@@ -104,6 +146,25 @@ class JvmBytecodeLanguageTest {
                 return messages.contains("[OUTPUT] " + expectedOutput)
                     && messages.contains("[IDE] Process completed successfully.");
             });
+    }
+
+    private void runAndAssertInputOutput(
+            AbstractBytecodeLanguage language,
+            String input,
+            String expectedOutput) throws InterruptedException {
+        RunnableNode node = language.startManaged();
+        try {
+            assertEquals("ready", Output.getInstance().get(30));
+            Input.getInstance().set(input);
+            assertEquals(expectedOutput, Output.getInstance().get(30));
+            await("The " + language.getLangFriendly() + " process should finish.")
+                .atMost(5, TimeUnit.SECONDS)
+                .until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
+        } finally {
+            if (Boolean.TRUE.equals(ThreadMaster.getInstance().isNodeRunning(node))) {
+                language.forceStop();
+            }
+        }
     }
 
     private static final class ThreadSafeListAppender extends ListAppender<ILoggingEvent> {

@@ -11,7 +11,6 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.language.AbstractLanguage;
-import io.simpleide.language.compiler.Assembly65xLanguage;
 import io.simpleide.language.compiler.CLanguage;
 import io.simpleide.language.compiler.CPPLanguage;
 import io.simpleide.language.compiler.MonoCSharpLanguage;
@@ -34,6 +33,7 @@ class LangSetupTest {
         assertEquals(Python3Language.class, config.getLanguage(".py"));
         assertEquals(JavaLanguage.class, config.getLanguage(".java"));
         assertNull(config.getLanguage(".cs"));
+        assertNull(config.getLanguage(".s"));
         assertNull(config.getLanguage(".asm"));
     }
 
@@ -42,11 +42,10 @@ class LangSetupTest {
         LangConfig config = new LangConfig();
         TestLangSetup setup = new TestLangSetup(
                 config,
-                Set.of("wla65816", "wlalink", "Mesen-S", "gcc", "g++", "as", "mcs", "mono", "node", "python3")
+                Set.of("gcc", "g++", "as", "mcs", "mono", "node", "python3")
         );
         setup.run();
 
-        assertEquals(Assembly65xLanguage.class, config.getLanguage(".s"));
         assertEquals(CLanguage.class, config.getLanguage(".h"));
         assertEquals(CPPLanguage.class, config.getLanguage(".CXX"));
         assertEquals(MonoCSharpLanguage.class, config.getLanguage(".csx"));

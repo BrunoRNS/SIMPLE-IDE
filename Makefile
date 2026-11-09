@@ -6,7 +6,7 @@ endif
 
 APP_JAR := simpleide/target/maven-mutation-testing-jar-with-dependencies.jar
 
-.PHONY: build test run jar
+.PHONY: build test test-nolang run jar
 
 build:
 	$(MVNW) -B compile
@@ -14,9 +14,12 @@ build:
 test:
 	$(MVNW) -B test
 
+test-nolang:
+	$(MVNW) -B -DexcludedGroups=language-tools test
+
 run: jar
 	java -jar $(APP_JAR)
 
 jar:
 	$(MVNW) -B -DskipTests package
-	@echo JAR generated: simpleide/target
+	@echo Executable FAT JAR generated: $(APP_JAR)

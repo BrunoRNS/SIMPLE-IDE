@@ -43,7 +43,6 @@ final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
     icons.put(TypeFile.KOTLIN, loadIcon("kotlin.png"));
     icons.put(TypeFile.JAVASCRIPT, loadIcon("javascript.png"));
     icons.put(TypeFile.PYTHON, loadIcon("python.png"));
-    icons.put(TypeFile.ASM, loadIcon("assembly.png"));
     icons.put(TypeFile.CPP, loadIcon("cpp.png"));
     icons.put(TypeFile.C, loadIcon("c.png"));
     return icons;

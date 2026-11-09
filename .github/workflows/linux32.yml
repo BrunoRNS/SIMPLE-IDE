@@ -24,10 +24,11 @@ jobs:
           architecture: x86
           cache: maven
 
-      - name: Install 32-bit runtime libraries
+      - name: Install 32-bit Python and runtime libraries
         run: |
           sudo dpkg --add-architecture i386
           sudo apt-get update
+          # Ubuntu Noble lacks i386 Mono and Node.js runtimes, so those stay amd64.
           sudo apt-get install --yes \
             libc6:i386 \
             libstdc++6:i386 \
@@ -38,10 +39,30 @@ jobs:
             libxi6:i386 \
             libxrender1:i386 \
             libxt6:i386 \
-            libxtst6:i386
+            libxtst6:i386 \
+            build-essential \
+            mono-devel \
+            nodejs \
+            python3:i386
+          mkdir -p "$RUNNER_TEMP/python-i386"
+          ln -s /usr/bin/python3 "$RUNNER_TEMP/python-i386/python3"
+          echo "$RUNNER_TEMP/python-i386" >> "$GITHUB_PATH"
 
       - name: Verify 32-bit Java
         run: java -XshowSettings:properties -version 2>&1 | grep -q 'sun.arch.data.model = 32'
+
+      - name: Verify language toolchains
+        run: |
+          command -v gcc
+          command -v g++
+          command -v as
+          command -v mcs
+          command -v mono
+          command -v node
+          command -v python3
+          python3 -c 'import struct; assert struct.calcsize("P") * 8 == 32, "Python must be 32-bit"'
+          test "$(node -p 'process.arch')" = x64
+          mono --version | grep -Eq 'Architecture: (amd64|x86_64)'
 
       - name: Run tests
         run: make test

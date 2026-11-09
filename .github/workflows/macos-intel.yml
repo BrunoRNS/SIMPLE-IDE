@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   test:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: macos-x64
     strategy:
@@ -20,9 +20,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Install Rosetta
-        run: sudo softwareupdate --install-rosetta --agree-to-license
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -31,5 +28,33 @@ jobs:
           architecture: x64
           cache: maven
 
+      - name: Install Mono
+        run: brew install mono
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          architecture: x64
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: x64
+
+      - name: Verify language toolchains
+        run: |
+          command -v gcc
+          command -v g++
+          command -v as
+          command -v mcs
+          command -v mono
+          command -v node
+          command -v python3
+          test "$(node -p 'process.arch')" = x64
+          python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
+          mono --version | grep -Eq 'Architecture: (amd64|x86_64)'
+
       - name: Run tests
-        run: arch -x86_64 make test
+        run: make test

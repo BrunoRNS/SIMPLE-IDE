@@ -387,7 +387,7 @@ class TreeFileTest {
   }
 
   @Test
-  void fileTypesRecognizePythonJavascriptAndUppercaseExtensions() throws IOException {
+  void fileTypesRecognizeSupportedExtensionsAndTreatAssemblyAsText() throws IOException {
     Path root = Files.createTempDirectory("simpleide-treefile-types-");
     try {
       Path pythonPath = Files.writeString(root.resolve("script.PY"), "print('hello')");
@@ -395,14 +395,14 @@ class TreeFileTest {
       Path kotlinPath = Files.writeString(root.resolve("Main.kt"), "fun main() {}");
       Path cPath = Files.writeString(root.resolve("main.c"), "int main() {}");
       Path cppPath = Files.writeString(root.resolve("main.cpp"), "int main() {}");
-      Path assemblyPath = Files.writeString(root.resolve("main.asm"), "lda #$00");
+      Path unsupportedAssemblyPath = Files.writeString(root.resolve("main.asm"), "lda #$00");
 
       assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
       assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
       assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
       assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
       assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
-      assertThat(new File(assemblyPath).getTypeFile()).isEqualTo(TypeFile.ASM);
+      assertThat(new File(unsupportedAssemblyPath).getTypeFile()).isEqualTo(TypeFile.TXT);
     } finally {
       Files.deleteIfExists(root.resolve("script.PY"));
       Files.deleteIfExists(root.resolve("app.JS"));

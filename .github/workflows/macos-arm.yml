@@ -28,5 +28,32 @@ jobs:
           architecture: aarch64
           cache: maven
 
+      - name: Install Mono
+        run: brew install mono
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: arm64
+
+      - name: Verify language toolchains
+        run: |
+          command -v gcc
+          command -v g++
+          command -v as
+          command -v mcs
+          command -v mono
+          command -v node
+          command -v python3
+          test "$(node -p 'process.arch')" = arm64
+          python3 -c 'import platform; assert platform.machine().lower() in ("arm64", "aarch64")'
+          mono --version | grep -Eq 'Architecture: (arm64|aarch64)'
+
       - name: Run tests
         run: make test

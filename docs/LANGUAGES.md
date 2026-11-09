@@ -23,6 +23,20 @@ language.startManaged();
 
 `startManaged()` registers the process with `ThreadMaster` and starts it asynchronously. For bytecode and interpreter languages, the source file is passed directly to the runtime. Compiler languages build into a temporary directory, run the result, and remove temporary artifacts when the process exits.
 
+## Testing without language toolchains
+
+The normal `make test` target runs language execution tests when their required tools are installed. Those tests are tagged `language-tools` and verify the configured compilers, interpreters, and runtimes. Use `make test-nolang` to run the test suite while excluding those tool-dependent execution tests; language configuration and process-lifecycle unit tests still run.
+
+## Building the application
+
+Run `make jar` to create the runnable FAT JAR at `simpleide/target/maven-mutation-testing-jar-with-dependencies.jar`. Its manifest sets `io.simpleide.App` as `Main-Class`, so it can be launched directly:
+
+```sh
+java -jar simpleide/target/maven-mutation-testing-jar-with-dependencies.jar
+```
+
+`make run` builds the same JAR and launches it.
+
 ## Input and output
 
 The shared `Input` and `Output` queues are thread-safe. Send complete lines to a running process and read output with a timeout:
@@ -38,7 +52,6 @@ String line = Output.getInstance().get(5);
 
 | Language | Required tools |
 | --- | --- |
-| 6502/65xx assembly | `wla65816` (or `wla-65816`), `wlalink`, and `Mesen-S` |
 | C | `gcc` and GNU `as` |
 | C++ | `g++` and GNU `as` |
 | C# | Mono `mcs` and `mono` |
@@ -46,4 +59,4 @@ String line = Output.getInstance().get(5);
 | Python 3 | `python3` on Linux/macOS, `python` on Windows |
 | Java, Kotlin, Groovy | JDK plus the embedded Simple IDE bytecode compiler |
 
-The 65xx pipeline assembles source into an object file with WLA-65816, links the object into a `.sfc` ROM with `wlalink`, then opens the ROM with Mesen-S. C and C++ source is compiled to assembly, assembled to an object file, linked to a temporary executable, and run. C# source is compiled to a .NET executable with `mcs` and run with Mono.
+C and C++ source is compiled to assembly, assembled to an object file, linked to a temporary executable, and run. C# source is compiled to a .NET executable with `mcs` and run with Mono.

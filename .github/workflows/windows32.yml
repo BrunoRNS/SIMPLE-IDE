@@ -24,12 +24,57 @@ jobs:
           architecture: x86
           cache: maven
 
+      - name: Install GCC toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          update: true
+          install: mingw-w64-i686-gcc
+
+      - name: Install Mono
+        run: choco install mono --x86 --yes --no-progress
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          # Node 24 has no win-x86 release; use its x64 build under WOW64.
+          architecture: x64
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: x86
+
       - name: Verify 32-bit Java
         shell: pwsh
         run: |
           $javaProperties = java -XshowSettings:properties -version 2>&1
           if (-not ($javaProperties | Select-String -Quiet 'sun.arch.data.model = 32')) {
             throw "Expected a 32-bit Java runtime."
+          }
+
+      - name: Verify language toolchains
+        shell: pwsh
+        run: |
+          $commands = @("gcc", "g++", "as", "mcs", "mono", "node", "python")
+          foreach ($command in $commands) {
+            if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+              throw "Required language tool not found: $command"
+            }
+          }
+          if ((gcc -dumpmachine) -notmatch '^i686-') {
+            throw "Expected a 32-bit GCC toolchain."
+          }
+          if ((python -c "import struct; print(struct.calcsize('P') * 8)") -ne "32") {
+            throw "Expected 32-bit Python."
+          }
+          if ((node -p "process.arch") -ne "x64") {
+            throw "Expected the available 64-bit Node.js runtime."
+          }
+          if ((mono --version | Out-String) -notmatch 'Architecture: (x86|i386)') {
+            throw "Expected a 32-bit Mono runtime."
           }
 
       - name: Run tests

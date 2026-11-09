@@ -10,7 +10,6 @@ public enum TypeFile {
   PYTHON("python"),
   BINARY("binary"),
   CPP("c++"),
-  ASM("Assembly-65x"),
   C("C");
 
   private final String name;

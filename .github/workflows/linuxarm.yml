@@ -27,5 +27,23 @@ jobs:
           java-version: ${{ matrix.java }}
           cache: maven
 
+      - name: Install language toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential mono-devel nodejs python3
+
+      - name: Verify language toolchains
+        run: |
+          command -v gcc
+          command -v g++
+          command -v as
+          command -v mcs
+          command -v mono
+          command -v node
+          command -v python3
+          test "$(node -p 'process.arch')" = arm64
+          python3 -c 'import platform; assert platform.machine().lower() in ("aarch64", "arm64")'
+          mono --version | grep -Eq 'Architecture: (arm64|aarch64)'
+
       - name: Run tests
         run: make test

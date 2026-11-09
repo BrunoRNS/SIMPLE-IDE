@@ -64,5 +64,45 @@ jobs:
           key: windows-arm64-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: windows-arm64-maven-
 
+      - name: Install GCC toolchain
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          update: true
+          install: mingw-w64-clang-aarch64-gcc mingw-w64-clang-aarch64-binutils
+
+      - name: Install Mono
+        run: choco install mono --yes --no-progress
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: arm64
+
+      - name: Verify language toolchains
+        shell: pwsh
+        run: |
+          $commands = @("gcc", "g++", "as", "mcs", "mono", "node", "python")
+          foreach ($command in $commands) {
+            if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+              throw "Required language tool not found: $command"
+            }
+          }
+          if ((gcc -dumpmachine) -notmatch '^aarch64-') {
+            throw "Expected an ARM64 GCC toolchain."
+          }
+          if ((python -c "import platform, struct; print(struct.calcsize('P') * 8, platform.machine().lower())") -notmatch '^64 (arm64|aarch64)$') {
+            throw "Expected ARM64 Python."
+          }
+          if ((node -p "process.arch") -ne "arm64") {
+            throw "Expected an ARM64 Node.js runtime."
+          }
+
       - name: Run tests
         run: make test
