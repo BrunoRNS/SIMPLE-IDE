@@ -27,20 +27,24 @@ class JvmBytecodeLanguageTest {
     Path tempDir;
 
     private Logger languageLogger;
+    private Logger bytecodeLanguageLogger;
     private ThreadSafeListAppender logCapture;
 
     @BeforeEach
     void captureLanguageLogs() {
         languageLogger = (Logger) LoggerFactory.getLogger(AbstractLanguage.class);
+        bytecodeLanguageLogger = (Logger) LoggerFactory.getLogger(AbstractBytecodeLanguage.class);
         logCapture = new ThreadSafeListAppender();
         logCapture.setContext(languageLogger.getLoggerContext());
         logCapture.start();
         languageLogger.addAppender(logCapture);
+        bytecodeLanguageLogger.addAppender(logCapture);
     }
 
     @AfterEach
     void stopCapturingLanguageLogs() {
         languageLogger.detachAppender(logCapture);
+        bytecodeLanguageLogger.detachAppender(logCapture);
         logCapture.stop();
     }
 
