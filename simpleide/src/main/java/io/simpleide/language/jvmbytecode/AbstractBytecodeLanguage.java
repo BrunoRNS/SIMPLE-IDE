@@ -3,10 +3,15 @@ package io.simpleide.language.jvmbytecode;
 import java.io.IOException;
 import java.nio.file.Path;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.utils.ResourceUtil;
 
 public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
+
+    private final static Logger LOGGER = LoggerFactory.getLogger(AbstractBytecodeLanguage.class);
 
     private static final String COMPILER_JAR_RESOURCE =
         "simplebytecode-compiler.jar";

@@ -19,12 +19,12 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 public abstract class AbstractLanguage implements Runnable {
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(AbstractLanguage.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AbstractLanguage.class);
     
     protected ProcessBuilder pb;
     protected volatile Process p;
     protected volatile boolean stopped = false;
-    private volatile Thread inputForwarder;
+    private volatile RunnableNode inputForwarder;
 
     protected String langFriendly = null;
     protected String langConstant = null;
@@ -71,7 +71,7 @@ public abstract class AbstractLanguage implements Runnable {
     }
 
     private void startInputForwarder(Process process) {
-        Thread forwarder = new Thread(() -> {
+        RunnableNode forwarder = new RunnableNode(() -> {
             try (BufferedWriter writer = new BufferedWriter(
                 new OutputStreamWriter(process.getOutputStream())
             )) {
@@ -90,10 +90,11 @@ public abstract class AbstractLanguage implements Runnable {
                     LOGGER.debug("[IDE] Could not forward input to the language process.", e);
                 }
             }
-        }, "language-input-forwarder");
-        forwarder.setDaemon(true);
+        });
         inputForwarder = forwarder;
-        forwarder.start();
+        ThreadMaster threadMaster = ThreadMaster.getInstance();
+        threadMaster.initialize();
+        threadMaster.register(forwarder);
     }
 
     protected RunnableNode startManaged() {
@@ -130,10 +131,10 @@ public abstract class AbstractLanguage implements Runnable {
                 LOGGER.info("[IDE] Process completed successfully.");
             }
         } finally {
-            Thread forwarder = inputForwarder;
+            RunnableNode forwarder = inputForwarder;
             inputForwarder = null;
             if (forwarder != null) {
-                forwarder.interrupt();
+                ThreadMaster.getInstance().removeNodeCascade(forwarder);
             }
             this.p = null;
             this.stopped = false;
