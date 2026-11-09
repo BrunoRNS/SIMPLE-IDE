@@ -48,6 +48,11 @@
       <version>3.3.3</version>
     </dependency>
     <dependency>
+      <groupId>org.eclipse.lsp4j</groupId>
+      <artifactId>org.eclipse.lsp4j</artifactId>
+      <version>0.24.0</version>
+    </dependency>
+    <dependency>
       <groupId>com.formdev</groupId>
       <artifactId>flatlaf</artifactId>
       <version>3.7.2</version>

@@ -49,7 +49,14 @@ public class Directory extends TreeFile {
   }
 
   void refreshChildren() throws IOException {
-    List<TreeFile> refreshedChildren = readChildren(getPath());
+    replaceChildren(readChildrenFromDisk());
+  }
+
+  List<TreeFile> readChildrenFromDisk() throws IOException {
+    return readChildren(getPath());
+  }
+
+  void replaceChildren(List<TreeFile> refreshedChildren) {
     children.clear();
     children.addAll(refreshedChildren);
     childrenLoaded = true;

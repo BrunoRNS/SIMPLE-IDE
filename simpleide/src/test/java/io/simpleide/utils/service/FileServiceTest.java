@@ -22,6 +22,16 @@ class FileServiceTest {
   private final FileService fileService = new FileService();
 
   @Test
+  void savesFileContentsAsUtf8() throws IOException {
+    Path path = Files.createFile(root.resolve("save.txt"));
+    String content = "SIMPLE-IDE: olá";
+
+    fileService.saveFile(path, content);
+
+    assertThat(Files.readString(path)).isEqualTo(content);
+  }
+
+  @Test
   void createsFileUnderParentDirectory() throws IOException {
     Directory parent = new Directory(root);
 

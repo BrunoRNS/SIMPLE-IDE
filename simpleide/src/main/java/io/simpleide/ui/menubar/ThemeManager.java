@@ -5,6 +5,8 @@ import java.awt.Window;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.swing.SwingUtilities;
 
@@ -22,7 +24,7 @@ public final class ThemeManager {
   private static final ThemeManager INSTANCE = new ThemeManager();
 
   private ThemeType currentTheme = ThemeType.DARK;
-  private Editor editor;
+  private final List<Editor> editors = new ArrayList<>();
 
   private ThemeManager() {
   }
@@ -50,8 +52,14 @@ public final class ThemeManager {
       return;
     }
 
-    this.editor = editor;
+    if (!editors.contains(editor)) {
+      editors.add(editor);
+    }
     ThreadMaster.getInstance().executeOnEDT(() -> applyEditorTheme(editor, currentTheme));
+  }
+
+  public void unregister(Editor editor) {
+    editors.remove(editor);
   }
 
   public void setTheme(ThemeType newTheme) {
@@ -75,8 +83,10 @@ public final class ThemeManager {
         window.validate();
         window.repaint();
       }
-      if (editor != null) {
-        applyEditorTheme(editor, theme);
+      for (Editor registeredEditor : editors) {
+        if (registeredEditor != null) {
+          applyEditorTheme(registeredEditor, theme);
+        }
       }
     });
   }

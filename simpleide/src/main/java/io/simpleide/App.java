@@ -7,6 +7,7 @@ import io.simpleide.frame.MainFrame;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.EDTNode;
 
+
 /**
  * 
  */
@@ -19,6 +20,7 @@ public class App {
     ThreadMaster threadMaster = ThreadMaster.getInstance();
     threadMaster.register(new EDTNode(() -> new MainFrame().run()));
     threadMaster.initialize();
+   
   }
 
 }

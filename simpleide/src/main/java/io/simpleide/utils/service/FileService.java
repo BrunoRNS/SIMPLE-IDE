@@ -7,12 +7,20 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 
 import io.simpleide.ui.treefile.Directory;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TreeFile;
 
 public class FileService {
+
+  public void saveFile(Path path, String content) throws IOException {
+    Objects.requireNonNull(path, "path");
+    Objects.requireNonNull(content, "content");
+    Files.writeString(path, content, StandardCharsets.UTF_8);
+  }
 
   public void deleteFile(Path path) throws IOException {
     if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
