@@ -1,7 +1,9 @@
 package io.simpleide.lsp.core;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,8 +22,8 @@ import io.simpleide.lsp.client.LspClient;
 
 public final class LanguageServerManager implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(LanguageServerManager.class);
+  private static final Path AMBUS_HOME = resolveAmbusHome();
   private static final Map<String, List<String>> DEFAULT_COMMANDS = Map.of(
-      "java", List.of("jdtls"),
       "kotlin", List.of("kotlin-language-server"),
       "groovy", List.of("groovy-language-server"),
       "javascript", List.of("typescript-language-server", "--stdio"),
@@ -35,23 +37,71 @@ public final class LanguageServerManager implements AutoCloseable {
 
   private final Map<ServerKey, ServerEntry> servers = new ConcurrentHashMap<>();
 
+  private static Path resolveAmbusHome() {
+    String configuredHome = System.getProperty("simpleide.lsp.ambus.home");
+    if (configuredHome != null && !configuredHome.isBlank()) {
+      try {
+        Path configuredPath = Path.of(configuredHome).toAbsolutePath().normalize();
+        if (isAmbusHome(configuredPath)) {
+          return configuredPath;
+        }
+        LOGGER.warn("Configured Ambus directory is invalid: {}", configuredPath);
+      } catch (InvalidPathException error) {
+        LOGGER.warn("Configured Ambus path is invalid: {}", configuredHome, error);
+      }
+      return null;
+    }
+
+    try {
+      Path location = Path.of(
+          LanguageServerManager.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+          .toAbsolutePath().normalize();
+      if (Files.isRegularFile(location)) {
+        location = location.getParent();
+      }
+
+      for (Path current = location; current != null; current = current.getParent()) {
+        Path reactorDistribution = current.resolve("ambus/target/lsp_configurado");
+        if (isAmbusHome(reactorDistribution)) {
+          return reactorDistribution;
+        }
+
+        Path installedDistribution = current.resolve("ambus");
+        if (isAmbusHome(installedDistribution)) {
+          return installedDistribution;
+        }
+      }
+
+      LOGGER.debug("Ambus was not found. Configure simpleide.lsp.ambus.home to enable Java LSP.");
+      return null;
+    } catch (URISyntaxException | SecurityException error) {
+      LOGGER.warn("Unable to locate the Ambus Java language server.", error);
+      return null;
+    }
+  }
+
+  private static boolean isAmbusHome(Path path) {
+    return Files.isDirectory(path.resolve("plugins"))
+        && Files.isDirectory(path.resolve("config_ativa"));
+  }
+
   public CompletableFuture<LspClient> connect(
       Document document, Consumer<PublishDiagnosticsParams> diagnosticsHandler) {
     Objects.requireNonNull(document, "document");
     Objects.requireNonNull(diagnosticsHandler, "diagnosticsHandler");
+    Path root = findWorkspaceRoot(document.getPath());
     List<String> command;
     Map<String, String> environment;
     try {
-      command = getCommand(document.getLanguageId());
+      command = getCommand(document.getLanguageId(), root);
       environment = getEnvironment(document.getLanguageId());
-    } catch (IllegalArgumentException error) {
+    } catch (IllegalArgumentException | IllegalStateException error) {
       return CompletableFuture.failedFuture(error);
     }
     if (command.isEmpty()) {
       return CompletableFuture.completedFuture(null);
     }
 
-    Path root = findWorkspaceRoot(document.getPath());
     ServerKey key = new ServerKey(document.getLanguageId(), root);
     ServerEntry entry = servers.computeIfAbsent(key, ignored -> new ServerEntry(command, root, environment));
     entry.diagnosticsHandlers.put(document.getUri(), diagnosticsHandler);
@@ -80,12 +130,51 @@ public final class LanguageServerManager implements AutoCloseable {
     servers.clear();
   }
 
-  private List<String> getCommand(String languageId) {
+  private List<String> getCommand(String languageId, Path workspaceRoot) {
     String property = System.getProperty("simpleide.lsp.command." + languageId);
-    if (property == null) {
-      return DEFAULT_COMMANDS.getOrDefault(languageId, List.of());
+    if (property != null) {
+      return parseCommand(property);
     }
-    return parseCommand(property);
+
+    if ("java".equals(languageId)) {
+      if (AMBUS_HOME == null) {
+        throw new IllegalStateException(
+            "Ambus was not found. Configure simpleide.lsp.ambus.home.");
+      }
+      return getAmbusCommand(workspaceRoot);
+    }
+
+    return DEFAULT_COMMANDS.getOrDefault(languageId, List.of());
+  }
+
+  private List<String> getAmbusCommand(Path workspaceRoot) {
+    boolean windows = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT).startsWith("windows");
+    String executable = Path.of(
+        System.getProperty("java.home"),
+        "bin",
+        windows ? "java.exe" : "java").toString();
+    String workspaceName = workspaceRoot == null
+        ? "default"
+        : Integer.toHexString(workspaceRoot.toString().hashCode());
+    Path serverWorkspace = Path.of(
+        System.getProperty("user.home"),
+        ".simpleide",
+        "ambus-workspaces",
+        workspaceName);
+
+    return List.of(
+        executable,
+        "-Declipse.application=org.eclipse.jdt.ls.core.id1",
+        "-Dosgi.bundles.defaultStartLevel=4",
+        "-Declipse.product=org.eclipse.jdt.ls.core.product",
+        "-Xmx1G",
+        "-cp",
+        AMBUS_HOME.resolve("plugins").resolve("*").toString(),
+        "org.eclipse.equinox.launcher.Main",
+        "-configuration",
+        AMBUS_HOME.resolve("config_ativa").toString(),
+        "-data",
+        serverWorkspace.toString());
   }
 
   private Map<String, String> getEnvironment(String languageId) {

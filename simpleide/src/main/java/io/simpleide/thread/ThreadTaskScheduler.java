@@ -1,6 +1,7 @@
 package io.simpleide.thread;
 
 import java.awt.EventQueue;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -25,8 +26,8 @@ final class ThreadTaskScheduler {
     static final int WORKER_COUNT =
         Math.max(1, Math.min(2, Runtime.getRuntime().availableProcessors()));
 
-    private final Map<Integer, ManagedTask> activeTasks = new LinkedHashMap<>();
-    private final Set<Integer> scheduledIds = new HashSet<>();
+    private final Map<BigInteger, ManagedTask> activeTasks = new LinkedHashMap<>();
+    private final Set<BigInteger> scheduledIds = new HashSet<>();
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
         WORKER_COUNT,
         WORKER_COUNT,
@@ -42,7 +43,7 @@ final class ThreadTaskScheduler {
         if (shutdown) {
             throw new IllegalStateException("Thread task scheduler has been shut down.");
         }
-        int id = node.getId();
+        BigInteger id = node.getId();
         if (!scheduledIds.add(id)) {
             return;
         }
@@ -67,7 +68,7 @@ final class ThreadTaskScheduler {
         }
     }
 
-    synchronized boolean isRunning(int nodeId) {
+    synchronized boolean isRunning(BigInteger nodeId) {
         ManagedTask task = activeTasks.get(nodeId);
         return task != null && task.isRunning();
     }

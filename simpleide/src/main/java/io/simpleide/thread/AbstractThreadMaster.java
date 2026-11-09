@@ -1,5 +1,6 @@
 package io.simpleide.thread;
 
+import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -131,19 +132,19 @@ public abstract class AbstractThreadMaster implements Tree {
         return tree.getRoot();
     }
 
-    public LinkedList<Integer> bfs(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> bfs(TreeNode node, LinkedList<BigInteger> result) {
         return tree.bfs(node, result);
     }
 
-    public LinkedList<Integer> dfs_preorder(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> dfs_preorder(TreeNode node, LinkedList<BigInteger> result) {
         return tree.dfsPreorder(node, result);
     }
 
-    public LinkedList<Integer> dfs_inorder(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> dfs_inorder(TreeNode node, LinkedList<BigInteger> result) {
         return tree.dfsInorder(node, result);
     }
 
-    public LinkedList<Integer> dfs_postorder(TreeNode node, LinkedList<Integer> result) {
+    public LinkedList<BigInteger> dfs_postorder(TreeNode node, LinkedList<BigInteger> result) {
         return tree.dfsPostorder(node, result);
     }
 
@@ -165,7 +166,7 @@ public abstract class AbstractThreadMaster implements Tree {
     }
 
     @Override
-    public Map<Integer, TreeNode> showTree() {
+    public Map<BigInteger, TreeNode> showTree() {
         return tree.showTree();
     }
 

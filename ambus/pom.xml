@@ -1,0 +1,127 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>io</groupId>
+        <artifactId>simpleide-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>ambus</artifactId>
+    <name>Ambus Java Language Server</name>
+    <packaging>pom</packaging>
+
+    <properties>
+        <jdtls.url>https://download.eclipse.org/jdtls/milestones/1.57.0/jdt-language-server-1.57.0-202602261110.tar.gz</jdtls.url>
+    </properties>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>prepare-java-language-server</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <property name="lsp.dir"
+                                          value="${project.build.directory}/lsp_configurado"/>
+                                <mkdir dir="${lsp.dir}"/>
+                                <get src="${jdtls.url}"
+                                     dest="${project.build.directory}/jdtls.tar.gz"
+                                     skipexisting="true"/>
+                                <untar src="${project.build.directory}/jdtls.tar.gz"
+                                       dest="${lsp.dir}"
+                                       compression="gzip"/>
+
+                                <condition property="jdtls.config" value="config_mac">
+                                    <os family="mac"/>
+                                </condition>
+                                <condition property="jdtls.config" value="config_win">
+                                    <os family="windows"/>
+                                </condition>
+                                <condition property="jdtls.config" value="config_linux">
+                                    <os family="unix"/>
+                                </condition>
+                                <fail unless="jdtls.config"
+                                      message="Ambus does not support this operating system."/>
+                                <copy todir="${lsp.dir}/config_ativa">
+                                    <fileset dir="${lsp.dir}/${jdtls.config}"/>
+                                </copy>
+
+                                <echo file="${lsp.dir}/start-ambus.sh"><![CDATA[#!/bin/sh
+BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE="${1:-$HOME/.simpleide/ambus-workspace}"
+mkdir -p "$WORKSPACE"
+exec java \
+  -Declipse.application=org.eclipse.jdt.ls.core.id1 \
+  -Dosgi.bundles.defaultStartLevel=4 \
+  -Declipse.product=org.eclipse.jdt.ls.core.product \
+  -Xmx1G \
+  -cp "$BASE_DIR/plugins/*" \
+  org.eclipse.equinox.launcher.Main \
+  -configuration "$BASE_DIR/config_ativa" \
+  -data "$WORKSPACE"
+]]></echo>
+                                <chmod file="${lsp.dir}/start-ambus.sh" perm="755"/>
+
+                                <echo file="${lsp.dir}/start-ambus.bat"><![CDATA[@echo off
+set "BASE_DIR=%~dp0"
+if "%~1"=="" (
+  set "WORKSPACE=%USERPROFILE%\.simpleide\ambus-workspace"
+) else (
+  set "WORKSPACE=%~1"
+)
+if not exist "%WORKSPACE%" mkdir "%WORKSPACE%"
+java -Declipse.application=org.eclipse.jdt.ls.core.id1 ^
+  -Dosgi.bundles.defaultStartLevel=4 ^
+  -Declipse.product=org.eclipse.jdt.ls.core.product ^
+  -Xmx1G ^
+  -cp "%BASE_DIR%plugins\*" ^
+  org.eclipse.equinox.launcher.Main ^
+  -configuration "%BASE_DIR%config_ativa" ^
+  -data "%WORKSPACE%"
+]]></echo>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.6.0</version>
+                <configuration>
+                    <descriptors>
+                        <descriptor>src/assembly/distribution.xml</descriptor>
+                    </descriptors>
+                    <finalName>ambus-${project.version}</finalName>
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <formats>
+                        <format>zip</format>
+                    </formats>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>package-ambus-distribution</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

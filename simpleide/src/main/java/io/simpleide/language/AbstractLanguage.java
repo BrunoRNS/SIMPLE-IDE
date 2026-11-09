@@ -1,10 +1,9 @@
 package io.simpleide.language;
 
-import java.io.File;
+import java.io.BufferedWriter;
 import java.io.IOException;
-import java.nio.file.Files;
+import java.io.OutputStreamWriter;
 import java.util.Scanner;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
@@ -13,6 +12,8 @@ import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
 import io.simpleide.language.exceptions.ProcessFatalException;
+import io.simpleide.language.io.Output;
+import io.simpleide.language.io.holder.InputHolder;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 
@@ -23,23 +24,20 @@ public abstract class AbstractLanguage implements Runnable {
     protected ProcessBuilder pb;
     protected volatile Process p;
     protected volatile boolean stopped = false;
+    private volatile RunnableNode inputForwarder;
 
-    protected String input = "";
     protected String langFriendly = null;
     protected String langConstant = null;
-    
-    private File currentTempInputFile = null;
 
     public String getLangFriendly() { return this.langFriendly; }
     public String getLangConstant() { return this.langConstant; }
-    public void setInput(String s) { input = s; }
-    
-    public synchronized void appendInput(String s) {
-        input += "\n" + s;
-    }
 
     @Override
     public void run() {
+        if (pb == null) {
+            LOGGER.error("[IDE] Cannot run language process because its command was not configured.");
+            return;
+        }
 
         synchronized (this) {
             if (this.p != null && this.p.isAlive()) {
@@ -49,25 +47,17 @@ public abstract class AbstractLanguage implements Runnable {
         }
         
         try {
-            if (input != null && !input.isBlank()) {
-                currentTempInputFile = File.createTempFile(
-                    UUID.randomUUID().toString().replace("-", ""),
-                    ".in"
-                );
-                currentTempInputFile.deleteOnExit();
-                Files.writeString(currentTempInputFile.toPath(), input);
-                pb.redirectInput(currentTempInputFile);
-            }
-
             pb.redirectErrorStream(true); 
             
             p = pb.start();
-            
+            startInputForwarder(p);
+
             p.onExit().thenAccept(this.getHandler());
 
             try (Scanner scanner = new Scanner(p.getInputStream())) {
                 while (scanner.hasNextLine()) {
                     String line = scanner.nextLine();
+                    Output.getInstance().set(line);
                     LOGGER.info("[OUTPUT] {}", line);
                 }
             } catch (Exception e) {
@@ -75,10 +65,36 @@ public abstract class AbstractLanguage implements Runnable {
                     throw new ProcessFatalException("Process Did not Finish Successfully during stream reading", new IOException(e));
                 }
             }
-
         } catch (IOException e) {
             throw new ProcessFatalException("Process Did not Finish Successfully at startup", e);
         }
+    }
+
+    private void startInputForwarder(Process process) {
+        RunnableNode forwarder = new RunnableNode(() -> {
+            try (BufferedWriter writer = new BufferedWriter(
+                new OutputStreamWriter(process.getOutputStream())
+            )) {
+                while (process.isAlive()) {
+                    String line = InputHolder.INSTANCE.get(1);
+                    if (line != null) {
+                        writer.write(line);
+                        writer.newLine();
+                        writer.flush();
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (IOException e) {
+                if (process.isAlive()) {
+                    LOGGER.debug("[IDE] Could not forward input to the language process.", e);
+                }
+            }
+        });
+        inputForwarder = forwarder;
+        ThreadMaster threadMaster = ThreadMaster.getInstance();
+        threadMaster.initialize();
+        threadMaster.register(forwarder);
     }
 
     protected RunnableNode startManaged() {
@@ -115,8 +131,10 @@ public abstract class AbstractLanguage implements Runnable {
                 LOGGER.info("[IDE] Process completed successfully.");
             }
         } finally {
-            if (currentTempInputFile != null && currentTempInputFile.exists()) {
-                currentTempInputFile.delete();
+            RunnableNode forwarder = inputForwarder;
+            inputForwarder = null;
+            if (forwarder != null) {
+                ThreadMaster.getInstance().removeNodeCascade(forwarder);
             }
             this.p = null;
             this.stopped = false;

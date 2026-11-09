@@ -35,6 +35,7 @@ final class TreeFileActions {
     this.state = state;
   }
 
+  @SuppressWarnings("unused")
   void installContextMenu() {
     JPopupMenu menu = new JPopupMenu();
     JMenuItem newFile = addMenuItem(menu, "New file", this::promptCreateFile);

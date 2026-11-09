@@ -1,0 +1,34 @@
+name: Windows x86 CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up 32-bit Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+          architecture: x86
+          cache: maven
+
+      - name: Verify 32-bit Java
+        shell: pwsh
+        run: |
+          $javaProperties = java -XshowSettings:properties -version 2>&1
+          if (-not ($javaProperties | Select-String -Quiet 'sun.arch.data.model = 32')) {
+            throw "Expected a 32-bit Java runtime."
+          }
+
+      - name: Run tests
+        run: make test
