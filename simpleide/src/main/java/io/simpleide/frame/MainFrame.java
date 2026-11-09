@@ -7,8 +7,10 @@ import java.nio.file.Path;
 
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
-import javax.swing.JSplitPane;
+import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 
@@ -54,6 +56,9 @@ public class MainFrame extends JFrame implements Runnable {
     LogPanel logPanel = new LogPanel();
     JScrollPane treePane = new JScrollPane();
     JScrollPane logPane = new JScrollPane(logPanel);
+    JTabbedPane outputTabs = new JTabbedPane();
+    outputTabs.addTab("Debug Console", logPane);
+    outputTabs.addTab("Terminal", new JPanel());
 
     editor = new Editor();
     editor.setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_JAVA);
@@ -65,7 +70,7 @@ public class MainFrame extends JFrame implements Runnable {
     editorTreePane.setContinuousLayout(true);
     
     
-    JSplitPane mainVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorTreePane, logPane);
+    JSplitPane mainVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorTreePane, outputTabs);
     mainVerticalSplit.setResizeWeight(0.8); 
     mainVerticalSplit.setContinuousLayout(true);
     
