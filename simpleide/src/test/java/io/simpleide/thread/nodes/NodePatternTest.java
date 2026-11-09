@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigInteger;
+
 import org.junit.jupiter.api.Test;
 
 class NodePatternTest {
@@ -13,10 +15,10 @@ class NodePatternTest {
         NodePattern first = new TestPattern();
         NodePattern second = new TestPattern();
 
-        int firstId = first.getId();
+        BigInteger firstId = first.getId();
         assertEquals(firstId, first.getId());
         assertNotEquals(firstId, second.getId());
-        assertTrue(firstId > 0);
+        assertTrue(firstId.signum() > 0);
     }
 
     private static final class TestPattern implements NodePattern {

@@ -2,9 +2,10 @@ package io.simpleide.thread.nodes;
 
 import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
+import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 public interface NodePattern {
 
@@ -14,18 +15,19 @@ public interface NodePattern {
     public abstract Integer level();
     public abstract boolean isEDT();
 
-    public default int getId() {
+    public default BigInteger getId() {
         return NodeIds.idFor(this);
     }
 
     final class NodeIds {
         private static final ReferenceQueue<NodePattern> COLLECTED = new ReferenceQueue<>();
-        private static final Map<IdentityReference, Integer> IDS = new HashMap<>();
-        private static final AtomicLong NEXT = new AtomicLong();
+        private static final Map<IdentityReference, BigInteger> IDS = new HashMap<>();
+        private static final AtomicReference<BigInteger> NEXT =
+            new AtomicReference<>(BigInteger.ZERO);
 
         private NodeIds() {}
 
-        private static int idFor(NodePattern node) {
+        private static BigInteger idFor(NodePattern node) {
             synchronized (IDS) {
                 IdentityReference collected;
                 while ((collected = (IdentityReference) COLLECTED.poll()) != null) {
@@ -33,16 +35,12 @@ public interface NodePattern {
                 }
 
                 IdentityReference lookup = new IdentityReference(node, null);
-                Integer existing = IDS.get(lookup);
+                BigInteger existing = IDS.get(lookup);
                 if (existing != null) {
                     return existing;
                 }
 
-                long nextId = NEXT.incrementAndGet();
-                if (nextId > Integer.MAX_VALUE) {
-                    throw new IllegalStateException("Thread node ID space exhausted.");
-                }
-                int id = (int) nextId;
+                BigInteger id = NEXT.updateAndGet(current -> current.add(BigInteger.ONE));
                 IDS.put(new IdentityReference(node, COLLECTED), id);
                 return id;
             }

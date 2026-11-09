@@ -1,5 +1,6 @@
 package io.simpleide.thread.tree;
 
+import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -7,7 +8,7 @@ import io.simpleide.thread.nodes.NodePattern;
 
 public class TreeNode {
 
-    private final int id;
+    private final BigInteger id;
     private final NodePattern node;
     private final LinkedList<TreeNode> children;
 
@@ -15,13 +16,13 @@ public class TreeNode {
         this(node, node.getId());
     }
 
-    private TreeNode(NodePattern node, int id) {
+    private TreeNode(NodePattern node, BigInteger id) {
         this.node = node;
         this.id = id;
         this.children = new LinkedList<>();
     }
 
-    public int getId() {
+    public BigInteger getId() {
         return id;
     }
 

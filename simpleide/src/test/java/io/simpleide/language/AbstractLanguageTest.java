@@ -1,6 +1,9 @@
 package io.simpleide.language;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -20,6 +23,8 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
+import io.simpleide.language.io.Output;
+import io.simpleide.language.io.holder.InputHolder;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 
@@ -29,7 +34,13 @@ class AbstractLanguageTest {
     private ThreadSafeListAppender logCapture;
 
     @BeforeEach
-    public void captureLanguageLogs() {
+    public void captureLanguageLogs() throws InterruptedException {
+        while (Output.getInstance().get(0) != null) {
+            // Clear output left by a previous test.
+        }
+        while (InputHolder.INSTANCE.get(0) != null) {
+            // Clear input left by a previous test.
+        }
         languageLogger = (Logger) LoggerFactory.getLogger(AbstractLanguage.class);
         logCapture = new ThreadSafeListAppender();
         logCapture.setContext(languageLogger.getLoggerContext());
@@ -54,6 +65,7 @@ class AbstractLanguageTest {
         assertEquals("test", language.getLangConstant());
         assertTrue(ThreadMaster.getInstance().showTree().containsKey(node.getId()));
         assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
+        assertEquals("child output", Output.getInstance().get(1));
     }
 
     @Test
@@ -65,6 +77,7 @@ class AbstractLanguageTest {
 
         assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
         assertTrue(logCapture.messages().contains("[IDE] Process completed successfully."));
+        assertEquals("child output", Output.getInstance().get(1));
     }
 
     @Test
@@ -79,6 +92,21 @@ class AbstractLanguageTest {
         assertTrue(logCapture.messages().contains(
             "[Runtime Error] The developer's program broke with code: 7"
         ));
+        assertEquals("child output", Output.getInstance().get(1));
+    }
+
+    @Test
+    public void forwardsInputFromInputHolderToRunningProcess() throws InterruptedException {
+        TestLanguage language = new TestLanguage("input");
+        language.startManagedTask();
+
+        awaitOutput("ready");
+        InputHolder.INSTANCE.set("user input");
+        awaitOutput("received:user input");
+        language.awaitExitHandler();
+
+        assertEquals("ready", Output.getInstance().get(1));
+        assertEquals("received:user input", Output.getInstance().get(1));
     }
 
     @Test
@@ -88,6 +116,7 @@ class AbstractLanguageTest {
 
         try {
             awaitOutput("ready");
+            assertEquals("ready", Output.getInstance().get(1));
             assertThatThrownBy(language::run)
                 .isInstanceOfSatisfying(
                     ProcessAlreadyExistsException.class,
@@ -164,11 +193,20 @@ class AbstractLanguageTest {
     }
 
     public static final class ChildProcess {
-        public static void main(String[] args) throws InterruptedException {
+        public static void main(String[] args) throws IOException, InterruptedException {
             if ("wait".equals(args[0])) {
                 System.out.println("ready");
                 System.out.flush();
                 Thread.sleep(5_000);
+                return;
+            }
+
+            if ("input".equals(args[0])) {
+                System.out.println("ready");
+                System.out.flush();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+                    System.out.println("received:" + reader.readLine());
+                }
                 return;
             }
 

@@ -18,8 +18,21 @@ class SimpleBytecodeCompilerTest {
 
     @Test
     void reportsMissingAndUnsupportedInputFiles() {
-        assertThat(SimpleBytecodeCompiler.execute()).isEqualTo(-1);
-        assertThat(SimpleBytecodeCompiler.execute("source.unknown")).isEqualTo(-2);
+        ByteArrayOutputStream errors = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        try (PrintStream errorStream = new PrintStream(errors, true, StandardCharsets.UTF_8)) {
+            System.setErr(errorStream);
+            try {
+                assertThat(SimpleBytecodeCompiler.execute()).isEqualTo(-1);
+                assertThat(SimpleBytecodeCompiler.execute("source.unknown")).isEqualTo(-2);
+            } finally {
+                System.setErr(originalErr);
+            }
+        }
+
+        assertThat(errors.toString(StandardCharsets.UTF_8))
+            .contains("No file provided")
+            .contains("No runner found for file extension: unknown");
     }
 
     @Test
@@ -43,8 +56,19 @@ class SimpleBytecodeCompilerTest {
 
     @Test
     void returnsFailureForAnUnreadableFile() {
-        assertThat(SimpleBytecodeCompiler.execute(tempDirectory.resolve("missing.java").toString()))
-            .isEqualTo(-5);
+        ByteArrayOutputStream errors = new ByteArrayOutputStream();
+        PrintStream originalErr = System.err;
+        try (PrintStream errorStream = new PrintStream(errors, true, StandardCharsets.UTF_8)) {
+            System.setErr(errorStream);
+            try {
+                assertThat(SimpleBytecodeCompiler.execute(tempDirectory.resolve("missing.java").toString()))
+                    .isEqualTo(-5);
+            } finally {
+                System.setErr(originalErr);
+            }
+        }
+
+        assertThat(errors.toString(StandardCharsets.UTF_8)).contains("Failed to read file:");
     }
 
 }

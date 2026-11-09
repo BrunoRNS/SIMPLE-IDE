@@ -1,0 +1,45 @@
+name: Linux x86 CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up 32-bit Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: "17"
+          architecture: x86
+          cache: maven
+
+      - name: Install 32-bit runtime libraries
+        run: |
+          sudo dpkg --add-architecture i386
+          sudo apt-get update
+          sudo apt-get install --yes \
+            libc6:i386 \
+            libstdc++6:i386 \
+            libfontconfig1:i386 \
+            libfreetype6:i386 \
+            libx11-6:i386 \
+            libxext6:i386 \
+            libxi6:i386 \
+            libxrender1:i386 \
+            libxt6:i386 \
+            libxtst6:i386
+
+      - name: Verify 32-bit Java
+        run: java -XshowSettings:properties -version 2>&1 | grep -q 'sun.arch.data.model = 32'
+
+      - name: Run tests
+        run: make test

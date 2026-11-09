@@ -24,6 +24,7 @@ hs_err_pid*
 replay_pid*
 .metadata
 bin/
+!simpleide/src/main/resources/io/simpleide/ui/terminal/core/busybox/**/bin/
 tmp/
 *.tmp
 *.bak
