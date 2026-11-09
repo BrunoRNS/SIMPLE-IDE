@@ -197,7 +197,7 @@ class AbstractLanguageTest {
             if ("wait".equals(args[0])) {
                 System.out.println("ready");
                 System.out.flush();
-                Thread.sleep(5_000);
+                System.in.read();
                 return;
             }
 

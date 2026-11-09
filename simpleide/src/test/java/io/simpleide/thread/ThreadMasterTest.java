@@ -1,5 +1,6 @@
 package io.simpleide.thread;
 
+import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -58,6 +59,70 @@ class ThreadMasterTest {
         try {
             assertSame(root, master.getROOT());
             assertSame(root, master.getRoot().getNode());
+        } finally {
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void registersAndSchedulesNodesWithIdsBeyondThe32BitRange() throws Exception {
+        BigInteger largeId = BigInteger.ONE.shiftLeft(32).add(BigInteger.valueOf(17));
+        CountDownLatch taskStarted = new CountDownLatch(1);
+        NodePattern root = new NodePattern() {
+            @Override
+            public Runnable onStart() {
+                return () -> {};
+            }
+
+            @Override
+            public Runnable onClose() {
+                return null;
+            }
+
+            @Override
+            public Integer level() {
+                return 0;
+            }
+
+            @Override
+            public boolean isEDT() {
+                return false;
+            }
+        };
+        NodePattern node = new NodePattern() {
+            @Override
+            public BigInteger getId() {
+                return largeId;
+            }
+
+            @Override
+            public Runnable onStart() {
+                return taskStarted::countDown;
+            }
+
+            @Override
+            public Runnable onClose() {
+                return null;
+            }
+
+            @Override
+            public Integer level() {
+                return 1;
+            }
+
+            @Override
+            public boolean isEDT() {
+                return false;
+            }
+        };
+        ThreadMaster master = new ThreadMaster(root);
+        try {
+            master.register(node);
+            assertTrue(master.showTree().containsKey(largeId));
+
+            master.initialize();
+
+            assertTrue(taskStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
         } finally {
             master.shutdown();
         }

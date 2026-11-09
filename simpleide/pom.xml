@@ -15,6 +15,13 @@
     <name>Simple IDE application</name>
     <url>http://maven.apache.org</url>
 
+    <repositories>
+        <repository>
+            <id>jetbrains-intellij-dependencies</id>
+            <url>https://packages.jetbrains.team/maven/p/ij/intellij-dependencies</url>
+        </repository>
+    </repositories>
+
     <dependencies>
         <dependency>
             <groupId>io</groupId>
@@ -22,6 +29,24 @@
             <version>${project.version}</version>
             <classifier>jar-with-dependencies</classifier>
             <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jetbrains.jediterm</groupId>
+            <artifactId>jediterm-ui</artifactId>
+            <version>3.76</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jetbrains.jediterm</groupId>
+            <artifactId>jediterm-core</artifactId>
+            <version>3.76</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.jetbrains.pty4j</groupId>
+            <artifactId>pty4j</artifactId>
+            <version>0.14.0</version>
         </dependency>
 
         <dependency>
@@ -66,6 +91,12 @@
         <dependency>
             <groupId>com.formdev</groupId>
             <artifactId>flatlaf</artifactId>
+            <version>3.7.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf-extras</artifactId>
             <version>3.7.2</version>
         </dependency>
     </dependencies>
