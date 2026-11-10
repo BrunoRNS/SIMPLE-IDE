@@ -14,6 +14,7 @@ import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.compiler.CLanguage;
 import io.simpleide.language.compiler.CPPLanguage;
 import io.simpleide.language.compiler.MonoCSharpLanguage;
+import io.simpleide.language.interpreter.InterpreterRequiredFile;
 import io.simpleide.language.interpreter.JSLanguage;
 import io.simpleide.language.interpreter.Python3Language;
 import io.simpleide.language.jvmbytecode.GroovyLanguage;
@@ -25,7 +26,10 @@ class LangSetupTest {
     @Test
     void registersOnlyLanguagesWhoseRequirementsAreAvailable() {
         LangConfig config = new LangConfig();
-        new TestLangSetup(config, Set.of("gcc", "as", "node", "python3")).run();
+        new TestLangSetup(
+                config,
+                Set.of("gcc", "as", "node", InterpreterRequiredFile.getInterpreter(Python3Language.class))
+        ).run();
 
         assertEquals(CLanguage.class, config.getLanguage(".c"));
         assertNull(config.getLanguage(".cpp"));
@@ -42,7 +46,10 @@ class LangSetupTest {
         LangConfig config = new LangConfig();
         TestLangSetup setup = new TestLangSetup(
                 config,
-                Set.of("gcc", "g++", "as", "mcs", "mono", "node", "python3")
+                Set.of(
+                        "gcc", "g++", "as", "mcs", "mono", "node",
+                        InterpreterRequiredFile.getInterpreter(Python3Language.class)
+                )
         );
         setup.run();
 

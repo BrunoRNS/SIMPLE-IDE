@@ -27,7 +27,7 @@ public class CLanguage extends AbstractCompilerLanguage {
                 List.of(
                         List.of(compiler, "-S", source.toString(), "-o", assembly.toString()),
                         List.of(assembler, assembly.toString(), "-o", object.toString()),
-                        List.of(linker, object.toString(), "-o", output.toString())
+                        createLinkCommand(object, output)
                 ),
                 List.of(output.toString())
         );

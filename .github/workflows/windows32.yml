@@ -16,6 +16,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Configure Windows temp directory
+        shell: pwsh
+        run: |
+          $tempDirectory = Join-Path $env:RUNNER_TEMP "simpleide-ci"
+          New-Item -ItemType Directory -Force -Path $tempDirectory | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMPDIR=$tempDirectory"
+
       - name: Set up 32-bit Java
         uses: actions/setup-java@v5
         with:
@@ -59,6 +68,10 @@ jobs:
           } | Select-Object -First 1
           if (-not $monoBin) {
             throw "Could not find the Mono compiler after installation."
+          }
+          $managedCompiler = Join-Path (Split-Path $monoBin -Parent) "lib\mono\4.5\mcs.exe"
+          if (-not (Test-Path $managedCompiler)) {
+            throw "Could not find the managed Mono compiler at '$managedCompiler'."
           }
           Add-Content -Path $env:GITHUB_PATH -Value $monoBin
 

@@ -20,6 +20,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Configure Windows temp directory
+        shell: pwsh
+        run: |
+          $tempDirectory = Join-Path $env:RUNNER_TEMP "simpleide-ci"
+          New-Item -ItemType Directory -Force -Path $tempDirectory | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMPDIR=$tempDirectory"
+
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
@@ -28,12 +37,26 @@ jobs:
           cache: maven
 
       - name: Install GCC toolchain
+        id: setup-msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
           path-type: inherit
           update: true
           install: mingw-w64-ucrt-x86_64-gcc
+
+      - name: Add 64-bit GCC to Windows PATH
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.setup-msys2.outputs.msys2-location }}
+        run: |
+          $gccBin = Join-Path $env:MSYS2_LOCATION "ucrt64\bin"
+          foreach ($tool in @("gcc.exe", "g++.exe", "as.exe")) {
+            if (-not (Test-Path (Join-Path $gccBin $tool))) {
+              throw "Could not find $tool in the 64-bit GCC toolchain."
+            }
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
       - name: Install Mono
         run: choco install mono --yes --no-progress
@@ -50,6 +73,10 @@ jobs:
           } | Select-Object -First 1
           if (-not $monoBin) {
             throw "Could not find the Mono compiler after installation."
+          }
+          $managedCompiler = Join-Path (Split-Path $monoBin -Parent) "lib\mono\4.5\mcs.exe"
+          if (-not (Test-Path $managedCompiler)) {
+            throw "Could not find the managed Mono compiler at '$managedCompiler'."
           }
           Add-Content -Path $env:GITHUB_PATH -Value $monoBin
 

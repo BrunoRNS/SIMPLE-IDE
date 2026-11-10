@@ -28,6 +28,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Configure Windows temp directory
+        shell: pwsh
+        run: |
+          $tempDirectory = Join-Path $env:RUNNER_TEMP "simpleide-ci"
+          New-Item -ItemType Directory -Force -Path $tempDirectory | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMPDIR=$tempDirectory"
+
       - name: Download and configure Zulu JDK
         shell: pwsh
         env:
@@ -71,7 +80,7 @@ jobs:
           msystem: CLANGARM64
           path-type: inherit
           update: true
-          install: mingw-w64-clang-aarch64-gcc mingw-w64-clang-aarch64-binutils
+          install: mingw-w64-clang-aarch64-gcc mingw-w64-clang-aarch64-binutils mingw-w64-clang-aarch64-libc++
 
       - name: Add ARM64 GCC to Windows PATH
         shell: pwsh
@@ -99,6 +108,10 @@ jobs:
           } | Select-Object -First 1
           if (-not $monoBin) {
             throw "Could not find the Mono compiler after installation."
+          }
+          $managedCompiler = Join-Path (Split-Path $monoBin -Parent) "lib\mono\4.5\mcs.exe"
+          if (-not (Test-Path $managedCompiler)) {
+            throw "Could not find the managed Mono compiler at '$managedCompiler'."
           }
           Add-Content -Path $env:GITHUB_PATH -Value $monoBin
 
@@ -132,6 +145,18 @@ jobs:
           }
           if ((node -p "process.arch") -ne "arm64") {
             throw "Expected an ARM64 Node.js runtime."
+          }
+          $monoProbeSource = Join-Path $env:RUNNER_TEMP "mono-probe.cs"
+          $monoProbeAssembly = Join-Path $env:RUNNER_TEMP "mono-probe.exe"
+          'using System; class MonoProbe { static void Main() { Console.WriteLine("mono-ok"); } }' |
+            Set-Content -Path $monoProbeSource
+          & mcs "-out:$monoProbeAssembly" $monoProbeSource
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not compile the Mono probe."
+          }
+          $monoOutput = (& mono $monoProbeAssembly | Out-String).Trim()
+          if ($monoOutput -ne "mono-ok") {
+            throw "Mono probe returned '$monoOutput'."
           }
 
       - name: Run tests

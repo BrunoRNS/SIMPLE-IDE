@@ -51,6 +51,10 @@ class CompilerLanguagesTest {
         assertEquals("gcc", c.getCompiler());
         assertEquals("gcc", c.getLinker());
         assertEquals("as", c.getAssembler());
+        assertEquals(
+                isWindows(),
+                c.createLinkCommand(Path.of("program.o"), Path.of("program.exe")).contains("-mconsole")
+        );
         assertEquals(List.of("gcc", "as"), CompilerRequiredFiles.getRequiredFilesFromCompiler(CLanguage.class));
         assertEquals("c", c.getLangFriendly());
         assertEquals(SyntaxConstants.SYNTAX_STYLE_C, c.getLangConstant());
@@ -60,6 +64,10 @@ class CompilerLanguagesTest {
         assertEquals("g++", cpp.getCompiler());
         assertEquals("as", cpp.getAssembler());
         assertEquals("g++", cpp.getLinker());
+        assertEquals(
+                isWindows(),
+                cpp.createLinkCommand(Path.of("program.o"), Path.of("program.exe")).contains("-mconsole")
+        );
         assertEquals(List.of("g++", "as"), CompilerRequiredFiles.getRequiredFilesFromCompiler(CPPLanguage.class));
         assertEquals("c++", cpp.getLangFriendly());
         assertEquals(List.of(cpp.getExecutable()), cpp.execute());
@@ -69,6 +77,21 @@ class CompilerLanguagesTest {
         assertNull(csharp.getLinker());
         assertEquals("mono", csharp.getRuntime());
         assertEquals("mono", csharp.execute().get(0));
+        List<String> csharpCompilerCommand = csharp.compilerCommand(
+                tempDirectory.resolve("main.cs").toAbsolutePath().normalize(),
+                Path.of(csharp.getExecutable())
+        );
+        Path mcsLauncher = OSpathUtil.which("mcs");
+        boolean usesMonoLauncher = isWindows()
+                && mcsLauncher != null
+                && (mcsLauncher.toString().toLowerCase().endsWith(".bat")
+                        || mcsLauncher.toString().toLowerCase().endsWith(".cmd"));
+        assertEquals(usesMonoLauncher ? "mono" : "mcs", csharpCompilerCommand.get(0));
+        if (usesMonoLauncher) {
+            Path managedCompiler = mcsLauncher.getParent().getParent()
+                    .resolve("lib").resolve("mono").resolve("4.5").resolve("mcs.exe");
+            assertEquals(managedCompiler.toString(), csharpCompilerCommand.get(1));
+        }
         assertEquals(List.of("mcs", "mono"),
                 CompilerRequiredFiles.getRequiredFilesFromCompiler(MonoCSharpLanguage.class));
         assertThrows(IllegalArgumentException.class,
@@ -175,5 +198,9 @@ class CompilerLanguagesTest {
         } else {
             assumeTrue(OSpathUtil.which(executable) != null, message);
         }
+    }
+
+    private boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("win");
     }
 }
