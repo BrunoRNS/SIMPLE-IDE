@@ -65,12 +65,24 @@ jobs:
           restore-keys: windows-arm64-maven-
 
       - name: Install GCC toolchain
+        id: setup-msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
           path-type: inherit
           update: true
           install: mingw-w64-clang-aarch64-gcc mingw-w64-clang-aarch64-binutils
+
+      - name: Add ARM64 GCC to Windows PATH
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.setup-msys2.outputs.msys2-location }}
+        run: |
+          $gccBin = Join-Path $env:MSYS2_LOCATION "clangarm64\bin"
+          if (-not (Test-Path (Join-Path $gccBin "gcc.exe"))) {
+            throw "Could not find the ARM64 GCC executable."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
       - name: Install Mono
         run: choco install mono --yes --no-progress
@@ -110,8 +122,10 @@ jobs:
               throw "Required language tool not found: $command"
             }
           }
-          if ((gcc -dumpmachine) -notmatch '^aarch64-') {
-            throw "Expected an ARM64 GCC toolchain."
+          $gccTarget = (gcc -dumpmachine | Out-String).Trim()
+          Write-Host "GCC target: $gccTarget"
+          if ($gccTarget -notmatch '^(aarch64|arm64)-') {
+            throw "Expected an ARM64 GCC toolchain, received '$gccTarget'."
           }
           if ((python -c "import platform, struct; print(struct.calcsize('P') * 8, platform.machine().lower())") -notmatch '^64 (arm64|aarch64)$') {
             throw "Expected ARM64 Python."

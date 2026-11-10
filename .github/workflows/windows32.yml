@@ -25,12 +25,24 @@ jobs:
           cache: maven
 
       - name: Install GCC toolchain
+        id: setup-msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
           path-type: inherit
           update: true
           install: mingw-w64-i686-gcc
+
+      - name: Add 32-bit GCC to Windows PATH
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.setup-msys2.outputs.msys2-location }}
+        run: |
+          $gccBin = Join-Path $env:MSYS2_LOCATION "mingw32\bin"
+          if (-not (Test-Path (Join-Path $gccBin "gcc.exe"))) {
+            throw "Could not find the 32-bit GCC executable."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
       - name: Install Mono
         run: choco install mono --x86 --yes --no-progress
@@ -80,8 +92,10 @@ jobs:
               throw "Required language tool not found: $command"
             }
           }
-          if ((gcc -dumpmachine) -notmatch '^i686-') {
-            throw "Expected a 32-bit GCC toolchain."
+          $gccTarget = (gcc -dumpmachine | Out-String).Trim()
+          Write-Host "GCC target: $gccTarget"
+          if ($gccTarget -notmatch '^(i[3-6]86|x86)-') {
+            throw "Expected a 32-bit GCC toolchain, received '$gccTarget'."
           }
           if ((python -c "import struct; print(struct.calcsize('P') * 8)") -ne "32") {
             throw "Expected 32-bit Python."
@@ -92,8 +106,17 @@ jobs:
           if ((node -p "process.arch") -ne "ia32") {
             throw "Expected a 32-bit Node.js runtime."
           }
-          if ((mono --version | Out-String) -notmatch 'Architecture: (x86|i386)') {
-            throw "Expected a 32-bit Mono runtime."
+          $monoProbeSource = Join-Path $env:RUNNER_TEMP "mono-bitness.cs"
+          $monoProbeAssembly = Join-Path $env:RUNNER_TEMP "mono-bitness.exe"
+          'using System; class MonoBitness { static void Main() { Console.WriteLine(IntPtr.Size == 4 ? "32" : "64"); } }' |
+            Set-Content -Path $monoProbeSource
+          & mcs "-out:$monoProbeAssembly" $monoProbeSource
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not compile the Mono bitness probe."
+          }
+          $monoBitness = (& mono $monoProbeAssembly | Out-String).Trim()
+          if ($monoBitness -ne "32") {
+            throw "Expected a 32-bit Mono runtime, received '$monoBitness'."
           }
 
       - name: Run tests

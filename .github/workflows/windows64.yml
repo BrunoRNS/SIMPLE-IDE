@@ -83,8 +83,17 @@ jobs:
           if ((node -p "process.arch") -ne "x64") {
             throw "Expected a 64-bit Node.js runtime."
           }
-          if ((mono --version | Out-String) -notmatch 'Architecture: (amd64|x86_64)') {
-            throw "Expected a 64-bit Mono runtime."
+          $monoProbeSource = Join-Path $env:RUNNER_TEMP "mono-bitness.cs"
+          $monoProbeAssembly = Join-Path $env:RUNNER_TEMP "mono-bitness.exe"
+          'using System; class MonoBitness { static void Main() { Console.WriteLine(IntPtr.Size == 8 ? "64" : "32"); } }' |
+            Set-Content -Path $monoProbeSource
+          & mcs "-out:$monoProbeAssembly" $monoProbeSource
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not compile the Mono bitness probe."
+          }
+          $monoBitness = (& mono $monoProbeAssembly | Out-String).Trim()
+          if ($monoBitness -ne "64") {
+            throw "Expected a 64-bit Mono runtime, received '$monoBitness'."
           }
 
       - name: Run tests
