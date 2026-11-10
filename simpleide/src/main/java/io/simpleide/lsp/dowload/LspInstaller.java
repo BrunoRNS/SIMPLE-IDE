@@ -1,6 +1,13 @@
 package io.simpleide.lsp.dowload;
 
-import java.util.List;
 
-public class LspInstaller {
+
+public final class LspInstaller {
+    public static void dowloading(LspServer server){
+        descompact();
+    }
+
+    private static void descompact(){
+
+    } 
 }

@@ -1,13 +1,42 @@
 {
-    "servers":[
+    "servers": [
         {
             "id": "0",
             "version": "1.40.0",
-            "name":"jdtls",
+            "name": "jdtls",
             "languageId": "java",
-            "arch":[
-                
-            ]
+            "arch": [
+                "x86_64",
+                "aarch64",
+                "arm64"
+            ],
+            "os": [
+                "MACOS",
+                "WINDOWS",
+                "LINUX"
+            ],
+            "minimumVersion": "17",
+            "command": "java",
+            "arguments": [
+                "-Declipse.application=org.eclipse.jdt.ls.core.id1",
+                "-Dosgi.bundles.defaultStartLevel=4",
+                "-Declipse.product=org.eclipse.jdt.ls.core.product",
+                "-Dlog.protocol=true",
+                "-Dlog.level=ALL",
+                "-Xmx1G",
+                "--add-modules=ALL-SYSTEM",
+                "--add-opens",
+                "java.base/java.util=ALL-UNNAMED",
+                "--add-opens",
+                "java.base/java.lang=ALL-UNNAMED",
+                "-jar",
+                "./plugins/org.eclipse.equinox.launcher_*.jar",
+                "-configuration",
+                "./config_linux",
+                "-data",
+                "~/.cache/jdtls-workspace"
+            ],
+            "url": "https://download.eclipse.org/jdtls/milestones/1.40.0/jdt-language-server-1.40.0-202409261450.tar.gz"
         }
     ]
 }
