@@ -43,6 +43,26 @@ class BusyBoxPlatformTest {
     }
 
     @Test
+    void selectsTheWindowsX86BusyBoxBeforeWindows10() {
+        assertEquals(
+            LangPlatform.WINDOWSX86,
+            BusyBoxPlatform.getCompatiblePlatform(LangPlatform.WINDOWSX64UNICODE, "6.3")
+        );
+        assertEquals(
+            LangPlatform.WINDOWSX86,
+            BusyBoxPlatform.getCompatiblePlatform(LangPlatform.WINDOWSX64UNICODE, "unknown")
+        );
+        assertEquals(
+            LangPlatform.WINDOWSX64UNICODE,
+            BusyBoxPlatform.getCompatiblePlatform(LangPlatform.WINDOWSX64UNICODE, "10.0.19045")
+        );
+        assertEquals(
+            LangPlatform.WINDOWSARM64,
+            BusyBoxPlatform.getCompatiblePlatform(LangPlatform.WINDOWSARM64, "6.3")
+        );
+    }
+
+    @Test
     void runsLinuxX86BusyBox() throws Exception {
         assumePlatform("linux", "x86", "i386", "i486", "i586", "i686");
         runBusyBox(LangPlatform.LINUXX86);

@@ -1,5 +1,9 @@
 package io.simpleide.ui.terminal;
 
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import static org.awaitility.Awaitility.await;
@@ -8,6 +12,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.junit.jupiter.api.Test;
+
+import com.pty4j.PtyProcess;
 
 import io.simpleide.language.config.LangPlatform;
 
@@ -25,6 +31,31 @@ class BusyBoxTerminalSessionTest {
 
             session.close();
             assertFalse(session.isAlive());
+        }
+    }
+
+    @Test
+    void fallsBackToSystemShellWhenBusyBoxCannotStart() throws Exception {
+        LangPlatform platform = LangPlatform.getCurrentPlatform();
+        assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+        LangPlatform fallbackPlatform = platform == LangPlatform.WINDOWSX64UNICODE
+            ? LangPlatform.WINDOWSX86
+            : platform;
+
+        BusyBoxTerminalSession session = new BusyBoxTerminalSession(fallbackPlatform);
+        Map<String, String> environment = new HashMap<>(System.getenv());
+        environment.put("TERM", "xterm-256color");
+        String missingExecutable = Path.of(
+            System.getProperty("java.io.tmpdir"),
+            "simpleide-missing-busybox-" + UUID.randomUUID()
+        ).toString();
+
+        PtyProcess fallback = session.startWithFallback(new String[] {missingExecutable}, environment);
+        try {
+            assertTrue(fallback.isAlive());
+        } finally {
+            fallback.destroyForcibly();
+            assertTrue(fallback.waitFor(5, TimeUnit.SECONDS));
         }
     }
 

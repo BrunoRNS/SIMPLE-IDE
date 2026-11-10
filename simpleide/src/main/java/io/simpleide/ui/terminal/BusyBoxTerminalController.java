@@ -13,6 +13,8 @@ import javax.swing.SwingUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.language.config.LangPlatform;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
@@ -98,7 +100,9 @@ public final class BusyBoxTerminalController {
         try {
             session.start();
             if (!session.isAlive()) {
-                tab.launchFailure = new IllegalStateException("The BusyBox process did not start.");
+                tab.launchFailure = new IllegalStateException(
+                    "The terminal process exited immediately after startup. " + session.processDiagnostics()
+                );
                 return;
             }
             tab.launchSucceeded = true;
@@ -127,8 +131,10 @@ public final class BusyBoxTerminalController {
             return terminationRequested ? null : processError;
         }
         if (process.exitValue() != 0 && !terminationRequested) {
+            String diagnostics = session == null ? "" : " " + session.processDiagnostics();
             return new IllegalStateException(
-                "BusyBox terminal session " + tab.id + " exited with status " + process.exitValue() + "."
+                "Terminal session " + tab.id + " exited with status " + process.exitValue() + "."
+                    + diagnostics
             );
         }
         return null;
@@ -278,6 +284,8 @@ public final class BusyBoxTerminalController {
             tabs.remove(tab.id);
         }
         Runnable closeCallback = getWindowCloseCallbackIfFinished();
+        boolean showStartupError = !tab.launchSucceeded
+            && processError instanceof BusyBoxTerminalSession.FallbackStartupException;
         Runnable updateUi = () -> {
             try {
                 panel.closeTerminalWidget(tab.id);
@@ -289,6 +297,18 @@ public final class BusyBoxTerminalController {
                 updatePanelState();
             } catch (RuntimeException exception) {
                 LOGGER.error("Unable to remove the terminal tab for session {}.", tab.id, exception);
+            }
+            if (showStartupError) {
+                try {
+                    new ErrorPopUP(
+                        "The terminal could not start. BusyBox and the system shell fallback both failed.\n\n"
+                            + processError.getMessage(),
+                        panel,
+                        ErrorTypePopUp.INTERNAL_ERROR
+                    ).startManaged();
+                } catch (RuntimeException exception) {
+                    LOGGER.error("Unable to show the terminal startup error dialog.", exception);
+                }
             }
             if (closeCallback != null) {
                 closeCallback.run();

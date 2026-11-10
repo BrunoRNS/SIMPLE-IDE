@@ -25,6 +25,14 @@ public final class BusyBoxPlatform {
         };
     }
 
+    public static LangPlatform getCompatiblePlatform(LangPlatform platform, String windowsVersion) {
+        Objects.requireNonNull(platform, "Platform must not be null.");
+        if (platform != LangPlatform.WINDOWSX64UNICODE || isWindows10OrLater(windowsVersion)) {
+            return platform;
+        }
+        return LangPlatform.WINDOWSX86;
+    }
+
     public static BusyBoxExecutable extract(LangPlatform platform) throws IOException {
         String resourcePath = getResourcePath(platform);
         String fileName = resourcePath.substring(resourcePath.lastIndexOf('/') + 1);
@@ -42,6 +50,18 @@ public final class BusyBoxPlatform {
                 exception.addSuppressed(cleanupException);
             }
             throw exception;
+        }
+    }
+
+    private static boolean isWindows10OrLater(String windowsVersion) {
+        if (windowsVersion == null) {
+            return false;
+        }
+        try {
+            int majorVersion = Integer.parseInt(windowsVersion.split("\\.", 2)[0]);
+            return majorVersion >= 10;
+        } catch (NumberFormatException exception) {
+            return false;
         }
     }
 }
