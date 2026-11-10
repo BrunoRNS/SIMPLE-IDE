@@ -8,8 +8,8 @@ import java.util.concurrent.TimeUnit;
 import static org.awaitility.Awaitility.await;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.AfterEach;
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,13 +59,15 @@ class JvmBytecodeLanguageTest {
     }
 
     @Test
-    void logsInsteadOfThrowingWhenSourcePathIsNull() {
-        JavaLanguage language = assertDoesNotThrow(() -> new JavaLanguage(null));
-
-        assertDoesNotThrow(language::run);
+    void rejectsNullSourcePathWithoutLoggingExecutionErrors() {
+        IllegalArgumentException exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> new JavaLanguage(null)
+        );
+        assertEquals("Source file path must not be null.", exception.getMessage());
         List<String> messages = logCapture.messages();
-        assertTrue(messages.stream().anyMatch(message -> message.contains("source file path is null")));
-        assertTrue(messages.stream().anyMatch(message -> message.contains("command was not configured")));
+        assertTrue(messages.stream().noneMatch(message -> message.contains("source file path is null")));
+        assertTrue(messages.stream().noneMatch(message -> message.contains("command was not configured")));
     }
 
     @Test

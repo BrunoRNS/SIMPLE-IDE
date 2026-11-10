@@ -32,7 +32,7 @@ jobs:
         run: brew install mono
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 24
           architecture: x64
@@ -54,7 +54,7 @@ jobs:
           command -v python3
           test "$(node -p 'process.arch')" = x64
           python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
-          mono --version | grep -Eq 'Architecture: (amd64|x86_64)'
+          file -L "$(command -v mono)" | grep -Eq 'Mach-O 64-bit.*(x86_64|x86_64h)'
 
       - name: Run tests
         run: make test

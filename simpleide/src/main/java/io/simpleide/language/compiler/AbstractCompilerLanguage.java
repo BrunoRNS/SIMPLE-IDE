@@ -26,6 +26,7 @@ public abstract class AbstractCompilerLanguage extends AbstractLanguage {
     protected Path sourceFile;
 
     private Path artifactDirectory;
+    @SuppressWarnings("unused")
     private Path executablePath;
     private final List<Path> artifacts = new ArrayList<>();
 

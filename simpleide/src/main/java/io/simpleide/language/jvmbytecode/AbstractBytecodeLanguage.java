@@ -20,8 +20,7 @@ public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
 
     protected AbstractBytecodeLanguage(Path filePath, String friendlyName, String languageConstant) {
         if (filePath == null) {
-            LOGGER.error("[IDE] Cannot configure {} execution: source file path is null.", friendlyName);
-            return;
+            throw new IllegalArgumentException("Source file path must not be null.");
         }
         if (COMPILER_JAR == null) {
             LOGGER.error("[IDE] Cannot configure {} execution: compiler JAR is unavailable.", friendlyName);

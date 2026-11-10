@@ -17,52 +17,65 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up 32-bit Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: zulu
           java-version: "17"
           architecture: x86
           cache: maven
 
-      - name: Install 32-bit Python and runtime libraries
+      - name: Build 32-bit language toolchain image
         run: |
-          sudo dpkg --add-architecture i386
-          sudo apt-get update
-          # Ubuntu Noble lacks i386 Mono and Node.js runtimes, so those stay amd64.
-          sudo apt-get install --yes \
-            libc6:i386 \
-            libstdc++6:i386 \
-            libfontconfig1:i386 \
-            libfreetype6:i386 \
-            libx11-6:i386 \
-            libxext6:i386 \
-            libxi6:i386 \
-            libxrender1:i386 \
-            libxt6:i386 \
-            libxtst6:i386 \
-            build-essential \
-            mono-devel \
-            nodejs \
-            python3:i386
-          mkdir -p "$RUNNER_TEMP/python-i386"
-          ln -s /usr/bin/python3 "$RUNNER_TEMP/python-i386/python3"
-          echo "$RUNNER_TEMP/python-i386" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/linux-x86-image"
+          cat > "$RUNNER_TEMP/linux-x86-image/Dockerfile" <<'DOCKERFILE'
+          FROM debian:trixie-slim
+          RUN apt-get update \
+              && apt-get install -y --no-install-recommends \
+                   ca-certificates curl file g++ gcc binutils make mono-complete:i386 \
+                   python3 xz-utils \
+              && curl --fail --location --silent --show-error \
+                   https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x86.tar.xz \
+                   -o /tmp/node.tar.xz \
+              && tar -xJf /tmp/node.tar.xz -C /opt \
+              && ln -s /opt/node-v8.17.0-linux-x86/bin/node /usr/local/bin/node \
+              && rm /tmp/node.tar.xz \
+              && rm -rf /var/lib/apt/lists/*
+          DOCKERFILE
+          docker build --platform linux/386 \
+            --tag simpleide-linux-x86:ci "$RUNNER_TEMP/linux-x86-image"
 
       - name: Verify 32-bit Java
         run: java -XshowSettings:properties -version 2>&1 | grep -q 'sun.arch.data.model = 32'
 
-      - name: Verify language toolchains
+      - name: Verify 32-bit language toolchains
         run: |
-          command -v gcc
-          command -v g++
-          command -v as
-          command -v mcs
-          command -v mono
-          command -v node
-          command -v python3
-          python3 -c 'import struct; assert struct.calcsize("P") * 8 == 32, "Python must be 32-bit"'
-          test "$(node -p 'process.arch')" = x64
-          mono --version | grep -Eq 'Architecture: (amd64|x86_64)'
+          docker run --rm --platform linux/386 \
+            --volume "$JAVA_HOME:$JAVA_HOME:ro" \
+            --env JAVA_HOME="$JAVA_HOME" \
+            --env PATH="$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            simpleide-linux-x86:ci sh -eu -c '
+              test "$(dpkg --print-architecture)" = i386
+              java -XshowSettings:properties -version 2>&1 | grep -q "sun.arch.data.model = 32"
+              test "$(node --version)" = v8.17.0
+              test "$(node -p "process.arch")" = ia32
+              test "$(python3 -c "import struct; print(struct.calcsize(\"P\") * 8)")" = 32
+              command -v g++
+              command -v as
+              command -v mcs
+              g++ -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
+              gcc -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
+              file -L "$(command -v mono)" | grep -Eq "ELF 32-bit.*Intel (i386|80386)"
+              file -L "$(command -v node)" | grep -q "ELF 32-bit"
+            '
 
       - name: Run tests
-        run: make test
+        run: |
+          docker run --rm --platform linux/386 \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --volume "$JAVA_HOME:$JAVA_HOME:ro" \
+            --volume "$HOME/.m2:/root/.m2" \
+            --workdir /workspace \
+            --env JAVA_HOME="$JAVA_HOME" \
+            --env PATH="$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+            --env SIMPLEIDE_EXPECTED_PLATFORM=linux-x86 \
+            simpleide-linux-x86:ci make test
