@@ -1,9 +1,13 @@
 package io.simpleide.ui.terminal;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,17 +21,22 @@ final class ProcessTreeTerminator {
     }
 
     static void terminate(Process process) {
+        boolean windows = isWindows();
+        if (windows) {
+            terminateWindowsTree(process);
+        }
+
         ProcessHandle root;
         try {
             Optional<ProcessHandle> processHandle = ProcessHandle.of(process.pid());
             if (processHandle.isEmpty()) {
-                process.destroyForcibly();
+                terminateRoot(process);
                 return;
             }
             root = processHandle.get();
         } catch (RuntimeException exception) {
             LOGGER.error("Unable to inspect the BusyBox process tree.", exception);
-            process.destroyForcibly();
+            terminateRoot(process);
             return;
         }
 
@@ -41,25 +50,126 @@ final class ProcessTreeTerminator {
                 break;
             }
 
-            boolean discoveredChild = false;
             for (ProcessHandle descendant : descendants) {
-                if (signalledPids.add(descendant.pid())) {
-                    discoveredChild = true;
-                    terminate(descendant);
-                }
+                terminate(descendant, signalledPids);
             }
-            if (!discoveredChild) {
+            if (descendants.isEmpty()) {
                 break;
             }
         }
-        terminate(root);
+        if (!windows) {
+            terminatePosixProcessGroup(process);
+        }
+        terminateRoot(process);
     }
 
-    private static void terminate(ProcessHandle handle) {
+    private static void terminatePosixProcessGroup(Process process) {
+        Process groupQuery;
+        try {
+            groupQuery = new ProcessBuilder(
+                "/bin/ps",
+                "-o",
+                "pgid=",
+                "-p",
+                Long.toString(process.pid())
+            ).redirectErrorStream(true).start();
+        } catch (IOException | RuntimeException exception) {
+            LOGGER.warn("Unable to query the BusyBox process group; falling back to process handles.", exception);
+            return;
+        }
+
+        Process groupKill = null;
+        try {
+            if (!groupQuery.waitFor(2, TimeUnit.SECONDS)) {
+                groupQuery.destroyForcibly();
+                LOGGER.warn("Timed out querying the BusyBox process group.");
+                return;
+            }
+            if (groupQuery.exitValue() != 0) {
+                return;
+            }
+
+            String output = new String(groupQuery.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (output.isEmpty() || Long.parseLong(output) != process.pid()) {
+                return;
+            }
+
+            groupKill = new ProcessBuilder(
+                "/bin/kill",
+                "-KILL",
+                "--",
+                "-" + process.pid()
+            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            if (!groupKill.waitFor(2, TimeUnit.SECONDS)) {
+                groupKill.destroyForcibly();
+                LOGGER.warn("Timed out terminating the BusyBox process group.");
+            } else if (groupKill.exitValue() != 0) {
+                LOGGER.warn("Unable to terminate the BusyBox process group; falling back to process handles.");
+            }
+        } catch (InterruptedException exception) {
+            groupQuery.destroyForcibly();
+            if (groupKill != null) {
+                groupKill.destroyForcibly();
+            }
+            Thread.currentThread().interrupt();
+            LOGGER.warn("Interrupted while terminating the BusyBox process group.", exception);
+        } catch (IOException | RuntimeException exception) {
+            LOGGER.warn("Unable to terminate the BusyBox process group; falling back to process handles.", exception);
+        }
+    }
+
+    private static void terminateWindowsTree(Process process) {
+        Process taskkill;
+        try {
+            taskkill = new ProcessBuilder(
+                "taskkill",
+                "/PID",
+                Long.toString(process.pid()),
+                "/T",
+                "/F"
+            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+        } catch (IOException | RuntimeException exception) {
+            LOGGER.error("Unable to terminate the BusyBox process tree with taskkill.", exception);
+            return;
+        }
+
+        try {
+            if (!taskkill.waitFor(5, TimeUnit.SECONDS)) {
+                taskkill.destroyForcibly();
+                LOGGER.error("Timed out while terminating the BusyBox process tree with taskkill.");
+            } else if (taskkill.exitValue() != 0) {
+                LOGGER.error(
+                    "taskkill failed to terminate the BusyBox process tree with exit code {}.",
+                    taskkill.exitValue()
+                );
+            }
+        } catch (InterruptedException exception) {
+            taskkill.destroyForcibly();
+            Thread.currentThread().interrupt();
+            LOGGER.error("Interrupted while terminating the BusyBox process tree with taskkill.", exception);
+        }
+    }
+
+    private static void terminate(ProcessHandle handle, Set<Long> signalledPids) {
+        if (!signalledPids.add(handle.pid())) {
+            return;
+        }
         try {
             handle.destroyForcibly();
         } catch (RuntimeException exception) {
             LOGGER.error("Unable to force process {} to exit.", handle.pid(), exception);
         }
+    }
+
+    private static void terminateRoot(Process process) {
+        try {
+            process.destroyForcibly();
+        } catch (RuntimeException exception) {
+            LOGGER.error("Unable to force the BusyBox process to exit.", exception);
+        }
+    }
+
+    private static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
     }
 }

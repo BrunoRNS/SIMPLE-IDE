@@ -67,6 +67,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             .setEnvironment(environment)
             .setInitialColumns(TERMINAL_COLUMNS)
             .setInitialRows(TERMINAL_ROWS)
+            .setSpawnProcessUsingJdkOnMacIntel(platform != LangPlatform.MACOSINTEL)
             .start();
         ACTIVE_SESSIONS.add(this);
         if (SHUTDOWN_STARTED.get()) {
