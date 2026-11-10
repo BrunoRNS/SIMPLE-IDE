@@ -98,12 +98,14 @@ class BusyBoxPlatformTest {
             PtyProcess process = new PtyProcessBuilder()
                 .setCommand(new String[] {
                     executable.getPath().toString(),
-                    "sh",
-                    "-c",
-                    "echo " + EXPECTED_OUTPUT
+                    "echo",
+                    EXPECTED_OUTPUT
                 })
                 .setEnvironment(Map.copyOf(System.getenv()))
                 .setSpawnProcessUsingJdkOnMacIntel(platform != LangPlatform.MACOSINTEL)
+                .setUnixOpenTtyToPreserveOutputAfterTermination(
+                    platform == LangPlatform.MACOSINTEL || platform == LangPlatform.MACOSAARCH64
+                )
                 .start();
             try {
                 if (!process.waitFor(10, TimeUnit.SECONDS)) {

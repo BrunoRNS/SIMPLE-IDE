@@ -63,8 +63,11 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
         Map<String, String> environment = new HashMap<>(System.getenv());
         environment.put("TERM", "xterm-256color");
+        String[] command = platform == LangPlatform.MACOSAARCH64
+            ? new String[] {executable.getPath().toString(), "sh", "-i"}
+            : new String[] {executable.getPath().toString(), "sh"};
         process = new PtyProcessBuilder()
-            .setCommand(new String[] {executable.getPath().toString(), "sh"})
+            .setCommand(command)
             .setEnvironment(environment)
             .setInitialColumns(TERMINAL_COLUMNS)
             .setInitialRows(TERMINAL_ROWS)
