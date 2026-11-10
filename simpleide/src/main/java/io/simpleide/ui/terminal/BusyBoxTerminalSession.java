@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +35,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     private static final int TERMINAL_COLUMNS = 80;
     private static final int TERMINAL_ROWS = 24;
     private static final long STARTUP_PROBE_MILLIS = 250;
+    private static final long GRACEFUL_CLOSE_TIMEOUT_SECONDS = 2;
     private static final Set<BusyBoxTerminalSession> ACTIVE_SESSIONS = ConcurrentHashMap.newKeySet();
     private static final AtomicBoolean SHUTDOWN_STARTED = new AtomicBoolean();
 
@@ -212,8 +214,56 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         }
     }
 
+    void closeGracefullyAndWait() {
+        terminationRequested.set(true);
+        PtyProcess activeProcess = process;
+        if (activeProcess == null || !isProcessAlive(activeProcess)) {
+            return;
+        }
+
+        List<ProcessHandle> descendants = ProcessTreeTerminator.captureDescendants(activeProcess);
+        boolean interrupted = Thread.interrupted();
+        try {
+            BusyBoxTtyConnector activeConnector = connector;
+            if (activeConnector != null) {
+                try {
+                    activeConnector.write(
+                        "windows".equals(platform.getOs()) && systemShellFallback
+                            ? "\u001A\r\n"
+                            : "\u0004"
+                    );
+                } catch (IOException exception) {
+                    LOGGER.warn("Unable to send EOF to terminal session {}.", activeProcess.pid(), exception);
+                }
+            }
+
+            if (activeProcess.waitFor(GRACEFUL_CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
+                ProcessTreeTerminator.terminateCapturedDescendants(descendants);
+                awaitCapturedDescendants(descendants, activeProcess.pid());
+                return;
+            }
+
+            LOGGER.info(
+                "Terminal session {} did not exit after EOF; terminating its remaining process tree.",
+                activeProcess.pid()
+            );
+            ProcessTreeTerminator.terminate(activeProcess);
+            if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
+                LOGGER.error("Terminal session {} remained alive after process-tree termination.", activeProcess.pid());
+            }
+        } catch (InterruptedException exception) {
+            interrupted = true;
+            forceTerminate();
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
     @Override
     public void close() {
+        closeGracefullyAndWait();
         close(false);
     }
 
@@ -275,6 +325,38 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         } catch (RuntimeException exception) {
             LOGGER.warn("Unable to query BusyBox process state; falling back to the PTY process state.", exception);
             return activeProcess.isAlive();
+        }
+    }
+
+    private void awaitCapturedDescendants(List<ProcessHandle> descendants, long sessionPid) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        for (ProcessHandle descendant : descendants) {
+            if (!descendant.isAlive()) {
+                continue;
+            }
+            long remainingNanos = deadline - System.nanoTime();
+            if (remainingNanos <= 0) {
+                LOGGER.warn(
+                    "Child process {} from terminal session {} did not exit after termination.",
+                    descendant.pid(),
+                    sessionPid
+                );
+                return;
+            }
+            try {
+                descendant.onExit().get(remainingNanos, TimeUnit.NANOSECONDS);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (ExecutionException | TimeoutException exception) {
+                LOGGER.warn(
+                    "Unable to confirm child process {} exited with terminal session {}.",
+                    descendant.pid(),
+                    sessionPid,
+                    exception
+                );
+                return;
+            }
         }
     }
 

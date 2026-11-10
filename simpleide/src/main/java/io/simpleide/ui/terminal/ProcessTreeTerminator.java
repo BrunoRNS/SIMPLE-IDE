@@ -24,6 +24,8 @@ final class ProcessTreeTerminator {
         boolean windows = isWindows();
         if (windows) {
             terminateWindowsTree(process);
+        } else {
+            terminatePosixProcessGroup(process);
         }
 
         ProcessHandle root;
@@ -58,10 +60,33 @@ final class ProcessTreeTerminator {
             }
         }
         terminate(root, signalledPids);
-        if (!windows) {
-            terminatePosixProcessGroup(process);
-        }
         terminateRoot(process);
+    }
+
+    static List<ProcessHandle> captureDescendants(Process process) {
+        Optional<ProcessHandle> root;
+        try {
+            root = ProcessHandle.of(process.pid());
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Unable to find terminal process {} before shutdown.", process.pid(), exception);
+            return List.of();
+        }
+        if (root.isEmpty()) {
+            return List.of();
+        }
+        try (var handles = root.get().descendants()) {
+            return handles.toList();
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Unable to capture terminal child processes before shutdown.", exception);
+            return List.of();
+        }
+    }
+
+    static void terminateCapturedDescendants(List<ProcessHandle> descendants) {
+        Set<Long> signalledPids = new HashSet<>();
+        for (ProcessHandle descendant : descendants) {
+            terminate(descendant, signalledPids);
+        }
     }
 
     private static void terminatePosixProcessGroup(Process process) {
@@ -86,26 +111,43 @@ final class ProcessTreeTerminator {
                 LOGGER.warn("Timed out querying the BusyBox process group.");
                 return;
             }
+            String processGroupOutput = new String(groupQuery.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
             if (groupQuery.exitValue() != 0) {
+                LOGGER.warn(
+                    "Unable to query the BusyBox process group (exit code {}): {}; "
+                        + "falling back to process handles.",
+                    groupQuery.exitValue(),
+                    processGroupOutput
+                );
                 return;
             }
 
-            String output = new String(groupQuery.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            if (output.isEmpty() || Long.parseLong(output) != process.pid()) {
+            if (processGroupOutput.isEmpty() || Long.parseLong(processGroupOutput) != process.pid()) {
+                LOGGER.debug(
+                    "BusyBox process {} is not the leader of its process group; using process handles.",
+                    process.pid()
+                );
                 return;
             }
 
             groupKill = new ProcessBuilder(
                 "/bin/kill",
                 "-KILL",
-                "--",
                 "-" + process.pid()
-            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
+            ).redirectErrorStream(true).start();
             if (!groupKill.waitFor(2, TimeUnit.SECONDS)) {
                 groupKill.destroyForcibly();
                 LOGGER.warn("Timed out terminating the BusyBox process group.");
-            } else if (groupKill.exitValue() != 0) {
-                LOGGER.warn("Unable to terminate the BusyBox process group; falling back to process handles.");
+            } else {
+                String killOutput = new String(groupKill.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+                if (groupKill.exitValue() != 0) {
+                    LOGGER.warn(
+                        "Unable to terminate the BusyBox process group (exit code {}): {}; "
+                            + "falling back to process handles.",
+                        groupKill.exitValue(),
+                        killOutput
+                    );
+                }
             }
         } catch (InterruptedException exception) {
             groupQuery.destroyForcibly();

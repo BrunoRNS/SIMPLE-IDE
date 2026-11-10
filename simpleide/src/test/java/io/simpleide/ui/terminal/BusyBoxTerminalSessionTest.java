@@ -105,6 +105,28 @@ class BusyBoxTerminalSessionTest {
         }
     }
 
+    @Test
+    void gracefullyClosesTheShellAndItsChildProcesses() throws Exception {
+        LangPlatform platform = LangPlatform.getCurrentPlatform();
+        assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+
+        try (BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform)) {
+            session.start();
+            session.getConnector().write("sleep 30 &\n");
+
+            ProcessHandle shell = ProcessHandle.of(session.processId()).orElseThrow();
+            ProcessHandle child = awaitChild(shell);
+            assertTrue(child.isAlive());
+
+            session.closeGracefullyAndWait();
+
+            shell.onExit().get(5, TimeUnit.SECONDS);
+            child.onExit().get(5, TimeUnit.SECONDS);
+            assertFalse(session.isAlive());
+            assertFalse(child.isAlive());
+        }
+    }
+
     private static ProcessHandle awaitChild(ProcessHandle process) throws InterruptedException {
         await("The BusyBox shell should create its child process")
             .atMost(5, TimeUnit.SECONDS)

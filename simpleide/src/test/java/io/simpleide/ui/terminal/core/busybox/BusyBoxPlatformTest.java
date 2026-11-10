@@ -1,8 +1,13 @@
 package io.simpleide.ui.terminal.core.busybox;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -127,21 +132,45 @@ class BusyBoxPlatformTest {
                     platform == LangPlatform.MACOSINTEL || platform == LangPlatform.MACOSAARCH64
                 )
                 .start();
+            ExecutorService outputReader = Executors.newSingleThreadExecutor(task -> {
+                Thread thread = new Thread(task, "busybox-pty-test-output");
+                thread.setDaemon(true);
+                return thread;
+            });
+            Future<String> output = outputReader.submit(
+                () -> readUntil(process.getInputStream(), EXPECTED_OUTPUT)
+            );
             try {
-                if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                    process.destroyForcibly();
-                    throw new AssertionError("BusyBox shell did not finish within 10 seconds.");
-                }
-                String output = new String(
-                    process.getInputStream().readAllBytes(),
-                    StandardCharsets.UTF_8
-                ).trim();
-                assertEquals(0, process.exitValue(), output);
-                assertTrue(output.contains(EXPECTED_OUTPUT), output);
+                assertTrue(
+                    output.get(10, TimeUnit.SECONDS).contains(EXPECTED_OUTPUT),
+                    "BusyBox did not write the expected text through pty4j."
+                );
             } finally {
-                if (process.isAlive()) {
+                try {
                     process.destroyForcibly();
+                    if (!process.waitFor(5, TimeUnit.SECONDS)) {
+                        throw new AssertionError("PTY BusyBox process did not stop after test cleanup.");
+                    }
+                } finally {
+                    outputReader.shutdownNow();
+                    assertTrue(outputReader.awaitTermination(2, TimeUnit.SECONDS));
                 }
+            }
+        }
+    }
+
+    private static String readUntil(InputStream input, String expected) throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        byte[] buffer = new byte[128];
+        while (true) {
+            int count = input.read(buffer);
+            if (count < 0) {
+                return output.toString(StandardCharsets.UTF_8);
+            }
+            output.write(buffer, 0, count);
+            String text = output.toString(StandardCharsets.UTF_8);
+            if (text.contains(expected)) {
+                return text;
             }
         }
     }

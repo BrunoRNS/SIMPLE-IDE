@@ -56,6 +56,66 @@ class BusyBoxTerminalControllerTest {
     }
 
     @Test
+    void closesTheSelectedTerminalWithoutBlockingTheEdt() throws Exception {
+        LangPlatform platform = LangPlatform.getCurrentPlatform();
+        assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+
+        TerminalPanel panel = new TerminalPanel();
+        BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
+        SwingUtilities.invokeAndWait(() -> findButtons(panel).get(0).doClick());
+
+        await("The terminal should finish launching")
+            .atMost(10, TimeUnit.SECONDS)
+            .until(() -> terminalStates(controller).stream()
+                .anyMatch(state -> state.launchComplete && state.session != null && state.session.isAlive()));
+        await("The close button should become enabled")
+            .atMost(5, TimeUnit.SECONDS)
+            .until(() -> isCloseButtonEnabled(panel));
+
+        CountDownLatch closeActionReturned = new CountDownLatch(1);
+        SwingUtilities.invokeLater(() -> {
+            findButtons(panel).stream()
+                .filter(BusyBoxTerminalControllerTest::isCloseButton)
+                .findFirst()
+                .orElseThrow()
+                .doClick();
+            closeActionReturned.countDown();
+        });
+        assertTrue(closeActionReturned.await(1, TimeUnit.SECONDS), "Closing a terminal blocked the EDT.");
+
+        await("The terminal process should close after the close action")
+            .atMost(10, TimeUnit.SECONDS)
+            .until(() -> terminalStates(controller).isEmpty());
+        await("The terminal tab should be removed on the EDT")
+            .atMost(5, TimeUnit.SECONDS)
+            .until(() -> terminalTabCount(panel) == 0);
+
+        CountDownLatch closed = new CountDownLatch(1);
+        controller.onWindowClosing(closed::countDown);
+        assertTrue(closed.await(5, TimeUnit.SECONDS));
+    }
+
+    private static boolean isCloseButtonEnabled(TerminalPanel panel) {
+        AtomicInteger enabled = new AtomicInteger();
+        try {
+            SwingUtilities.invokeAndWait(() -> enabled.set(
+                findButtons(panel).stream()
+                    .filter(BusyBoxTerminalControllerTest::isCloseButton)
+                    .findFirst()
+                    .map(JButton::isEnabled)
+                    .orElse(false) ? 1 : 0
+            ));
+        } catch (Exception exception) {
+            throw new AssertionError("Unable to read terminal button state.", exception);
+        }
+        return enabled.get() == 1;
+    }
+
+    private static boolean isCloseButton(JButton button) {
+        return "Close selected terminal".equals(button.getAccessibleContext().getAccessibleName());
+    }
+
+    @Test
     void disablesTerminalCreationWhenPlatformIsUnsupported() throws Exception {
         TerminalPanel panel = new TerminalPanel();
         BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, LangPlatform.UNKNOWN);
