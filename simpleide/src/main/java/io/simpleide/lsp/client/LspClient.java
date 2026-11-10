@@ -72,13 +72,13 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   private volatile boolean saveIncludeText;
   private volatile boolean formattingSupported;
 
-  public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler)
+  public LspClient(String command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler)
       throws IOException {
     this(command, workspaceRoot, diagnosticsHandler, Map.of());
   }
 
   public LspClient(
-      List<String> command,
+      String command,
       Path workspaceRoot,
       Consumer<PublishDiagnosticsParams> diagnosticsHandler,
       Map<String, String> environment)

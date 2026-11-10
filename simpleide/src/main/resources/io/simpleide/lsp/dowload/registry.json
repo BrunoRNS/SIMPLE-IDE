@@ -1,0 +1,13 @@
+{
+    "servers":[
+        {
+            "id": "0",
+            "version": "1.40.0",
+            "name":"jdtls",
+            "languageId": "java",
+            "arch":[
+                
+            ]
+        }
+    ]
+}

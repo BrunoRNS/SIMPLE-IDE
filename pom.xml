@@ -9,7 +9,6 @@
   <name>Simple IDE parent</name>
 
   <modules>
-    <module>ambus</module>
     <module>simplebytecode-compiler</module>
     <module>simpleide</module>
   </modules>
