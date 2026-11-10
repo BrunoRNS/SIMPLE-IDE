@@ -57,6 +57,7 @@ final class ProcessTreeTerminator {
                 break;
             }
         }
+        terminate(root, signalledPids);
         if (!windows) {
             terminatePosixProcessGroup(process);
         }

@@ -103,6 +103,7 @@ class BusyBoxPlatformTest {
                     "echo " + EXPECTED_OUTPUT
                 })
                 .setEnvironment(Map.copyOf(System.getenv()))
+                .setSpawnProcessUsingJdkOnMacIntel(platform != LangPlatform.MACOSINTEL)
                 .start();
             try {
                 if (!process.waitFor(10, TimeUnit.SECONDS)) {

@@ -5,6 +5,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -79,7 +80,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
     boolean isAlive() {
         PtyProcess activeProcess = process;
-        return activeProcess != null && activeProcess.isAlive();
+        return activeProcess != null && isProcessAlive(activeProcess);
     }
 
     long processId() {
@@ -109,7 +110,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     void forceTerminate() {
         terminationRequested.set(true);
         PtyProcess activeProcess = process;
-        if (activeProcess == null || !activeProcess.isAlive()) {
+        if (activeProcess == null || !isProcessAlive(activeProcess)) {
             return;
         }
         try {
@@ -122,15 +123,15 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     void forceTerminateAndWait() {
         forceTerminate();
         PtyProcess activeProcess = process;
-        if (activeProcess == null || !activeProcess.isAlive()) {
+        if (activeProcess == null || !isProcessAlive(activeProcess)) {
             return;
         }
 
         boolean interrupted = Thread.interrupted();
         try {
-            if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && activeProcess.isAlive()) {
+            if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
                 ProcessTreeTerminator.terminate(activeProcess);
-                if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && activeProcess.isAlive()) {
+                if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
                     LOGGER.error(
                         "BusyBox process {} is still alive after forced termination.",
                         activeProcess.pid()
@@ -161,13 +162,13 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         PtyProcess activeProcess = process;
         boolean interrupted = Thread.interrupted();
         try {
-            if (activeProcess != null && activeProcess.isAlive()) {
+            if (activeProcess != null && isProcessAlive(activeProcess)) {
                 if (force) {
                     forceTerminate();
                 } else {
                     activeProcess.destroy();
                 }
-                if (activeProcess.isAlive() && !activeProcess.waitFor(2, TimeUnit.SECONDS)) {
+                if (isProcessAlive(activeProcess) && !activeProcess.waitFor(2, TimeUnit.SECONDS)) {
                     forceTerminate();
                     activeProcess.waitFor(2, TimeUnit.SECONDS);
                 }
@@ -200,6 +201,16 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 }
                 ACTIVE_SESSIONS.remove(this);
             }
+        }
+    }
+
+    private boolean isProcessAlive(PtyProcess activeProcess) {
+        try {
+            Optional<ProcessHandle> handle = ProcessHandle.of(activeProcess.pid());
+            return handle.map(ProcessHandle::isAlive).orElse(false);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Unable to query BusyBox process state; falling back to the PTY process state.", exception);
+            return activeProcess.isAlive();
         }
     }
 
