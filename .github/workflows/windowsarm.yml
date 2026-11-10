@@ -68,6 +68,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: CLANGARM64
+          path-type: inherit
           update: true
           install: mingw-w64-clang-aarch64-gcc mingw-w64-clang-aarch64-binutils
 
@@ -78,8 +79,8 @@ jobs:
         shell: pwsh
         run: |
           $monoBins = @(
-            (Join-Path ${env:ProgramFiles(x86)} "Mono\bin"),
-            (Join-Path $env:ProgramFiles "Mono\bin")
+            (Join-Path $env:ProgramFiles "Mono\bin"),
+            (Join-Path ${env:ProgramFiles(x86)} "Mono\bin")
           )
           $monoBin = $monoBins | Where-Object {
             Test-Path (Join-Path $_ "mcs.bat")

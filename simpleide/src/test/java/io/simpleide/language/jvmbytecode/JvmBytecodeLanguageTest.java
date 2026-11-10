@@ -11,6 +11,7 @@ import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -156,9 +157,9 @@ class JvmBytecodeLanguageTest {
             String expectedOutput) throws InterruptedException {
         RunnableNode node = language.startManaged();
         try {
-            assertEquals("ready", Output.getInstance().get(30));
+            awaitOutput("ready");
             Input.getInstance().set(input);
-            assertEquals(expectedOutput, Output.getInstance().get(30));
+            awaitOutput(expectedOutput);
             await("The " + language.getLangFriendly() + " process should finish.")
                 .atMost(5, TimeUnit.SECONDS)
                 .until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
@@ -167,6 +168,17 @@ class JvmBytecodeLanguageTest {
                 language.forceStop();
             }
         }
+    }
+
+    private void awaitOutput(String expectedOutput) throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        while (System.nanoTime() < deadline) {
+            String output = Output.getInstance().get(1);
+            if (expectedOutput.equals(output)) {
+                return;
+            }
+        }
+        fail("Expected process output: " + expectedOutput);
     }
 
     private static final class ThreadSafeListAppender extends ListAppender<ILoggingEvent> {

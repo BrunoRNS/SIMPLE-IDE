@@ -31,6 +31,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
+          path-type: inherit
           update: true
           install: mingw-w64-ucrt-x86_64-gcc
 
@@ -41,8 +42,8 @@ jobs:
         shell: pwsh
         run: |
           $monoBins = @(
-            (Join-Path ${env:ProgramFiles(x86)} "Mono\bin"),
-            (Join-Path $env:ProgramFiles "Mono\bin")
+            (Join-Path $env:ProgramFiles "Mono\bin"),
+            (Join-Path ${env:ProgramFiles(x86)} "Mono\bin")
           )
           $monoBin = $monoBins | Where-Object {
             Test-Path (Join-Path $_ "mcs.bat")

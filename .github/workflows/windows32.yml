@@ -28,6 +28,7 @@ jobs:
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
+          path-type: inherit
           update: true
           install: mingw-w64-i686-gcc
 
@@ -64,7 +65,8 @@ jobs:
       - name: Verify 32-bit Java
         shell: pwsh
         run: |
-          $javaProperties = java -XshowSettings:properties -version 2>&1
+          $javaExecutable = Join-Path $env:JAVA_HOME "bin\java.exe"
+          $javaProperties = & $javaExecutable -XshowSettings:properties -version 2>&1
           if (-not ($javaProperties | Select-String -Quiet 'sun.arch.data.model = 32')) {
             throw "Expected a 32-bit Java runtime."
           }

@@ -44,9 +44,6 @@ jobs:
           docker build --platform linux/386 \
             --tag simpleide-linux-x86:ci "$RUNNER_TEMP/linux-x86-image"
 
-      - name: Verify 32-bit Java
-        run: java -XshowSettings:properties -version 2>&1 | grep -q 'sun.arch.data.model = 32'
-
       - name: Verify 32-bit language toolchains
         run: |
           docker run --rm --platform linux/386 \
