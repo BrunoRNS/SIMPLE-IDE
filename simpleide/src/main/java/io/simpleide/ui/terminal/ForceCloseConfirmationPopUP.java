@@ -8,7 +8,7 @@ import javax.swing.JOptionPane;
 
 import io.simpleide.frame.popup.WarningPopUP;
 
-final class ForceCloseConfirmationPopUP extends WarningPopUP {
+public final class ForceCloseConfirmationPopUP extends WarningPopUP {
 
     private static final String FORCE_EXIT = "Force exit";
     private static final String CANCEL = "Cancel";

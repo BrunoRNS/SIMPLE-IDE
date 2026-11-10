@@ -9,7 +9,7 @@ import com.jediterm.terminal.TerminalColor;
 import com.jediterm.terminal.TextStyle;
 import com.jediterm.terminal.ui.settings.DefaultSettingsProvider;
 
-final class TerminalSettingsProvider extends DefaultSettingsProvider {
+public final class TerminalSettingsProvider extends DefaultSettingsProvider {
 
     @Override
     public Font getTerminalFont() {

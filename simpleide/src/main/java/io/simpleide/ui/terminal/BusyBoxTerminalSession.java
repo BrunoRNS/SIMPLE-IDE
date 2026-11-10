@@ -180,7 +180,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             return;
         }
         try {
-            ProcessTreeTerminator.terminate(activeProcess);
+            ProcessTreeTerminator.terminate(activeProcess, platform);
         } catch (RuntimeException exception) {
             LOGGER.error("Unable to force the BusyBox process to exit.", exception);
         }
@@ -196,7 +196,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         boolean interrupted = Thread.interrupted();
         try {
             if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
-                ProcessTreeTerminator.terminate(activeProcess);
+                ProcessTreeTerminator.terminate(activeProcess, platform);
                 if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
                     LOGGER.error(
                         "BusyBox process {} is still alive after forced termination.",
@@ -222,6 +222,13 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         }
 
         List<ProcessHandle> descendants = ProcessTreeTerminator.captureDescendants(activeProcess);
+        if (platform == LangPlatform.MACOSAARCH64) {
+            LOGGER.debug(
+                "Stopping captured child processes before closing macOS ARM64 terminal session {}.",
+                activeProcess.pid()
+            );
+            ProcessTreeTerminator.terminateMacArm64Descendants(descendants);
+        }
         boolean interrupted = Thread.interrupted();
         try {
             BusyBoxTtyConnector activeConnector = connector;
@@ -238,7 +245,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             }
 
             if (activeProcess.waitFor(GRACEFUL_CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                ProcessTreeTerminator.terminateCapturedDescendants(descendants);
+                ProcessTreeTerminator.terminateCapturedDescendants(descendants, platform);
                 awaitCapturedDescendants(descendants, activeProcess.pid());
                 return;
             }
@@ -247,7 +254,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 "Terminal session {} did not exit after EOF; terminating its remaining process tree.",
                 activeProcess.pid()
             );
-            ProcessTreeTerminator.terminate(activeProcess);
+            ProcessTreeTerminator.terminate(activeProcess, platform);
             if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
                 LOGGER.error("Terminal session {} remained alive after process-tree termination.", activeProcess.pid());
             }
@@ -523,9 +530,9 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
         boolean interrupted = Thread.interrupted();
         try {
-            ProcessTreeTerminator.terminate(failedProcess);
+            ProcessTreeTerminator.terminate(failedProcess, platform);
             if (!failedProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(failedProcess)) {
-                ProcessTreeTerminator.terminate(failedProcess);
+                ProcessTreeTerminator.terminate(failedProcess, platform);
                 if (isProcessAlive(failedProcess)) {
                     IOException cleanupFailure = new IOException(
                         "Failed PTY process " + failedProcess.pid() + " remained alive after termination."
@@ -537,7 +544,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         } catch (InterruptedException exception) {
             interrupted = true;
             try {
-                ProcessTreeTerminator.terminate(failedProcess);
+                ProcessTreeTerminator.terminate(failedProcess, platform);
                 if (isProcessAlive(failedProcess)) {
                     failure.addSuppressed(new IOException(
                         "Failed PTY process " + failedProcess.pid() + " remained alive after interrupted cleanup."
@@ -593,7 +600,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         PtyProcess activeProcess = process;
         if (activeProcess != null && isProcessAlive(activeProcess)) {
             try {
-                ProcessTreeTerminator.terminate(activeProcess);
+                ProcessTreeTerminator.terminate(activeProcess, platform);
             } catch (RuntimeException exception) {
                 failure.addSuppressed(exception);
             }

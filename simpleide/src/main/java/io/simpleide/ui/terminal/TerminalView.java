@@ -15,7 +15,7 @@ import com.jediterm.terminal.model.TerminalTextBuffer;
 import com.jediterm.terminal.ui.JediTermWidget;
 import com.jediterm.terminal.ui.settings.SettingsProvider;
 
-final class TerminalView extends JPanel {
+public final class TerminalView extends JPanel {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(TerminalView.class);
     private static final int COLUMNS = 80;
