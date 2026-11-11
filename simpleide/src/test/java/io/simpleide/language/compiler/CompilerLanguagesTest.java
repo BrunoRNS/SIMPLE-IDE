@@ -47,28 +47,22 @@ class CompilerLanguagesTest {
         CLanguage c = new CLanguage(tempDirectory.resolve("main.c"));
         CPPLanguage cpp = new CPPLanguage(tempDirectory.resolve("main.cpp"));
         MonoCSharpLanguage csharp = new MonoCSharpLanguage(tempDirectory.resolve("main.cs"));
+        GoLanguage go = new GoLanguage(tempDirectory.resolve("main.go"));
+        RustLanguage rust = new RustLanguage(tempDirectory.resolve("main.rs"));
 
         assertEquals("gcc", c.getCompiler());
         assertEquals("gcc", c.getLinker());
-        assertEquals("as", c.getAssembler());
-        assertEquals(
-                isWindows(),
-                c.createLinkCommand(Path.of("program.o"), Path.of("program.exe")).contains("-mconsole")
-        );
-        assertEquals(List.of("gcc", "as"), CompilerRequiredFiles.getRequiredFilesFromCompiler(CLanguage.class));
+        assertNull(c.getAssembler());
+        assertEquals(List.of("gcc"), CompilerRequiredFiles.getRequiredFilesFromCompiler(CLanguage.class));
         assertEquals("c", c.getLangFriendly());
         assertEquals(SyntaxConstants.SYNTAX_STYLE_C, c.getLangConstant());
         assertNotNull(c.getExecutable());
         assertEquals(List.of(c.getExecutable()), c.execute());
 
         assertEquals("g++", cpp.getCompiler());
-        assertEquals("as", cpp.getAssembler());
+        assertNull(cpp.getAssembler());
         assertEquals("g++", cpp.getLinker());
-        assertEquals(
-                isWindows(),
-                cpp.createLinkCommand(Path.of("program.o"), Path.of("program.exe")).contains("-mconsole")
-        );
-        assertEquals(List.of("g++", "as"), CompilerRequiredFiles.getRequiredFilesFromCompiler(CPPLanguage.class));
+        assertEquals(List.of("g++"), CompilerRequiredFiles.getRequiredFilesFromCompiler(CPPLanguage.class));
         assertEquals("c++", cpp.getLangFriendly());
         assertEquals(List.of(cpp.getExecutable()), cpp.execute());
 
@@ -99,8 +93,26 @@ class CompilerLanguagesTest {
         }
         assertEquals(List.of("mcs", "mono"),
                 CompilerRequiredFiles.getRequiredFilesFromCompiler(MonoCSharpLanguage.class));
+        assertEquals("go", go.getCompiler());
+        assertEquals("go", go.getLangFriendly());
+        assertEquals(SyntaxConstants.SYNTAX_STYLE_GO, go.getLangConstant());
+        assertEquals(List.of(go.getExecutable()), go.execute());
+        assertEquals(List.of("go"), CompilerRequiredFiles.getRequiredFilesFromCompiler(GoLanguage.class));
+        assertEquals("rustc", rust.getCompiler());
+        assertEquals("rust", rust.getLangFriendly());
+        assertEquals(SyntaxConstants.SYNTAX_STYLE_RUST, rust.getLangConstant());
+        assertEquals(List.of(rust.getExecutable()), rust.execute());
+        assertEquals(List.of("rustc"), CompilerRequiredFiles.getRequiredFilesFromCompiler(RustLanguage.class));
         assertThrows(IllegalArgumentException.class,
                 () -> CompilerRequiredFiles.getRequiredFilesFromCompiler(null));
+    }
+
+    @Test
+    void selects32BitWindowsRustTarget() {
+        assertEquals("i686-pc-windows-gnu", RustLanguage.windows32Target("Windows 11", "x86"));
+        assertEquals("i686-pc-windows-gnu", RustLanguage.windows32Target("Windows 11", "i686"));
+        assertNull(RustLanguage.windows32Target("Windows 11", "amd64"));
+        assertNull(RustLanguage.windows32Target("Linux", "x86"));
     }
 
     @Test
@@ -189,11 +201,73 @@ class CompilerLanguagesTest {
         runAndAssertOutput(new MonoCSharpLanguage(source), "got:message");
     }
 
+    @Test
+    @Tag("language-tools")
+    void compilesAndRunsGoWithManagedAsynchronousOutput() throws Exception {
+        requireLanguageTool("go");
+        Path source = Files.writeString(
+                tempDirectory.resolve("main.go"),
+                "package main\nimport \"fmt\"\nfunc main() { fmt.Println(\"go-output\") }\n"
+        );
+
+        GoLanguage language = new GoLanguage(source);
+        Path executable = Path.of(language.getExecutable());
+        runAndAssertOutput(language, "go-output");
+        assertFalse(Files.exists(executable));
+    }
+
+    @Test
+    @Tag("language-tools")
+    void forwardsInputToCompiledGoProgram() throws Exception {
+        requireLanguageTool("go");
+        Path source = Files.writeString(
+                tempDirectory.resolve("input.go"),
+                "package main\nimport (\"bufio\"; \"fmt\"; \"os\")\n"
+                        + "func main() { value, _ := bufio.NewReader(os.Stdin).ReadString('\\n'); "
+                        + "fmt.Print(\"go-received:\", value) }\n"
+        );
+        Input.getInstance().set("message");
+
+        runAndAssertOutput(new GoLanguage(source), "go-received:message");
+    }
+
+    @Test
+    @Tag("language-tools")
+    void compilesAndRunsRustWithManagedAsynchronousOutput() throws Exception {
+        requireLanguageTool("rustc");
+        Path source = Files.writeString(
+                tempDirectory.resolve("main.rs"),
+                "fn main() { println!(\"rust-output\"); }\n"
+        );
+
+        RustLanguage language = new RustLanguage(source);
+        Path executable = Path.of(language.getExecutable());
+        runAndAssertOutput(language, "rust-output");
+        assertFalse(Files.exists(executable));
+    }
+
+    @Test
+    @Tag("language-tools")
+    void forwardsInputToCompiledRustProgram() throws Exception {
+        requireLanguageTool("rustc");
+        Path source = Files.writeString(
+                tempDirectory.resolve("input.rs"),
+                "use std::io::{self, BufRead};\n"
+                        + "fn main() { let mut value = String::new(); "
+                        + "io::stdin().lock().read_line(&mut value).unwrap(); "
+                        + "print!(\"rust-received:{}\", value.trim()); }\n"
+        );
+        Input.getInstance().set("message");
+
+        runAndAssertOutput(new RustLanguage(source), "rust-received:message");
+    }
+
     private void runAndAssertOutput(AbstractLanguage language, String expectedOutput) throws Exception {
         RunnableNode node = language.startManaged();
-        assertEquals(expectedOutput, Output.getInstance().get(30));
+        String actualOutput = Output.getInstance().get(30);
         await().atMost(5, TimeUnit.SECONDS)
                 .until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
+        assertEquals(expectedOutput, actualOutput);
     }
 
     private void requireLanguageTool(String executable) {

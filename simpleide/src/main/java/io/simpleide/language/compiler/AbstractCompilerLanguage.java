@@ -7,7 +7,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -97,17 +96,6 @@ public abstract class AbstractCompilerLanguage extends AbstractLanguage {
 
     protected final Path getArtifactDirectory() {
         return artifactDirectory;
-    }
-
-    final List<String> createLinkCommand(Path object, Path output) {
-        List<String> command = new ArrayList<>(List.of(linker));
-        if (System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win")) {
-            command.add("-mconsole");
-        }
-        command.add(object.toString());
-        command.add("-o");
-        command.add(output.toString());
-        return List.copyOf(command);
     }
 
     protected final void writeArtifact(Path artifact, String contents) {

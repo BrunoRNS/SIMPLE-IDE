@@ -53,6 +53,17 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.4"
+          architecture: x86
+
+      - name: Set up Rust for 32-bit Windows
+        uses: dtolnay/rust-toolchain@1.82.0
+        with:
+          targets: i686-pc-windows-gnu
+
       - name: Install Mono
         run: choco install mono --x86 --yes --no-progress
 
@@ -99,7 +110,7 @@ jobs:
       - name: Verify language toolchains
         shell: pwsh
         run: |
-          $commands = @("gcc", "g++", "as", "mcs", "mono", "node", "python")
+          $commands = @("gcc", "g++", "mcs", "mono", "go", "rustc", "node", "python")
           foreach ($command in $commands) {
             if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
               throw "Required language tool not found: $command"
@@ -109,6 +120,15 @@ jobs:
           Write-Host "GCC target: $gccTarget"
           if ($gccTarget -notmatch '^(i[3-6]86|x86)-') {
             throw "Expected a 32-bit GCC toolchain, received '$gccTarget'."
+          }
+          if ((go env GOOS) -ne "windows" -or (go env GOARCH) -ne "386") {
+            throw "Expected a 32-bit Windows Go toolchain."
+          }
+          if (-not (rustc -vV | Select-String -Quiet '^host: x86_64-pc-windows-')) {
+            throw "Expected a Rust compiler with a Windows x64 host."
+          }
+          if (-not (rustup target list --installed | Select-String -Quiet '^i686-pc-windows-gnu$')) {
+            throw "Expected the Rust 32-bit Windows GNU target to be installed."
           }
           if ((python -c "import struct; print(struct.calcsize('P') * 8)") -ne "32") {
             throw "Expected 32-bit Python."

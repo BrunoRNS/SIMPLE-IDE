@@ -29,7 +29,7 @@ jobs:
           cache: maven
 
       - name: Install Mono
-        run: brew install mono
+        run: brew install go mono rust
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -47,11 +47,15 @@ jobs:
         run: |
           command -v gcc
           command -v g++
-          command -v as
           command -v mcs
           command -v mono
+          command -v go
+          command -v rustc
           command -v node
           command -v python3
+          test "$(go env GOOS)" = darwin
+          test "$(go env GOARCH)" = amd64
+          rustc -vV | grep -Eq '^host: x86_64-apple-darwin$'
           test "$(node -p 'process.arch')" = x64
           python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
           file -L "$(command -v mono)" | grep -Eq 'Mach-O 64-bit.*(x86_64|x86_64h)'

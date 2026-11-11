@@ -5,7 +5,7 @@ import java.util.List;
 
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 
-public class JSLanguage extends AbstractInterpreterLanguage {
+public final class JSLanguage extends AbstractInterpreterLanguage {
 
     public JSLanguage() {
         interpreter = "node";

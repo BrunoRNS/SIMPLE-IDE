@@ -31,7 +31,8 @@ jobs:
           FROM debian:trixie-slim
           RUN apt-get update \
               && apt-get install -y --no-install-recommends \
-                   ca-certificates curl file g++ gcc binutils make mono-complete:i386 \
+                   ca-certificates curl file g++ gcc binutils golang-go make mono-complete:i386 \
+                   rustc \
                    python3 xz-utils \
               && curl --fail --location --silent --show-error \
                    https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x86.tar.xz \
@@ -57,8 +58,12 @@ jobs:
               test "$(node -p "process.arch")" = ia32
               test "$(python3 -c "import struct; print(struct.calcsize(\"P\") * 8)")" = 32
               command -v g++
-              command -v as
               command -v mcs
+              command -v go
+              command -v rustc
+              test "$(go env GOOS)" = linux
+              test "$(go env GOARCH)" = 386
+              rustc -vV | grep -Eq "^host: i[3-6]86-unknown-linux-gnu$"
               g++ -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
               gcc -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
               file -L "$(command -v mono)" | grep -Eq "ELF 32-bit.*Intel (i386|80386)"

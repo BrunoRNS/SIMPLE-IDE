@@ -51,12 +51,21 @@ jobs:
           MSYS2_LOCATION: ${{ steps.setup-msys2.outputs.msys2-location }}
         run: |
           $gccBin = Join-Path $env:MSYS2_LOCATION "ucrt64\bin"
-          foreach ($tool in @("gcc.exe", "g++.exe", "as.exe")) {
+          foreach ($tool in @("gcc.exe", "g++.exe")) {
             if (-not (Test-Path (Join-Path $gccBin $tool))) {
               throw "Could not find $tool in the 64-bit GCC toolchain."
             }
           }
           Add-Content -Path $env:GITHUB_PATH -Value $gccBin
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.4"
+          architecture: x64
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install Mono
         run: choco install mono --yes --no-progress
@@ -95,7 +104,7 @@ jobs:
       - name: Verify language toolchains
         shell: pwsh
         run: |
-          $commands = @("gcc", "g++", "as", "mcs", "mono", "node", "python")
+          $commands = @("gcc", "g++", "mcs", "mono", "go", "rustc", "node", "python")
           foreach ($command in $commands) {
             if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
               throw "Required language tool not found: $command"
@@ -103,6 +112,12 @@ jobs:
           }
           if ((gcc -dumpmachine) -notmatch '^x86_64-') {
             throw "Expected a 64-bit GCC toolchain."
+          }
+          if ((go env GOOS) -ne "windows" -or (go env GOARCH) -ne "amd64") {
+            throw "Expected a 64-bit Windows Go toolchain."
+          }
+          if (-not (rustc -vV | Select-String -Quiet '^host: x86_64-pc-windows-')) {
+            throw "Expected an x64 Windows Rust toolchain."
           }
           if ((python -c "import struct; print(struct.calcsize('P') * 8)") -ne "64") {
             throw "Expected 64-bit Python."

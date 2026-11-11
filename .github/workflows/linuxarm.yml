@@ -30,17 +30,21 @@ jobs:
       - name: Install language toolchains
         run: |
           sudo apt-get update
-          sudo apt-get install --yes build-essential mono-devel nodejs python3
+          sudo apt-get install --yes build-essential golang-go mono-devel nodejs python3 rustc
 
       - name: Verify language toolchains
         run: |
           command -v gcc
           command -v g++
-          command -v as
           command -v mcs
           command -v mono
+          command -v go
+          command -v rustc
           command -v node
           command -v python3
+          test "$(go env GOOS)" = linux
+          test "$(go env GOARCH)" = arm64
+          rustc -vV | grep -Eq '^host: aarch64-unknown-linux-gnu$'
           test "$(node -p 'process.arch')" = arm64
           python3 -c 'import platform; assert platform.machine().lower() in ("aarch64", "arm64")'
           file -L "$(command -v mono)" | grep -Eq 'ELF 64-bit.*(ARM aarch64|AArch64)'

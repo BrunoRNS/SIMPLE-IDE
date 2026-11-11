@@ -31,6 +31,18 @@ class EditorTest {
       assertThat(editor.getText()).isEqualTo("print('hello')");
       assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_PYTHON);
 
+      File goFile = new File(
+          Path.of("main.go"), "main.go", TypeFile.GO, new StringBuffer("package main"));
+      editor.loadFile(goFile);
+
+      assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_GO);
+
+      File rustFile = new File(
+          Path.of("main.rs"), "main.rs", TypeFile.RUST, new StringBuffer("fn main() {}"));
+      editor.loadFile(rustFile);
+
+      assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_RUST);
+
       File textFile = new File(
           Path.of("notes.txt"), "notes.txt", TypeFile.TXT, new StringBuffer("plain text"));
       editor.loadFile(textFile);

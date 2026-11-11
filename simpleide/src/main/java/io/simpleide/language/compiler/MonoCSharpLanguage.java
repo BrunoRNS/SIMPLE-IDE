@@ -9,7 +9,7 @@ import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 
 import io.simpleide.utils.OSpathUtil;
 
-public class MonoCSharpLanguage extends AbstractCompilerLanguage {
+public final class MonoCSharpLanguage extends AbstractCompilerLanguage {
 
     public MonoCSharpLanguage() {
         compiler = "mcs";

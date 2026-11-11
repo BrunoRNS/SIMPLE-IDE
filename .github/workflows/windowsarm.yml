@@ -93,6 +93,15 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.4"
+          architecture: arm64
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
       - name: Install Mono
         run: choco install mono --yes --no-progress
 
@@ -129,7 +138,7 @@ jobs:
       - name: Verify language toolchains
         shell: pwsh
         run: |
-          $commands = @("gcc", "g++", "as", "mcs", "mono", "node", "python")
+          $commands = @("gcc", "g++", "mcs", "mono", "go", "rustc", "node", "python")
           foreach ($command in $commands) {
             if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
               throw "Required language tool not found: $command"
@@ -139,6 +148,12 @@ jobs:
           Write-Host "GCC target: $gccTarget"
           if ($gccTarget -notmatch '^(aarch64|arm64)-') {
             throw "Expected an ARM64 GCC toolchain, received '$gccTarget'."
+          }
+          if ((go env GOOS) -ne "windows" -or (go env GOARCH) -ne "arm64") {
+            throw "Expected an ARM64 Windows Go toolchain."
+          }
+          if (-not (rustc -vV | Select-String -Quiet '^host: aarch64-pc-windows-')) {
+            throw "Expected an ARM64 Windows Rust toolchain."
           }
           if ((python -c "import platform, struct; print(struct.calcsize('P') * 8, platform.machine().lower())") -notmatch '^64 (arm64|aarch64)$') {
             throw "Expected ARM64 Python."

@@ -11,7 +11,9 @@ import io.simpleide.language.compiler.AbstractCompilerLanguage;
 import io.simpleide.language.compiler.CLanguage;
 import io.simpleide.language.compiler.CPPLanguage;
 import io.simpleide.language.compiler.CompilerRequiredFiles;
+import io.simpleide.language.compiler.GoLanguage;
 import io.simpleide.language.compiler.MonoCSharpLanguage;
+import io.simpleide.language.compiler.RustLanguage;
 import io.simpleide.language.interpreter.AbstractInterpreterLanguage;
 import io.simpleide.language.interpreter.InterpreterRequiredFile;
 import io.simpleide.language.interpreter.JSLanguage;
@@ -77,6 +79,18 @@ public class LangSetup implements Runnable {
             this.setupLanguage(
                 MonoCSharpLanguage.class,
                 ".cs", ".csx"
+            );
+        }
+        if (this.validate(GoLanguage.class)) {
+            this.setupLanguage(
+                GoLanguage.class,
+                ".go"
+            );
+        }
+        if (this.validate(RustLanguage.class)) {
+            this.setupLanguage(
+                RustLanguage.class,
+                ".rs"
             );
         }
 

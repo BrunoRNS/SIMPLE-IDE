@@ -13,7 +13,9 @@ import org.junit.jupiter.api.Test;
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.compiler.CLanguage;
 import io.simpleide.language.compiler.CPPLanguage;
+import io.simpleide.language.compiler.GoLanguage;
 import io.simpleide.language.compiler.MonoCSharpLanguage;
+import io.simpleide.language.compiler.RustLanguage;
 import io.simpleide.language.interpreter.InterpreterRequiredFile;
 import io.simpleide.language.interpreter.JSLanguage;
 import io.simpleide.language.interpreter.Python3Language;
@@ -28,7 +30,7 @@ class LangSetupTest {
         LangConfig config = new LangConfig();
         new TestLangSetup(
                 config,
-                Set.of("gcc", "as", "node", InterpreterRequiredFile.getInterpreter(Python3Language.class))
+                Set.of("gcc", "node", InterpreterRequiredFile.getInterpreter(Python3Language.class))
         ).run();
 
         assertEquals(CLanguage.class, config.getLanguage(".c"));
@@ -37,6 +39,8 @@ class LangSetupTest {
         assertEquals(Python3Language.class, config.getLanguage(".py"));
         assertEquals(JavaLanguage.class, config.getLanguage(".java"));
         assertNull(config.getLanguage(".cs"));
+        assertNull(config.getLanguage(".go"));
+        assertNull(config.getLanguage(".rs"));
         assertNull(config.getLanguage(".s"));
         assertNull(config.getLanguage(".asm"));
     }
@@ -47,7 +51,7 @@ class LangSetupTest {
         TestLangSetup setup = new TestLangSetup(
                 config,
                 Set.of(
-                        "gcc", "g++", "as", "mcs", "mono", "node",
+                        "gcc", "g++", "mcs", "mono", "go", "rustc", "node",
                         InterpreterRequiredFile.getInterpreter(Python3Language.class)
                 )
         );
@@ -56,6 +60,8 @@ class LangSetupTest {
         assertEquals(CLanguage.class, config.getLanguage(".h"));
         assertEquals(CPPLanguage.class, config.getLanguage(".CXX"));
         assertEquals(MonoCSharpLanguage.class, config.getLanguage(".csx"));
+        assertEquals(GoLanguage.class, config.getLanguage(".go"));
+        assertEquals(RustLanguage.class, config.getLanguage(".rs"));
         assertEquals(JSLanguage.class, config.getLanguage(".mjs"));
         assertEquals(Python3Language.class, config.getLanguage(".pyw"));
         assertEquals(GroovyLanguage.class, config.getLanguage(".gsh"));
