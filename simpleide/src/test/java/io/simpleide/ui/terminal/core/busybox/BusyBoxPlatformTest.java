@@ -20,6 +20,7 @@ import com.pty4j.PtyProcess;
 import com.pty4j.PtyProcessBuilder;
 
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.ui.terminal.Pty4jCompatibility;
 
 class BusyBoxPlatformTest {
 
@@ -120,14 +121,18 @@ class BusyBoxPlatformTest {
         LangPlatform platform = LangPlatform.getCurrentPlatform();
         assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
         try (BusyBoxExecutable executable = BusyBoxPlatform.extract(platform)) {
-            PtyProcess process = new PtyProcessBuilder()
+            PtyProcessBuilder builder = new PtyProcessBuilder()
                 .setCommand(new String[] {
                     executable.getPath().toString(),
                     "echo",
                     EXPECTED_OUTPUT
                 })
-                .setEnvironment(Map.copyOf(System.getenv()))
-                .setSpawnProcessUsingJdkOnMacIntel(platform != LangPlatform.MACOSINTEL)
+                .setEnvironment(Map.copyOf(System.getenv()));
+            Pty4jCompatibility.setSpawnProcessUsingJdkOnMacIntel(
+                builder,
+                platform != LangPlatform.MACOSINTEL
+            );
+            PtyProcess process = builder
                 .setUnixOpenTtyToPreserveOutputAfterTermination(
                     platform == LangPlatform.MACOSINTEL || platform == LangPlatform.MACOSAARCH64
                 )

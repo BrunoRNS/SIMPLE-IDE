@@ -29,4 +29,5 @@ The executable JAR is created at
 `simpleide/target/maven-mutation-testing-jar-with-dependencies.jar`.
 
 `make run` keeps the command running while the application is open. Close the
-application window to return to the terminal.
+application window to return to the terminal. It enables Java preview features
+for the Java 21 macOS ARM64 PTY runtime.

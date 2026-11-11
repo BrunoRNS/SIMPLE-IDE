@@ -362,12 +362,16 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     }
 
     private PtyProcess startProcess(String[] command, Map<String, String> environment) throws IOException {
-        return new PtyProcessBuilder()
+        PtyProcessBuilder builder = new PtyProcessBuilder()
             .setCommand(command)
             .setEnvironment(environment)
             .setInitialColumns(TERMINAL_COLUMNS)
-            .setInitialRows(TERMINAL_ROWS)
-            .setSpawnProcessUsingJdkOnMacIntel(platform != LangPlatform.MACOSINTEL)
+            .setInitialRows(TERMINAL_ROWS);
+        Pty4jCompatibility.setSpawnProcessUsingJdkOnMacIntel(
+            builder,
+            platform != LangPlatform.MACOSINTEL
+        );
+        return builder
             .setUnixOpenTtyToPreserveOutputAfterTermination(platform == LangPlatform.MACOSAARCH64)
             .start();
     }

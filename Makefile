@@ -15,7 +15,7 @@ test:
 	$(MVNW) -B test
 
 run: jar
-	java -jar $(APP_JAR)
+	java --enable-preview -jar $(APP_JAR)
 
 jar:
 	$(MVNW) -B -DskipTests package
