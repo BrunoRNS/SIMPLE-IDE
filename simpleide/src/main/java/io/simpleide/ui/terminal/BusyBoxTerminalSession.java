@@ -92,6 +92,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 extractionFailure = exception;
             }
             process = startWithFallback(command, environment, extractionFailure, busyBoxPlatform);
+            LOGGER.info("Terminal shell started: {}.", processDiagnostics());
 
             ACTIVE_SESSIONS.add(this);
             if (SHUTDOWN_STARTED.get()) {
@@ -104,6 +105,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 getConnectorName()
             );
         } catch (IOException | RuntimeException | LinkageError exception) {
+            LOGGER.error("Terminal shell startup failed: {}.", processDiagnostics(), exception);
             cleanupFailedStart(exception);
             throw exception;
         }
@@ -180,12 +182,15 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         terminationRequested.set(true);
         PtyProcess activeProcess = process;
         if (activeProcess == null || !isProcessAlive(activeProcess)) {
+            LOGGER.debug("Skipping forced terminal shutdown: {}", processDiagnostics());
             return;
         }
+        LOGGER.info("Forcing terminal process-tree shutdown: {}", processDiagnostics());
         try {
             ProcessTreeTerminator.terminate(activeProcess, platform);
+            LOGGER.info("Forced terminal shutdown returned: {}", processDiagnostics());
         } catch (RuntimeException exception) {
-            LOGGER.error("Unable to force the BusyBox process to exit.", exception);
+            LOGGER.error("Unable to force the BusyBox process to exit: {}", processDiagnostics(), exception);
         }
     }
 
@@ -209,6 +214,11 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             }
         } catch (InterruptedException exception) {
             interrupted = true;
+            LOGGER.warn(
+                "Interrupted while closing terminal; falling back to forced termination: {}.",
+                processDiagnostics(),
+                exception
+            );
             forceTerminate();
         } finally {
             if (interrupted) {
@@ -220,23 +230,40 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     void closeGracefullyAndWait() {
         terminationRequested.set(true);
         PtyProcess activeProcess = process;
-        if (activeProcess == null || !isProcessAlive(activeProcess)) {
+        if (activeProcess == null) {
+            LOGGER.info("Skipping graceful terminal shutdown because no process was started: {}.", processDiagnostics());
+            return;
+        }
+        if (!isProcessAlive(activeProcess)) {
+            LOGGER.info("Skipping graceful terminal shutdown because the process already exited: {}.", processDiagnostics());
             return;
         }
 
         List<ProcessHandle> descendants = ProcessTreeTerminator.captureDescendants(activeProcess);
+        LOGGER.info(
+            "Attempting graceful terminal shutdown: {}; captured descendants={}",
+            processDiagnostics(),
+            processTreeDiagnostics(descendants)
+        );
         if (platform == LangPlatform.MACOSAARCH64) {
-            LOGGER.debug(
-                "Stopping captured child processes before closing macOS ARM64 terminal session {}.",
-                activeProcess.pid()
+            LOGGER.info(
+                "Stopping captured macOS ARM64 child processes before sending EOF: session={}, descendants={}",
+                activeProcess.pid(),
+                processTreeDiagnostics(descendants)
             );
-            ProcessTreeTerminator.terminateMacArm64Descendants(descendants);
+            ProcessTreeTerminator.terminateMacArm64Descendants(activeProcess, descendants);
         }
         boolean interrupted = Thread.interrupted();
         try {
             BusyBoxTtyConnector activeConnector = connector;
             if (activeConnector != null) {
                 try {
+                    LOGGER.info(
+                        "Sending {} to terminal session {} through connector {}.",
+                        "windows".equals(platform.getOs()) && systemShellFallback ? "Ctrl-Z" : "EOF",
+                        activeProcess.pid(),
+                        activeConnector.getName()
+                    );
                     activeConnector.write(
                         "windows".equals(platform.getOs()) && systemShellFallback
                             ? "\u001A\r\n"
@@ -250,16 +277,34 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             if (activeProcess.waitFor(GRACEFUL_CLOSE_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 ProcessTreeTerminator.terminateCapturedDescendants(descendants, platform);
                 awaitCapturedDescendants(descendants, activeProcess.pid());
+                LOGGER.info(
+                    "Terminal session exited after EOF: {}; remaining captured descendants={}",
+                    processDiagnostics(),
+                    processTreeDiagnostics(descendants)
+                );
                 return;
             }
 
             LOGGER.info(
-                "Terminal session {} did not exit after EOF; terminating its remaining process tree.",
-                activeProcess.pid()
+                "Terminal session did not exit within {} seconds after EOF; terminating its process tree: {}; "
+                    + "remaining descendants={}",
+                GRACEFUL_CLOSE_TIMEOUT_SECONDS,
+                processDiagnostics(),
+                processTreeDiagnostics(descendants)
             );
             ProcessTreeTerminator.terminate(activeProcess, platform);
             if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
-                LOGGER.error("Terminal session {} remained alive after process-tree termination.", activeProcess.pid());
+                LOGGER.error(
+                    "Terminal session remained alive after process-tree termination: {}; descendants={}",
+                    processDiagnostics(),
+                    processTreeDiagnostics(descendants)
+                );
+            } else {
+                LOGGER.info(
+                    "Terminal session exited after process-tree termination: {}; descendants={}",
+                    processDiagnostics(),
+                    processTreeDiagnostics(descendants)
+                );
             }
         } catch (InterruptedException exception) {
             interrupted = true;
@@ -345,9 +390,9 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 long remainingNanos = deadline - System.nanoTime();
                 if (remainingNanos <= 0) {
                     LOGGER.warn(
-                        "Child process {} from terminal session {} did not exit after termination.",
-                        descendant.pid(),
-                        sessionPid
+                        "Child process from terminal session did not exit after termination: session={}, child={}",
+                        sessionPid,
+                        processTreeDiagnostics(List.of(descendant))
                     );
                     return;
                 }
@@ -359,6 +404,20 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 }
             }
         }
+    }
+
+    private static String processTreeDiagnostics(List<ProcessHandle> processes) {
+        return processes.stream()
+            .map(process -> {
+                ProcessHandle.Info info = process.info();
+                return "pid=" + process.pid()
+                    + ", alive=" + process.isAlive()
+                    + ", parentPid=" + process.parent().map(ProcessHandle::pid).orElse(-1L)
+                    + ", command=" + info.command().orElse("unknown")
+                    + ", arguments=" + String.join(" ", info.arguments().orElse(new String[0]));
+            })
+            .toList()
+            .toString();
     }
 
     private PtyProcess startProcess(String[] command, Map<String, String> environment) throws IOException {
