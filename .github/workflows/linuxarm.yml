@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-24.04-arm
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: linux-arm64
     strategy:
       fail-fast: false
       matrix:
@@ -19,11 +21,33 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: ${{ matrix.java }}
           cache: maven
+
+      - name: Install language toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential golang-go mono-devel nodejs python3 rustc
+
+      - name: Verify language toolchains
+        run: |
+          command -v gcc
+          command -v g++
+          command -v mcs
+          command -v mono
+          command -v go
+          command -v rustc
+          command -v node
+          command -v python3
+          test "$(go env GOOS)" = linux
+          test "$(go env GOARCH)" = arm64
+          rustc -vV | grep -Eq '^host: aarch64-unknown-linux-gnu$'
+          test "$(node -p 'process.arch')" = arm64
+          python3 -c 'import platform; assert platform.machine().lower() in ("aarch64", "arm64")'
+          file -L "$(command -v mono)" | grep -Eq 'ELF 64-bit.*(ARM aarch64|AArch64)'
 
       - name: Run tests
         run: make test

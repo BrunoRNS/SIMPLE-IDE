@@ -1,42 +1,33 @@
 package io.simpleide.language.compiler;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public class CompilerRequiredFiles {
-
-    protected static final Logger LOGGER = LoggerFactory.getLogger(CompilerRequiredFiles.class);
 
     public static List<String> getRequiredFilesFromCompiler(
         Class<? extends AbstractCompilerLanguage> c
     ) {
-
-        List<String> l = new ArrayList<>(3);
-
-        try {
-            AbstractCompilerLanguage c_instance = c.getDeclaredConstructor().newInstance(
-                new Object[] {}
-            );
-        
-            l.add(c_instance.getCompiler());
-            l.add(c_instance.getAssembler());
-            l.add(c_instance.getLinker());
-
-        } catch (
-            NoSuchMethodException | SecurityException | 
-            IllegalAccessException | IllegalArgumentException | InvocationTargetException |
-            InstantiationError | InstantiationException ex) {
-            LOGGER.error(
-                "Error while requesting necessary files from compiler - " + ex.getMessage());
-            return null;
+        if (c == null) {
+            throw new IllegalArgumentException("Compiler class must not be null.");
         }
 
-        return l;
-
+        try {
+            AbstractCompilerLanguage language = c.getDeclaredConstructor().newInstance();
+            List<String> required = new ArrayList<>(4);
+            addIfPresent(required, language.getCompiler());
+            addIfPresent(required, language.getAssembler());
+            addIfPresent(required, language.getLinker());
+            addIfPresent(required, language.getRuntime());
+            return List.copyOf(required);
+        } catch (ReflectiveOperationException | SecurityException exception) {
+            throw new IllegalStateException("Could not inspect compiler requirements for " + c.getName(), exception);
+        }
     }
-    
+
+    private static void addIfPresent(List<String> required, String command) {
+        if (command != null && !command.isBlank() && !required.contains(command)) {
+            required.add(command);
+        }
+    }
 }

@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: windows-11-arm
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: windows-arm64
     strategy:
       fail-fast: false
       matrix:
@@ -25,6 +27,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Configure Windows temp directory
+        shell: pwsh
+        run: |
+          $tempDirectory = Join-Path $env:RUNNER_TEMP "simpleide-ci"
+          New-Item -ItemType Directory -Force -Path $tempDirectory | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMPDIR=$tempDirectory"
 
       - name: Download and configure Zulu JDK
         shell: pwsh
@@ -61,6 +72,107 @@ jobs:
           path: ~/.m2/repository
           key: windows-arm64-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: windows-arm64-maven-
+
+      - name: Install GCC toolchain
+        id: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANGARM64
+          path-type: inherit
+          update: true
+          install: mingw-w64-clang-aarch64-gcc mingw-w64-clang-aarch64-binutils mingw-w64-clang-aarch64-libc++
+
+      - name: Add ARM64 GCC to Windows PATH
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.setup-msys2.outputs.msys2-location }}
+        run: |
+          $gccBin = Join-Path $env:MSYS2_LOCATION "clangarm64\bin"
+          if (-not (Test-Path (Join-Path $gccBin "gcc.exe"))) {
+            throw "Could not find the ARM64 GCC executable."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $gccBin
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.27.4"
+          architecture: arm64
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Mono
+        run: choco install mono --yes --no-progress
+
+      - name: Add Mono tools to PATH
+        shell: pwsh
+        run: |
+          $monoBins = @(
+            (Join-Path $env:ProgramFiles "Mono\bin"),
+            (Join-Path ${env:ProgramFiles(x86)} "Mono\bin")
+          )
+          $monoBin = $monoBins | Where-Object {
+            Test-Path (Join-Path $_ "mcs.bat")
+          } | Select-Object -First 1
+          if (-not $monoBin) {
+            throw "Could not find the Mono compiler after installation."
+          }
+          $managedCompiler = Join-Path (Split-Path $monoBin -Parent) "lib\mono\4.5\mcs.exe"
+          if (-not (Test-Path $managedCompiler)) {
+            throw "Could not find the managed Mono compiler at '$managedCompiler'."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $monoBin
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+          architecture: arm64
+
+      - name: Verify language toolchains
+        shell: pwsh
+        run: |
+          $commands = @("gcc", "g++", "mcs", "mono", "go", "rustc", "node", "python")
+          foreach ($command in $commands) {
+            if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+              throw "Required language tool not found: $command"
+            }
+          }
+          $gccTarget = (gcc -dumpmachine | Out-String).Trim()
+          Write-Host "GCC target: $gccTarget"
+          if ($gccTarget -notmatch '^(aarch64|arm64)-') {
+            throw "Expected an ARM64 GCC toolchain, received '$gccTarget'."
+          }
+          if ((go env GOOS) -ne "windows" -or (go env GOARCH) -ne "arm64") {
+            throw "Expected an ARM64 Windows Go toolchain."
+          }
+          if (-not (rustc -vV | Select-String -Quiet '^host: aarch64-pc-windows-')) {
+            throw "Expected an ARM64 Windows Rust toolchain."
+          }
+          if ((python -c "import platform, struct; print(struct.calcsize('P') * 8, platform.machine().lower())") -notmatch '^64 (arm64|aarch64)$') {
+            throw "Expected ARM64 Python."
+          }
+          if ((node -p "process.arch") -ne "arm64") {
+            throw "Expected an ARM64 Node.js runtime."
+          }
+          $monoProbeSource = Join-Path $env:RUNNER_TEMP "mono-probe.cs"
+          $monoProbeAssembly = Join-Path $env:RUNNER_TEMP "mono-probe.exe"
+          'using System; class MonoProbe { static void Main() { Console.WriteLine("mono-ok"); } }' |
+            Set-Content -Path $monoProbeSource
+          & mcs "-out:$monoProbeAssembly" $monoProbeSource
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not compile the Mono probe."
+          }
+          $monoOutput = (& mono $monoProbeAssembly | Out-String).Trim()
+          if ($monoOutput -ne "mono-ok") {
+            throw "Mono probe returned '$monoOutput'."
+          }
 
       - name: Run tests
         run: make test

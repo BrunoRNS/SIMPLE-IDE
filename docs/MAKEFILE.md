@@ -26,10 +26,16 @@ Run the commands below from the repository root.
 | `make jar` | Alias for `make build`. |
 | `make run` | Packages both artifacts, then launches the IDE configured to use the local Ambus build. |
 | `make clean` | Removes generated Maven build outputs. |
+| `make test-nolang` | Runs tests without the external-language execution tests. |
 
-The IDE JAR is created at `simpleide/target/simpleide.jar`. The standalone
-Ambus distribution is created at `ambus/target/ambus-0.0.1-SNAPSHOT.zip`.
-Tests remain in each Maven module.
+
+The executable JAR is created at
+`simpleide/target/maven-mutation-testing-jar-with-dependencies.jar`. Run it
+directly with:
+
+```sh
+java -jar simpleide/target/maven-mutation-testing-jar-with-dependencies.jar
+```
 
 `make run` keeps the command running while the application is open. Close the
 application window to return to the terminal.

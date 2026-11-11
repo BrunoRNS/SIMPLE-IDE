@@ -12,6 +12,9 @@ import java.util.concurrent.Future;
 
 import org.junit.jupiter.api.Test;
 
+import io.simpleide.language.io.holder.InputHolder;
+import io.simpleide.language.io.holder.OutputHolder;
+
 class IOConcurrencyTest {
 
     private static final int MESSAGE_COUNT = 1_000;
@@ -28,6 +31,12 @@ class IOConcurrencyTest {
         Output output = new Output();
 
         assertConcurrentTransfer(output::set, output::get);
+    }
+
+    @Test
+    void holdersExposeTheSharedInputAndOutputQueues() {
+        assertThat(Input.getInstance()).isSameAs(InputHolder.INSTANCE);
+        assertThat(Output.getInstance()).isSameAs(OutputHolder.INSTANCE);
     }
 
     private void assertConcurrentTransfer(MessagePublisher publisher, MessageReader reader) throws Exception {

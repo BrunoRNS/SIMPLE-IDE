@@ -387,7 +387,7 @@ class TreeFileTest {
   }
 
   @Test
-  void fileTypesRecognizePythonJavascriptAndUppercaseExtensions() throws IOException {
+  void fileTypesRecognizeSupportedExtensionsAndTreatAssemblyAsText() throws IOException {
     Path root = Files.createTempDirectory("simpleide-treefile-types-");
     try {
       Path pythonPath = Files.writeString(root.resolve("script.PY"), "print('hello')");
@@ -411,6 +411,8 @@ class TreeFileTest {
       Files.deleteIfExists(root.resolve("Main.kt"));
       Files.deleteIfExists(root.resolve("main.c"));
       Files.deleteIfExists(root.resolve("main.cpp"));
+      Files.deleteIfExists(root.resolve("main.go"));
+      Files.deleteIfExists(root.resolve("main.rs"));
       Files.deleteIfExists(root.resolve("main.asm"));
       Files.deleteIfExists(root.resolve("main.RS"));
       Files.deleteIfExists(root);
