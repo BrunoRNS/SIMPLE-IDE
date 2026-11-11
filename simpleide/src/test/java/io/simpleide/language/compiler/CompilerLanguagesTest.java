@@ -76,20 +76,25 @@ class CompilerLanguagesTest {
         assertNull(csharp.getAssembler());
         assertNull(csharp.getLinker());
         assertEquals("mono", csharp.getRuntime());
-        assertEquals("mono", csharp.execute().get(0));
+        Path monoLauncher = OSpathUtil.which("mono");
+        boolean usesMonoExecutable = isWindows()
+                && monoLauncher != null
+                && !monoLauncher.toString().toLowerCase().endsWith(".bat")
+                && !monoLauncher.toString().toLowerCase().endsWith(".cmd");
+        assertEquals(usesMonoExecutable ? monoLauncher.toString() : "mono", csharp.execute().get(0));
         List<String> csharpCompilerCommand = csharp.compilerCommand(
                 tempDirectory.resolve("main.cs").toAbsolutePath().normalize(),
                 Path.of(csharp.getExecutable())
         );
-        Path mcsLauncher = OSpathUtil.which("mcs");
-        boolean usesMonoLauncher = isWindows()
-                && mcsLauncher != null
-                && (mcsLauncher.toString().toLowerCase().endsWith(".bat")
-                        || mcsLauncher.toString().toLowerCase().endsWith(".cmd"));
-        assertEquals(usesMonoLauncher ? "mono" : "mcs", csharpCompilerCommand.get(0));
-        if (usesMonoLauncher) {
-            Path managedCompiler = mcsLauncher.getParent().getParent()
+        boolean usesManagedCompiler = usesMonoExecutable;
+        Path managedCompiler = null;
+        if (usesManagedCompiler) {
+            managedCompiler = monoLauncher.getParent().getParent()
                     .resolve("lib").resolve("mono").resolve("4.5").resolve("mcs.exe");
+            usesManagedCompiler = Files.isRegularFile(managedCompiler);
+        }
+        assertEquals(usesManagedCompiler ? monoLauncher.toString() : "mcs", csharpCompilerCommand.get(0));
+        if (usesManagedCompiler) {
             assertEquals(managedCompiler.toString(), csharpCompilerCommand.get(1));
         }
         assertEquals(List.of("mcs", "mono"),
