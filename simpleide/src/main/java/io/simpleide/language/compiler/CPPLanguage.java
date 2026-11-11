@@ -1,20 +1,28 @@
 package io.simpleide.language.compiler;
 
-public class CPPLanguage extends AbstractCompilerLanguage {
+import java.nio.file.Path;
+import java.util.List;
 
-    @Override
-    public String getCompiler() {
-        throw new UnsupportedOperationException("Not supported yet.");
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+
+public final class CPPLanguage extends AbstractCompilerLanguage {
+
+    public CPPLanguage() {
+        compiler = "g++";
+        linker = compiler;
     }
 
-    @Override
-    public String getAssembler() {
-        throw new UnsupportedOperationException("Not supported yet.");
+    public CPPLanguage(Path file) {
+        this();
+        Path source = normalizeSource(file);
+        Path output = createArtifactPath("program.exe");
+        configure(
+                source,
+                "c++",
+                SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS,
+                output,
+                List.of(List.of(compiler, source.toString(), "-o", output.toString())),
+                List.of(output.toString())
+        );
     }
-
-    @Override
-    public String getLinker() {
-        throw new UnsupportedOperationException("Not supported yet.");
-    }
-    
 }

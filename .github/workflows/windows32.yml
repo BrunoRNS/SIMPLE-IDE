@@ -10,24 +10,158 @@ permissions:
 jobs:
   test:
     runs-on: windows-latest
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: windows-x86
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Configure Windows temp directory
+        shell: pwsh
+        run: |
+          $tempDirectory = Join-Path $env:RUNNER_TEMP "simpleide-ci"
+          New-Item -ItemType Directory -Force -Path $tempDirectory | Out-Null
+          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$tempDirectory"
+          Add-Content -Path $env:GITHUB_ENV -Value "TMPDIR=$tempDirectory"
+
       - name: Set up 32-bit Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: zulu
           java-version: "17"
           architecture: x86
           cache: maven
 
+      - name: Install GCC toolchain
+        id: setup-msys2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW32
+          path-type: inherit
+          update: true
+          install: mingw-w64-i686-gcc
+
+      - name: Add 32-bit GCC to Windows PATH
+        shell: pwsh
+        env:
+          MSYS2_LOCATION: ${{ steps.setup-msys2.outputs.msys2-location }}
+        run: |
+          $gccBin = Join-Path $env:MSYS2_LOCATION "mingw32\bin"
+          if (-not (Test-Path (Join-Path $gccBin "gcc.exe"))) {
+            throw "Could not find the 32-bit GCC executable."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $gccBin
+
+      - name: Install 32-bit Go
+        run: choco install golang --x86 --yes --no-progress
+
+      - name: Set up Rust for 32-bit Windows
+        uses: dtolnay/rust-toolchain@1.82.0
+        with:
+          targets: i686-pc-windows-gnu
+
+      - name: Install Mono
+        run: choco install mono --x86 --yes --no-progress
+
+      - name: Add Mono tools to PATH
+        shell: pwsh
+        run: |
+          $monoBins = @(
+            (Join-Path ${env:ProgramFiles(x86)} "Mono\bin"),
+            (Join-Path $env:ProgramFiles "Mono\bin")
+          )
+          $monoBin = $monoBins | Where-Object {
+            Test-Path (Join-Path $_ "mcs.bat")
+          } | Select-Object -First 1
+          if (-not $monoBin) {
+            throw "Could not find the Mono compiler after installation."
+          }
+          $managedCompiler = Join-Path (Split-Path $monoBin -Parent) "lib\mono\4.5\mcs.exe"
+          if (-not (Test-Path $managedCompiler)) {
+            throw "Could not find the managed Mono compiler at '$managedCompiler'."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $monoBin
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "12.22.3"
+          architecture: x86
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          architecture: x86
+
       - name: Verify 32-bit Java
         shell: pwsh
         run: |
-          $javaProperties = java -XshowSettings:properties -version 2>&1
+          $javaExecutable = Join-Path $env:JAVA_HOME "bin\java.exe"
+          $javaProperties = & $javaExecutable -XshowSettings:properties -version 2>&1
           if (-not ($javaProperties | Select-String -Quiet 'sun.arch.data.model = 32')) {
             throw "Expected a 32-bit Java runtime."
+          }
+
+      - name: Verify language toolchains
+        shell: pwsh
+        run: |
+          $commands = @("gcc", "g++", "mcs", "mono", "go", "rustc", "node", "python")
+          foreach ($command in $commands) {
+            if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+              throw "Required language tool not found: $command"
+            }
+          }
+          $gccTarget = (gcc -dumpmachine | Out-String).Trim()
+          Write-Host "GCC target: $gccTarget"
+          if ($gccTarget -notmatch '^(i[3-6]86|x86)-') {
+            throw "Expected a 32-bit GCC toolchain, received '$gccTarget'."
+          }
+          $goCommand = Get-Command go -ErrorAction SilentlyContinue
+          if (-not $goCommand) {
+            throw "Go was not added to PATH after installation."
+          }
+          Write-Host "Go found on PATH: $($goCommand.Source)"
+          $goVersion = (& go version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) {
+            throw "The Go executable found on PATH failed: $goVersion"
+          }
+          Write-Host "Go version: $goVersion"
+          $goHostOS = (& go env GOHOSTOS | Out-String).Trim()
+          $goHostArch = (& go env GOHOSTARCH | Out-String).Trim()
+          $goTargetOS = (& go env GOOS | Out-String).Trim()
+          $goTargetArch = (& go env GOARCH | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $goHostOS -ne "windows" -or $goHostArch -ne "386" -or
+              $goTargetOS -ne "windows" -or $goTargetArch -ne "386") {
+            throw "Expected a working 32-bit Windows Go toolchain; host=$goHostOS/$goHostArch target=$goTargetOS/$goTargetArch."
+          }
+          if (-not (rustc -vV | Select-String -Quiet '^host: x86_64-pc-windows-')) {
+            throw "Expected a Rust compiler with a Windows x64 host."
+          }
+          if (-not (rustup target list --installed | Select-String -Quiet '^i686-pc-windows-gnu$')) {
+            throw "Expected the Rust 32-bit Windows GNU target to be installed."
+          }
+          if ((python -c "import struct; print(struct.calcsize('P') * 8)") -ne "32") {
+            throw "Expected 32-bit Python."
+          }
+          if ((node -p "process.version") -ne "v12.22.3") {
+            throw "Expected Node.js v12.22.3."
+          }
+          if ((node -p "process.arch") -ne "ia32") {
+            throw "Expected a 32-bit Node.js runtime."
+          }
+          $monoProbeSource = Join-Path $env:RUNNER_TEMP "mono-bitness.cs"
+          $monoProbeAssembly = Join-Path $env:RUNNER_TEMP "mono-bitness.exe"
+          'using System; class MonoBitness { static void Main() { Console.WriteLine(IntPtr.Size == 4 ? "32" : "64"); } }' |
+            Set-Content -Path $monoProbeSource
+          & mcs "-out:$monoProbeAssembly" $monoProbeSource
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not compile the Mono bitness probe."
+          }
+          $monoBitness = (& mono $monoProbeAssembly | Out-String).Trim()
+          if ($monoBitness -ne "32") {
+            throw "Expected a 32-bit Mono runtime, received '$monoBitness'."
           }
 
       - name: Run tests

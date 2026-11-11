@@ -21,12 +21,18 @@ Run the commands below from the repository root.
 | Command | Description |
 | --- | --- |
 | `make build` | Compiles the Maven project without running tests. |
-| `make test` | Runs the project's tests. |
-| `make jar` | Packages the application and prints the output directory. |
+| `make test` | Runs the project tests, including language tests when their toolchains are installed. |
+| `make test-nolang` | Runs tests without the external-language execution tests. |
+| `make jar` | Builds the runnable FAT JAR with `io.simpleide.App` as its main class. |
 | `make run` | Packages the application, then launches its executable JAR. |
 
 The executable JAR is created at
-`simpleide/target/maven-mutation-testing-jar-with-dependencies.jar`.
+`simpleide/target/maven-mutation-testing-jar-with-dependencies.jar`. Run it
+directly with:
+
+```sh
+java -jar simpleide/target/maven-mutation-testing-jar-with-dependencies.jar
+```
 
 `make run` keeps the command running while the application is open. Close the
 application window to return to the terminal.

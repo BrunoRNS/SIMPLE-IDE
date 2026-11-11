@@ -2,6 +2,7 @@ package io.simpleide.language.jvmbytecode;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,8 +20,7 @@ public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
 
     protected AbstractBytecodeLanguage(Path filePath, String friendlyName, String languageConstant) {
         if (filePath == null) {
-            LOGGER.error("[IDE] Cannot configure {} execution: source file path is null.", friendlyName);
-            return;
+            throw new IllegalArgumentException("Source file path must not be null.");
         }
         if (COMPILER_JAR == null) {
             LOGGER.error("[IDE] Cannot configure {} execution: compiler JAR is unavailable.", friendlyName);
@@ -33,7 +33,7 @@ public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
         Path javaExecutable = Path.of(
             System.getProperty("java.home"),
             "bin",
-            System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java"
+            System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win") ? "java.exe" : "java"
         );
         this.pb = new ProcessBuilder(
             javaExecutable.toString(),
@@ -41,6 +41,10 @@ public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
             COMPILER_JAR.toString(),
             sourceFile.toString()
         );
+    }
+
+    public static boolean isAvailable() {
+        return COMPILER_JAR != null;
     }
 
     private static Path getCompilerJarPath() {

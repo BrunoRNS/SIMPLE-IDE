@@ -39,7 +39,8 @@ public class Editor extends RSyntaxTextArea {
       case PYTHON -> SyntaxConstants.SYNTAX_STYLE_PYTHON;
       case C -> SyntaxConstants.SYNTAX_STYLE_C;
       case CPP -> SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS;
-      case ASM -> SyntaxConstants.SYNTAX_STYLE_ASSEMBLER_6502;
+      case GO -> SyntaxConstants.SYNTAX_STYLE_GO;
+      case RUST -> SyntaxConstants.SYNTAX_STYLE_RUST;
       case TXT, BINARY -> SyntaxConstants.SYNTAX_STYLE_NONE;
     };
   }
