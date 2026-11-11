@@ -126,7 +126,6 @@ public class EditorTab extends JPanel {
       case KOTLIN -> "kotlin.png";
       case JAVASCRIPT -> "javascript.png";
       case PYTHON -> "python.png";
-      case ASM -> "assembly.png";
       case CPP -> "cpp.png";
       case C -> "c.png";
       case TXT, BINARY -> null;

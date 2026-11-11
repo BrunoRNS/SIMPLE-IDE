@@ -13,8 +13,6 @@ public enum TypeFile {
   PYTHON("python"),
   BINARY("binary"),
   CPP("c++"),
-  GO("go"),
-  RUST("rust"),
   C("C");
 
   private final String name;

@@ -403,7 +403,7 @@ class TreeFileTest {
       assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
       assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
       assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
-      assertThat(new File(assemblyPath).getTypeFile()).isEqualTo(TypeFile.ASM);
+      assertThat(new File(assemblyPath).getTypeFile()).isEqualTo(TypeFile.TXT);
       assertThat(new File(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
     } finally {
       Files.deleteIfExists(root.resolve("script.PY"));
