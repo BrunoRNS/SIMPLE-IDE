@@ -25,6 +25,7 @@ import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorManager;
+import io.simpleide.ui.editor.LspStatusBar;
 import io.simpleide.ui.menubar.MenuBarFactory;
 import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.treefile.Directory;
@@ -61,8 +62,13 @@ public class MainFrame extends JFrame implements Runnable {
     LogPanel logPanel = new LogPanel();
     JScrollPane treePane = new JScrollPane();
     JScrollPane logPane = new JScrollPane(logPanel);
+    LspStatusBar lspStatusBar = new LspStatusBar();
 
-    editorManager = new EditorManager(this::createNewFile, this::createNewDirectory, this::setDirectory);
+    editorManager = new EditorManager(
+        this::createNewFile,
+        this::createNewDirectory,
+        this::setDirectory,
+        lspStatusBar::updateStatus);
 
     JSplitPane editorTreePane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treePane, editorManager.getJTabbedPane());
     editorTreePane.setResizeWeight(0.2);
@@ -74,8 +80,10 @@ public class MainFrame extends JFrame implements Runnable {
 
     MainLayout mainLayout = new MainLayout();
     mainLayout.addComponent(mainVerticalSplit, 0, 0, 1, 1, 1.0, 1.0);
+    mainLayout.addComponent(lspStatusBar, 0, 1, 1, 1, 1.0, 0.0);
     setLayout(mainLayout);
     add(mainVerticalSplit);
+    add(lspStatusBar);
 
     attachLogAppender(logPanel);
 

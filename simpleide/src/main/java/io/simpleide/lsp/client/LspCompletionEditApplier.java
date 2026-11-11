@@ -16,13 +16,13 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class LspCompletionEditApplier {
+public final class LspCompletionEditApplier {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspCompletionEditApplier.class);
 
   private LspCompletionEditApplier() {
   }
 
-  static List<ResolvedTextEdit> captureAdditionalEdits(
+  public static List<ResolvedTextEdit> captureAdditionalEdits(
       RSyntaxTextArea editor, CompletionItem item, int primaryStart, int primaryEnd) {
     List<TextEdit> additionalEdits = item.getAdditionalTextEdits();
     if (additionalEdits == null || additionalEdits.isEmpty()) {
@@ -62,7 +62,7 @@ final class LspCompletionEditApplier {
     return List.copyOf(resolved);
   }
 
-  static void applyAdditionalEdits(
+  public static void applyAdditionalEdits(
       RSyntaxTextArea editor,
       List<ResolvedTextEdit> edits,
       int primaryStart,
@@ -131,6 +131,6 @@ final class LspCompletionEditApplier {
     return List.of();
   }
 
-  record ResolvedTextEdit(int start, int end, String newText) {
+  public record ResolvedTextEdit(int start, int end, String newText) {
   }
 }

@@ -150,7 +150,7 @@ public class Tree extends JTree {
       }));
     } catch (RuntimeException error) {
       refreshingDirectories.remove(normalizedPath);
-      throw error;
+      LOGGER.error("Unable to schedule directory refresh for {}.", normalizedPath, error);
     }
   }
 
@@ -254,7 +254,7 @@ public class Tree extends JTree {
       }));
     } catch (RuntimeException exception) {
       loadingDirectories.remove(directory);
-      throw exception;
+      LOGGER.error("Unable to schedule loading directory {}.", directory.getPath(), exception);
     }
   }
 

@@ -24,7 +24,7 @@ final class ThreadTaskScheduler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ThreadTaskScheduler.class);
     static final int MAX_QUEUED_TASKS = 256;
     static final int WORKER_COUNT =
-        Math.max(1, Math.min(2, Runtime.getRuntime().availableProcessors()));
+        Math.max(4, Math.min(8, Runtime.getRuntime().availableProcessors()));
 
     private final Map<BigInteger, ManagedTask> activeTasks = new LinkedHashMap<>();
     private final Set<BigInteger> scheduledIds = new HashSet<>();

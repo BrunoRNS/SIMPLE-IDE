@@ -15,15 +15,15 @@ import org.fife.ui.rsyntaxtextarea.parser.ParserNotice;
 
 import io.simpleide.thread.ThreadMaster;
 
-final class LspDiagnosticParser extends AbstractParser {
+public final class LspDiagnosticParser extends AbstractParser {
   private final RSyntaxTextArea editor;
   private volatile List<Diagnostic> diagnostics = List.of();
 
-  LspDiagnosticParser(RSyntaxTextArea editor) {
+  public LspDiagnosticParser(RSyntaxTextArea editor) {
     this.editor = editor;
   }
 
-  void setDiagnostics(List<Diagnostic> diagnostics) {
+  public void setDiagnostics(List<Diagnostic> diagnostics) {
     this.diagnostics = List.copyOf(diagnostics);
     ThreadMaster.getInstance().executeOnEDT(() -> editor.forceReparsing(this));
   }

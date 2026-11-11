@@ -2,10 +2,6 @@ package io.simpleide.lsp.client;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 import javax.swing.text.BadLocationException;
 
@@ -32,16 +28,11 @@ import org.slf4j.LoggerFactory;
 
 import io.simpleide.lsp.core.Document;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.editor.Editor;
 
 public final class LspEditorSupport implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspEditorSupport.class);
-  private static final ScheduledExecutorService COMPLETION_EXECUTOR =
-      Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "simpleide-lsp-completion");
-        thread.setDaemon(true);
-        return thread;
-      });
 
   private final Editor editor;
   private final Document document;
@@ -50,7 +41,7 @@ public final class LspEditorSupport implements AutoCloseable {
   private final LspCompletionProvider completionProvider;
   private final AutoCompletion autoCompletion;
   private String lastSentText;
-  private volatile ScheduledFuture<?> pendingCompletion;
+  private volatile CompletionNode pendingCompletion;
   private volatile boolean closed;
 
   public LspEditorSupport(Editor editor, Document document, LspClient client) {
@@ -85,11 +76,19 @@ public final class LspEditorSupport implements AutoCloseable {
     String currentText = editor.getText();
     client.didChange(document.getUri(), document.getVersion(), lastSentText, currentText);
     lastSentText = currentText;
-    ScheduledFuture<?> previous = pendingCompletion;
+    CompletionNode previous = pendingCompletion;
     if (previous != null) {
-      previous.cancel(false);
+      ThreadMaster.getInstance().removeNodeCascade(previous);
     }
-    pendingCompletion = COMPLETION_EXECUTOR.schedule(this::requestCompletions, 180, TimeUnit.MILLISECONDS);
+    CompletionNode next = new CompletionNode();
+    pendingCompletion = next;
+    try {
+      ThreadMaster.getInstance().register(next);
+    } catch (RuntimeException error) {
+      pendingCompletion = null;
+      ThreadMaster.getInstance().removeNodeCascade(next);
+      LOGGER.warn("Unable to schedule LSP completion for {}.", document.getUri(), error);
+    }
   }
 
   public void documentSaved() {
@@ -235,13 +234,48 @@ public final class LspEditorSupport implements AutoCloseable {
       return;
     }
     closed = true;
-    ScheduledFuture<?> pending = pendingCompletion;
+    CompletionNode pending = pendingCompletion;
     if (pending != null) {
-      pending.cancel(false);
+      ThreadMaster.getInstance().removeNodeCascade(pending);
     }
     client.didClose(document.getUri());
     autoCompletion.uninstall();
     editor.removeParser(diagnosticParser);
+  }
+
+  private final class CompletionNode extends RunnableNode {
+    private CompletionNode() {
+      super(ThreadMaster.getInstance().getROOT(), () -> { });
+    }
+
+    @Override
+    public Runnable onStart() {
+      return () -> {
+        try {
+          Thread.sleep(180);
+          requestCompletions();
+        } catch (InterruptedException error) {
+          Thread.currentThread().interrupt();
+        }
+      };
+    }
+
+    @Override
+    public Runnable onClose() {
+      return () -> {
+        try {
+          ThreadMaster.getInstance().executeOnEDT(() -> {
+            if (pendingCompletion == this) {
+              pendingCompletion = null;
+            }
+            ThreadMaster.getInstance().removeNodeCascade(this);
+          });
+        } catch (RuntimeException error) {
+          LOGGER.warn("Unable to unregister LSP completion task for {}.", document.getUri(), error);
+          ThreadMaster.getInstance().removeNodeCascade(this);
+        }
+      };
+    }
   }
 
 }

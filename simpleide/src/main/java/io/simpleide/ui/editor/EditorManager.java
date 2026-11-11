@@ -6,22 +6,22 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
 
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingConstants;
-import javax.swing.SwingUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.frame.popup.ErrorPopUP;
-import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.lsp.LspStatus;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
@@ -40,6 +40,14 @@ public class EditorManager {
   private Runnable openFolder;
 
   public EditorManager(Runnable createFile, Runnable createFolder, Runnable openFolder) {
+    this(createFile, createFolder, openFolder, ignored -> { });
+  }
+
+  public EditorManager(
+      Runnable createFile,
+      Runnable createFolder,
+      Runnable openFolder,
+      Consumer<LspStatus> statusListener) {
     if (instance == null) {
       instance = this;
       this.createFile = createFile;
@@ -50,7 +58,7 @@ public class EditorManager {
       showWelcomeScreen();
     }
     this.manager = new DocumentManager();
-    this.languageServers = new LanguageServerManager();
+    this.languageServers = new LanguageServerManager(statusListener);
     this.editorActions = new EditorActions(this);
   }
 
@@ -115,7 +123,7 @@ public class EditorManager {
             return;
           }
           if (client != null) {
-            SwingUtilities.invokeLater(() -> editorTab.connectLanguageServer(client));
+            ThreadMaster.getInstance().executeOnEDT(() -> editorTab.connectLanguageServer(client));
           }
         });
   }
@@ -214,11 +222,7 @@ public class EditorManager {
     try {
       tab.save();
     } catch (IOException error) {
-      LOGGER.error("Unable to save file {}.", tab.getFile().getPath(), error);
-      new ErrorPopUP(
-          "Unable to save " + tab.getFile().getName() + ": " + error.getMessage(),
-          tab,
-          ErrorTypePopUp.INTERNAL_ERROR).startManaged();
+      LOGGER.warn("Save failed; keeping unsaved changes for {}.", tab.getFile().getPath());
     }
   }
 
@@ -233,6 +237,7 @@ public class EditorManager {
   private String getLanguageId(TypeFile type) {
     return switch (type) {
       case JAVA -> "java";
+      case CSHARP -> "csharp";
       case KOTLIN -> "kotlin";
       case GROOVY -> "groovy";
       case JAVASCRIPT -> "javascript";

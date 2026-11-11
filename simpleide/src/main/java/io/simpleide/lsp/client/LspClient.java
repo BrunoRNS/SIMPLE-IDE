@@ -55,14 +55,19 @@ import org.eclipse.lsp4j.launch.LSPLauncher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
+
 public final class LspClient implements LanguageClient, AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspClient.class);
   private static final long INITIALIZATION_TIMEOUT_SECONDS = 30;
 
-  private final Process process;
   private final Consumer<PublishDiagnosticsParams> diagnosticsHandler;
   private final CompletableFuture<Void> initialized = new CompletableFuture<>();
-  private final LanguageServer server;
+  private final RunnableNode startupNode;
+  private volatile Process process;
+  private volatile LanguageServer server;
+  private volatile boolean initializationSubmitted;
   private volatile boolean closed;
   private volatile TextDocumentSyncKind synchronizationKind = TextDocumentSyncKind.None;
   private volatile boolean openCloseSupported;
@@ -72,13 +77,13 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   private volatile boolean saveIncludeText;
   private volatile boolean formattingSupported;
 
-  public LspClient(String command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler)
+  public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler)
       throws IOException {
     this(command, workspaceRoot, diagnosticsHandler, Map.of());
   }
 
   public LspClient(
-      String command,
+      List<String> command,
       Path workspaceRoot,
       Consumer<PublishDiagnosticsParams> diagnosticsHandler,
       Map<String, String> environment)
@@ -90,31 +95,72 @@ public final class LspClient implements LanguageClient, AutoCloseable {
       throw new IllegalArgumentException("Language server environment must not be null.");
     }
 
-    ProcessBuilder processBuilder = new ProcessBuilder(command);
-    processBuilder.environment().putAll(environment);
-    if (workspaceRoot != null && Files.isDirectory(workspaceRoot)) {
-      processBuilder.directory(workspaceRoot.toFile());
-    }
-    this.process = processBuilder.start();
     this.diagnosticsHandler = diagnosticsHandler == null ? ignored -> { } : diagnosticsHandler;
+    this.startupNode = new RunnableNode(
+        () -> startServer(command, workspaceRoot, environment),
+        () -> {
+          if (!closed && !initializationSubmitted) {
+            LOGGER.warn("Language server startup node closed before initialization was submitted.");
+          }
+        });
+    ThreadMaster threadMaster = ThreadMaster.getInstance();
+    try {
+      threadMaster.register(startupNode);
+    } catch (RuntimeException error) {
+      threadMaster.removeNodeCascade(startupNode);
+      throw error;
+    }
+  }
 
-    startErrorStreamReader();
+  private void startServer(List<String> command, Path workspaceRoot, Map<String, String> environment) {
+    if (closed) {
+      return;
+    }
 
-    Launcher<LanguageServer> launcher = LSPLauncher.createClientLauncher(
-        this, process.getInputStream(), process.getOutputStream());
-    this.server = launcher.getRemoteProxy();
-    launcher.startListening();
-
-    process.onExit().thenAccept(exited -> {
-      if (!closed && !initialized.isDone()) {
-        initialized.completeExceptionally(
-            new IOException("Language server exited before initialization (code " + exited.exitValue() + ")."));
-      } else if (!closed) {
-        LOGGER.warn("Language server process exited with code {}.", exited.exitValue());
+    try {
+      ProcessBuilder processBuilder = new ProcessBuilder(command);
+      processBuilder.environment().putAll(environment);
+      if (workspaceRoot != null && Files.isDirectory(workspaceRoot)) {
+        processBuilder.directory(workspaceRoot.toFile());
       }
-    });
 
-    initialize(workspaceRoot);
+      Process startedProcess = processBuilder.start();
+      process = startedProcess;
+      if (closed) {
+        closeProcess();
+        return;
+      }
+
+      startErrorStreamReader(startedProcess);
+      Launcher<LanguageServer> launcher = LSPLauncher.createClientLauncher(
+          this, startedProcess.getInputStream(), startedProcess.getOutputStream());
+      server = launcher.getRemoteProxy();
+      launcher.startListening();
+
+      startedProcess.onExit().thenAccept(exited -> {
+        if (!closed && !initialized.isDone()) {
+          IOException error = new IOException(
+              "Language server exited before initialization (code " + exited.exitValue() + ").");
+          if (initialized.completeExceptionally(error)) {
+            LOGGER.error("Language server exited before initialization.", error);
+            close();
+          }
+        } else if (!closed) {
+          LOGGER.warn("Language server process exited with code {}.", exited.exitValue());
+        }
+      });
+
+      if (closed) {
+        closeProcess();
+        return;
+      }
+      initializationSubmitted = true;
+      initialize(workspaceRoot);
+    } catch (IOException | RuntimeException error) {
+      initialized.completeExceptionally(error);
+      LOGGER.error("Unable to start language server.", error);
+      close();
+    }
   }
 
   public CompletableFuture<Void> getInitialized() {
@@ -211,7 +257,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
           if (error != null) {
             initialized.completeExceptionally(error);
             LOGGER.error("Unable to initialize language server.", error);
-            closeProcess();
+            close();
             return;
           }
           try {
@@ -232,7 +278,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
           } catch (RuntimeException initializationError) {
             initialized.completeExceptionally(initializationError);
             LOGGER.error("Unable to finish language server initialization.", initializationError);
-            closeProcess();
+            close();
           }
         });
   }
@@ -349,10 +395,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     capabilities.setTextDocument(textDocumentCapabilities);
     return capabilities;
   }
-  private void startErrorStreamReader() {
+  private void startErrorStreamReader(Process serverProcess) {
     Thread errorReader = new Thread(() -> {
       try (BufferedReader reader = new BufferedReader(
-          new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
+          new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
         String line;
         while ((line = reader.readLine()) != null) {
           LOGGER.debug("[LSP server] {}", line);
@@ -395,7 +441,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   }
 
   @Override
-  public void close() {
+  public synchronized void close() {
     if (closed) {
       return;
     }
@@ -403,16 +449,35 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     if (!initialized.isDone()) {
       initialized.completeExceptionally(new IOException("Language server client was closed before initialization."));
     }
-    Thread shutdown = new Thread(this::shutdownServer, "simpleide-lsp-shutdown");
-    shutdown.setDaemon(false);
-    shutdown.start();
+    ThreadMaster threadMaster = ThreadMaster.getInstance();
+    try {
+      threadMaster.removeNodeCascade(startupNode);
+    } catch (RuntimeException error) {
+      LOGGER.warn("Unable to unregister language server startup node.", error);
+    }
+
+    RunnableNode shutdownNode = new RunnableNode(
+        this::shutdownServer,
+        () -> {
+          Process child = process;
+          if (child != null && child.isAlive()) {
+            LOGGER.warn("Language server process is still running after its shutdown task.");
+          }
+        });
+    try {
+      threadMaster.register(shutdownNode);
+    } catch (RuntimeException error) {
+      LOGGER.warn("Unable to schedule language server shutdown; closing it directly.", error);
+      shutdownServer();
+    }
   }
 
   private void shutdownServer() {
-    if (initialized.isDone() && !initialized.isCompletedExceptionally()) {
+    LanguageServer activeServer = server;
+    if (initialized.isDone() && !initialized.isCompletedExceptionally() && activeServer != null) {
       try {
-        server.shutdown().get(2, TimeUnit.SECONDS);
-        server.exit();
+        activeServer.shutdown().get(2, TimeUnit.SECONDS);
+        activeServer.exit();
       } catch (Exception error) {
         LOGGER.debug("Language server shutdown did not complete cleanly.", error);
       }
@@ -421,14 +486,22 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   }
 
   private void closeProcess() {
-    process.destroy();
+    Process child = process;
+    if (child == null) {
+      return;
+    }
+    child.destroy();
     try {
-      if (!process.waitFor(2, TimeUnit.SECONDS)) {
-        process.destroyForcibly();
+      if (!child.waitFor(2, TimeUnit.SECONDS)) {
+        child.destroyForcibly();
+        if (!child.waitFor(2, TimeUnit.SECONDS)) {
+          LOGGER.warn("Unable to terminate language server process.");
+        }
       }
     } catch (InterruptedException error) {
       Thread.currentThread().interrupt();
-      process.destroyForcibly();
+      child.destroyForcibly();
+      LOGGER.warn("Interrupted while closing language server process.", error);
     }
   }
 }

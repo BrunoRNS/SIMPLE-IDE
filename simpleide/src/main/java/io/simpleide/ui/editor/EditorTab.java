@@ -8,23 +8,24 @@ import java.util.concurrent.CompletableFuture;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.text.BadLocationException;
 
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.client.LspEditorSupport;
 import io.simpleide.lsp.core.Document;
+import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
 import io.simpleide.ui.treefile.File;
 
 import io.simpleide.utils.ResourceUtil;
@@ -43,6 +44,7 @@ public class EditorTab extends JPanel {
   private RTextScrollPane scrollPane;
   private String name;
   private boolean isEdit;
+  private DocumentNode documentNode;
 
   public EditorTab(File file, Document document) {
     this.editor = new Editor();
@@ -109,15 +111,17 @@ public class EditorTab extends JPanel {
     }
   }
 
-  public void publishDiagnostics(org.eclipse.lsp4j.PublishDiagnosticsParams params) {
+  public void publishDiagnostics(PublishDiagnosticsParams params) {
     if (lspSupport != null) {
       lspSupport.publishDiagnostics(params);
     }
   }
 
   public Icon getFileIcon() {
+    // TODO: Move icon selection into per-language metadata.
     String iconName = switch (file.getTypeFile()) {
       case JAVA -> "java.png";
+      case CSHARP -> null;
       case GROOVY -> "groovy.png";
       case KOTLIN -> "kotlin.png";
       case JAVASCRIPT -> "javascript.png";
@@ -126,6 +130,7 @@ public class EditorTab extends JPanel {
       case CPP -> "cpp.png";
       case C -> "c.png";
       case TXT, BINARY -> null;
+      default -> null;
     };
     if (iconName == null) {
       return null;
@@ -134,7 +139,8 @@ public class EditorTab extends JPanel {
     try {
       return new ImageIcon(ResourceUtil.getResourcePath("io.simpleide.icon", iconName).toString());
     } catch (IOException exception) {
-      throw new IllegalStateException("Unable to load file icon: " + iconName, exception);
+      LOGGER.warn("Unable to load file icon {}; using the default icon.", iconName, exception);
+      return null;
     }
   }
 
@@ -144,7 +150,21 @@ public class EditorTab extends JPanel {
 
   public void save() throws IOException {
     String content = editor.getText();
-    fileService.saveFile(file.getPath(), content);
+    try {
+      fileService.saveFile(file.getPath(), content);
+    } catch (IOException error) {
+      LOGGER.error("Unable to save file {}.", file.getPath(), error);
+      try {
+        new ErrorPopUP(
+            "Unable to save " + file.getName() + ": " + error.getMessage(),
+            this,
+            ErrorTypePopUp.INTERNAL_ERROR).startManaged();
+      } catch (RuntimeException popupError) {
+        error.addSuppressed(popupError);
+        LOGGER.warn("Unable to display the save error popup for {}.", file.getPath(), popupError);
+      }
+      throw error;
+    }
     file.getCode().replace(0, file.getCode().length(), content);
     this.buttonExit.setNotEdited();
     if (lspSupport != null) {
@@ -162,31 +182,23 @@ public class EditorTab extends JPanel {
     if (lspSupport != null) {
       lspSupport.close();
     }
+    if (documentNode != null) {
+      documentNode.close();
+      editor.getDocument().removeDocumentListener(documentNode);
+    }
     document.setOpened(false);
   }
 
   private void configIsEdit() {
-    editor.getDocument().addDocumentListener(
-        new DocumentListener() {
-          @Override
-          public void insertUpdate(DocumentEvent e) {
-            onDocumentChanged();
-          }
-
-          @Override
-          public void removeUpdate(DocumentEvent e) {
-            onDocumentChanged();
-          }
-
-          @Override
-          public void changedUpdate(DocumentEvent e) {
-            onDocumentChanged();
-          }
-        });
-      this.scrollPane.setLineNumbersEnabled(true);
+    documentNode = new DocumentNode(this::onDocumentChanged);
+    editor.getDocument().addDocumentListener(documentNode);
+    scrollPane.setLineNumbersEnabled(true);
   }
 
   private void onDocumentChanged() {
+    if (closed) {
+      return;
+    }
     this.isEdit = true;
     document.setModified(true);
     document.incrementVersion();

@@ -42,9 +42,10 @@ public class File extends TreeFile {
     TypeFile typeFile;
     switch (ext) {
       case "java" -> typeFile = TypeFile.JAVA;
+      case "cs" -> typeFile = TypeFile.CSHARP;
       case "kt", "kts" -> typeFile = TypeFile.KOTLIN;
       case "groovy" -> typeFile = TypeFile.GROOVY;
-      case "js", "mjs", "cjs" -> typeFile = TypeFile.JAVASCRIPT;
+      case "js", "jsx", "mjs", "cjs" -> typeFile = TypeFile.JAVASCRIPT;
       case "py" -> typeFile = TypeFile.PYTHON;
       case "c", "h" -> typeFile = TypeFile.C;
       case "cc", "cpp", "cxx", "hpp" -> typeFile = TypeFile.CPP;

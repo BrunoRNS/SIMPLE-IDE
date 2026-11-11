@@ -7,30 +7,277 @@ import jakarta.json.JsonReader;
 import jakarta.json.JsonString;
 
 import java.io.InputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.PathMatcher;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import io.simpleide.lsp.LspStatus;
 
 public class LspManager {
+    private static final Pattern VERSION_PATTERN = Pattern.compile("(?<!\\d)(\\d+(?:\\.\\d+)*)(?!\\d)");
 
-    public static String getComandRun(String language) {
+    public static List<String> getComandRun(String language) {
+        return getComandRun(language, null);
+    }
+
+    public static List<String> getComandRun(String language, Path workspaceRoot) {
+        return getComandRun(language, workspaceRoot, language, ignored -> { });
+    }
+
+    public static List<String> getComandRun(
+            String language,
+            Path workspaceRoot,
+            String statusId,
+            Consumer<LspStatus> statusListener) {
         LspRegistry lspRegistry = getRegistry();
         for (LspServer server : lspRegistry.getServers()) {
-            if (server.getLanguageId().equals(language) && server.isSupportedOnCurrentPlatform()) {
-                if (existisLsp(language + server.getVersion())) {
+            if (!server.getLanguageId().equals(language) || !server.isSupportedOnCurrentPlatform()) {
+                continue;
+            }
 
-                }
-                LspInstaller.dowloading(server);
-                
+            publishStatus(statusListener, statusId, server.getName(), LspStatus.State.CHECKING_VERSION);
+            String detectedVersion = checkMinimumVersion(server);
+            if (LspInstaller.isInstalled(server)) {
+                return createCommand(server, workspaceRoot);
+            }
+            if (LspInstaller.dowloading(server, statusId, statusListener)) {
+                return createCommand(server, workspaceRoot);
+            }
+            throw new IllegalStateException(
+                    "Unable to install language server " + server.getName()
+                            + (detectedVersion == null ? "" : " (language version " + detectedVersion + ")"));
+        }
+        publishStatus(statusListener, statusId, language, LspStatus.State.IDLE);
+        return new ArrayList<>();
+    }
+
+    private static void publishStatus(
+            Consumer<LspStatus> statusListener, String id, String serverName, LspStatus.State state) {
+        if (statusListener != null) {
+            statusListener.accept(new LspStatus(id, serverName, state));
+        }
+    }
+
+    public static Optional<String> getLanguageVersion(String language) {
+        for (LspServer server : getRegistry().getServers()) {
+            if (!server.getLanguageId().equals(language)
+                    || !server.isSupportedOnCurrentPlatform()
+                    || server.getVersionCommand() == null
+                    || server.getVersionCommand().isBlank()) {
+                continue;
+            }
+            return Optional.of(runVersionCommand(server));
+        }
+        return Optional.empty();
+    }
+
+    static List<String> createCommand(LspServer server, Path workspaceRoot) {
+        if (server.getCommand() == null || server.getCommand().isBlank()) {
+            throw new IllegalStateException("No launch command configured for " + server.getName());
+        }
+        Path installDirectory = LspInstaller.getInstallDirectory(server);
+        String workspaceKey = workspaceRoot == null
+                ? "default"
+                : workspaceRoot.toAbsolutePath().normalize().toString();
+        Path workspaceData = Paths.get(
+                System.getProperty("user.home"),
+                ".cache",
+                "simpleide",
+                "lsp",
+                UUID.nameUUIDFromBytes(workspaceKey.getBytes(StandardCharsets.UTF_8)).toString());
+
+        List<String> command = new ArrayList<>();
+        command.addAll(resolveArgument(server.getCommand(), installDirectory, workspaceData));
+        if (server.getArguments() != null) {
+            for (String argument : server.getArguments()) {
+                command.addAll(resolveArgument(argument, installDirectory, workspaceData));
             }
         }
-        return "";
+        return command;
+    }
+
+    private static List<String> resolveArgument(String argument, Path installDirectory, Path workspaceData) {
+        if (argument.contains("${workspaceData}")) {
+            try {
+                Files.createDirectories(workspaceData);
+            } catch (IOException e) {
+                throw new IllegalStateException("Unable to create LSP workspace data directory.", e);
+            }
+        }
+        String resolved = argument
+                .replace("${installDir}", installDirectory.toAbsolutePath().toString())
+                .replace("${workspaceData}", workspaceData.toString());
+        if (resolved.contains("${")) {
+            throw new IllegalStateException("Unresolved LSP command placeholder: " + resolved);
+        }
+        if (resolved.startsWith("~/")) {
+            resolved = Paths.get(System.getProperty("user.home"), resolved.substring(2)).toString();
+        }
+
+        Path path = Paths.get(resolved);
+        if (containsGlob(resolved)
+                && (path.isAbsolute() || resolved.contains("/") || resolved.contains("\\"))) {
+            return expandGlob(path, installDirectory);
+        }
+        if (path.isAbsolute()) {
+            return List.of(path.normalize().toString());
+        }
+
+        Path installedPath = installDirectory.resolve(path).normalize();
+        if (installedPath.startsWith(installDirectory.toAbsolutePath().normalize())
+                && Files.exists(installedPath)) {
+            return List.of(installedPath.toAbsolutePath().toString());
+        }
+        return List.of(resolved);
+    }
+
+    private static boolean containsGlob(String value) {
+        return value.contains("*") || value.contains("?") || value.contains("[");
+    }
+
+    private static List<String> expandGlob(Path pattern, Path installDirectory) {
+        Path root = installDirectory.toAbsolutePath().normalize();
+        Path normalizedPattern = pattern.normalize();
+        if (normalizedPattern.isAbsolute()) {
+            if (!normalizedPattern.startsWith(root)) {
+                throw new IllegalStateException("LSP glob must be inside its installation directory: " + pattern);
+            }
+            normalizedPattern = root.relativize(normalizedPattern);
+        }
+
+        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + normalizedPattern);
+        try (var paths = Files.walk(root)) {
+            List<String> matches = paths
+                    .filter(path -> matcher.matches(root.relativize(path)))
+                    .sorted()
+                    .map(path -> path.toAbsolutePath().toString())
+                    .toList();
+            if (matches.isEmpty()) {
+                throw new IllegalStateException("LSP command pattern did not match any installed file: " + pattern);
+            }
+            return matches;
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to expand LSP command pattern: " + pattern, e);
+        }
+    }
+
+    private static String checkMinimumVersion(LspServer server) {
+        String minimumVersion = server.getMinimumVersion();
+        String versionCommand = server.getVersionCommand();
+        if (minimumVersion == null || minimumVersion.isBlank()
+                || versionCommand == null || versionCommand.isBlank()) {
+            return null;
+        }
+
+        String detectedVersion = runVersionCommand(server);
+        if (compareVersions(detectedVersion, minimumVersion) < 0) {
+            throw new IllegalStateException(
+                    server.getName() + " requires language version " + minimumVersion
+                            + " or newer; detected " + detectedVersion + ".");
+        }
+        return detectedVersion;
+    }
+
+    private static String runVersionCommand(LspServer server) {
+        List<String> command = new ArrayList<>();
+        command.add(server.getVersionCommand());
+        if (server.getVersionArguments() != null) {
+            command.addAll(server.getVersionArguments());
+        }
+
+        Process process;
+        try {
+            process = new ProcessBuilder(command)
+                    .redirectErrorStream(true)
+                    .start();
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Unable to run language version command: " + command, e);
+        }
+
+        CompletableFuture<String> output = CompletableFuture.supplyAsync(() -> {
+            try {
+                return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            } catch (IOException e) {
+                throw new CompletionException(e);
+            }
+        });
+
+        try {
+            if (!process.waitFor(10, TimeUnit.SECONDS)) {
+                process.destroyForcibly();
+                throw new IllegalStateException("Language version command timed out: " + command);
+            }
+            String result = output.get(2, TimeUnit.SECONDS);
+            if (process.exitValue() != 0) {
+                throw new IllegalStateException(
+                        "Language version command failed with exit code "
+                                + process.exitValue() + ": " + result);
+            }
+            if (result.isBlank()) {
+                throw new IllegalStateException(
+                        "Language version command returned no output: " + command);
+            }
+            return result;
+        } catch (InterruptedException e) {
+            process.destroyForcibly();
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while checking language version.", e);
+        } catch (ExecutionException | TimeoutException e) {
+            process.destroyForcibly();
+            throw new IllegalStateException("Unable to read language version command output.", e);
+        }
+    }
+
+    static int compareVersions(String actual, String minimum) {
+        int[] actualParts = extractVersion(actual);
+        int[] minimumParts = extractVersion(minimum);
+        for (int index = 0; index < Math.max(actualParts.length, minimumParts.length); index++) {
+            int actualPart = index < actualParts.length ? actualParts[index] : 0;
+            int minimumPart = index < minimumParts.length ? minimumParts[index] : 0;
+            if (actualPart != minimumPart) {
+                return Integer.compare(actualPart, minimumPart);
+            }
+        }
+        return 0;
+    }
+
+    private static int[] extractVersion(String value) {
+        Matcher matcher = VERSION_PATTERN.matcher(value);
+        if (!matcher.find()) {
+            throw new IllegalArgumentException("No numeric version found in: " + value);
+        }
+        String[] parts = matcher.group(1).split("\\.");
+        int[] version = new int[parts.length];
+        try {
+            for (int index = 0; index < parts.length; index++) {
+                version[index] = Integer.parseInt(parts[index]);
+            }
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid version: " + value, e);
+        }
+        return version;
     }
 
     public static LspRegistry getRegistry() {
-        try (InputStream inputStream = LspManager.class.getResourceAsStream("/registry.json")) {
+        try (InputStream inputStream = LspManager.class.getResourceAsStream(
+                "/io/simpleide/lsp/dowload/registry.json")) {
 
             if (inputStream == null) {
                 throw new IllegalStateException(
@@ -49,6 +296,10 @@ public class LspManager {
                     List<String> os = readStringList(server, "os");
                     List<String> arch = readStringList(server, "arch");
                     List<String> arguments = readStringList(server, "arguments");
+                    List<String> installArguments = readStringList(server, "installArguments");
+                    List<String> postInstallArguments = readStringList(server, "postInstallArguments");
+                    List<String> versionArguments = readStringList(server, "versionArguments");
+                    List<String> paramsArchiverCommand = readStringList(server, "paramsArchiverCommand");
 
                     LspServer lsp = new LspServer(
                             server.getString("id"),
@@ -60,7 +311,19 @@ public class LspManager {
                             server.getString("minimumVersion", null),
                             server.getString("url", null),
                             server.getString("command", null),
-                            arguments);
+                            arguments,
+                            server.getString("installCommand", null),
+                            installArguments,
+                            server.getString("typeFile", null),
+                            server.getString("versionCommand", null),
+                            versionArguments,
+                            paramsArchiverCommand,
+                            server.getString("archiverCommand", null)
+
+                        );
+                    lsp.setInstallKey(server.getString("installKey", null));
+                    lsp.setPostInstallCommand(server.getString("postInstallCommand", null));
+                    lsp.setPostInstallArguments(postInstallArguments);
 
                     serverList.add(lsp);
                 }
@@ -87,12 +350,5 @@ public class LspManager {
                 .stream()
                 .map(JsonString::getString)
                 .toList();
-    }
-
-    private static boolean existisLsp(String li) {
-        String home = System.getProperty("user.home");
-        Path path = Paths.get(home, ".simpleide", "lsp", li);
-        return Files.exists(path);
-
     }
 }

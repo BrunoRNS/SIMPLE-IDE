@@ -10,6 +10,10 @@ public class LspServer {
     private String version;
     private String name;
     private String languageId;
+    private String typeFile;
+    private String installKey;
+    private String archiverCommand;
+    private List<String> paramsArchiverCommand;
 
     private List<String> os;
     private List<String> arch;
@@ -17,6 +21,36 @@ public class LspServer {
     private String url;
     private String command;
     private List<String> arguments;
+    private String installCommand;
+    private List<String> installArguments;
+    private String postInstallCommand;
+    private List<String> postInstallArguments;
+    private String versionCommand;
+    private List<String> versionArguments;
+
+    public LspServer(String id, String version, String name, String languageId, List<String> os, List<String> arch,
+            String minimumVersion, String url, String command, List<String> arguments, String installCommand,
+            List<String> installArguments, String typeFile, String versionCommand, List<String> versionArguments,
+            List<String> paramsArchiverCommand, String archiverCommand) {
+        this.id = id;
+        this.version = version;
+        this.name = name;
+        this.languageId = languageId;
+        this.os = os;
+        this.arch = arch;
+        this.minimumVersion = minimumVersion;
+        this.url = url;
+        this.command = command;
+        this.arguments = arguments;
+        this.installCommand = installCommand;
+        this.installArguments = installArguments;
+        this.typeFile = typeFile;
+        this.archiverCommand = archiverCommand;
+        this.paramsArchiverCommand = paramsArchiverCommand;
+        this.versionCommand = versionCommand;
+        this.versionArguments = versionArguments;
+
+    }
 
     public LspServer(String id, String version, String name, String languageId, List<String> os, List<String> arch,
             String minimumVersion, String url, String command, List<String> arguments) {
@@ -30,6 +64,8 @@ public class LspServer {
         this.url = url;
         this.command = command;
         this.arguments = arguments;
+        this.installArguments = List.of();
+        this.versionArguments = List.of();
     }
 
     public boolean isSupportedOnCurrentPlatform() {
@@ -139,5 +175,85 @@ public class LspServer {
 
     public void setUrl(String url) {
         this.url = url;
+    }
+
+    public String getTypeFile() {
+        return typeFile;
+    }
+
+    public void setTypeFile(String typeFile) {
+        this.typeFile = typeFile;
+    }
+
+    public String getInstallKey() {
+        return installKey;
+    }
+
+    public void setInstallKey(String installKey) {
+        this.installKey = installKey;
+    }
+
+    public String getInstallCommand() {
+        return installCommand;
+    }
+
+    public void setInstallCommand(String installCommand) {
+        this.installCommand = installCommand;
+    }
+
+    public List<String> getInstallArguments() {
+        return installArguments;
+    }
+
+    public void setInstallArguments(List<String> installArguments) {
+        this.installArguments = installArguments;
+    }
+
+    public String getPostInstallCommand() {
+        return postInstallCommand;
+    }
+
+    public void setPostInstallCommand(String postInstallCommand) {
+        this.postInstallCommand = postInstallCommand;
+    }
+
+    public List<String> getPostInstallArguments() {
+        return postInstallArguments;
+    }
+
+    public void setPostInstallArguments(List<String> postInstallArguments) {
+        this.postInstallArguments = postInstallArguments;
+    }
+
+    public String getVersionCommand() {
+        return versionCommand;
+    }
+
+    public void setVersionCommand(String versionCommand) {
+        this.versionCommand = versionCommand;
+    }
+
+    public List<String> getVersionArguments() {
+        return versionArguments;
+    }
+
+    public void setVersionArguments(List<String> versionArguments) {
+        this.versionArguments = versionArguments;
+    }
+
+    public String getArchiverCommand() {
+        return archiverCommand;
+    }
+
+    public void setArchiverCommand(String archiverCommand) {
+        this.archiverCommand = archiverCommand;
+    }
+
+    public List<String> getParamsArchiverCommand() {
+        return paramsArchiverCommand;
+    }
+
+    public void setParamsArchiverCommand(List<String> paramsArchiverCommand) {
+        this.paramsArchiverCommand = paramsArchiverCommand;
     }
 }

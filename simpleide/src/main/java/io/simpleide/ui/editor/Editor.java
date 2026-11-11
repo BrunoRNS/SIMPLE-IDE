@@ -33,6 +33,7 @@ public class Editor extends RSyntaxTextArea {
   private String getSyntaxStyle(TypeFile type) {
     return switch (type) {
       case JAVA -> SyntaxConstants.SYNTAX_STYLE_JAVA;
+      case CSHARP -> SyntaxConstants.SYNTAX_STYLE_CSHARP;
       case GROOVY -> SyntaxConstants.SYNTAX_STYLE_GROOVY;
       case KOTLIN -> SyntaxConstants.SYNTAX_STYLE_KOTLIN;
       case JAVASCRIPT -> SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT;

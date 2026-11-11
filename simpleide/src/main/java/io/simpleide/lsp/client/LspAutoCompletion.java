@@ -7,10 +7,10 @@ import org.fife.ui.autocomplete.Completion;
 
 import io.simpleide.ui.editor.Editor;
 
-class LspAutoCompletion extends AutoCompletion {
+public class LspAutoCompletion extends AutoCompletion {
   private final Editor editor;
 
-  LspAutoCompletion(Editor editor, LspCompletionProvider provider) {
+  public LspAutoCompletion(Editor editor, LspCompletionProvider provider) {
     super(provider);
     this.editor = editor;
   }

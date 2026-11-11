@@ -19,7 +19,7 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class LspCompletionProvider extends DefaultCompletionProvider {
+public class LspCompletionProvider extends DefaultCompletionProvider {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspCompletionProvider.class);
 
   public void setItems(List<CompletionItem> items) {

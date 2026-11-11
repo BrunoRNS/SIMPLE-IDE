@@ -3,6 +3,7 @@ package io.simpleide.ui.treefile;
 public enum TypeFile {
 
   JAVA("java"),
+  CSHARP("csharp"),
   GROOVY("groovy"),
   TXT("txt"),
   KOTLIN("kotlin"),

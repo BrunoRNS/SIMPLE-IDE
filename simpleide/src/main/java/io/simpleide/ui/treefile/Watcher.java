@@ -20,14 +20,19 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
+
 public final class Watcher implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(Watcher.class);
+  private static final long ROOT_CHANGE_CHECK_MILLIS = 250;
 
   private final Tree tree;
   private final WatchService service;
@@ -36,7 +41,7 @@ public final class Watcher implements AutoCloseable {
   private final CompletableFuture<Void> started = new CompletableFuture<>();
   private final AtomicReference<Path> pendingRoot = new AtomicReference<>();
   private volatile boolean closed;
-  private Thread thread;
+  private RunnableNode watcherNode;
 
   public Watcher(Tree tree) throws IOException {
     this.tree = Objects.requireNonNull(tree, "tree");
@@ -44,35 +49,40 @@ public final class Watcher implements AutoCloseable {
   }
 
   public synchronized CompletableFuture<Void> start(Path root) {
-    if (thread != null) {
+    if (watcherNode != null) {
       throw new IllegalStateException("File watcher has already been started.");
     }
     if (closed) {
       throw new IllegalStateException("File watcher is closed.");
     }
 
-    pendingRoot.set(validateRoot(root));
-    thread = new Thread(this::watchLoop, "simpleide-file-watcher");
-    thread.setDaemon(true);
-    thread.start();
+    Path normalizedRoot = validateRoot(root);
+    pendingRoot.set(normalizedRoot);
+    watcherNode = new RunnableNode(this::watchLoop, this::closeService);
+    try {
+      ThreadMaster.getInstance().register(watcherNode);
+    } catch (RuntimeException error) {
+      watcherNode = null;
+      closed = true;
+      started.completeExceptionally(error);
+      closeService();
+      LOGGER.error("Unable to start file watcher for {}.", normalizedRoot, error);
+    }
     return started;
   }
 
   public void setRoot(Path root) {
     Path normalizedRoot = validateRoot(root);
-    Thread watcherThread;
     synchronized (this) {
       if (closed) {
         return;
       }
-      if (thread == null) {
+      if (watcherNode == null) {
         start(normalizedRoot);
         return;
       }
       pendingRoot.set(normalizedRoot);
-      watcherThread = thread;
     }
-    watcherThread.interrupt();
   }
 
   private Path validateRoot(Path root) {
@@ -101,14 +111,21 @@ public final class Watcher implements AutoCloseable {
       }
 
       try {
-        processKey(service.take());
+        WatchKey key = service.poll(ROOT_CHANGE_CHECK_MILLIS, TimeUnit.MILLISECONDS);
+        if (key != null) {
+          processKey(key);
+        }
       } catch (InterruptedException error) {
         if (closed) {
           Thread.currentThread().interrupt();
           return;
         }
+        LOGGER.warn("File watcher thread was interrupted unexpectedly; continuing.", error);
       } catch (ClosedWatchServiceException error) {
-        started.completeExceptionally(error);
+        if (!closed) {
+          started.completeExceptionally(error);
+          LOGGER.warn("File watcher service closed unexpectedly.", error);
+        }
         return;
       }
     }
@@ -203,23 +220,32 @@ public final class Watcher implements AutoCloseable {
     registeredPaths.clear();
   }
 
-  @Override
-  public void close() {
-    synchronized (this) {
-      if (closed) {
-        return;
-      }
-      closed = true;
-    }
-    started.completeExceptionally(new IllegalStateException("File watcher was closed before starting."));
+  private void closeService() {
     try {
       service.close();
     } catch (IOException error) {
       LOGGER.warn("Unable to close file watcher.", error);
     }
-    Thread watcherThread = thread;
-    if (watcherThread != null) {
-      watcherThread.interrupt();
+  }
+
+  @Override
+  public void close() {
+    RunnableNode node;
+    synchronized (this) {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      node = watcherNode;
     }
+    started.completeExceptionally(new IllegalStateException("File watcher was closed before starting."));
+    if (node != null) {
+      try {
+        ThreadMaster.getInstance().removeNodeCascade(node);
+      } catch (RuntimeException error) {
+        LOGGER.warn("Unable to unregister file watcher thread.", error);
+      }
+    }
+    closeService();
   }
 }

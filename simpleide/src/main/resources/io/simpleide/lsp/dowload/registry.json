@@ -1,42 +1,265 @@
 {
-    "servers": [
-        {
-            "id": "0",
-            "version": "1.40.0",
-            "name": "jdtls",
-            "languageId": "java",
-            "arch": [
-                "x86_64",
-                "aarch64",
-                "arm64"
-            ],
-            "os": [
-                "MACOS",
-                "WINDOWS",
-                "LINUX"
-            ],
-            "minimumVersion": "17",
-            "command": "java",
-            "arguments": [
-                "-Declipse.application=org.eclipse.jdt.ls.core.id1",
-                "-Dosgi.bundles.defaultStartLevel=4",
-                "-Declipse.product=org.eclipse.jdt.ls.core.product",
-                "-Dlog.protocol=true",
-                "-Dlog.level=ALL",
-                "-Xmx1G",
-                "--add-modules=ALL-SYSTEM",
-                "--add-opens",
-                "java.base/java.util=ALL-UNNAMED",
-                "--add-opens",
-                "java.base/java.lang=ALL-UNNAMED",
-                "-jar",
-                "./plugins/org.eclipse.equinox.launcher_*.jar",
-                "-configuration",
-                "./config_linux",
-                "-data",
-                "~/.cache/jdtls-workspace"
-            ],
-            "url": "https://download.eclipse.org/jdtls/milestones/1.40.0/jdt-language-server-1.40.0-202409261450.tar.gz"
-        }
-    ]
+  "servers": [
+    {
+      "id": "0",
+      "version": "1.40.0",
+      "name": "jdtls",
+      "languageId": "java",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "WINDOWS", "LINUX"],
+      "minimumVersion": "17",
+      "versionCommand": "java",
+      "versionArguments": ["-version"],
+      "command": "java",
+      "arguments": [
+        "-Declipse.application=org.eclipse.jdt.ls.core.id1",
+        "-Dosgi.bundles.defaultStartLevel=4",
+        "-Declipse.product=org.eclipse.jdt.ls.core.product",
+        "-Dlog.protocol=true",
+        "-Dlog.level=ALL",
+        "-Xmx1G",
+        "--add-modules=ALL-SYSTEM",
+        "--add-opens",
+        "java.base/java.util=ALL-UNNAMED",
+        "--add-opens",
+        "java.base/java.lang=ALL-UNNAMED",
+        "-jar",
+        "./plugins/org.eclipse.equinox.launcher_*.jar",
+        "-configuration",
+        "./config_linux",
+        "-data",
+        "${workspaceData}"
+      ],
+      "url": "https://download.eclipse.org/jdtls/milestones/1.40.0/jdt-language-server-1.40.0-202409261450.tar.gz",
+      "typeFile": "tar.gz"
+    },
+    {
+      "id": "javascript-typescript-language-server",
+      "version": "6.0.3",
+      "name": "typescript-language-server",
+      "languageId": "javascript",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "LINUX"],
+      "minimumVersion": "22.22.2",
+      "versionCommand": "node",
+      "versionArguments": ["--version"],
+      "installCommand": "npm",
+      "installArguments": [
+        "install",
+        "--prefix",
+        "${installDir}",
+        "--no-audit",
+        "--no-fund",
+        "typescript-language-server@6.0.3",
+        "typescript@5.9.3"
+      ],
+      "command": "node",
+      "arguments": [
+        "${installDir}/node_modules/typescript-language-server/lib/cli.mjs",
+        "--stdio"
+      ]
+    },
+    {
+      "id": "javascript-typescript-language-server-windows",
+      "version": "6.0.3",
+      "name": "typescript-language-server",
+      "languageId": "javascript",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["WINDOWS"],
+      "minimumVersion": "22.22.2",
+      "versionCommand": "node",
+      "versionArguments": ["--version"],
+      "installCommand": "cmd.exe",
+      "installArguments": [
+        "/c",
+        "npm.cmd",
+        "install",
+        "--prefix",
+        "${installDir}",
+        "--no-audit",
+        "--no-fund",
+        "typescript-language-server@6.0.3",
+        "typescript@5.9.3"
+      ],
+      "command": "node",
+      "arguments": [
+        "${installDir}/node_modules/typescript-language-server/lib/cli.mjs",
+        "--stdio"
+      ]
+    },
+    {
+      "id": "csharp-language-server",
+      "version": "0.28.0",
+      "name": "csharp-ls",
+      "languageId": "csharp",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "LINUX"],
+      "minimumVersion": "10",
+      "versionCommand": "dotnet",
+      "versionArguments": ["--version"],
+      "installCommand": "dotnet",
+      "installArguments": [
+        "tool",
+        "install",
+        "csharp-ls",
+        "--tool-path",
+        "${installDir}/tools",
+        "--version",
+        "0.28.0"
+      ],
+      "command": "${installDir}/tools/csharp-ls"
+    },
+    {
+      "id": "csharp-language-server-windows",
+      "version": "0.28.0",
+      "name": "csharp-ls",
+      "languageId": "csharp",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["WINDOWS"],
+      "minimumVersion": "10",
+      "versionCommand": "dotnet",
+      "versionArguments": ["--version"],
+      "installCommand": "dotnet",
+      "installArguments": [
+        "tool",
+        "install",
+        "csharp-ls",
+        "--tool-path",
+        "${installDir}/tools",
+        "--version",
+        "0.28.0"
+      ],
+      "command": "${installDir}/tools/csharp-ls.exe"
+    },
+    {
+      "id": "clangd-c",
+      "version": "23.1.0",
+      "name": "clangd",
+      "languageId": "c",
+      "installKey": "clangd-23.1.0",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["LINUX"],
+      "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-linux-23.1.0.zip",
+      "typeFile": "zip",
+      "command": "${installDir}/**/clangd"
+    },
+    {
+      "id": "clangd-cpp",
+      "version": "23.1.0",
+      "name": "clangd",
+      "languageId": "cpp",
+      "installKey": "clangd-23.1.0",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["LINUX"],
+      "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-linux-23.1.0.zip",
+      "typeFile": "zip",
+      "command": "${installDir}/**/clangd"
+    },
+    {
+      "id": "clangd-c-macos",
+      "version": "23.1.0",
+      "name": "clangd",
+      "languageId": "c",
+      "installKey": "clangd-23.1.0",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS"],
+      "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-mac-23.1.0.zip",
+      "typeFile": "zip",
+      "command": "${installDir}/**/clangd"
+    },
+    {
+      "id": "clangd-cpp-macos",
+      "version": "23.1.0",
+      "name": "clangd",
+      "languageId": "cpp",
+      "installKey": "clangd-23.1.0",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS"],
+      "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-mac-23.1.0.zip",
+      "typeFile": "zip",
+      "command": "${installDir}/**/clangd"
+    },
+    {
+      "id": "clangd-c-windows",
+      "version": "23.1.0",
+      "name": "clangd",
+      "languageId": "c",
+      "installKey": "clangd-23.1.0",
+      "arch": ["x86_64"],
+      "os": ["WINDOWS"],
+      "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-windows-23.1.0.zip",
+      "typeFile": "zip",
+      "command": "${installDir}/**/clangd.exe"
+    },
+    {
+      "id": "clangd-cpp-windows",
+      "version": "23.1.0",
+      "name": "clangd",
+      "languageId": "cpp",
+      "installKey": "clangd-23.1.0",
+      "arch": ["x86_64"],
+      "os": ["WINDOWS"],
+      "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-windows-23.1.0.zip",
+      "typeFile": "zip",
+      "command": "${installDir}/**/clangd.exe"
+    },
+    {
+      "id": "groovy-language-server",
+      "version": "347d098",
+      "name": "groovy-language-server",
+      "languageId": "groovy",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "LINUX"],
+      "minimumVersion": "17",
+      "versionCommand": "java",
+      "versionArguments": ["-version"],
+      "url": "https://github.com/GroovyLanguageServer/groovy-language-server/archive/347d098a928707223ce44b52cc45174a6327a5f3.tar.gz",
+      "typeFile": "tar.gz",
+      "postInstallCommand": "bash",
+      "postInstallArguments": [
+        "${installDir}/groovy-language-server-347d098a928707223ce44b52cc45174a6327a5f3/gradlew",
+        "--no-daemon",
+        "--quiet",
+        "shadowJar"
+      ],
+      "command": "java",
+      "arguments": [
+        "-jar",
+        "${installDir}/groovy-language-server-347d098a928707223ce44b52cc45174a6327a5f3/build/libs/groovy-language-server-all.jar"
+      ]
+    },
+    {
+      "id": "kotlin-language-server",
+      "version": "1.3.13",
+      "name": "kotlin-language-server",
+      "languageId": "kotlin",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "LINUX"],
+      "minimumVersion": "11",
+      "versionCommand": "java",
+      "versionArguments": ["-version"],
+      "url": "https://github.com/fwcd/kotlin-language-server/releases/download/1.3.13/server.zip",
+      "typeFile": "zip",
+      "command": "bash",
+      "arguments": ["${installDir}/**/bin/kotlin-language-server"]
+    },
+    {
+      "id": "kotlin-language-server-windows",
+      "version": "1.3.13",
+      "name": "kotlin-language-server",
+      "languageId": "kotlin",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["WINDOWS"],
+      "minimumVersion": "11",
+      "versionCommand": "java",
+      "versionArguments": ["-version"],
+      "url": "https://github.com/fwcd/kotlin-language-server/releases/download/1.3.13/server.zip",
+      "typeFile": "zip",
+      "command": "cmd.exe",
+      "arguments": [
+        "/c",
+        "${installDir}/**/bin/kotlin-language-server.bat"
+      ]
+    }
+  ]
 }
