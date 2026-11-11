@@ -22,6 +22,8 @@ class LogPanelTest {
   @Test
   public void appendEntryShouldApplyLevelColor() throws Exception {
     LogPanel log = new LogPanel();
+    Color messageColor = new Color(0xF4E7D7);
+    log.setForeground(messageColor);
     log.appendEntry("hello", "ERROR", Color.RED);
 
     SwingUtilities.invokeAndWait(() -> {
@@ -35,6 +37,23 @@ class LogPanelTest {
 
     Element msgEl = doc.getCharacterElement(7);
     assertThat(StyleConstants.getForeground(msgEl.getAttributes()))
-        .isEqualTo(Color.BLACK);
+        .isEqualTo(messageColor);
+    assertThat(StyleConstants.getBackground(msgEl.getAttributes()))
+        .isEqualTo(log.getBackground());
+  }
+
+  @Test
+  void blackInfoLevelShouldUseThemeForeground() throws Exception {
+    LogPanel log = new LogPanel();
+    Color themeForeground = new Color(0xEBDBB2);
+    log.setForeground(themeForeground);
+    log.appendEntry("hello", "INFO", Color.BLACK);
+
+    SwingUtilities.invokeAndWait(() -> {
+    });
+
+    Element levelElement = log.getStyledDocument().getCharacterElement(0);
+    assertThat(StyleConstants.getForeground(levelElement.getAttributes()))
+        .isEqualTo(themeForeground);
   }
 }

@@ -11,9 +11,9 @@ import static org.awaitility.Awaitility.await;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
-import com.formdev.flatlaf.FlatDarculaLaf;
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatPropertiesLaf;
 
 class ThemeMenuTest {
 
@@ -28,7 +28,9 @@ class ThemeMenuTest {
     SwingUtilities.invokeAndWait(() -> themeMenu[0] = new ThemeMenu());
 
     selectThemeAndAssert(themeMenu[0], "Light", FlatLightLaf.class);
-    selectThemeAndAssert(themeMenu[0], "Darcula", FlatDarculaLaf.class);
+    selectThemeAndAssert(themeMenu[0], "Darcula", FlatPropertiesLaf.class);
+    selectThemeAndAssert(themeMenu[0], "Brown", FlatPropertiesLaf.class);
+    selectThemeAndAssert(themeMenu[0], "Brown Light", FlatPropertiesLaf.class);
     selectThemeAndAssert(themeMenu[0], "Dark", FlatDarkLaf.class);
   }
 

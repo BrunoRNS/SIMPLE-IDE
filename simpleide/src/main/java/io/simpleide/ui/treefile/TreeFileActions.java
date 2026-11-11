@@ -9,6 +9,7 @@ import java.util.Enumeration;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
+import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -64,6 +65,7 @@ final class TreeFileActions {
           tree.setSelectionPath(clickedPath);
         }
         updateMenuActions(rename, delete);
+        SwingUtilities.updateComponentTreeUI(menu);
         menu.show(event.getComponent(), event.getX(), event.getY());
       }
     });
