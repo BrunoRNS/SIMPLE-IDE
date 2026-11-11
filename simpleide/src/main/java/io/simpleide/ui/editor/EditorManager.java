@@ -242,6 +242,7 @@ public class EditorManager {
       case GROOVY -> "groovy";
       case JAVASCRIPT -> "javascript";
       case GO -> "go";
+      case RUST -> "rust";
       case PYTHON -> "python";
       case C -> "c";
       case CPP -> "cpp";

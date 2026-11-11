@@ -9,6 +9,7 @@ public enum TypeFile {
   KOTLIN("kotlin"),
   JAVASCRIPT("javascript"),
   GO("go"),
+  RUST("rust"),
   PYTHON("python"),
   BINARY("binary"),
   CPP("c++"),

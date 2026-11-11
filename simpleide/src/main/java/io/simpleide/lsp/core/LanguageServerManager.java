@@ -27,7 +27,7 @@ public final class LanguageServerManager implements AutoCloseable {
 
   private static final Set<String> WORKSPACE_MARKERS = Set.of(
       "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
-      "settings.gradle.kts", "package.json", "pyproject.toml", "setup.py",
+      "settings.gradle.kts", "Cargo.toml", "package.json", "pyproject.toml", "setup.py",
       "Cargo.toml", "go.mod", "compile_commands.json");
 
   private final Map<ServerKey, ServerEntry> servers = new ConcurrentHashMap<>();

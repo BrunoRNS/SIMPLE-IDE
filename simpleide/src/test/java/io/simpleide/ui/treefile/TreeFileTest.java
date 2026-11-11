@@ -396,6 +396,7 @@ class TreeFileTest {
       Path cPath = Files.writeString(root.resolve("main.c"), "int main() {}");
       Path cppPath = Files.writeString(root.resolve("main.cpp"), "int main() {}");
       Path assemblyPath = Files.writeString(root.resolve("main.asm"), "lda #$00");
+      Path rustPath = Files.writeString(root.resolve("main.RS"), "fn main() {}");
 
       assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
       assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
@@ -403,6 +404,7 @@ class TreeFileTest {
       assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
       assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
       assertThat(new File(assemblyPath).getTypeFile()).isEqualTo(TypeFile.ASM);
+      assertThat(new File(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
     } finally {
       Files.deleteIfExists(root.resolve("script.PY"));
       Files.deleteIfExists(root.resolve("app.JS"));
@@ -410,6 +412,7 @@ class TreeFileTest {
       Files.deleteIfExists(root.resolve("main.c"));
       Files.deleteIfExists(root.resolve("main.cpp"));
       Files.deleteIfExists(root.resolve("main.asm"));
+      Files.deleteIfExists(root.resolve("main.RS"));
       Files.deleteIfExists(root);
     }
   }

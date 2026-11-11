@@ -92,7 +92,7 @@ class LspManagerTest {
     void registryContainsTheRequestedLanguageServers() {
         assertThat(LspManager.getRegistry().getServers())
                 .extracting(LspServer::getLanguageId)
-                .contains("java", "javascript", "csharp", "c", "cpp", "groovy", "kotlin", "python", "go");
+                .contains("java", "javascript", "csharp", "c", "cpp", "groovy", "kotlin", "python", "go", "rust");
 
         LspServer goServer = LspManager.getRegistry().getServers().stream()
                 .filter(server -> server.getLanguageId().equals("go"))
@@ -131,6 +131,18 @@ class LspManagerTest {
     }
 
     @Test
+    void configuresRustAnalyzerForWindowsX86() {
+        LspServer rustServer = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getId().equals("rust-analyzer-windows-x86"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(rustServer.getArch()).containsExactly("x86");
+        assertThat(rustServer.getOs()).containsExactly("WINDOWS");
+        assertThat(rustServer.getLatestAssetName()).isEqualTo("rust-analyzer-i686-pc-windows-msvc.zip");
+    }
+
+    @Test
     void cAndCppReuseOneClangdInstallation() {
         List<LspServer> servers = LspManager.getRegistry().getServers();
         LspServer cServer = servers.stream()
@@ -163,7 +175,8 @@ class LspManagerTest {
                             "csharp-language-server-windows",
                             "kotlin-language-server-windows",
                             "python-pyright-windows",
-                            "go-gopls-windows");
+                            "go-gopls-windows",
+                            "rust-analyzer-windows-x86");
 
             System.setProperty("os.name", "Linux");
             assertThat(LspManager.getRegistry().getServers().stream()
