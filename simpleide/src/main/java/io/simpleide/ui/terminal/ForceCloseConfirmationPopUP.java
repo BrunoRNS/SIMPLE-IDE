@@ -15,7 +15,7 @@ public final class ForceCloseConfirmationPopUP extends WarningPopUP {
 
     private final Consumer<Boolean> onAnswer;
 
-    ForceCloseConfirmationPopUP(JComponent parent, Consumer<Boolean> onAnswer) {
+    public ForceCloseConfirmationPopUP(JComponent parent, Consumer<Boolean> onAnswer) {
         super(
             "Close terminal",
             "Force the selected BusyBox process to exit?",

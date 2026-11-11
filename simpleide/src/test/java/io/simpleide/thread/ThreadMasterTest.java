@@ -6,6 +6,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.SwingUtilities;
 
@@ -241,6 +242,107 @@ class ThreadMasterTest {
             releaseWorkers.countDown();
             master.shutdown();
         }
+    }
+
+    @Test
+    void runsDedicatedPoolTasksAsManagedTreeChildren() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        ManagedThreadPool pool = master.createThreadPool("test-pool", 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(1);
+        AtomicReference<String> workerName = new AtomicReference<>();
+
+        try {
+            NodePattern task = pool.execute(() -> {
+                workerName.set(Thread.currentThread().getName());
+                started.countDown();
+                try {
+                    assertTrue(release.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }, closed::countDown);
+
+            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(master.showTree().containsKey(pool.node().getId()));
+            assertTrue(master.showTree().containsKey(task.getId()));
+            assertEquals(Boolean.TRUE, master.isNodeRunning(task));
+            assertTrue(workerName.get().startsWith("simpleide-test-pool-"));
+
+            release.countDown();
+            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .until(() -> !master.showTree().containsKey(task.getId()));
+            assertEquals(2, master.showTree().size());
+        } finally {
+            release.countDown();
+            pool.close();
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void closingDedicatedPoolCancelsRunningAndQueuedTasks() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        ManagedThreadPool pool = master.createThreadPool("cancel-pool", 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(2);
+        AtomicInteger queuedTaskStarts = new AtomicInteger();
+
+        try {
+            pool.execute(() -> {
+                started.countDown();
+                try {
+                    new CountDownLatch(1).await();
+                } catch (InterruptedException exception) {
+                    interrupted.countDown();
+                    Thread.currentThread().interrupt();
+                }
+            }, closed::countDown);
+            pool.execute(queuedTaskStarts::incrementAndGet, closed::countDown);
+            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+            pool.close();
+
+            assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertEquals(0, queuedTaskStarts.get());
+            assertEquals(1, master.showTree().size());
+        } finally {
+            pool.close();
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void shuttingDownThreadMasterStopsDedicatedPoolTasks() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        ManagedThreadPool pool = master.createThreadPool("shutdown-pool", 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(1);
+
+        pool.execute(() -> {
+            started.countDown();
+            try {
+                new CountDownLatch(1).await();
+            } catch (InterruptedException exception) {
+                interrupted.countDown();
+                Thread.currentThread().interrupt();
+            }
+        }, closed::countDown);
+        assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+        master.shutdown();
+
+        assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertThatThrownBy(() -> pool.execute(() -> {}))
+            .isExactlyInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("shut down");
+        pool.close();
     }
 
     @Test

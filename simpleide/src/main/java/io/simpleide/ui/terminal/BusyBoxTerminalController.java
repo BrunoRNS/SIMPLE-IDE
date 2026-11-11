@@ -6,13 +6,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.swing.SwingUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,24 +14,17 @@ import org.slf4j.LoggerFactory;
 import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
 
 public final class BusyBoxTerminalController {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(BusyBoxTerminalController.class);
-    private static final AtomicInteger WORKER_SEQUENCE = new AtomicInteger();
 
     private final ThreadMaster threads = ThreadMaster.getInstance();
     private final TerminalPanel panel;
     private final LangPlatform platform;
-    private final ExecutorService terminalWorkers = Executors.newFixedThreadPool(
-        TerminalPanel.MAX_TABS,
-        task -> {
-            Thread thread = new Thread(task, "simpleide-terminal-worker-" + WORKER_SEQUENCE.incrementAndGet());
-            thread.setDaemon(true);
-            return thread;
-        }
-    );
+    private final ManagedThreadPool terminalWorkers;
     private final Object tabsLock = new Object();
     private final Map<BigInteger, TerminalTab> tabs = new LinkedHashMap<>();
 
@@ -52,6 +39,7 @@ public final class BusyBoxTerminalController {
     BusyBoxTerminalController(TerminalPanel panel, LangPlatform platform) {
         this.panel = panel;
         this.platform = platform;
+        terminalWorkers = threads.createThreadPool("terminal", TerminalPanel.MAX_TABS);
         panel.setActions(this::addTerminal, this::closeSelectedTerminal);
         schedulePanelUpdate();
     }
@@ -296,7 +284,7 @@ public final class BusyBoxTerminalController {
             if (!windowClosing || !tabs.isEmpty()) {
                 return null;
             }
-            terminalWorkers.shutdown();
+            terminalWorkers.close();
             Runnable callback = onAllTabsClosed;
             onAllTabsClosed = null;
             return callback;
@@ -306,7 +294,7 @@ public final class BusyBoxTerminalController {
     private void runCloseCallback() {
         Runnable callback;
         synchronized (tabsLock) {
-            terminalWorkers.shutdown();
+            terminalWorkers.close();
             callback = onAllTabsClosed;
             onAllTabsClosed = null;
         }
@@ -330,8 +318,8 @@ public final class BusyBoxTerminalController {
         try {
             threads.executeOnEDT(isolatedAction);
         } catch (RuntimeException exception) {
-            LOGGER.error("Unable to schedule {}; using Swing's event queue directly.", operation, exception);
-            SwingUtilities.invokeLater(isolatedAction);
+            LOGGER.error("Unable to schedule {} through ThreadMaster.", operation, exception);
+            throw exception;
         }
     }
 
@@ -345,14 +333,9 @@ public final class BusyBoxTerminalController {
         };
         try {
             terminalWorkers.execute(isolatedAction);
-        } catch (RejectedExecutionException exception) {
-            LOGGER.error("Terminal worker pool rejected {}; starting an isolated fallback worker.", operation, exception);
-            Thread fallback = new Thread(
-                isolatedAction,
-                "simpleide-terminal-fallback-" + WORKER_SEQUENCE.incrementAndGet()
-            );
-            fallback.setDaemon(true);
-            fallback.start();
+        } catch (RuntimeException exception) {
+            LOGGER.error("Unable to schedule terminal {} task through ThreadMaster.", operation, exception);
+            throw exception;
         }
     }
 

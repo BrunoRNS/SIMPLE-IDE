@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.awaitility.Awaitility.await;
 import org.junit.jupiter.api.Test;
@@ -98,19 +99,26 @@ class ProcessTreeTerminatorTest {
     }
 
     private static ProcessHandle awaitSeparateProcessGroupChild(Process process) throws Exception {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         long rootGroup = processGroupId(process.pid());
-        while (System.nanoTime() < deadline) {
-            try (var descendants = process.toHandle().descendants()) {
-                for (ProcessHandle descendant : descendants.toList()) {
-                    if (processGroupId(descendant.pid()) != rootGroup) {
-                        return descendant;
-                    }
+        AtomicReference<ProcessHandle> child = new AtomicReference<>();
+        await("The test process should create a child in a separate process group")
+            .atMost(5, TimeUnit.SECONDS)
+            .until(() -> {
+                child.set(findSeparateProcessGroupChild(process, rootGroup));
+                return child.get() != null;
+            });
+        return child.get();
+    }
+
+    private static ProcessHandle findSeparateProcessGroupChild(Process process, long rootGroup) throws Exception {
+        try (var descendants = process.toHandle().descendants()) {
+            for (ProcessHandle descendant : descendants.toList()) {
+                if (processGroupId(descendant.pid()) != rootGroup) {
+                    return descendant;
                 }
             }
-            Thread.sleep(25);
         }
-        throw new AssertionError("The test process did not create a child in a separate process group.");
+        return null;
     }
 
     private static long processGroupId(long pid) throws Exception {

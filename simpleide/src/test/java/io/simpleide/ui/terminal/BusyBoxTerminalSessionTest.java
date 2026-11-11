@@ -42,6 +42,7 @@ class BusyBoxTerminalSessionTest {
             ? LangPlatform.WINDOWSX86
             : platform;
 
+        @SuppressWarnings("resource")
         BusyBoxTerminalSession session = new BusyBoxTerminalSession(fallbackPlatform);
         Map<String, String> environment = new HashMap<>(System.getenv());
         environment.put("TERM", "xterm-256color");

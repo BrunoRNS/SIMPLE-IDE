@@ -11,7 +11,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -149,11 +152,11 @@ public final class ProcessTreeTerminator {
         }
     }
 
-    static void terminateCapturedDescendants(List<ProcessHandle> descendants) {
+    public static void terminateCapturedDescendants(List<ProcessHandle> descendants) {
         terminateCapturedDescendants(descendants, isMacArm64());
     }
 
-    static void terminateCapturedDescendants(List<ProcessHandle> descendants, LangPlatform platform) {
+    public static void terminateCapturedDescendants(List<ProcessHandle> descendants, LangPlatform platform) {
         terminateCapturedDescendants(descendants, platform == LangPlatform.MACOSAARCH64);
     }
 
@@ -204,14 +207,21 @@ public final class ProcessTreeTerminator {
     }
 
     private static void awaitCapturedDescendants(List<ProcessHandle> descendants) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
-        while (descendants.stream().anyMatch(ProcessHandle::isAlive) && System.nanoTime() < deadline) {
-            try {
-                Thread.sleep(20);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                return;
-            }
+        CompletableFuture<?>[] exitFutures = descendants.stream()
+            .filter(ProcessHandle::isAlive)
+            .map(ProcessHandle::onExit)
+            .toArray(CompletableFuture<?>[]::new);
+        if (exitFutures.length == 0) {
+            return;
+        }
+        try {
+            CompletableFuture.allOf(exitFutures).get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException exception) {
+            LOGGER.warn("Unable to await macOS ARM64 terminal child process exit.", exception.getCause());
+        } catch (TimeoutException exception) {
+            LOGGER.debug("Timed out waiting for macOS ARM64 terminal children to exit.", exception);
         }
     }
 

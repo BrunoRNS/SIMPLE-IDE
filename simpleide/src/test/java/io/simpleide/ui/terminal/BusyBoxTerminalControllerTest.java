@@ -129,6 +129,10 @@ class BusyBoxTerminalControllerTest {
 
         assertTrue(terminalStates(controller).isEmpty());
         assertEquals(0, terminalTabCount(panel));
+
+        CountDownLatch closed = new CountDownLatch(1);
+        controller.onWindowClosing(closed::countDown);
+        assertTrue(closed.await(1, TimeUnit.SECONDS));
     }
 
     private static List<JButton> findButtons(Component component) {
