@@ -241,6 +241,7 @@ public class EditorManager {
       case KOTLIN -> "kotlin";
       case GROOVY -> "groovy";
       case JAVASCRIPT -> "javascript";
+      case GO -> "go";
       case PYTHON -> "python";
       case C -> "c";
       case CPP -> "cpp";

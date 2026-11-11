@@ -36,12 +36,36 @@ class LspManagerTest {
     }
 
     @Test
-    void runsTheOptionalLanguageVersionCommandFromTheRegistry() {
-        boolean javaServerSupported = LspManager.getRegistry().getServers().stream()
-                .anyMatch(server -> server.getLanguageId().equals("java")
-                        && server.isSupportedOnCurrentPlatform());
+    void selectsTheHighestLanguageMinimumSupportedByTheDetectedVersion() {
+        LspServer java8 = javaServerWithMinimumVersion("java-8", "8.0.0");
+        LspServer java17 = javaServerWithMinimumVersion("java-17", "17.0.0");
+        LspServer java21 = javaServerWithMinimumVersion("java-21", "21.0.0");
 
-        if (javaServerSupported) {
+        assertThat(LspManager.selectClosestCompatibleServer(
+                List.of(java8, java21, java17), "openjdk version 21.0.0"))
+                .isSameAs(java21);
+    }
+
+    @Test
+    void selectsTheClosestSupportedMinimumWhenDetectedVersionFallsBetweenServers() {
+        LspServer java8 = javaServerWithMinimumVersion("java-8", "8.0.0");
+        LspServer java17 = javaServerWithMinimumVersion("java-17", "17.0.0");
+        LspServer java21 = javaServerWithMinimumVersion("java-21", "21.0.0");
+
+        assertThat(LspManager.selectClosestCompatibleServer(
+                List.of(java8, java17, java21), "openjdk version 19.0.0"))
+                .isSameAs(java17);
+    }
+
+    @Test
+    void runsTheOptionalLanguageVersionCommandFromTheRegistry() {
+        boolean javaVersionCommandSupported = LspManager.getRegistry().getServers().stream()
+                .anyMatch(server -> server.getLanguageId().equals("java")
+                        && server.isSupportedOnCurrentPlatform()
+                        && server.getVersionCommand() != null
+                        && !server.getVersionCommand().isBlank());
+
+        if (javaVersionCommandSupported) {
             assertThat(LspManager.getLanguageVersion("java").orElseThrow())
                     .containsIgnoringCase("version");
         } else {
@@ -54,7 +78,7 @@ class LspManagerTest {
         String originalOsName = System.getProperty("os.name");
         String originalOsArch = System.getProperty("os.arch");
         try {
-            System.setProperty("os.name", "Linux");
+            System.setProperty("os.name", "Plan9");
             System.setProperty("os.arch", "x86");
 
             assertThat(LspManager.getLanguageVersion("java")).isEmpty();
@@ -68,7 +92,42 @@ class LspManagerTest {
     void registryContainsTheRequestedLanguageServers() {
         assertThat(LspManager.getRegistry().getServers())
                 .extracting(LspServer::getLanguageId)
-                .contains("javascript", "csharp", "c", "cpp", "groovy", "kotlin");
+                .contains("java", "javascript", "csharp", "c", "cpp", "groovy", "kotlin", "python", "go");
+
+        LspServer goServer = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getLanguageId().equals("go"))
+                .findFirst()
+                .orElseThrow();
+        assertThat(goServer.getLatestVersionApi()).isEqualTo(
+                "https://proxy.golang.org/golang.org/x/tools/@latest");
+        assertThat(goServer.getInstallEnvironment()).containsEntry("GOBIN", "${installDir}");
+    }
+
+    @Test
+    void providesJdtlsVersionsForJava17AndJava21On64BitPlatforms() {
+        List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getName().equals("jdtls"))
+                .toList();
+
+        assertThat(jdtlsServers).extracting(LspServer::getVersion)
+                .containsExactly("1.43.0", "1.63.0");
+        assertThat(jdtlsServers).extracting(LspServer::getMinimumVersion)
+                .containsExactly("17", "21");
+        assertThat(jdtlsServers)
+                .allSatisfy(server -> assertThat(server.getArch()).doesNotContain("x86"));
+    }
+
+    @Test
+    void configuresJjLanguageServerOnlyForWindowsX86() {
+        LspServer jjLanguageServer = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getId().equals("jj-language-server-x86-windows"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(jjLanguageServer.getArch()).containsExactly("x86");
+        assertThat(jjLanguageServer.getOs()).containsExactly("WINDOWS");
+        assertThat(jjLanguageServer.getVersionCommand()).isNull();
+        assertThat(jjLanguageServer.getInstallArguments()).contains("--engine-strict");
     }
 
     @Test
@@ -88,12 +147,69 @@ class LspManagerTest {
     }
 
     @Test
+    void limitsX86ServersToVerifiedRuntimeAndReleaseCombinations() {
+        String originalOsName = System.getProperty("os.name");
+        String originalOsArch = System.getProperty("os.arch");
+        try {
+            System.setProperty("os.name", "Windows 11");
+            System.setProperty("os.arch", "x86");
+
+            assertThat(LspManager.getRegistry().getServers().stream()
+                    .filter(LspServer::isSupportedOnCurrentPlatform)
+                    .map(LspServer::getId))
+                    .containsExactly(
+                            "jj-language-server-x86-windows",
+                            "javascript-typescript-language-server-windows",
+                            "csharp-language-server-windows",
+                            "kotlin-language-server-windows",
+                            "python-pyright-windows",
+                            "go-gopls-windows");
+
+            System.setProperty("os.name", "Linux");
+            assertThat(LspManager.getRegistry().getServers().stream()
+                    .filter(LspServer::isSupportedOnCurrentPlatform)
+                    .map(LspServer::getId))
+                    .containsExactly("kotlin-language-server", "go-gopls");
+        } finally {
+            System.setProperty("os.name", originalOsName);
+            System.setProperty("os.arch", originalOsArch);
+        }
+    }
+
+    @Test
     void detectsCSharpAndJsxFiles() throws Exception {
         Path csharp = Files.writeString(home.resolve("Program.cs"), "class Program {}");
         Path jsx = Files.writeString(home.resolve("App.jsx"), "export default App;");
+        Path go = Files.writeString(home.resolve("main.go"), "package main");
 
         assertThat(new File(csharp).getTypeFile()).isEqualTo(TypeFile.CSHARP);
         assertThat(new File(jsx).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
+        assertThat(new File(go).getTypeFile()).isEqualTo(TypeFile.GO);
+    }
+
+    @Test
+    void requiresTheInstalledMarkerToMatchTheSelectedServerVersion() throws Exception {
+        String originalHome = System.getProperty("user.home");
+        System.setProperty("user.home", home.toString());
+        try {
+            LspServer server = new LspServer(
+                    "test", "1.2.0", "test", "test", List.of(), List.of(),
+                    null, null, "test-command", List.of());
+            Path installDirectory = LspInstaller.getInstallDirectory(server);
+            Files.createDirectories(installDirectory);
+            Path marker = Files.writeString(installDirectory.resolve(".installed"), "1.1.0");
+
+            assertThat(LspInstaller.isInstalled(server)).isFalse();
+
+            Files.writeString(marker, "1.2.0");
+            assertThat(LspInstaller.isInstalled(server)).isTrue();
+        } finally {
+            if (originalHome == null) {
+                System.clearProperty("user.home");
+            } else {
+                System.setProperty("user.home", originalHome);
+            }
+        }
     }
 
     @Test
@@ -110,14 +226,16 @@ class LspManagerTest {
                     null, null, "java", List.of(
                             "-jar", "./plugins/custom-*.jar",
                             "--config", "./config",
-                            "--workspace", "${workspaceData}"));
+                            "--workspace", "${workspaceData}",
+                            "--version", "${version}"));
 
             List<String> command = LspManager.createCommand(server, home.resolve("project"));
 
             assertThat(command).containsSubsequence(
                     "-jar", launcher.toAbsolutePath().toString(),
-                    "--config", configDirectory.toAbsolutePath().toString());
-            assertThat(Path.of(command.get(command.size() - 1))).isAbsolute();
+                    "--config", configDirectory.toAbsolutePath().toString(),
+                    "--version", "1");
+            assertThat(Path.of(command.get(command.indexOf("--workspace") + 1))).isAbsolute();
         } finally {
             if (originalHome == null) {
                 System.clearProperty("user.home");
@@ -149,5 +267,14 @@ class LspManagerTest {
                 System.setProperty("user.home", originalHome);
             }
         }
+    }
+
+    private static LspServer javaServerWithMinimumVersion(String id, String minimumVersion) {
+        LspServer server = new LspServer(
+                id, "1", id, "java", List.of(), List.of(),
+                minimumVersion, null, "java", List.of());
+        server.setVersionCommand("java");
+        server.setVersionArguments(List.of("-version"));
+        return server;
     }
 }

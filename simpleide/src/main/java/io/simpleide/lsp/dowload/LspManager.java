@@ -16,6 +16,7 @@ import java.nio.file.Paths;
 import java.nio.file.PathMatcher;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -28,6 +29,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import io.simpleide.lsp.LspStatus;
+import io.simpleide.language.config.LangPlatform;
 
 public class LspManager {
     private static final Pattern VERSION_PATTERN = Pattern.compile("(?<!\\d)(\\d+(?:\\.\\d+)*)(?!\\d)");
@@ -45,26 +47,69 @@ public class LspManager {
             Path workspaceRoot,
             String statusId,
             Consumer<LspStatus> statusListener) {
-        LspRegistry lspRegistry = getRegistry();
-        for (LspServer server : lspRegistry.getServers()) {
-            if (!server.getLanguageId().equals(language) || !server.isSupportedOnCurrentPlatform()) {
+        List<LspServer> candidates = getRegistry().getServers().stream()
+                .filter(server -> server.getLanguageId().equals(language)
+                        && server.isSupportedOnCurrentPlatform())
+                .toList();
+        LspServer server = selectServer(candidates);
+        if (server == null) {
+            publishStatus(statusListener, statusId, language, LspStatus.State.IDLE);
+            return new ArrayList<>();
+        }
+
+        publishStatus(statusListener, statusId, server.getName(), LspStatus.State.CHECKING_VERSION);
+        String detectedVersion = checkMinimumVersion(server);
+        LspReleaseResolver.refresh(server);
+        if (LspInstaller.isInstalled(server)) {
+            return createCommand(server, workspaceRoot);
+        }
+        if (LspInstaller.dowloading(server, statusId, statusListener)) {
+            return createCommand(server, workspaceRoot);
+        }
+        throw new IllegalStateException(
+                "Unable to install language server " + server.getName()
+                        + (detectedVersion == null ? "" : " (language version " + detectedVersion + ")"));
+    }
+
+    private static LspServer selectServer(List<LspServer> candidates) {
+        List<LspServer> versionedCandidates = candidates.stream()
+                .filter(server -> server.getMinimumVersion() != null
+                        && !server.getMinimumVersion().isBlank())
+                .toList();
+        if (versionedCandidates.size() < 2) {
+            return candidates.isEmpty() ? null : candidates.get(0);
+        }
+
+        LspServer versionProbe = versionedCandidates.stream()
+                .filter(server -> server.getVersionCommand() != null
+                        && !server.getVersionCommand().isBlank())
+                .findFirst()
+                .orElse(null);
+        if (versionProbe == null) {
+            return candidates.get(0);
+        }
+
+        return selectClosestCompatibleServer(versionedCandidates, runVersionCommand(versionProbe));
+    }
+
+    static LspServer selectClosestCompatibleServer(List<LspServer> candidates, String detectedVersion) {
+        LspServer selected = null;
+        for (LspServer candidate : candidates) {
+            if (compareVersions(detectedVersion, candidate.getMinimumVersion()) < 0) {
                 continue;
             }
-
-            publishStatus(statusListener, statusId, server.getName(), LspStatus.State.CHECKING_VERSION);
-            String detectedVersion = checkMinimumVersion(server);
-            if (LspInstaller.isInstalled(server)) {
-                return createCommand(server, workspaceRoot);
+            if (selected == null
+                    || compareVersions(candidate.getMinimumVersion(), selected.getMinimumVersion()) > 0) {
+                selected = candidate;
             }
-            if (LspInstaller.dowloading(server, statusId, statusListener)) {
-                return createCommand(server, workspaceRoot);
-            }
-            throw new IllegalStateException(
-                    "Unable to install language server " + server.getName()
-                            + (detectedVersion == null ? "" : " (language version " + detectedVersion + ")"));
         }
-        publishStatus(statusListener, statusId, language, LspStatus.State.IDLE);
-        return new ArrayList<>();
+        if (selected != null) {
+            return selected;
+        }
+        return candidates.stream()
+                .min((first, second) -> compareVersions(
+                        first.getMinimumVersion(), second.getMinimumVersion()))
+                .orElseThrow();
     }
 
     private static void publishStatus(
@@ -101,18 +146,31 @@ public class LspManager {
                 "simpleide",
                 "lsp",
                 UUID.nameUUIDFromBytes(workspaceKey.getBytes(StandardCharsets.UTF_8)).toString());
+        String platformConfiguration = switch (LangPlatform.getCurrentPlatform().getOs()) {
+            case "windows" -> "config_win";
+            case "macos" -> "config_mac";
+            case "linux" -> "config_linux";
+            default -> throw new IllegalStateException("Unsupported platform for language server.");
+        };
 
         List<String> command = new ArrayList<>();
-        command.addAll(resolveArgument(server.getCommand(), installDirectory, workspaceData));
+        command.addAll(resolveArgument(
+                server.getCommand(), installDirectory, workspaceData, server.getVersion(), platformConfiguration));
         if (server.getArguments() != null) {
             for (String argument : server.getArguments()) {
-                command.addAll(resolveArgument(argument, installDirectory, workspaceData));
+                command.addAll(resolveArgument(
+                        argument, installDirectory, workspaceData, server.getVersion(), platformConfiguration));
             }
         }
         return command;
     }
 
-    private static List<String> resolveArgument(String argument, Path installDirectory, Path workspaceData) {
+    private static List<String> resolveArgument(
+            String argument,
+            Path installDirectory,
+            Path workspaceData,
+            String version,
+            String platformConfiguration) {
         if (argument.contains("${workspaceData}")) {
             try {
                 Files.createDirectories(workspaceData);
@@ -122,7 +180,9 @@ public class LspManager {
         }
         String resolved = argument
                 .replace("${installDir}", installDirectory.toAbsolutePath().toString())
-                .replace("${workspaceData}", workspaceData.toString());
+                .replace("${workspaceData}", workspaceData.toString())
+                .replace("${version}", version)
+                .replace("${platformConfig}", platformConfiguration);
         if (resolved.contains("${")) {
             throw new IllegalStateException("Unresolved LSP command placeholder: " + resolved);
         }
@@ -351,6 +411,12 @@ public class LspManager {
                     lsp.setInstallKey(server.getString("installKey", null));
                     lsp.setPostInstallCommand(server.getString("postInstallCommand", null));
                     lsp.setPostInstallArguments(postInstallArguments);
+                    lsp.setLatestVersionApi(server.getString("latestVersionApi", null));
+                    lsp.setLatestVersionPath(server.getString("latestVersionPath", null));
+                    lsp.setLatestVersionListPath(server.getString("latestVersionListPath", null));
+                    lsp.setLatestAssetName(server.getString("latestAssetName", null));
+                    lsp.setLatestVersionUrlTemplate(server.getString("latestVersionUrlTemplate", null));
+                    lsp.setInstallEnvironment(readStringMap(server, "installEnvironment"));
 
                     serverList.add(lsp);
                 }
@@ -377,5 +443,15 @@ public class LspManager {
                 .stream()
                 .map(JsonString::getString)
                 .toList();
+    }
+
+    private static Map<String, String> readStringMap(JsonObject object, String key) {
+        JsonObject values = object.getJsonObject(key);
+        if (values == null) {
+            return Map.of();
+        }
+        return values.keySet().stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        keyName -> keyName, values::getString));
     }
 }

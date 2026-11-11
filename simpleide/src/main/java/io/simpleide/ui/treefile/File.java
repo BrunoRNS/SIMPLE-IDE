@@ -46,6 +46,7 @@ public class File extends TreeFile {
       case "kt", "kts" -> typeFile = TypeFile.KOTLIN;
       case "groovy" -> typeFile = TypeFile.GROOVY;
       case "js", "jsx", "mjs", "cjs" -> typeFile = TypeFile.JAVASCRIPT;
+      case "go" -> typeFile = TypeFile.GO;
       case "py" -> typeFile = TypeFile.PYTHON;
       case "c", "h" -> typeFile = TypeFile.C;
       case "cc", "cpp", "cxx", "hpp" -> typeFile = TypeFile.CPP;
