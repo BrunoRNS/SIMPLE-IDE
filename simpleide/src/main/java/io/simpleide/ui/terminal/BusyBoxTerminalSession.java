@@ -146,6 +146,9 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             + ", java=" + System.getProperty("java.version")
             + ", busyBoxX86Compatibility=" + busyBoxX86Compatibility
             + ", systemShellFallback=" + systemShellFallback;
+        if (platform == LangPlatform.MACOSAARCH64) {
+            details += ", osVersion=" + System.getProperty("os.version");
+        }
         if (activeProcess == null) {
             return details + ", process=not-started";
         }
@@ -586,6 +589,9 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             + ", pid=" + activeProcess.pid()
             + ", ptyAlive=" + ptyAlive
             + ", processHandleAlive=" + isProcessAlive(activeProcess);
+        if (platform == LangPlatform.MACOSAARCH64) {
+            details += ", osVersion=" + System.getProperty("os.version");
+        }
         if (ptyAlive) {
             return details;
         }

@@ -88,23 +88,23 @@ public final class ProcessTreeTerminator {
         try {
             Optional<ProcessHandle> processHandle = ProcessHandle.of(process.pid());
             if (processHandle.isEmpty()) {
-                terminatePosixProcessGroup(process);
                 terminateRoot(process);
+                if (process.isAlive()) {
+                    terminateMacArm64Pid(process.pid());
+                }
                 return;
             }
             root = processHandle.get();
         } catch (RuntimeException exception) {
             LOGGER.error("Unable to inspect the macOS ARM64 BusyBox process tree.", exception);
-            terminatePosixProcessGroup(process);
             terminateRoot(process);
+            if (process.isAlive()) {
+                terminateMacArm64Pid(process.pid());
+            }
             return;
         }
 
         List<ProcessHandle> capturedDescendants = captureDescendants(root);
-        terminateMacArm64Descendants(capturedDescendants);
-        if (root.isAlive()) {
-            terminatePosixProcessGroup(process);
-        }
         terminateMacArm64Descendants(capturedDescendants);
 
         for (int sweep = 0; sweep < MAX_TREE_SWEEPS && root.isAlive(); sweep++) {
@@ -116,6 +116,9 @@ public final class ProcessTreeTerminator {
         }
         terminate(root, new HashSet<>());
         terminateRoot(process);
+        if (root.isAlive()) {
+            terminateMacArm64Pid(root.pid());
+        }
     }
 
     private static List<ProcessHandle> captureDescendants(ProcessHandle root) {
