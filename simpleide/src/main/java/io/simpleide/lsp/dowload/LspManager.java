@@ -130,10 +130,11 @@ public class LspManager {
             resolved = Paths.get(System.getProperty("user.home"), resolved.substring(2)).toString();
         }
 
-        Path path = Paths.get(resolved);
+        String globMarker = containsGlob(resolved) ? createGlobMarker(resolved) : null;
+        Path path = Paths.get(globMarker == null ? resolved : escapeGlobCharacters(resolved, globMarker));
         if (containsGlob(resolved)
                 && (path.isAbsolute() || resolved.contains("/") || resolved.contains("\\"))) {
-            return expandGlob(path, installDirectory);
+            return expandGlob(path, installDirectory, globMarker);
         }
         if (path.isAbsolute()) {
             return List.of(path.normalize().toString());
@@ -151,7 +152,29 @@ public class LspManager {
         return value.contains("*") || value.contains("?") || value.contains("[");
     }
 
-    private static List<String> expandGlob(Path pattern, Path installDirectory) {
+    private static String createGlobMarker(String pattern) {
+        String marker;
+        do {
+            marker = "__SIMPLEIDE_GLOB_" + UUID.randomUUID().toString().replace("-", "") + "_";
+        } while (pattern.contains(marker));
+        return marker;
+    }
+
+    private static String escapeGlobCharacters(String value, String marker) {
+        return value.replace("*", marker + "STAR__")
+                .replace("?", marker + "QUESTION__")
+                .replace("[", marker + "OPEN_BRACKET__")
+                .replace("]", marker + "CLOSE_BRACKET__");
+    }
+
+    private static String restoreGlobCharacters(String value, String marker) {
+        return value.replace(marker + "STAR__", "*")
+                .replace(marker + "QUESTION__", "?")
+                .replace(marker + "OPEN_BRACKET__", "[")
+                .replace(marker + "CLOSE_BRACKET__", "]");
+    }
+
+    private static List<String> expandGlob(Path pattern, Path installDirectory, String marker) {
         Path root = installDirectory.toAbsolutePath().normalize();
         Path normalizedPattern = pattern.normalize();
         if (normalizedPattern.isAbsolute()) {
@@ -161,7 +184,8 @@ public class LspManager {
             normalizedPattern = root.relativize(normalizedPattern);
         }
 
-        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + normalizedPattern);
+        String globPattern = restoreGlobCharacters(normalizedPattern.toString(), marker);
+        PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + globPattern);
         try (var paths = Files.walk(root)) {
             List<String> matches = paths
                     .filter(path -> matcher.matches(root.relativize(path)))
