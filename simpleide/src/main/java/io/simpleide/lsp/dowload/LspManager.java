@@ -185,6 +185,9 @@ public class LspManager {
         }
 
         String globPattern = restoreGlobCharacters(normalizedPattern.toString(), marker);
+        if ("\\".equals(root.getFileSystem().getSeparator())) {
+            globPattern = globPattern.replace("\\", "\\\\");
+        }
         PathMatcher matcher = FileSystems.getDefault().getPathMatcher("glob:" + globPattern);
         try (var paths = Files.walk(root)) {
             List<String> matches = paths
