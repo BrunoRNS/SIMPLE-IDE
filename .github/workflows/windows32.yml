@@ -53,11 +53,8 @@ jobs:
           }
           Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.27.4"
-          architecture: x86
+      - name: Install 32-bit Go
+        run: choco install golang --x86 --yes --no-progress
 
       - name: Set up Rust for 32-bit Windows
         uses: dtolnay/rust-toolchain@1.82.0
@@ -121,8 +118,23 @@ jobs:
           if ($gccTarget -notmatch '^(i[3-6]86|x86)-') {
             throw "Expected a 32-bit GCC toolchain, received '$gccTarget'."
           }
-          if ((go env GOOS) -ne "windows" -or (go env GOARCH) -ne "386") {
-            throw "Expected a 32-bit Windows Go toolchain."
+          $goCommand = Get-Command go -ErrorAction SilentlyContinue
+          if (-not $goCommand) {
+            throw "Go was not added to PATH after installation."
+          }
+          Write-Host "Go found on PATH: $($goCommand.Source)"
+          $goVersion = (& go version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) {
+            throw "The Go executable found on PATH failed: $goVersion"
+          }
+          Write-Host "Go version: $goVersion"
+          $goHostOS = (& go env GOHOSTOS | Out-String).Trim()
+          $goHostArch = (& go env GOHOSTARCH | Out-String).Trim()
+          $goTargetOS = (& go env GOOS | Out-String).Trim()
+          $goTargetArch = (& go env GOARCH | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $goHostOS -ne "windows" -or $goHostArch -ne "386" -or
+              $goTargetOS -ne "windows" -or $goTargetArch -ne "386") {
+            throw "Expected a working 32-bit Windows Go toolchain; host=$goHostOS/$goHostArch target=$goTargetOS/$goTargetArch."
           }
           if (-not (rustc -vV | Select-String -Quiet '^host: x86_64-pc-windows-')) {
             throw "Expected a Rust compiler with a Windows x64 host."
