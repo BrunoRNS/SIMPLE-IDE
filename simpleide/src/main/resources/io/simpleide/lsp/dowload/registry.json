@@ -1,8 +1,8 @@
 {
   "servers": [
     {
-      "id": "0",
-      "version": "1.40.0",
+      "id": "jdtls-java17",
+      "version": "1.43.0",
       "name": "jdtls",
       "languageId": "java",
       "arch": ["x86_64", "aarch64", "arm64"],
@@ -26,12 +26,72 @@
         "-jar",
         "./plugins/org.eclipse.equinox.launcher_*.jar",
         "-configuration",
-        "./config_linux",
+        "./${platformConfig}",
         "-data",
         "${workspaceData}"
       ],
-      "url": "https://download.eclipse.org/jdtls/milestones/1.40.0/jdt-language-server-1.40.0-202409261450.tar.gz",
+      "url": "https://download.eclipse.org/jdtls/milestones/1.43.0/jdt-language-server-1.43.0-202412191447.tar.gz",
       "typeFile": "tar.gz"
+    },
+    {
+      "id": "jdtls-java21",
+      "version": "1.63.0",
+      "name": "jdtls",
+      "languageId": "java",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "WINDOWS", "LINUX"],
+      "minimumVersion": "21",
+      "versionCommand": "java",
+      "versionArguments": ["-version"],
+      "command": "java",
+      "arguments": [
+        "-Declipse.application=org.eclipse.jdt.ls.core.id1",
+        "-Dosgi.bundles.defaultStartLevel=4",
+        "-Declipse.product=org.eclipse.jdt.ls.core.product",
+        "-Dlog.protocol=true",
+        "-Dlog.level=ALL",
+        "-Xmx1G",
+        "--add-modules=ALL-SYSTEM",
+        "--add-opens",
+        "java.base/java.util=ALL-UNNAMED",
+        "--add-opens",
+        "java.base/java.lang=ALL-UNNAMED",
+        "-jar",
+        "./plugins/org.eclipse.equinox.launcher_*.jar",
+        "-configuration",
+        "./${platformConfig}",
+        "-data",
+        "${workspaceData}"
+      ],
+      "url": "https://download.eclipse.org/jdtls/milestones/1.63.0/jdt-language-server-1.63.0-202610191322.tar.gz",
+      "typeFile": "tar.gz"
+    },
+    {
+      "id": "jj-language-server-x86-windows",
+      "version": "0.2.0",
+      "name": "jj-language-server",
+      "languageId": "java",
+      "arch": ["x86"],
+      "os": ["WINDOWS"],
+      "latestVersionApi": "https://registry.npmjs.org/jj-language-server/latest",
+      "latestVersionPath": "version",
+      "installCommand": "cmd.exe",
+      "installArguments": [
+        "/c",
+        "npm.cmd",
+        "install",
+        "--prefix",
+        "${installDir}",
+        "--no-audit",
+        "--no-fund",
+        "--engine-strict",
+        "jj-language-server@${version}"
+      ],
+      "command": "node",
+      "arguments": [
+        "${installDir}/node_modules/jj-language-server/lib/cli.mjs",
+        "--stdio"
+      ]
     },
     {
       "id": "javascript-typescript-language-server",
@@ -43,6 +103,8 @@
       "minimumVersion": "22.22.2",
       "versionCommand": "node",
       "versionArguments": ["--version"],
+      "latestVersionApi": "https://registry.npmjs.org/typescript-language-server/latest",
+      "latestVersionPath": "version",
       "installCommand": "npm",
       "installArguments": [
         "install",
@@ -50,7 +112,7 @@
         "${installDir}",
         "--no-audit",
         "--no-fund",
-        "typescript-language-server@6.0.3",
+        "typescript-language-server@${version}",
         "typescript@5.9.3"
       ],
       "command": "node",
@@ -64,11 +126,13 @@
       "version": "6.0.3",
       "name": "typescript-language-server",
       "languageId": "javascript",
-      "arch": ["x86_64", "aarch64", "arm64"],
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
       "os": ["WINDOWS"],
       "minimumVersion": "22.22.2",
       "versionCommand": "node",
       "versionArguments": ["--version"],
+      "latestVersionApi": "https://registry.npmjs.org/typescript-language-server/latest",
+      "latestVersionPath": "version",
       "installCommand": "cmd.exe",
       "installArguments": [
         "/c",
@@ -78,7 +142,7 @@
         "${installDir}",
         "--no-audit",
         "--no-fund",
-        "typescript-language-server@6.0.3",
+        "typescript-language-server@${version}",
         "typescript@5.9.3"
       ],
       "command": "node",
@@ -97,6 +161,8 @@
       "minimumVersion": "10",
       "versionCommand": "dotnet",
       "versionArguments": ["--version"],
+      "latestVersionApi": "https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json",
+      "latestVersionListPath": "versions",
       "installCommand": "dotnet",
       "installArguments": [
         "tool",
@@ -105,7 +171,7 @@
         "--tool-path",
         "${installDir}/tools",
         "--version",
-        "0.28.0"
+        "${version}"
       ],
       "command": "${installDir}/tools/csharp-ls"
     },
@@ -114,11 +180,13 @@
       "version": "0.28.0",
       "name": "csharp-ls",
       "languageId": "csharp",
-      "arch": ["x86_64", "aarch64", "arm64"],
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
       "os": ["WINDOWS"],
       "minimumVersion": "10",
       "versionCommand": "dotnet",
       "versionArguments": ["--version"],
+      "latestVersionApi": "https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json",
+      "latestVersionListPath": "versions",
       "installCommand": "dotnet",
       "installArguments": [
         "tool",
@@ -127,7 +195,7 @@
         "--tool-path",
         "${installDir}/tools",
         "--version",
-        "0.28.0"
+        "${version}"
       ],
       "command": "${installDir}/tools/csharp-ls.exe"
     },
@@ -139,6 +207,11 @@
       "installKey": "clangd-23.1.0",
       "arch": ["x86_64", "aarch64", "arm64"],
       "os": ["LINUX"],
+      "versionCommand": "gcc",
+      "versionArguments": ["--version"],
+      "latestVersionApi": "https://api.github.com/repos/clangd/clangd/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "clangd-linux-${version}.zip",
       "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-linux-23.1.0.zip",
       "typeFile": "zip",
       "command": "${installDir}/**/clangd"
@@ -151,6 +224,11 @@
       "installKey": "clangd-23.1.0",
       "arch": ["x86_64", "aarch64", "arm64"],
       "os": ["LINUX"],
+      "versionCommand": "gcc",
+      "versionArguments": ["--version"],
+      "latestVersionApi": "https://api.github.com/repos/clangd/clangd/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "clangd-linux-${version}.zip",
       "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-linux-23.1.0.zip",
       "typeFile": "zip",
       "command": "${installDir}/**/clangd"
@@ -163,6 +241,11 @@
       "installKey": "clangd-23.1.0",
       "arch": ["x86_64", "aarch64", "arm64"],
       "os": ["MACOS"],
+      "versionCommand": "clang",
+      "versionArguments": ["--version"],
+      "latestVersionApi": "https://api.github.com/repos/clangd/clangd/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "clangd-mac-${version}.zip",
       "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-mac-23.1.0.zip",
       "typeFile": "zip",
       "command": "${installDir}/**/clangd"
@@ -175,6 +258,11 @@
       "installKey": "clangd-23.1.0",
       "arch": ["x86_64", "aarch64", "arm64"],
       "os": ["MACOS"],
+      "versionCommand": "clang",
+      "versionArguments": ["--version"],
+      "latestVersionApi": "https://api.github.com/repos/clangd/clangd/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "clangd-mac-${version}.zip",
       "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-mac-23.1.0.zip",
       "typeFile": "zip",
       "command": "${installDir}/**/clangd"
@@ -187,6 +275,9 @@
       "installKey": "clangd-23.1.0",
       "arch": ["x86_64"],
       "os": ["WINDOWS"],
+      "latestVersionApi": "https://api.github.com/repos/clangd/clangd/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "clangd-windows-${version}.zip",
       "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-windows-23.1.0.zip",
       "typeFile": "zip",
       "command": "${installDir}/**/clangd.exe"
@@ -199,6 +290,9 @@
       "installKey": "clangd-23.1.0",
       "arch": ["x86_64"],
       "os": ["WINDOWS"],
+      "latestVersionApi": "https://api.github.com/repos/clangd/clangd/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "clangd-windows-${version}.zip",
       "url": "https://github.com/clangd/clangd/releases/download/23.1.0/clangd-windows-23.1.0.zip",
       "typeFile": "zip",
       "command": "${installDir}/**/clangd.exe"
@@ -233,11 +327,14 @@
       "version": "1.3.13",
       "name": "kotlin-language-server",
       "languageId": "kotlin",
-      "arch": ["x86_64", "aarch64", "arm64"],
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
       "os": ["MACOS", "LINUX"],
       "minimumVersion": "11",
       "versionCommand": "java",
       "versionArguments": ["-version"],
+      "latestVersionApi": "https://api.github.com/repos/fwcd/kotlin-language-server/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "server.zip",
       "url": "https://github.com/fwcd/kotlin-language-server/releases/download/1.3.13/server.zip",
       "typeFile": "zip",
       "command": "bash",
@@ -248,11 +345,14 @@
       "version": "1.3.13",
       "name": "kotlin-language-server",
       "languageId": "kotlin",
-      "arch": ["x86_64", "aarch64", "arm64"],
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
       "os": ["WINDOWS"],
       "minimumVersion": "11",
       "versionCommand": "java",
       "versionArguments": ["-version"],
+      "latestVersionApi": "https://api.github.com/repos/fwcd/kotlin-language-server/releases/latest",
+      "latestVersionPath": "tag_name",
+      "latestAssetName": "server.zip",
       "url": "https://github.com/fwcd/kotlin-language-server/releases/download/1.3.13/server.zip",
       "typeFile": "zip",
       "command": "cmd.exe",
@@ -260,6 +360,108 @@
         "/c",
         "${installDir}/**/bin/kotlin-language-server.bat"
       ]
+    },
+    {
+      "id": "python-pyright",
+      "version": "1.1.414",
+      "name": "pyright",
+      "languageId": "python",
+      "arch": ["x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "LINUX"],
+      "minimumVersion": "14.0.0",
+      "versionCommand": "node",
+      "versionArguments": ["--version"],
+      "latestVersionApi": "https://registry.npmjs.org/pyright/latest",
+      "latestVersionPath": "version",
+      "installCommand": "npm",
+      "installArguments": [
+        "install",
+        "--prefix",
+        "${installDir}",
+        "--no-audit",
+        "--no-fund",
+        "pyright@${version}"
+      ],
+      "command": "node",
+      "arguments": [
+        "${installDir}/node_modules/pyright/langserver.index.js",
+        "--stdio"
+      ]
+    },
+    {
+      "id": "python-pyright-windows",
+      "version": "1.1.414",
+      "name": "pyright",
+      "languageId": "python",
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
+      "os": ["WINDOWS"],
+      "minimumVersion": "14.0.0",
+      "versionCommand": "node",
+      "versionArguments": ["--version"],
+      "latestVersionApi": "https://registry.npmjs.org/pyright/latest",
+      "latestVersionPath": "version",
+      "installCommand": "cmd.exe",
+      "installArguments": [
+        "/c",
+        "npm.cmd",
+        "install",
+        "--prefix",
+        "${installDir}",
+        "--no-audit",
+        "--no-fund",
+        "pyright@${version}"
+      ],
+      "command": "node",
+      "arguments": [
+        "${installDir}/node_modules/pyright/langserver.index.js",
+        "--stdio"
+      ]
+    },
+    {
+      "id": "go-gopls",
+      "version": "v0.52.0",
+      "name": "gopls",
+      "languageId": "go",
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "LINUX"],
+      "minimumVersion": "1.26.0",
+      "versionCommand": "go",
+      "versionArguments": ["version"],
+      "latestVersionApi": "https://proxy.golang.org/golang.org/x/tools/@latest",
+      "latestVersionPath": "Version",
+      "installCommand": "go",
+      "installArguments": [
+        "install",
+        "golang.org/x/tools/gopls@${version}"
+      ],
+      "installEnvironment": {
+        "GOBIN": "${installDir}"
+      },
+      "command": "${installDir}/gopls",
+      "arguments": ["serve"]
+    },
+    {
+      "id": "go-gopls-windows",
+      "version": "v0.52.0",
+      "name": "gopls",
+      "languageId": "go",
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
+      "os": ["WINDOWS"],
+      "minimumVersion": "1.26.0",
+      "versionCommand": "go",
+      "versionArguments": ["version"],
+      "latestVersionApi": "https://proxy.golang.org/golang.org/x/tools/@latest",
+      "latestVersionPath": "Version",
+      "installCommand": "go",
+      "installArguments": [
+        "install",
+        "golang.org/x/tools/gopls@${version}"
+      ],
+      "installEnvironment": {
+        "GOBIN": "${installDir}"
+      },
+      "command": "${installDir}/gopls.exe",
+      "arguments": ["serve"]
     }
   ]
 }

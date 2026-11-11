@@ -1,6 +1,7 @@
 package io.simpleide.lsp.dowload;
 
 import java.util.List;
+import java.util.Map;
 
 import io.simpleide.language.config.LangPlatform;
 
@@ -27,6 +28,12 @@ public class LspServer {
     private List<String> postInstallArguments;
     private String versionCommand;
     private List<String> versionArguments;
+    private String latestVersionApi;
+    private String latestVersionPath;
+    private String latestVersionListPath;
+    private String latestAssetName;
+    private String latestVersionUrlTemplate;
+    private Map<String, String> installEnvironment;
 
     public LspServer(String id, String version, String name, String languageId, List<String> os, List<String> arch,
             String minimumVersion, String url, String command, List<String> arguments, String installCommand,
@@ -239,6 +246,54 @@ public class LspServer {
 
     public void setVersionArguments(List<String> versionArguments) {
         this.versionArguments = versionArguments;
+    }
+
+    public String getLatestVersionApi() {
+        return latestVersionApi;
+    }
+
+    public void setLatestVersionApi(String latestVersionApi) {
+        this.latestVersionApi = latestVersionApi;
+    }
+
+    public String getLatestVersionPath() {
+        return latestVersionPath;
+    }
+
+    public void setLatestVersionPath(String latestVersionPath) {
+        this.latestVersionPath = latestVersionPath;
+    }
+
+    public String getLatestVersionListPath() {
+        return latestVersionListPath;
+    }
+
+    public void setLatestVersionListPath(String latestVersionListPath) {
+        this.latestVersionListPath = latestVersionListPath;
+    }
+
+    public String getLatestAssetName() {
+        return latestAssetName;
+    }
+
+    public void setLatestAssetName(String latestAssetName) {
+        this.latestAssetName = latestAssetName;
+    }
+
+    public String getLatestVersionUrlTemplate() {
+        return latestVersionUrlTemplate;
+    }
+
+    public void setLatestVersionUrlTemplate(String latestVersionUrlTemplate) {
+        this.latestVersionUrlTemplate = latestVersionUrlTemplate;
+    }
+
+    public Map<String, String> getInstallEnvironment() {
+        return installEnvironment;
+    }
+
+    public void setInstallEnvironment(Map<String, String> installEnvironment) {
+        this.installEnvironment = installEnvironment;
     }
 
     public String getArchiverCommand() {

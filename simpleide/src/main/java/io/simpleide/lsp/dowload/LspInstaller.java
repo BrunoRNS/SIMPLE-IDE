@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
@@ -58,11 +59,13 @@ public final class LspInstaller {
             if (server.getInstallCommand() != null) {
                 publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
                 dowloadingByCommand(
-                        server.getInstallCommand(), server.getInstallArguments(), lspDirectory);
+                        server.getInstallCommand(), server.getInstallArguments(), lspDirectory, server.getVersion(),
+                        server.getInstallEnvironment());
             } else if (server.getArchiverCommand() != null) {
                 publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
                 dowloadingByCommand(
-                        server.getArchiverCommand(), server.getParamsArchiverCommand(), lspDirectory);
+                        server.getArchiverCommand(), server.getParamsArchiverCommand(), lspDirectory,
+                        server.getVersion(), server.getInstallEnvironment());
             } else {
                 publishStatus(statusListener, statusId, server.getName(), LspStatus.State.DOWNLOADING);
                 Path archive = dowloadingByUrl(server, lspDirectory);
@@ -79,7 +82,9 @@ public final class LspInstaller {
                 dowloadingByCommand(
                         server.getPostInstallCommand(),
                         server.getPostInstallArguments(),
-                        lspDirectory);
+                        lspDirectory,
+                        server.getVersion(),
+                        server.getInstallEnvironment());
             }
 
             Files.writeString(
@@ -100,7 +105,15 @@ public final class LspInstaller {
     }
 
     public static boolean isInstalled(LspServer server) {
-        return Files.isRegularFile(getInstallDirectory(server).resolve(".installed"));
+        Path marker = getInstallDirectory(server).resolve(".installed");
+        if (!Files.isRegularFile(marker)) {
+            return false;
+        }
+        try {
+            return Files.readString(marker).trim().equals(server.getVersion());
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to read installed LSP version: " + marker, e);
+        }
     }
 
     static Path getInstallDirectory(LspServer server) {
@@ -193,23 +206,30 @@ public final class LspInstaller {
         }
     }
 
-    private static void dowloadingByCommand(String command, List<String> params, Path directory)
+    private static void dowloadingByCommand(
+            String command, List<String> params, Path directory, String version, Map<String, String> environment)
             throws IOException, InterruptedException {
         if (command.isBlank()) {
             throw new IOException("LSP install command is empty.");
         }
         String installDirectory = directory.toAbsolutePath().toString();
         List<String> full = new ArrayList<>();
-        full.add(command.replace("${installDir}", installDirectory));
+        full.add(command.replace("${installDir}", installDirectory).replace("${version}", version));
         if (params != null) {
             params.stream()
-                    .map(argument -> argument.replace("${installDir}", installDirectory))
+                    .map(argument -> argument.replace("${installDir}", installDirectory)
+                            .replace("${version}", version))
                     .forEach(full::add);
         }
-        Process process = new ProcessBuilder(full)
+        ProcessBuilder processBuilder = new ProcessBuilder(full)
                 .directory(directory.toFile())
-                .inheritIO()
-                .start();
+                .inheritIO();
+        if (environment != null) {
+            environment.forEach((key, value) -> processBuilder.environment().put(
+                    key,
+                    value.replace("${installDir}", installDirectory).replace("${version}", version)));
+        }
+        Process process = processBuilder.start();
         try {
             if (!process.waitFor(5, TimeUnit.MINUTES)) {
                 process.destroyForcibly();

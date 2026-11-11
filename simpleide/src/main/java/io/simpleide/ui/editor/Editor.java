@@ -37,6 +37,7 @@ public class Editor extends RSyntaxTextArea {
       case GROOVY -> SyntaxConstants.SYNTAX_STYLE_GROOVY;
       case KOTLIN -> SyntaxConstants.SYNTAX_STYLE_KOTLIN;
       case JAVASCRIPT -> SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT;
+      case GO -> SyntaxConstants.SYNTAX_STYLE_GO;
       case PYTHON -> SyntaxConstants.SYNTAX_STYLE_PYTHON;
       case C -> SyntaxConstants.SYNTAX_STYLE_C;
       case CPP -> SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS;
