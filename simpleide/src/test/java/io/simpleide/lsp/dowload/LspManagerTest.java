@@ -6,8 +6,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
@@ -34,8 +37,31 @@ class LspManagerTest {
 
     @Test
     void runsTheOptionalLanguageVersionCommandFromTheRegistry() {
-        assertThat(LspManager.getLanguageVersion("java").orElseThrow())
-                .containsIgnoringCase("version");
+        boolean javaServerSupported = LspManager.getRegistry().getServers().stream()
+                .anyMatch(server -> server.getLanguageId().equals("java")
+                        && server.isSupportedOnCurrentPlatform());
+
+        if (javaServerSupported) {
+            assertThat(LspManager.getLanguageVersion("java").orElseThrow())
+                    .containsIgnoringCase("version");
+        } else {
+            assertThat(LspManager.getLanguageVersion("java")).isEmpty();
+        }
+    }
+
+    @Test
+    void returnsEmptyVersionWhenNoJavaServerSupportsTheCurrentPlatform() {
+        String originalOsName = System.getProperty("os.name");
+        String originalOsArch = System.getProperty("os.arch");
+        try {
+            System.setProperty("os.name", "Linux");
+            System.setProperty("os.arch", "x86");
+
+            assertThat(LspManager.getLanguageVersion("java")).isEmpty();
+        } finally {
+            System.setProperty("os.name", originalOsName);
+            System.setProperty("os.arch", originalOsArch);
+        }
     }
 
     @Test
@@ -104,7 +130,10 @@ class LspManagerTest {
     @Test
     void removesTheInstallDirectoryWhenInstallationFails() {
         String originalHome = System.getProperty("user.home");
+        Logger installerLogger = (Logger) LoggerFactory.getLogger(LspInstaller.class);
+        Level originalLogLevel = installerLogger.getLevel();
         System.setProperty("user.home", home.toString());
+        installerLogger.setLevel(Level.OFF);
         try {
             LspServer server = new LspServer(
                     "test", "1", "test", "test", List.of(), List.of(),
@@ -113,6 +142,7 @@ class LspManagerTest {
             assertThat(LspInstaller.dowloading(server)).isFalse();
             assertThat(Files.exists(home.resolve(".simpleide/lsp/test1"))).isFalse();
         } finally {
+            installerLogger.setLevel(originalLogLevel);
             if (originalHome == null) {
                 System.clearProperty("user.home");
             } else {
