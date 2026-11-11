@@ -59,7 +59,9 @@ public final class LspEditorSupport implements AutoCloseable {
     autoCompletion.setAutoCompleteSingleChoices(false);
     autoCompletion.setShowDescWindow(true);
     autoCompletion.install(editor);
-    completionTimer = new Timer(180, ignored -> requestCompletions());
+    completionTimer = new Timer(
+        180,
+        ignored -> ThreadMaster.getInstance().executeOnEDT(this::requestCompletions));
     completionTimer.setRepeats(false);
 
     lastSentText = editor.getText();

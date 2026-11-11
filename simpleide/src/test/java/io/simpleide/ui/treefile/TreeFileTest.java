@@ -387,7 +387,7 @@ class TreeFileTest {
   }
 
   @Test
-  void fileTypesRecognizeSupportedExtensionsAndTreatAssemblyAsText() throws IOException {
+  void fileTypesRecognizeSupportedLanguageExtensions() throws IOException {
     Path root = Files.createTempDirectory("simpleide-treefile-types-");
     try {
       Path pythonPath = Files.writeString(root.resolve("script.PY"), "print('hello')");
@@ -395,16 +395,22 @@ class TreeFileTest {
       Path kotlinPath = Files.writeString(root.resolve("Main.kt"), "fun main() {}");
       Path cPath = Files.writeString(root.resolve("main.c"), "int main() {}");
       Path cppPath = Files.writeString(root.resolve("main.cpp"), "int main() {}");
-      Path assemblyPath = Files.writeString(root.resolve("main.asm"), "lda #$00");
       Path rustPath = Files.writeString(root.resolve("main.RS"), "fn main() {}");
+      Path javaPath = Files.writeString(root.resolve("Main.java"), "class Main {}");
+      Path csharpPath = Files.writeString(root.resolve("Main.cs"), "class Main {}");
+      Path groovyPath = Files.writeString(root.resolve("Main.groovy"), "class Main {}");
+      Path goPath = Files.writeString(root.resolve("main.go"), "package main");
 
       assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
       assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
       assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
       assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
       assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
-      assertThat(new File(assemblyPath).getTypeFile()).isEqualTo(TypeFile.TXT);
       assertThat(new File(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
+      assertThat(new File(javaPath).getTypeFile()).isEqualTo(TypeFile.JAVA);
+      assertThat(new File(csharpPath).getTypeFile()).isEqualTo(TypeFile.CSHARP);
+      assertThat(new File(groovyPath).getTypeFile()).isEqualTo(TypeFile.GROOVY);
+      assertThat(new File(goPath).getTypeFile()).isEqualTo(TypeFile.GO);
     } finally {
       Files.deleteIfExists(root.resolve("script.PY"));
       Files.deleteIfExists(root.resolve("app.JS"));
@@ -413,7 +419,9 @@ class TreeFileTest {
       Files.deleteIfExists(root.resolve("main.cpp"));
       Files.deleteIfExists(root.resolve("main.go"));
       Files.deleteIfExists(root.resolve("main.rs"));
-      Files.deleteIfExists(root.resolve("main.asm"));
+      Files.deleteIfExists(root.resolve("Main.java"));
+      Files.deleteIfExists(root.resolve("Main.cs"));
+      Files.deleteIfExists(root.resolve("Main.groovy"));
       Files.deleteIfExists(root.resolve("main.RS"));
       Files.deleteIfExists(root);
     }

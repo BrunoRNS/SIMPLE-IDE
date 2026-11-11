@@ -16,6 +16,7 @@ import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 
 public class ButtonExit extends JButton {
   private static final int ICON_SIZE = 12;
+  @SuppressWarnings("unused")
   private final EditorTab tab;
   private final Icon iconX = new TabIcon(false);
   private final Icon iconDot = new TabIcon(true);

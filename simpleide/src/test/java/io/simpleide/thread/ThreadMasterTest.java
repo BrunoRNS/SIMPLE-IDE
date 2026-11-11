@@ -2,12 +2,16 @@ package io.simpleide.thread;
 
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.SwingUtilities;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -351,6 +355,55 @@ class ThreadMasterTest {
             await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .until(() -> master.showTree().size() == 1);
 
+        } finally {
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void executorServiceRunsSubpoolTasksAsManagedChildNodes() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+        CountDownLatch taskFinished = new CountDownLatch(1);
+        master.register(parent);
+        ExecutorService executor = master.createExecutorService(parent);
+        try {
+            master.initialize();
+            executor.execute(() -> {
+                assertFalse(SwingUtilities.isEventDispatchThread());
+                assertThat(master.showTree()).hasSize(3);
+                taskFinished.countDown();
+            });
+
+            assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertThat(master.showTree()).hasSize(2);
+        } finally {
+            executor.shutdownNow();
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void schedulesDelayedTasksThroughManagedWorkers() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+        CountDownLatch taskFinished = new CountDownLatch(1);
+        AtomicReference<String> taskThread = new AtomicReference<>();
+        master.register(parent);
+        try {
+            master.initialize();
+            ScheduledFuture<?> scheduled = master.schedule(parent, () -> {
+                taskThread.set(Thread.currentThread().getName());
+                taskFinished.countDown();
+            }, 10, TimeUnit.MILLISECONDS);
+
+            assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            scheduled.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            assertThat(taskThread.get()).startsWith("simpleide-thread-");
+            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .untilAsserted(() -> assertThat(master.showTree()).hasSize(2));
         } finally {
             master.shutdown();
         }

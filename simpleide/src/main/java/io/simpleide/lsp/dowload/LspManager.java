@@ -19,19 +19,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.language.config.LangPlatform;
 
 public class LspManager {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LspManager.class);
     private static final Pattern VERSION_PATTERN = Pattern.compile("(?<!\\d)(\\d+(?:\\.\\d+)*)(?!\\d)");
 
     public static List<String> getComandRun(String language) {
@@ -288,30 +288,24 @@ public class LspManager {
             command.addAll(server.getVersionArguments());
         }
 
-        Process process;
+        Path outputFile;
+        try {
+            outputFile = Files.createTempFile("simpleide-lsp-version-", ".log");
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Unable to create output file for language version command: " + command, e);
+        }
+
+        Process process = null;
         try {
             process = new ProcessBuilder(command)
                     .redirectErrorStream(true)
+                    .redirectOutput(outputFile.toFile())
                     .start();
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "Unable to run language version command: " + command, e);
-        }
-
-        CompletableFuture<String> output = CompletableFuture.supplyAsync(() -> {
-            try {
-                return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            } catch (IOException e) {
-                throw new CompletionException(e);
-            }
-        });
-
-        try {
             if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
                 throw new IllegalStateException("Language version command timed out: " + command);
             }
-            String result = output.get(2, TimeUnit.SECONDS);
+            String result = Files.readString(outputFile, StandardCharsets.UTF_8).trim();
             if (process.exitValue() != 0) {
                 throw new IllegalStateException(
                         "Language version command failed with exit code "
@@ -323,12 +317,20 @@ public class LspManager {
             }
             return result;
         } catch (InterruptedException e) {
-            process.destroyForcibly();
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while checking language version.", e);
-        } catch (ExecutionException | TimeoutException e) {
-            process.destroyForcibly();
+        } catch (IOException e) {
             throw new IllegalStateException("Unable to read language version command output.", e);
+        } finally {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+            try {
+                Files.deleteIfExists(outputFile);
+            } catch (IOException error) {
+                outputFile.toFile().deleteOnExit();
+                LOGGER.warn("Unable to delete language version output file {}.", outputFile, error);
+            }
         }
     }
 

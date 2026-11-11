@@ -88,4 +88,21 @@ class EDTNodeListenerTest {
         assertThat(startedEvent.get()).isSameAs(event);
         assertThat(closedEvent.get()).isSameAs(event);
     }
+
+    @Test
+    void documentNodeDispatchesEdtChangesThroughThreadMaster() throws Exception {
+        ThreadMaster master = ThreadMaster.getInstance();
+        int treeSizeBefore = master.showTree().size();
+        CountDownLatch changed = new CountDownLatch(1);
+        try (DocumentNode node = new DocumentNode(() -> {
+            assertThat(SwingUtilities.isEventDispatchThread()).isTrue();
+            assertThat(master.showTree()).hasSize(treeSizeBefore + 1);
+            changed.countDown();
+        })) {
+            SwingUtilities.invokeAndWait(() -> node.insertUpdate(null));
+            assertThat(changed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+        }
+
+        assertThat(master.showTree()).hasSize(treeSizeBefore);
+    }
 }

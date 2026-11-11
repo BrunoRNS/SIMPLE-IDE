@@ -4,11 +4,16 @@ import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.thread.nodes.NodePattern;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.thread.tree.ThreadTreeRegistry;
 import io.simpleide.thread.tree.Tree;
 import io.simpleide.thread.tree.TreeNode;
@@ -83,6 +88,54 @@ public abstract class AbstractThreadMaster implements Tree {
 
     public NodePattern executeOnEDT(Runnable action) {
         return executeOnEDT(action, null);
+    }
+
+    public NodePattern execute(NodePattern parent, Runnable action) {
+        if (parent == null || action == null) {
+            throw new IllegalArgumentException("Task parent and action must not be null.");
+        }
+        synchronized (this) {
+            ensureRunning();
+            if (!tree.contains(parent)) {
+                throw new IllegalArgumentException("Task parent must be registered with ThreadMaster.");
+            }
+        }
+        AtomicReference<RunnableNode> taskReference = new AtomicReference<>();
+        RunnableNode task = new RunnableNode(parent, action, () -> removeNodeCascade(taskReference.get()));
+        taskReference.set(task);
+        register(task);
+        return task;
+    }
+
+    public ScheduledFuture<?> schedule(
+            NodePattern parent,
+            Runnable action,
+            long delay,
+            TimeUnit unit) {
+        if (parent == null || action == null || unit == null) {
+            throw new IllegalArgumentException("Task parent, action, and time unit must not be null.");
+        }
+        synchronized (this) {
+            ensureRunning();
+            if (!tree.contains(parent)) {
+                throw new IllegalArgumentException("Task parent must be registered with ThreadMaster.");
+            }
+        }
+        return scheduler.schedule(() -> {
+            try {
+                execute(parent, action);
+            } catch (RuntimeException error) {
+                LOGGER.error("Unable to schedule delayed thread node.", error);
+            }
+        }, delay, unit);
+    }
+
+    public synchronized ExecutorService createExecutorService(NodePattern parent) {
+        ensureRunning();
+        if (!tree.contains(parent)) {
+            throw new IllegalArgumentException("Executor parent must be registered with ThreadMaster.");
+        }
+        return new ThreadMasterExecutorService(this, parent);
     }
 
     public void initialize() {

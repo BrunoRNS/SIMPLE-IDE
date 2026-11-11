@@ -54,7 +54,25 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
       - name: Install 32-bit Go
-        run: choco install golang --x86 --yes --no-progress
+        shell: pwsh
+        run: |
+          $release = (Invoke-RestMethod -Uri "https://go.dev/dl/?mode=json" -ErrorAction Stop |
+            Select-Object -First 1)
+          $archive = $release.files | Where-Object {
+            $_.os -eq "windows" -and $_.arch -eq "386" -and $_.kind -eq "archive"
+          } | Select-Object -First 1
+          if (-not $archive) {
+            throw "Could not find the 32-bit Windows Go release archive."
+          }
+          $archivePath = Join-Path $env:RUNNER_TEMP $archive.filename
+          Invoke-WebRequest -Uri "https://go.dev/dl/$($archive.filename)" `
+            -OutFile $archivePath -ErrorAction Stop
+          Expand-Archive -Path $archivePath -DestinationPath $env:RUNNER_TEMP -Force
+          $goBin = Join-Path $env:RUNNER_TEMP "go\bin"
+          if (-not (Test-Path (Join-Path $goBin "go.exe"))) {
+            throw "Could not find the Go executable after extraction."
+          }
+          Add-Content -Path $env:GITHUB_PATH -Value $goBin
 
       - name: Set up Rust for 32-bit Windows
         uses: dtolnay/rust-toolchain@1.82.0

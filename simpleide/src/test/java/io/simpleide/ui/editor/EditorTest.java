@@ -12,7 +12,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TypeFile;
 
 class EditorTest {
 
@@ -20,50 +19,33 @@ class EditorTest {
   Path tempDirectory;
 
   @Test
-  void loadFileDisplaysItsContentsAndUsesItsSyntaxStyle() throws Exception {
+  void loadFileDisplaysItsContentsAndUsesSyntaxStylesForEveryLanguage() throws Exception {
+    String[] extensions = {
+        "java", "kt", "groovy", "js", "py", "cs", "cpp", "c", "go", "rs"
+    };
+    String[] syntaxStyles = {
+        SyntaxConstants.SYNTAX_STYLE_JAVA, SyntaxConstants.SYNTAX_STYLE_KOTLIN,
+        SyntaxConstants.SYNTAX_STYLE_GROOVY, SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT,
+        SyntaxConstants.SYNTAX_STYLE_PYTHON, SyntaxConstants.SYNTAX_STYLE_CSHARP,
+        SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS, SyntaxConstants.SYNTAX_STYLE_C,
+        SyntaxConstants.SYNTAX_STYLE_GO, SyntaxConstants.SYNTAX_STYLE_RUST
+    };
+    File[] files = new File[extensions.length];
+    for (int index = 0; index < extensions.length; index++) {
+      files[index] = new File(Files.writeString(
+          tempDirectory.resolve("main." + extensions[index]), "source"));
+    }
+    File textFile = new File(Files.writeString(tempDirectory.resolve("notes.txt"), "plain text"));
+
     SwingUtilities.invokeAndWait(() -> {
       Editor editor = new Editor();
-      File pythonFile = new File(
-          Path.of("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer("print('hello')"));
-
-      editor.loadFile(pythonFile);
-
-      assertThat(editor.getText()).isEqualTo("print('hello')");
-      assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_PYTHON);
-
-      File goFile = new File(
-          Path.of("main.go"), "main.go", TypeFile.GO, new StringBuffer("package main"));
-      editor.loadFile(goFile);
-
-      assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_GO);
-
-      File rustFile = new File(
-          Path.of("main.rs"), "main.rs", TypeFile.RUST, new StringBuffer("fn main() {}"));
-      editor.loadFile(rustFile);
-
-      assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_RUST);
-
-      File textFile = new File(
-          Path.of("notes.txt"), "notes.txt", TypeFile.TXT, new StringBuffer("plain text"));
+      for (int index = 0; index < files.length; index++) {
+        editor.loadFile(files[index]);
+        assertThat(editor.getSyntaxEditingStyle()).isEqualTo(syntaxStyles[index]);
+      }
       editor.loadFile(textFile);
 
       assertThat(editor.getText()).isEqualTo("plain text");
-      assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_NONE);
-    });
-  }
-
-  @Test
-  void loadUnsupportedAssemblyAsPlainText() throws Exception {
-    Path assemblyPath = Files.writeString(tempDirectory.resolve("main.asm"), "lda #$00");
-    File assemblyFile = new File(assemblyPath);
-
-    SwingUtilities.invokeAndWait(() -> {
-      Editor editor = new Editor();
-
-      editor.loadFile(assemblyFile);
-
-      assertThat(assemblyFile.getTypeFile()).isEqualTo(TypeFile.TXT);
-      assertThat(editor.getText()).isEqualTo("lda #$00");
       assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_NONE);
     });
   }

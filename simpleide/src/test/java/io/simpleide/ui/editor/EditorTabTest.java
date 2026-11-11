@@ -1,10 +1,13 @@
 package io.simpleide.ui.editor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.SwingUtilities;
 
@@ -24,19 +27,30 @@ class EditorTabTest {
   @Test
   void savesEditorTextAndClearsModifiedState() throws Exception {
     Path path = Files.writeString(root.resolve("Main.java"), "class Main {}");
+    AtomicReference<EditorTab> tabReference = new AtomicReference<>();
 
     SwingUtilities.invokeAndWait(() -> {
       try {
         EditorTab tab = new EditorTab(new File(path), new Document(path, "java"));
         tab.getEditor().setText("class Main { String text; }");
+        tabReference.set(tab);
+      } catch (IOException error) {
+        throw new AssertionError(error);
+      }
+    });
 
-        assertThat(tab.isEdit()).isTrue();
-        assertThat(tab.getDocument().isModified()).isTrue();
+    await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
+      SwingUtilities.invokeAndWait(() -> {
+        assertThat(tabReference.get().isEdit()).isTrue();
+        assertThat(tabReference.get().getDocument().isModified()).isTrue();
+      }));
 
-        tab.save();
+    SwingUtilities.invokeAndWait(() -> {
+      try {
+        tabReference.get().save();
 
-        assertThat(tab.isEdit()).isFalse();
-        assertThat(tab.getDocument().isModified()).isFalse();
+        assertThat(tabReference.get().isEdit()).isFalse();
+        assertThat(tabReference.get().getDocument().isModified()).isFalse();
       } catch (IOException error) {
         throw new AssertionError(error);
       }

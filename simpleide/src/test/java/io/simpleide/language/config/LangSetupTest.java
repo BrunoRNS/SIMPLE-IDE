@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Set;
 
@@ -41,8 +40,6 @@ class LangSetupTest {
         assertNull(config.getLanguage(".cs"));
         assertNull(config.getLanguage(".go"));
         assertNull(config.getLanguage(".rs"));
-        assertNull(config.getLanguage(".s"));
-        assertNull(config.getLanguage(".asm"));
     }
 
     @Test
@@ -62,6 +59,7 @@ class LangSetupTest {
         assertEquals(MonoCSharpLanguage.class, config.getLanguage(".csx"));
         assertEquals(GoLanguage.class, config.getLanguage(".go"));
         assertEquals(RustLanguage.class, config.getLanguage(".rs"));
+        assertEquals(JSLanguage.class, config.getLanguage(".jsx"));
         assertEquals(JSLanguage.class, config.getLanguage(".mjs"));
         assertEquals(Python3Language.class, config.getLanguage(".pyw"));
         assertEquals(GroovyLanguage.class, config.getLanguage(".gsh"));

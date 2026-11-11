@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class Directory extends TreeFile {
+public final class Directory extends TreeFile {
   private final List<TreeFile> children = new ArrayList<>();
   private boolean childrenLoaded;
 

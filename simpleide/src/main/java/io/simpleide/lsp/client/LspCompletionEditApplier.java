@@ -10,7 +10,6 @@ import javax.swing.text.Document;
 
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Position;
-import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.TextEdit;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.slf4j.Logger;

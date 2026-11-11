@@ -36,6 +36,7 @@ public class EditorManager {
   private final EditorActions editorActions;
   private JTabbedPane jTabbedPane;
   private Runnable createFile;
+  @SuppressWarnings("unused")
   private Runnable createFolder;
   private Runnable openFolder;
 
@@ -77,6 +78,7 @@ public class EditorManager {
     return null;
   }
 
+  @SuppressWarnings("")
   public void openFile(File file) {
     if (file == null) {
       return;
@@ -146,14 +148,15 @@ public class EditorManager {
   }
 
   public void closeAll() {
-    openedEditors.values().forEach(tab -> {
-      tab.close();
-      manager.close(tab.getDocument().getUri());
-      languageServers.disconnect(tab.getDocument());
-      ThemeManager.getInstance().unregister(tab.getEditor());
-    });
-    openedEditors.clear();
-    languageServers.close();
+      try (languageServers) {
+          openedEditors.values().forEach(tab -> {
+              tab.close();
+              manager.close(tab.getDocument().getUri());
+              languageServers.disconnect(tab.getDocument());
+              ThemeManager.getInstance().unregister(tab.getEditor());
+          });
+          openedEditors.clear();
+      }
   }
 
   public void closeTab(EditorTab tab) {
@@ -199,11 +202,11 @@ public class EditorManager {
     }
   }
 
-  EditorTab getOpenedEditor(Path path) {
+  public EditorTab getOpenedEditor(Path path) {
     return openedEditors.get(path);
   }
 
-  void selectEditorTab(EditorTab tab) {
+  public void selectEditorTab(EditorTab tab) {
     jTabbedPane.setSelectedComponent(tab);
   }
 

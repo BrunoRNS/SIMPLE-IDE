@@ -27,7 +27,6 @@ import io.simpleide.lsp.client.LspEditorSupport;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
 import io.simpleide.ui.treefile.File;
-
 import io.simpleide.utils.ResourceUtil;
 import io.simpleide.utils.service.FileService;
 
@@ -39,10 +38,10 @@ public class EditorTab extends JPanel {
   private final FileService fileService = new FileService();
   private LspEditorSupport lspSupport;
   private boolean closed;
-  private ButtonExit buttonExit;
-  private File file;
-  private RTextScrollPane scrollPane;
-  private String name;
+  private final ButtonExit buttonExit;
+  private final File file;
+  private final RTextScrollPane scrollPane;
+  private final String name;
   private boolean isEdit;
   private DocumentNode documentNode;
 
@@ -60,6 +59,7 @@ public class EditorTab extends JPanel {
     configIsEdit();
   }
 
+  @Override
   public String getName() {
     return name;
   }
@@ -95,6 +95,7 @@ public class EditorTab extends JPanel {
     return lspSupport.definitionAtCaret();
   }
 
+  @SuppressWarnings("")
   public void goToRange(Range range) {
     if (range == null || range.getStart() == null) {
       return;
