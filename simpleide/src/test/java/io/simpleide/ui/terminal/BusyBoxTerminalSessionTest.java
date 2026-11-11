@@ -1,9 +1,13 @@
 package io.simpleide.ui.terminal;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.awaitility.Awaitility.await;
@@ -13,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.junit.jupiter.api.Test;
 
+import com.jediterm.terminal.TtyConnector;
 import com.pty4j.PtyProcess;
 
 import io.simpleide.language.config.LangPlatform;
@@ -31,6 +36,32 @@ class BusyBoxTerminalSessionTest {
 
             session.close();
             assertFalse(session.isAlive());
+        }
+    }
+
+    @Test
+    void runsAnInteractiveCommandThroughTheMacArm64TerminalSession() throws Exception {
+        assumeTrue(
+            LangPlatform.getCurrentPlatform() == LangPlatform.MACOSAARCH64,
+            "Test requires macOS ARM64"
+        );
+
+        ExecutorService outputReader = Executors.newSingleThreadExecutor(task -> {
+            Thread thread = new Thread(task, "mac-arm64-terminal-output-test");
+            thread.setDaemon(true);
+            return thread;
+        });
+        try (BusyBoxTerminalSession session = new BusyBoxTerminalSession(LangPlatform.MACOSAARCH64)) {
+            session.start();
+            TtyConnector connector = session.getConnector();
+            Future<String> output = outputReader.submit(() -> readUntil(connector, "42"));
+            connector.write("printf '%s\\n' \"$((40+2))\"\n");
+            assertTrue(
+                output.get(10, TimeUnit.SECONDS).contains("42"),
+                "The macOS ARM64 terminal did not execute the submitted command."
+            );
+        } finally {
+            outputReader.shutdownNow();
         }
     }
 
@@ -99,8 +130,8 @@ class BusyBoxTerminalSessionTest {
 
             session.forceTerminate();
 
-            shell.onExit().get(5, TimeUnit.SECONDS);
-            child.onExit().get(5, TimeUnit.SECONDS);
+            awaitProcessExit(shell);
+            awaitProcessExit(child);
             assertFalse(session.isAlive());
             assertFalse(child.isAlive());
         }
@@ -121,8 +152,8 @@ class BusyBoxTerminalSessionTest {
 
             session.closeGracefullyAndWait();
 
-            shell.onExit().get(5, TimeUnit.SECONDS);
-            child.onExit().get(5, TimeUnit.SECONDS);
+            awaitProcessExit(shell);
+            awaitProcessExit(child);
             assertFalse(session.isAlive());
             assertFalse(child.isAlive());
         }
@@ -133,5 +164,24 @@ class BusyBoxTerminalSessionTest {
             .atMost(5, TimeUnit.SECONDS)
             .until(() -> process.descendants().findFirst().isPresent());
         return process.descendants().findFirst().orElseThrow();
+    }
+
+    private static void awaitProcessExit(ProcessHandle process) {
+        await("Process " + process.pid() + " should exit")
+            .atMost(5, TimeUnit.SECONDS)
+            .until(() -> !process.isAlive());
+    }
+
+    private static String readUntil(TtyConnector connector, String expected) throws IOException {
+        char[] buffer = new char[128];
+        StringBuilder output = new StringBuilder();
+        int charactersRead;
+        while ((charactersRead = connector.read(buffer, 0, buffer.length)) >= 0) {
+            output.append(buffer, 0, charactersRead);
+            if (output.indexOf(expected) >= 0) {
+                return output.toString();
+            }
+        }
+        return output.toString();
     }
 }

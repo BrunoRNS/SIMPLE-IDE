@@ -323,7 +323,6 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 if (interrupted) {
                     Thread.currentThread().interrupt();
                 }
-                closePty(activeProcess);
                 ACTIVE_SESSIONS.remove(this);
             }
         }
@@ -342,45 +341,34 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     private void awaitCapturedDescendants(List<ProcessHandle> descendants, long sessionPid) {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
         for (ProcessHandle descendant : descendants) {
-            if (!descendant.isAlive()) {
-                continue;
-            }
-            long remainingNanos = deadline - System.nanoTime();
-            if (remainingNanos <= 0) {
-                LOGGER.warn(
-                    "Child process {} from terminal session {} did not exit after termination.",
-                    descendant.pid(),
-                    sessionPid
-                );
-                return;
-            }
-            try {
-                descendant.onExit().get(remainingNanos, TimeUnit.NANOSECONDS);
-            } catch (InterruptedException exception) {
-                Thread.currentThread().interrupt();
-                return;
-            } catch (ExecutionException | TimeoutException exception) {
-                LOGGER.warn(
-                    "Unable to confirm child process {} exited with terminal session {}.",
-                    descendant.pid(),
-                    sessionPid,
-                    exception
-                );
-                return;
+            while (descendant.isAlive()) {
+                long remainingNanos = deadline - System.nanoTime();
+                if (remainingNanos <= 0) {
+                    LOGGER.warn(
+                        "Child process {} from terminal session {} did not exit after termination.",
+                        descendant.pid(),
+                        sessionPid
+                    );
+                    return;
+                }
+                try {
+                    TimeUnit.NANOSECONDS.sleep(Math.min(remainingNanos, TimeUnit.MILLISECONDS.toNanos(20)));
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
             }
         }
     }
 
     private PtyProcess startProcess(String[] command, Map<String, String> environment) throws IOException {
-        if (platform == LangPlatform.MACOSAARCH64) {
-            return MacArm64PtyProcess.start(command, environment, TERMINAL_COLUMNS, TERMINAL_ROWS);
-        }
         return new PtyProcessBuilder()
             .setCommand(command)
             .setEnvironment(environment)
             .setInitialColumns(TERMINAL_COLUMNS)
             .setInitialRows(TERMINAL_ROWS)
             .setSpawnProcessUsingJdkOnMacIntel(platform != LangPlatform.MACOSINTEL)
+            .setUnixOpenTtyToPreserveOutputAfterTermination(platform == LangPlatform.MACOSAARCH64)
             .start();
     }
 
@@ -535,7 +523,6 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             return;
         }
         if (!isProcessAlive(failedProcess)) {
-            closePty(failedProcess, failure);
             return;
         }
 
@@ -571,7 +558,6 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             if (interrupted) {
                 Thread.currentThread().interrupt();
             }
-            closePty(failedProcess, failure);
         }
     }
 
@@ -620,7 +606,6 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 failure.addSuppressed(exception);
             }
         }
-        closePty(activeProcess, failure);
         ACTIVE_SESSIONS.remove(this);
 
         BusyBoxExecutable extractedExecutable = executable;
@@ -630,27 +615,6 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
                 extractedExecutable.close();
             } catch (IOException exception) {
                 failure.addSuppressed(exception);
-            }
-        }
-    }
-
-    private void closePty(PtyProcess activeProcess) {
-        if (activeProcess instanceof MacArm64PtyProcess macArm64Process) {
-            try {
-                macArm64Process.closePty();
-            } catch (IOException exception) {
-                LOGGER.warn("Unable to close the macOS ARM64 PTY.", exception);
-            }
-        }
-    }
-
-    private void closePty(PtyProcess activeProcess, Throwable failure) {
-        if (activeProcess instanceof MacArm64PtyProcess macArm64Process) {
-            try {
-                macArm64Process.closePty();
-            } catch (IOException exception) {
-                failure.addSuppressed(exception);
-                LOGGER.warn("Unable to close the macOS ARM64 PTY.", exception);
             }
         }
     }

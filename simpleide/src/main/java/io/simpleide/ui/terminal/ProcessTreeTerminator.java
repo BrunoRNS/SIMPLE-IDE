@@ -11,10 +11,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -207,21 +204,19 @@ public final class ProcessTreeTerminator {
     }
 
     private static void awaitCapturedDescendants(List<ProcessHandle> descendants) {
-        CompletableFuture<?>[] exitFutures = descendants.stream()
-            .filter(ProcessHandle::isAlive)
-            .map(ProcessHandle::onExit)
-            .toArray(CompletableFuture<?>[]::new);
-        if (exitFutures.length == 0) {
-            return;
-        }
-        try {
-            CompletableFuture.allOf(exitFutures).get(1, TimeUnit.SECONDS);
-        } catch (InterruptedException exception) {
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException exception) {
-            LOGGER.warn("Unable to await macOS ARM64 terminal child process exit.", exception.getCause());
-        } catch (TimeoutException exception) {
-            LOGGER.debug("Timed out waiting for macOS ARM64 terminal children to exit.", exception);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(1);
+        while (descendants.stream().anyMatch(ProcessHandle::isAlive)) {
+            long remainingNanos = deadline - System.nanoTime();
+            if (remainingNanos <= 0) {
+                LOGGER.debug("Timed out waiting for macOS ARM64 terminal children to exit.");
+                return;
+            }
+            try {
+                TimeUnit.NANOSECONDS.sleep(Math.min(remainingNanos, TimeUnit.MILLISECONDS.toNanos(20)));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                return;
+            }
         }
     }
 
