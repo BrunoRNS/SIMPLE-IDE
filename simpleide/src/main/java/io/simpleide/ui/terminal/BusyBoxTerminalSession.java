@@ -155,11 +155,11 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             return details + ", process=not-started";
         }
 
-        boolean ptyAlive = activeProcess.isAlive();
+        boolean ptyAlive = isProcessAlive(activeProcess);
         String state = details
             + ", pid=" + activeProcess.pid()
             + ", ptyAlive=" + ptyAlive
-            + ", processHandleAlive=" + isProcessAlive(activeProcess);
+            + ", processHandleAlive=" + isProcessHandleAlive(activeProcess.pid());
         if (!ptyAlive) {
             try {
                 state += ", exitCode=" + activeProcess.exitValue();
@@ -374,12 +374,16 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     }
 
     private boolean isProcessAlive(PtyProcess activeProcess) {
+        return activeProcess.isAlive();
+    }
+
+    private boolean isProcessHandleAlive(long processId) {
         try {
-            Optional<ProcessHandle> handle = ProcessHandle.of(activeProcess.pid());
+            Optional<ProcessHandle> handle = ProcessHandle.of(processId);
             return handle.map(ProcessHandle::isAlive).orElse(false);
         } catch (RuntimeException exception) {
-            LOGGER.warn("Unable to query BusyBox process state; falling back to the PTY process state.", exception);
-            return activeProcess.isAlive();
+            LOGGER.warn("Unable to query BusyBox process handle state for PID {}.", processId, exception);
+            return false;
         }
     }
 
@@ -639,14 +643,14 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
     }
 
     private String processDiagnostics(PtyProcess activeProcess) {
-        boolean ptyAlive = activeProcess.isAlive();
+        boolean ptyAlive = isProcessAlive(activeProcess);
         String details = "platform=" + platform
             + ", os=" + System.getProperty("os.name")
             + ", arch=" + System.getProperty("os.arch")
             + ", java=" + System.getProperty("java.version")
             + ", pid=" + activeProcess.pid()
             + ", ptyAlive=" + ptyAlive
-            + ", processHandleAlive=" + isProcessAlive(activeProcess);
+            + ", processHandleAlive=" + isProcessHandleAlive(activeProcess.pid());
         if (platform == LangPlatform.MACOSAARCH64) {
             details += ", osVersion=" + System.getProperty("os.version");
         }

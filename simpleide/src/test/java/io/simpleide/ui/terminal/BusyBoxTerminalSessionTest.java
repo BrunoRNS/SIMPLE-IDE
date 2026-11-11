@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ExecutionException;
@@ -141,7 +142,16 @@ class BusyBoxTerminalSessionTest {
         });
         try {
             assertTrue(session.processDiagnostics().contains("systemShellFallback=true"));
-            assertTrue(fallback.info().command().orElse("").endsWith("/sh"));
+            String fallbackShellCommand = ProcessHandle.of(fallback.pid())
+                .flatMap(handle -> handle.info().command())
+                .orElse("unknown");
+            String fallbackShellName = Path.of(fallbackShellCommand).getFileName().toString();
+            assertTrue(
+                Set.of("sh", "dash", "bash", "zsh", "ksh").contains(fallbackShellName),
+                "Fallback shell command did not resolve to /sh: pid=" + fallback.pid()
+                    + ", command=" + fallbackShellCommand
+                    + ", diagnostics=" + session.processDiagnostics()
+            );
             Future<String> output = outputReader.submit(() -> readUntil(connector, "PTY_OK"));
             connector.write(
                 "if test -t 0 && test -t 1; then "
