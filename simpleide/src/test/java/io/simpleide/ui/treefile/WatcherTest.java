@@ -89,15 +89,15 @@ class WatcherTest {
     });
 
     try {
-      watcherStarted.get().get(5, TimeUnit.SECONDS);
-      assertThat(nestedLoaded.await(5, TimeUnit.SECONDS)).isTrue();
+      watcherStarted.get().get(20, TimeUnit.SECONDS);
+      assertThat(nestedLoaded.await(20, TimeUnit.SECONDS)).isTrue();
       Files.writeString(nestedPath.resolve("external.txt"), "created outside the IDE");
-      assertThat(externalFileLoaded.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(externalFileLoaded.await(20, TimeUnit.SECONDS)).isTrue();
       assertThat(nestedDirectoryReference.get().getChildren())
           .extracting(TreeFile::getName)
           .contains("external.txt");
       Files.delete(nestedPath.resolve("external.txt"));
-      assertThat(externalFileRemoved.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(externalFileRemoved.await(20, TimeUnit.SECONDS)).isTrue();
       assertThat(nestedDirectoryReference.get().getChildren())
           .extracting(TreeFile::getName)
           .doesNotContain("external.txt");

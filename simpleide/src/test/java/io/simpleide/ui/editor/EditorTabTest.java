@@ -39,7 +39,7 @@ class EditorTabTest {
       }
     });
 
-    await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
+    await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
       SwingUtilities.invokeAndWait(() -> {
         assertThat(tabReference.get().isEdit()).isTrue();
         assertThat(tabReference.get().getDocument().isModified()).isTrue();

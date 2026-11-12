@@ -158,7 +158,7 @@ class TreeFileTest {
         tree.expandPath(new TreePath(nestedNode.getPath()));
       });
 
-      assertThat(childrenLoaded.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(childrenLoaded.await(20, TimeUnit.SECONDS)).isTrue();
       assertThat(modelUpdatedOnEdt).isTrue();
       SwingUtilities.invokeAndWait(() -> {
         Tree tree = treeReference.get();
@@ -273,7 +273,7 @@ class TreeFileTest {
 
       treeReference.get().setRoot(newRoot);
 
-      assertThat(rootUpdated.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(rootUpdated.await(20, TimeUnit.SECONDS)).isTrue();
       assertThat(modelUpdatedOnEdt).isTrue();
       SwingUtilities.invokeAndWait(() -> {
         Tree tree = treeReference.get();

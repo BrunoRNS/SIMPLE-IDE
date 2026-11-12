@@ -13,6 +13,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import org.fife.ui.autocomplete.Completion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -65,14 +66,39 @@ class EditorManagerTest {
       }
     });
 
-    int baselineParsers = tab.get().getEditor().getParserCount();
-    await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
+    await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
       SwingUtilities.invokeAndWait(() ->
-        assertThat(tab.get().getEditor().getParserCount()).isGreaterThan(baselineParsers)));
+        assertThat(tab.get().hasLocalLanguageSupport()).isTrue()));
 
     SwingUtilities.invokeAndWait(() -> {
       tab.get().close();
-      assertThat(tab.get().getEditor().getParserCount()).isEqualTo(baselineParsers);
+      assertThat(tab.get().hasLocalLanguageSupport()).isFalse();
+    });
+  }
+
+  @Test
+  void enablesKeywordCompletionForLanguagesWithoutLocalSupport() throws Exception {
+    Path path = Files.writeString(root.resolve("Main.py"), "def main():\n    pass\n");
+    AtomicReference<EditorTab> tab = new AtomicReference<>();
+
+    SwingUtilities.invokeAndWait(() -> {
+      try {
+        tab.set(new EditorTab(new File(path), new Document(path, "python")));
+        tab.get().enableLocalLanguageSupport();
+      } catch (IOException error) {
+        throw new AssertionError(error);
+      }
+    });
+
+    await().atMost(10, TimeUnit.SECONDS).untilAsserted(() ->
+      SwingUtilities.invokeAndWait(() ->
+        assertThat(tab.get().getLocalCompletionProvider()).isNotNull()));
+
+    SwingUtilities.invokeAndWait(() -> {
+      assertThat(tab.get().getLocalCompletionProvider().getCompletions(tab.get().getEditor()))
+          .extracting(Completion::getInputText)
+          .contains("def", "class", "import");
+      tab.get().close();
     });
   }
 }

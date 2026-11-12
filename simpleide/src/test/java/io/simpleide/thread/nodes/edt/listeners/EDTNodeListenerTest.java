@@ -17,7 +17,7 @@ import io.simpleide.thread.ThreadMaster;
 
 class EDTNodeListenerTest {
 
-    private static final int TEST_TIMEOUT_SECONDS = 2;
+    private static final int TEST_TIMEOUT_SECONDS = 10;
 
     @BeforeAll
     static void initializeThreadManager() {

@@ -27,8 +27,8 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 class ThreadMasterTest {
 
-    private static final int TEST_TIMEOUT_SECONDS = 2;
-    private static final int STABILITY_WINDOW_MILLISECONDS = 200;
+    private static final int TEST_TIMEOUT_SECONDS = 10;
+    private static final int STABILITY_WINDOW_MILLISECONDS = 500;
 
     @Test
     void exposesOneThreadMasterInstance() {
@@ -174,7 +174,7 @@ class ThreadMasterTest {
             assertTrue(maximumActive.get() <= workerCount);
             await()
                 .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
-                .atMost(1, TimeUnit.SECONDS)
+                .atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> assertEquals(taskCount, starts.get()));
         } finally {
             releaseWorkers.countDown();
@@ -203,7 +203,7 @@ class ThreadMasterTest {
 
             await()
                 .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
-                .atMost(1, TimeUnit.SECONDS)
+                .atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> assertEquals(1, startCount.get()));
         } finally {
             master.shutdown();

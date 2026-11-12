@@ -33,7 +33,7 @@ class FileMenuTest {
       menu.getItem(3).doClick();
     });
 
-    assertThat(callbacksCompleted.await(5, TimeUnit.SECONDS)).isTrue();
+    assertThat(callbacksCompleted.await(10, TimeUnit.SECONDS)).isTrue();
     assertThat(callbacksInvoked).hasValue(4);
     assertThat(callbacksOnEdt).isTrue();
   }

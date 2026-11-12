@@ -20,7 +20,8 @@ their launch/install metadata live in
    a blocking network check on every tab while still allowing installed servers
    to update. If no server matches or
    connection fails, the editor falls back to RSyntaxTextArea's local language
-   support when available.
+   support when available, then to a keyword-based completion provider for
+   languages without a `LanguageSupport` implementation.
 3. `LspInstaller` reuses an installation only when its `.installed` marker
    matches the selected version. Otherwise it installs via the configured
    package command or downloads and extracts the configured archive into
@@ -49,10 +50,14 @@ removes it when a real LSP client connects or the tab closes. The bundled
 `languagesupport` 3.4.1 library provides support for Java, JavaScript, Groovy,
 C, CSS, HTML, JSP, Less, Perl, PHP, TypeScript, Unix shell, XML, and 6502
 assembly. Of the file types the editor currently maps, this covers Java,
-JavaScript, Groovy, and C. It has no provider for Python, C++, Kotlin, C#, Go,
-or Rust; those files keep syntax highlighting only, and Python has no local
-fallback. The fallback is not an LSP server and does not provide diagnostics,
-go-to-definition, or formatting.
+JavaScript, Groovy, and C.
+
+For the remaining editor-mapped languages (Python, C++, Kotlin, C#, Go, and
+Rust), Simple IDE installs a lightweight `com.fifesoft:autocomplete` provider
+containing language keywords and common built-ins. The same keyword provider is
+used for every language when the JVM is headless. The fallback is not an LSP
+server and does not provide diagnostics, go-to-definition, formatting, or
+semantic completion.
 
 ## Server coverage
 
@@ -64,11 +69,11 @@ installed or that the download/installation succeeds.
 
 | Language | Server | Linux | macOS | Windows | Runtime/version requirement |
 | --- | --- | --- | --- | --- | --- |
-| Java | Eclipse JDT LS | x64, ARM64 | x64, ARM64 | x64, ARM64 | JDT LS selects the highest compatible entry requiring Java 17 or 21. Windows x86 uses local fallback support when available. |
+| Java | Eclipse JDT LS | x64, ARM64 | x64, ARM64 | x64, ARM64 | JDT LS selects the highest compatible entry requiring Java 17 or 21. Windows x86 uses the local Java language-support fallback. |
 | Kotlin | kotlin-language-server | x86, x64, ARM64 | x64, ARM64 | x86, x64, ARM64 | Java 11 or newer. |
 | Groovy | groovy-language-server | x64, ARM64 | x64, ARM64 | — | Java 17 or newer; the registry builds the server from source after download. |
-| JavaScript | typescript-language-server | x64, ARM64 | x64, ARM64 | x64, ARM64 | Node.js 22.22.2 or newer. Windows x86 uses local fallback support. |
-| Python | Pyright | x64, ARM64 | x64, ARM64 | x64, ARM64 | Node.js 14 or newer. Windows x86 has no equivalent local language-support provider. |
+| JavaScript | typescript-language-server | x64, ARM64 | x64, ARM64 | x64, ARM64 | Node.js 22.22.2 or newer. Windows x86 uses the local JavaScript language-support fallback. |
+| Python | Pyright | x64, ARM64 | x64, ARM64 | x64, ARM64 | Node.js 14 or newer. Windows x86 uses keyword-based completion fallback. |
 | C# | csharp-ls | x64, ARM64 | x64, ARM64 | x86, x64, ARM64 | .NET SDK 10 or newer. |
 | C | clangd | x64, ARM64 | x64, ARM64 | x64 | The configured clangd release is installed from its platform archive. |
 | C++ | clangd | x64, ARM64 | x64, ARM64 | x64 | Shares the clangd installation with C. |
@@ -80,6 +85,11 @@ installed or that the download/installation succeeds.
 - The registry has no C/C++ server for Windows x86 or Windows ARM64, and no
   Groovy server for Windows.
 - Java, JavaScript, and Python have no language-server entry for Windows x86.
+  Java and JavaScript use their bundled local language support there, and Python
+  uses keyword-based completion.
+- Languages without bundled local language support receive keyword-based
+  completion while an LSP is starting, when no server matches the host, or when
+  a connection fails.
 - Some registry entries declare multiple equivalent architecture names.
   `LspServer.isSupportedOnCurrentPlatform()` normalizes x64/x86_64 and
   ARM64/aarch64 when matching the host.

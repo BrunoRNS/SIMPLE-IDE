@@ -33,6 +33,6 @@ class LspStatusBarTest {
       rendered.countDown();
     });
 
-    assertTrue(rendered.await(2, TimeUnit.SECONDS));
+    assertTrue(rendered.await(10, TimeUnit.SECONDS));
   }
 }

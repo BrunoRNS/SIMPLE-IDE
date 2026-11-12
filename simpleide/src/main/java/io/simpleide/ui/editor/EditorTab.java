@@ -1,6 +1,7 @@
 package io.simpleide.ui.editor;
 
 import java.awt.BorderLayout;
+import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -17,6 +18,8 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.fife.rsta.ac.LanguageSupportFactory;
+import org.fife.ui.autocomplete.AutoCompletion;
+import org.fife.ui.autocomplete.CompletionProvider;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,6 +42,8 @@ public class EditorTab extends JPanel {
   private final FileService fileService = new FileService();
   private LspEditorSupport lspSupport;
   private boolean localLanguageSupportRegistered;
+  private AutoCompletion localAutoCompletion;
+  private CompletionProvider localCompletionProvider;
   private boolean closed;
   private final ButtonExit buttonExit;
   private final File file;
@@ -87,19 +92,38 @@ public class EditorTab extends JPanel {
       client.didClose(document.getUri());
       return;
     }
-    if (localLanguageSupportRegistered) {
-      LanguageSupportFactory.get().unregister(editor);
-      localLanguageSupportRegistered = false;
-    }
+    unregisterLocalLanguageSupport();
     lspSupport = new LspEditorSupport(editor, document, client);
   }
 
   public void enableLocalLanguageSupport() {
-    if (closed || lspSupport != null || localLanguageSupportRegistered) {
+    if (closed || lspSupport != null || hasLocalLanguageSupport()) {
       return;
     }
-    LanguageSupportFactory.get().register(editor);
-    localLanguageSupportRegistered = true;
+    if (!GraphicsEnvironment.isHeadless()) {
+      String syntaxStyle = editor.getSyntaxEditingStyle();
+      if (LanguageSupportFactory.get().getSupportFor(syntaxStyle) != null) {
+        try {
+          LanguageSupportFactory.get().register(editor);
+          localLanguageSupportRegistered = true;
+          return;
+        } catch (RuntimeException error) {
+          LOGGER.warn(
+              "Unable to register local language support for {}; using keyword completion.",
+              file.getPath(),
+              error);
+        }
+      }
+    }
+    enableKeywordCompletion();
+  }
+
+  boolean hasLocalLanguageSupport() {
+    return localLanguageSupportRegistered || localAutoCompletion != null;
+  }
+
+  CompletionProvider getLocalCompletionProvider() {
+    return localCompletionProvider;
   }
 
   public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definitionAtCaret() {
@@ -196,15 +220,42 @@ public class EditorTab extends JPanel {
     if (lspSupport != null) {
       lspSupport.close();
     }
-    if (localLanguageSupportRegistered) {
-      LanguageSupportFactory.get().unregister(editor);
-      localLanguageSupportRegistered = false;
-    }
+    unregisterLocalLanguageSupport();
     if (documentNode != null) {
       documentNode.close();
       editor.getDocument().removeDocumentListener(documentNode);
     }
     document.setOpened(false);
+  }
+
+  private void enableKeywordCompletion() {
+    CompletionProvider provider =
+        LocalCompletionProviders.forSyntaxStyle(editor.getSyntaxEditingStyle());
+    if (provider == null) {
+      return;
+    }
+    AutoCompletion autoCompletion = new AutoCompletion(provider);
+    autoCompletion.setAutoActivationEnabled(true);
+    autoCompletion.setAutoActivationDelay(300);
+    autoCompletion.install(editor);
+    localAutoCompletion = autoCompletion;
+    localCompletionProvider = provider;
+  }
+
+  private void unregisterLocalLanguageSupport() {
+    if (localAutoCompletion != null) {
+      localAutoCompletion.uninstall();
+      localAutoCompletion = null;
+      localCompletionProvider = null;
+    }
+    if (localLanguageSupportRegistered) {
+      try {
+        LanguageSupportFactory.get().unregister(editor);
+      } catch (RuntimeException error) {
+        LOGGER.warn("Unable to unregister local language support for {}.", file.getPath(), error);
+      }
+      localLanguageSupportRegistered = false;
+    }
   }
 
   private void configIsEdit() {

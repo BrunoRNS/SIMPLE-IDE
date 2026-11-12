@@ -49,16 +49,19 @@ final class ThreadTaskScheduler {
         timer.setRemoveOnCancelPolicy(true);
     }
 
-    synchronized void schedule(NodePattern node) {
-        if (shutdown) {
-            throw new IllegalStateException("Thread task scheduler has been shut down.");
-        }
+    void schedule(NodePattern node) {
         BigInteger id = node.getId();
-        if (!scheduledIds.add(id)) {
-            return;
+        ManagedTask task;
+        synchronized (this) {
+            if (shutdown) {
+                throw new IllegalStateException("Thread task scheduler has been shut down.");
+            }
+            if (!scheduledIds.add(id)) {
+                return;
+            }
+            task = new ManagedTask(node, this::onTaskFinished);
+            activeTasks.put(id, task);
         }
-        ManagedTask task = new ManagedTask(node, this::onTaskFinished);
-        activeTasks.put(id, task);
         if (node.isEDT()) {
             EventQueue.invokeLater(task);
             return;
@@ -66,8 +69,10 @@ final class ThreadTaskScheduler {
         try {
             executor.execute(task);
         } catch (RuntimeException exception) {
-            activeTasks.remove(id, task);
-            scheduledIds.remove(id);
+            synchronized (this) {
+                activeTasks.remove(id, task);
+                scheduledIds.remove(id);
+            }
             LOGGER.error(
                 "Unable to schedule thread node id={}; queue contains {} task(s).",
                 id,

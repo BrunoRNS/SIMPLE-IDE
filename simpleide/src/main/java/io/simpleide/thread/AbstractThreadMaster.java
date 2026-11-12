@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.slf4j.Logger;
@@ -24,8 +25,8 @@ public abstract class AbstractThreadMaster implements Tree {
 
     private final ThreadTreeRegistry tree;
     private final ThreadTaskScheduler scheduler;
-    private boolean initialized;
-    private boolean shutdown;
+    private final AtomicBoolean initialized = new AtomicBoolean();
+    private final AtomicBoolean shutdown = new AtomicBoolean();
 
     protected AbstractThreadMaster(NodePattern root) {
         tree = new ThreadTreeRegistry(root);
@@ -33,14 +34,12 @@ public abstract class AbstractThreadMaster implements Tree {
     }
 
     public void register(NodePattern node) {
-        synchronized (this) {
-            ensureRunning();
-            tree.addNode(node);
-            if (initialized) {
-                scheduler.schedule(node);
-            }
-            LOGGER.debug("Registered thread node id={} level={}", node.getId(), node.level());
+        ensureRunning();
+        tree.addNode(node);
+        if (initialized.get()) {
+            scheduler.schedule(node);
         }
+        LOGGER.debug("Registered thread node id={} level={}", node.getId(), node.level());
     }
 
     public NodePattern executeOnEDT(Runnable action, Runnable onClose) {
@@ -74,14 +73,13 @@ public abstract class AbstractThreadMaster implements Tree {
                 return true;
             }
         };
-        synchronized (this) {
-            ensureRunning();
-            tree.addNode(taskNode);
-            if (initialized) {
-                scheduler.schedule(taskNode);
-            } else {
-                initialize();
-            }
+        ensureRunning();
+        tree.addNode(taskNode);
+        if (!initialized.get()) {
+            initialize();
+        }
+        if (initialized.get()) {
+            scheduler.schedule(taskNode);
         }
         return taskNode;
     }
@@ -94,11 +92,9 @@ public abstract class AbstractThreadMaster implements Tree {
         if (parent == null || action == null) {
             throw new IllegalArgumentException("Task parent and action must not be null.");
         }
-        synchronized (this) {
-            ensureRunning();
-            if (!tree.contains(parent)) {
-                throw new IllegalArgumentException("Task parent must be registered with ThreadMaster.");
-            }
+        ensureRunning();
+        if (!tree.contains(parent)) {
+            throw new IllegalArgumentException("Task parent must be registered with ThreadMaster.");
         }
         AtomicReference<RunnableNode> taskReference = new AtomicReference<>();
         RunnableNode task = new RunnableNode(parent, action, () -> removeNodeCascade(taskReference.get()));
@@ -115,11 +111,9 @@ public abstract class AbstractThreadMaster implements Tree {
         if (parent == null || action == null || unit == null) {
             throw new IllegalArgumentException("Task parent, action, and time unit must not be null.");
         }
-        synchronized (this) {
-            ensureRunning();
-            if (!tree.contains(parent)) {
-                throw new IllegalArgumentException("Task parent must be registered with ThreadMaster.");
-            }
+        ensureRunning();
+        if (!tree.contains(parent)) {
+            throw new IllegalArgumentException("Task parent must be registered with ThreadMaster.");
         }
         return scheduler.schedule(() -> {
             try {
@@ -130,7 +124,7 @@ public abstract class AbstractThreadMaster implements Tree {
         }, delay, unit);
     }
 
-    public synchronized ExecutorService createExecutorService(NodePattern parent) {
+    public ExecutorService createExecutorService(NodePattern parent) {
         ensureRunning();
         if (!tree.contains(parent)) {
             throw new IllegalArgumentException("Executor parent must be registered with ThreadMaster.");
@@ -139,30 +133,24 @@ public abstract class AbstractThreadMaster implements Tree {
     }
 
     public void initialize() {
-        synchronized (this) {
-            ensureRunning();
-            if (initialized) {
-                return;
-            }
-            initialized = true;
-            LOGGER.info(
-                "Initializing thread manager with {} worker(s) and queue capacity {}.",
-                ThreadTaskScheduler.WORKER_COUNT,
-                ThreadTaskScheduler.MAX_QUEUED_TASKS
-            );
-            for (NodePattern node : tree.breadthFirstNodes()) {
-                scheduler.schedule(node);
-            }
-            LOGGER.info("Thread manager initialized with {} registered node(s).", tree.size());
+        ensureRunning();
+        if (!initialized.compareAndSet(false, true)) {
+            return;
         }
+        LOGGER.info(
+            "Initializing thread manager with {} worker(s) and queue capacity {}.",
+            ThreadTaskScheduler.WORKER_COUNT,
+            ThreadTaskScheduler.MAX_QUEUED_TASKS
+        );
+        for (NodePattern node : tree.breadthFirstNodes()) {
+            scheduler.schedule(node);
+        }
+        LOGGER.info("Thread manager initialized with {} registered node(s).", tree.size());
     }
 
     public void shutdown() {
-        synchronized (this) {
-            if (shutdown) {
-                return;
-            }
-            shutdown = true;
+        if (!shutdown.compareAndSet(false, true)) {
+            return;
         }
         scheduler.shutdown();
     }
@@ -174,7 +162,7 @@ public abstract class AbstractThreadMaster implements Tree {
      * @return {@code null} if the node is not registered, {@code true} while
      *         its task is executing, or {@code false} otherwise
      */
-    public synchronized Boolean isNodeRunning(NodePattern node) {
+    public Boolean isNodeRunning(NodePattern node) {
         if (!tree.contains(node)) {
             return null;
         }
@@ -203,18 +191,13 @@ public abstract class AbstractThreadMaster implements Tree {
 
     @Override
     public void addNode(NodePattern node) {
-        synchronized (this) {
-            ensureRunning();
-            tree.addNode(node);
-        }
+        ensureRunning();
+        tree.addNode(node);
     }
 
     @Override
     public void removeNodeCascade(NodePattern node) {
-        List<NodePattern> removedNodes;
-        synchronized (this) {
-            removedNodes = tree.removeNodeCascadeAndCollect(node);
-        }
+        List<NodePattern> removedNodes = tree.removeNodeCascadeAndCollect(node);
         scheduler.cancel(removedNodes);
     }
 
@@ -224,7 +207,7 @@ public abstract class AbstractThreadMaster implements Tree {
     }
 
     private void ensureRunning() {
-        if (shutdown) {
+        if (shutdown.get()) {
             throw new IllegalStateException("ThreadMaster has been shut down.");
         }
     }
