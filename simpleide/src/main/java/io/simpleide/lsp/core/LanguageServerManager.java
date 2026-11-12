@@ -3,13 +3,17 @@ package io.simpleide.lsp.core;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
@@ -101,21 +105,62 @@ public final class LanguageServerManager implements AutoCloseable {
 
   @Override
   public void close() {
+    if (closed) {
+      return;
+    }
     closed = true;
-    servers.forEach((key, entry) -> {
-      entry.client.whenComplete((client, error) -> {
-        if (client != null) {
-          client.close();
-        }
-      });
+    List<LspClient> clients = new ArrayList<>();
+    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+    for (Map.Entry<ServerKey, ServerEntry> item : servers.entrySet()) {
+      ServerEntry entry = item.getValue();
       try {
         ThreadMaster.getInstance().removeNodeCascade(entry.startupNode);
       } catch (RuntimeException error) {
         LOGGER.warn("Unable to unregister language server startup task.", error);
       }
-      publishStatus(statusId(key), key.languageId(), LspStatus.State.IDLE);
-    });
+      LspClient client = awaitClient(entry.client, deadline);
+      if (client != null) {
+        clients.add(client);
+      }
+      publishStatus(statusId(item.getKey()), item.getKey().languageId(), LspStatus.State.IDLE);
+    }
     servers.clear();
+
+    for (LspClient client : clients) {
+      client.close();
+    }
+    for (LspClient client : clients) {
+      long remaining = deadline - System.nanoTime();
+      if (remaining <= 0 || !client.awaitShutdown(remaining, TimeUnit.NANOSECONDS)) {
+        LOGGER.warn("Language server did not shut down within the grace period.");
+      }
+    }
+  }
+
+  private LspClient awaitClient(CompletableFuture<LspClient> client, long deadline) {
+    long remaining = deadline - System.nanoTime();
+    if (remaining <= 0) {
+      return completedClient(client);
+    }
+    try {
+      return client.get(remaining, TimeUnit.NANOSECONDS);
+    } catch (InterruptedException error) {
+      Thread.currentThread().interrupt();
+      return completedClient(client);
+    } catch (ExecutionException | TimeoutException error) {
+      return completedClient(client);
+    }
+  }
+
+  private LspClient completedClient(CompletableFuture<LspClient> client) {
+    if (!client.isDone() || client.isCompletedExceptionally() || client.isCancelled()) {
+      return null;
+    }
+    try {
+      return client.getNow(null);
+    } catch (RuntimeException error) {
+      return null;
+    }
   }
 
   private String statusId(ServerKey key) {

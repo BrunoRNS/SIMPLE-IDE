@@ -9,6 +9,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ public abstract class AbstractThreadMaster implements Tree {
     private final ThreadTaskScheduler scheduler;
     private final AtomicBoolean initialized = new AtomicBoolean();
     private final AtomicBoolean shutdown = new AtomicBoolean();
+    private final ReentrantLock lifecycleLock = new ReentrantLock();
 
     protected AbstractThreadMaster(NodePattern root) {
         tree = new ThreadTreeRegistry(root);
@@ -34,10 +36,15 @@ public abstract class AbstractThreadMaster implements Tree {
     }
 
     public void register(NodePattern node) {
-        ensureRunning();
-        tree.addNode(node);
-        if (initialized.get()) {
-            scheduler.schedule(node);
+        lifecycleLock.lock();
+        try {
+            ensureRunning();
+            tree.addNode(node);
+            if (initialized.get()) {
+                scheduler.schedule(node);
+            }
+        } finally {
+            lifecycleLock.unlock();
         }
         LOGGER.debug("Registered thread node id={} level={}", node.getId(), node.level());
     }
@@ -73,13 +80,17 @@ public abstract class AbstractThreadMaster implements Tree {
                 return true;
             }
         };
-        ensureRunning();
-        tree.addNode(taskNode);
-        if (!initialized.get()) {
-            initialize();
-        }
-        if (initialized.get()) {
-            scheduler.schedule(taskNode);
+        lifecycleLock.lock();
+        try {
+            ensureRunning();
+            tree.addNode(taskNode);
+            if (initialized.get()) {
+                scheduler.schedule(taskNode);
+            } else {
+                initialize();
+            }
+        } finally {
+            lifecycleLock.unlock();
         }
         return taskNode;
     }
@@ -133,24 +144,34 @@ public abstract class AbstractThreadMaster implements Tree {
     }
 
     public void initialize() {
-        ensureRunning();
-        if (!initialized.compareAndSet(false, true)) {
-            return;
+        lifecycleLock.lock();
+        try {
+            ensureRunning();
+            if (!initialized.compareAndSet(false, true)) {
+                return;
+            }
+            LOGGER.info(
+                "Initializing thread manager with {} worker(s) and queue capacity {}.",
+                ThreadTaskScheduler.WORKER_COUNT,
+                ThreadTaskScheduler.MAX_QUEUED_TASKS
+            );
+            for (NodePattern node : tree.breadthFirstNodes()) {
+                scheduler.schedule(node);
+            }
+            LOGGER.info("Thread manager initialized with {} registered node(s).", tree.size());
+        } finally {
+            lifecycleLock.unlock();
         }
-        LOGGER.info(
-            "Initializing thread manager with {} worker(s) and queue capacity {}.",
-            ThreadTaskScheduler.WORKER_COUNT,
-            ThreadTaskScheduler.MAX_QUEUED_TASKS
-        );
-        for (NodePattern node : tree.breadthFirstNodes()) {
-            scheduler.schedule(node);
-        }
-        LOGGER.info("Thread manager initialized with {} registered node(s).", tree.size());
     }
 
     public void shutdown() {
-        if (!shutdown.compareAndSet(false, true)) {
-            return;
+        lifecycleLock.lock();
+        try {
+            if (!shutdown.compareAndSet(false, true)) {
+                return;
+            }
+        } finally {
+            lifecycleLock.unlock();
         }
         scheduler.shutdown();
     }
@@ -191,8 +212,13 @@ public abstract class AbstractThreadMaster implements Tree {
 
     @Override
     public void addNode(NodePattern node) {
-        ensureRunning();
-        tree.addNode(node);
+        lifecycleLock.lock();
+        try {
+            ensureRunning();
+            tree.addNode(node);
+        } finally {
+            lifecycleLock.unlock();
+        }
     }
 
     @Override

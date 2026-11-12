@@ -42,7 +42,8 @@ public class EditorManager {
   private Runnable openFolder;
 
   public EditorManager(Runnable createFile, Runnable createFolder, Runnable openFolder) {
-    this(createFile, createFolder, openFolder, ignored -> { });
+    this(createFile, createFolder, openFolder, ignored -> {
+    });
   }
 
   public EditorManager(
@@ -140,15 +141,15 @@ public class EditorManager {
   }
 
   public void closeAll() {
-      try (languageServers) {
-          openedEditors.values().forEach(tab -> {
-              tab.close();
-              manager.close(tab.getDocument().getUri());
-              languageServers.disconnect(tab.getDocument());
-              ThemeManager.getInstance().unregister(tab.getEditor());
-          });
-          openedEditors.clear();
-      }
+    try (languageServers) {
+      openedEditors.values().forEach(tab -> {
+        tab.close();
+        manager.close(tab.getDocument().getUri());
+        languageServers.disconnect(tab.getDocument());
+        ThemeManager.getInstance().unregister(tab.getEditor());
+      });
+      openedEditors.clear();
+    }
   }
 
   public void closeTab(EditorTab tab) {
@@ -247,12 +248,23 @@ public class EditorManager {
 
   static void completeLanguageServerConnection(EditorTab tab, LspClient client, Throwable error) {
     if (error != null) {
-      Throwable cause = error instanceof CompletionException && error.getCause() != null
-          ? error.getCause()
-          : error;
-      LOGGER.error("LSP connection failed for {}.", tab.getFile().getPath(), cause);
+      Throwable cause = error;
+
+      if (error instanceof CompletionException && error.getCause() != null) {
+        cause = error.getCause();
+      }
+
+      LOGGER.error(
+          "LSP connection failed for {}.",
+          tab.getFile().getPath(),
+          cause);
+
       if (client != null) {
-        client.close();
+        try {
+          client.close();
+        } catch (Exception closeError) {
+          LOGGER.warn("Failed to close LSP client.", closeError);
+        }
       }
     }
 

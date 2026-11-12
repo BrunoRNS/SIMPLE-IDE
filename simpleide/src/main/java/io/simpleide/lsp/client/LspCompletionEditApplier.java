@@ -21,6 +21,7 @@ public final class LspCompletionEditApplier {
   private LspCompletionEditApplier() {
   }
 
+  @SuppressWarnings("")
   public static List<ResolvedTextEdit> captureAdditionalEdits(
       RSyntaxTextArea editor, CompletionItem item, int primaryStart, int primaryEnd) {
     List<TextEdit> additionalEdits = item.getAdditionalTextEdits();
@@ -75,8 +76,12 @@ public final class LspCompletionEditApplier {
         if (document instanceof AbstractDocument abstractDocument) {
           abstractDocument.replace(start, end - start, edit.newText(), null);
         } else {
-          document.remove(start, end - start);
-          document.insertString(start, edit.newText(), null);
+          if (document != null) {
+            document.remove(start, end - start);
+            document.insertString(start, edit.newText(), null);
+          } else {
+            LOGGER.warn("[LSP] Failed to remove/insertString in document, document is NULL");
+          }
         }
       } catch (BadLocationException error) {
         LOGGER.error("Unable to apply LSP additional completion edit.", error);

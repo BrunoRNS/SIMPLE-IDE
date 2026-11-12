@@ -20,6 +20,7 @@ class EDTNodeListenerTest {
     private static final int TEST_TIMEOUT_SECONDS = 10;
 
     @BeforeAll
+    @SuppressWarnings("unused")
     static void initializeThreadManager() {
         ThreadMaster.getInstance().initialize();
     }

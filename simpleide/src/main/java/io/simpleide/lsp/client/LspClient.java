@@ -9,14 +9,15 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.ClientInfo;
@@ -71,7 +72,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
   private final Consumer<PublishDiagnosticsParams> diagnosticsHandler;
   private final CompletableFuture<Void> initialized = new CompletableFuture<>();
-  private final RunnableNode runtimeNode = new RunnableNode(() -> {});
+  private final CompletableFuture<Void> shutdownComplete = new CompletableFuture<>();
+  private final RunnableNode runtimeNode = new RunnableNode(() -> {
+  });
   private final RunnableNode startupNode;
   private volatile Thread errorReaderThread;
   private volatile ExecutorService lspExecutor;
@@ -403,16 +406,18 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     int character = 0;
     for (int index = 0; index < text.length(); index++) {
       char current = text.charAt(index);
-      if (current == '\n') {
-        line++;
-        character = 0;
-      } else if (current == '\r') {
-        if (index + 1 == text.length() || text.charAt(index + 1) != '\n') {
+      switch (current) {
+        case '\n' -> {
           line++;
           character = 0;
         }
-      } else {
-        character++;
+        case '\r' -> {
+          if (index + 1 == text.length() || text.charAt(index + 1) != '\n') {
+            line++;
+            character = 0;
+          }
+        }
+        default -> character++;
       }
     }
     return new Position(line, character);
@@ -534,17 +539,49 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     }
   }
 
+  boolean isProcessAlive() {
+    Process child = process;
+    return child != null && child.isAlive();
+  }
+
+  public boolean awaitShutdown(long timeout, TimeUnit unit) {
+    try {
+      shutdownComplete.get(timeout, unit);
+      return true;
+    } catch (InterruptedException error) {
+      Thread.currentThread().interrupt();
+      return false;
+    } catch (ExecutionException error) {
+      return true;
+    } catch (TimeoutException error) {
+      return false;
+    }
+  }
+
   private void shutdownServer() {
     LanguageServer activeServer = server;
-    if (initialized.isDone() && !initialized.isCompletedExceptionally() && activeServer != null) {
-      try {
-        activeServer.shutdown().get(2, TimeUnit.SECONDS);
-        activeServer.exit();
-      } catch (Exception error) {
-        LOGGER.debug("Language server shutdown did not complete cleanly.", error);
+    boolean interrupted = false;
+    try {
+      if (initialized.isDone() && !initialized.isCompletedExceptionally() && activeServer != null) {
+        try {
+          activeServer.shutdown().get(2, TimeUnit.SECONDS);
+        } catch (InterruptedException error) {
+          interrupted = true;
+        } catch (ExecutionException | TimeoutException | RuntimeException error) {
+          LOGGER.debug("Language server shutdown did not complete cleanly.", error);
+        }
+        try {
+          activeServer.exit();
+        } catch (RuntimeException error) {
+          LOGGER.debug("Unable to send language server exit notification.", error);
+        }
+      }
+    } finally {
+      closeProcess();
+      if (interrupted) {
+        Thread.currentThread().interrupt();
       }
     }
-    closeProcess();
   }
 
   private void closeProcess() {
@@ -552,9 +589,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     try {
       if (child != null) {
         child.destroy();
-        if (!child.waitFor(2, TimeUnit.SECONDS)) {
+        if (!waitFor(child, 2, TimeUnit.SECONDS)) {
           child.destroyForcibly();
-          if (!child.waitFor(2, TimeUnit.SECONDS)) {
+          if (!waitFor(child, 2, TimeUnit.SECONDS)) {
             LOGGER.warn("Unable to terminate language server process.");
           }
         }
@@ -564,12 +601,6 @@ public final class LspClient implements LanguageClient, AutoCloseable {
           LOGGER.debug("Unable to close language server stderr.", error);
         }
       }
-    } catch (InterruptedException error) {
-      Thread.currentThread().interrupt();
-      if (child != null) {
-        child.destroyForcibly();
-      }
-      LOGGER.warn("Interrupted while closing language server process.", error);
     } finally {
       ExecutorService executor = lspExecutor;
       lspExecutor = null;
@@ -581,6 +612,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
       if (timeoutTask != null) {
         timeoutTask.cancel(false);
       }
+      boolean wasInterrupted = Thread.interrupted();
       Thread errorReader = errorReaderThread;
       errorReaderThread = null;
       if (errorReader != null && errorReader != Thread.currentThread()) {
@@ -588,13 +620,42 @@ public final class LspClient implements LanguageClient, AutoCloseable {
         try {
           errorReader.join(250);
         } catch (InterruptedException error) {
-          Thread.currentThread().interrupt();
+          wasInterrupted = true;
         }
         if (errorReader.isAlive()) {
           LOGGER.warn("Language server stderr reader did not stop after process shutdown.");
         }
       }
-      ThreadMaster.getInstance().removeNodeCascade(runtimeNode);
+      if (wasInterrupted) {
+        Thread.currentThread().interrupt();
+      }
+      try {
+        ThreadMaster.getInstance().removeNodeCascade(runtimeNode);
+      } finally {
+        shutdownComplete.complete(null);
+      }
+    }
+  }
+
+  private boolean waitFor(Process child, long timeout, TimeUnit unit) {
+    long deadline = System.nanoTime() + unit.toNanos(timeout);
+    boolean interrupted = false;
+    try {
+      while (true) {
+        long remaining = deadline - System.nanoTime();
+        if (remaining <= 0) {
+          return !child.isAlive();
+        }
+        try {
+          return child.waitFor(remaining, TimeUnit.NANOSECONDS);
+        } catch (InterruptedException error) {
+          interrupted = true;
+        }
+      }
+    } finally {
+      if (interrupted) {
+        Thread.currentThread().interrupt();
+      }
     }
   }
 }

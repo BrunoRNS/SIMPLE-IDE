@@ -28,6 +28,7 @@ public final class LspDiagnosticParser extends AbstractParser {
     ThreadMaster.getInstance().executeOnEDT(() -> editor.forceReparsing(this));
   }
 
+  @SuppressWarnings("")
   @Override
   public ParseResult parse(RSyntaxDocument document, String style) {
     long startedAt = System.nanoTime();

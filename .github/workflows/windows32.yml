@@ -12,6 +12,7 @@ jobs:
     runs-on: windows-latest
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: windows-x86
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -24,45 +25,112 @@ jobs:
           architecture: x86
           cache: maven
 
-      - name: Install GCC toolchain
+      - name: Set up MSYS2 MINGW32
         id: setup-msys2
         uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW32
+          suppress-deprecation-warnings: msystem-mingw32
           path-type: inherit
           update: true
-          install: mingw-w64-i686-toolchain
 
-      - name: Add 32-bit GCC to Windows PATH
+      - name: Install MinGW 32-bit GCC and G++
+        shell: msys2 {0}
+        run: |
+          set -euo pipefail
+
+          echo "Updating package databases..."
+          pacman -Sy --noconfirm
+
+          echo "Installing 32-bit MinGW GCC..."
+          pacman -S --needed --noconfirm mingw-w64-i686-gcc
+
+          echo "Checking installed package..."
+          pacman -Q mingw-w64-i686-gcc
+
+          echo "Checking compiler executables..."
+          for compiler in gcc g++; do
+            if ! command -v "$compiler" >/dev/null 2>&1; then
+              prefixed="/mingw32/bin/i686-w64-mingw32-${compiler}.exe"
+
+              if [[ -x "$prefixed" ]]; then
+                ln -sf "$prefixed" "/mingw32/bin/${compiler}.exe"
+              else
+                echo "Could not find $compiler or its prefixed executable."
+                exit 1
+              fi
+            fi
+
+            echo "$compiler: $(command -v "$compiler")"
+          done
+
+          echo "GCC version:"
+          gcc --version
+
+          echo "G++ version:"
+          g++ --version
+
+          echo "GCC target:"
+          gcc -dumpmachine
+
+          echo "G++ target:"
+          g++ -dumpmachine
+
+      - name: Add MSYS2 MinGW32 to Windows PATH
         shell: pwsh
         env:
           MSYS2_LOCATION: ${{ steps.setup-msys2.outputs.msys2-location }}
         run: |
           $gccBin = Join-Path $env:MSYS2_LOCATION "mingw32\bin"
-          if (-not (Test-Path (Join-Path $gccBin "gcc.exe"))) {
-            throw "Could not find the 32-bit GCC executable."
+
+          $gcc = Join-Path $gccBin "gcc.exe"
+          $gxx = Join-Path $gccBin "g++.exe"
+
+          if (-not (Test-Path $gcc)) {
+            throw "Could not find GCC at '$gcc'."
           }
+
+          if (-not (Test-Path $gxx)) {
+            throw "Could not find G++ at '$gxx'."
+          }
+
           Add-Content -Path $env:GITHUB_PATH -Value $gccBin
+
+          Write-Host "MinGW32 PATH: $gccBin"
 
       - name: Install 32-bit Go
         shell: pwsh
         run: |
-          $release = (Invoke-RestMethod -Uri "https://go.dev/dl/?mode=json" -ErrorAction Stop |
-            Select-Object -First 1)
+          $release = (
+            Invoke-RestMethod -Uri "https://go.dev/dl/?mode=json" -ErrorAction Stop |
+            Select-Object -First 1
+          )
+
           $archive = $release.files | Where-Object {
-            $_.os -eq "windows" -and $_.arch -eq "386" -and $_.kind -eq "archive"
+            $_.os -eq "windows" -and
+            $_.arch -eq "386" -and
+            $_.kind -eq "archive"
           } | Select-Object -First 1
+
           if (-not $archive) {
             throw "Could not find the 32-bit Windows Go release archive."
           }
+
           $archivePath = Join-Path $env:RUNNER_TEMP $archive.filename
-          Invoke-WebRequest -Uri "https://go.dev/dl/$($archive.filename)" `
-            -OutFile $archivePath -ErrorAction Stop
+
+          Invoke-WebRequest `
+            -Uri "https://go.dev/dl/$($archive.filename)" `
+            -OutFile $archivePath `
+            -ErrorAction Stop
+
           Expand-Archive -Path $archivePath -DestinationPath $env:RUNNER_TEMP -Force
+
           $goBin = Join-Path $env:RUNNER_TEMP "go\bin"
+
           if (-not (Test-Path (Join-Path $goBin "go.exe"))) {
             throw "Could not find the Go executable after extraction."
           }
+
           Add-Content -Path $env:GITHUB_PATH -Value $goBin
 
       - name: Set up Rust for 32-bit Windows
@@ -80,16 +148,23 @@ jobs:
             (Join-Path ${env:ProgramFiles(x86)} "Mono\bin"),
             (Join-Path $env:ProgramFiles "Mono\bin")
           )
+
           $monoBin = $monoBins | Where-Object {
             Test-Path (Join-Path $_ "mcs.bat")
           } | Select-Object -First 1
+
           if (-not $monoBin) {
             throw "Could not find the Mono compiler after installation."
           }
-          $managedCompiler = Join-Path (Split-Path $monoBin -Parent) "lib\mono\4.5\mcs.exe"
+
+          $managedCompiler = Join-Path `
+            (Split-Path $monoBin -Parent) `
+            "lib\mono\4.5\mcs.exe"
+
           if (-not (Test-Path $managedCompiler)) {
             throw "Could not find the managed Mono compiler at '$managedCompiler'."
           }
+
           Add-Content -Path $env:GITHUB_PATH -Value $monoBin
 
       - name: Set up Node.js
@@ -108,7 +183,9 @@ jobs:
         shell: pwsh
         run: |
           $javaExecutable = Join-Path $env:JAVA_HOME "bin\java.exe"
+
           $javaProperties = & $javaExecutable -XshowSettings:properties -version 2>&1
+
           if (-not ($javaProperties | Select-String -Quiet 'sun.arch.data.model = 32')) {
             throw "Expected a 32-bit Java runtime."
           }
@@ -116,86 +193,152 @@ jobs:
       - name: Verify language toolchains
         shell: pwsh
         run: |
-          $commands = @("gcc", "g++", "mcs", "mono", "go", "rustc", "node", "python")
+          $commands = @(
+            "gcc",
+            "g++",
+            "mcs",
+            "mono",
+            "go",
+            "rustc",
+            "node",
+            "python"
+          )
+
           foreach ($command in $commands) {
             if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
               throw "Required language tool not found: $command"
             }
           }
+
+          # GCC
+          $gccCommand = Get-Command gcc
+          Write-Host "GCC executable: $($gccCommand.Source)"
+
           $gccTarget = (gcc -dumpmachine | Out-String).Trim()
           Write-Host "GCC target: $gccTarget"
-          if ($gccTarget -notmatch '^(i[3-6]86|x86)-') {
+
+          if ($LASTEXITCODE -ne 0 -or $gccTarget -notmatch '^(i[3-6]86|x86)-') {
             throw "Expected a 32-bit GCC toolchain, received '$gccTarget'."
           }
+
+          # G++
+          $gxxCommand = Get-Command g++
+          Write-Host "G++ executable: $($gxxCommand.Source)"
+
           $gxxTarget = (& g++ -dumpmachine | Out-String).Trim()
           Write-Host "G++ target: $gxxTarget"
+
           if ($LASTEXITCODE -ne 0 -or $gxxTarget -notmatch '^(i[3-6]86|x86)-') {
             throw "Expected a working 32-bit G++ toolchain, received '$gxxTarget'."
           }
+
+          # C++ compilation and execution
           $cppSource = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.cpp"
           $cppExecutable = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.exe"
+
           $cppSourceCode = @'
           #include <iostream>
-          int main() { std::cout << "cpp-toolchain-ok" << std::endl; }
+
+          int main() {
+              std::cout << "cpp-toolchain-ok" << std::endl;
+              return 0;
+          }
           '@
+
           Set-Content -Path $cppSource -Value $cppSourceCode -Encoding Ascii
+
           $compileOutput = & g++ $cppSource -o $cppExecutable 2>&1
           $compileExitCode = $LASTEXITCODE
+
           if ($compileExitCode -ne 0) {
             Write-Host ($compileOutput | Out-String)
             Write-Host "Compiler: $((Get-Command g++).Source)"
             Write-Host "Compiler version: $(& g++ --version | Select-Object -First 1)"
             Write-Host "C++ include search paths:"
-            & g++ -v -E -x c++ NUL 2>&1 | Select-String -Pattern "include|error|fatal"
+            & g++ -v -E -x c++ NUL 2>&1 |
+              Select-String -Pattern "include|error|fatal"
+
             throw "Could not compile the C++ toolchain probe (exit code $compileExitCode)."
           }
+
           $cppOutput = (& $cppExecutable | Out-String).Trim()
+
           if ($LASTEXITCODE -ne 0 -or $cppOutput -ne "cpp-toolchain-ok") {
             throw "Could not run the C++ toolchain probe; received '$cppOutput'."
           }
+
+          # Go
           $goCommand = Get-Command go -ErrorAction SilentlyContinue
+
           if (-not $goCommand) {
             throw "Go was not added to PATH after installation."
           }
+
           Write-Host "Go found on PATH: $($goCommand.Source)"
+
           $goVersion = (& go version | Out-String).Trim()
+
           if ($LASTEXITCODE -ne 0) {
             throw "The Go executable found on PATH failed: $goVersion"
           }
+
           Write-Host "Go version: $goVersion"
+
           $goHostOS = (& go env GOHOSTOS | Out-String).Trim()
           $goHostArch = (& go env GOHOSTARCH | Out-String).Trim()
           $goTargetOS = (& go env GOOS | Out-String).Trim()
           $goTargetArch = (& go env GOARCH | Out-String).Trim()
-          if ($LASTEXITCODE -ne 0 -or $goHostOS -ne "windows" -or $goHostArch -ne "386" -or
-              $goTargetOS -ne "windows" -or $goTargetArch -ne "386") {
+
+          if ($LASTEXITCODE -ne 0 -or
+              $goHostOS -ne "windows" -or
+              $goHostArch -ne "386" -or
+              $goTargetOS -ne "windows" -or
+              $goTargetArch -ne "386") {
+
             throw "Expected a working 32-bit Windows Go toolchain; host=$goHostOS/$goHostArch target=$goTargetOS/$goTargetArch."
           }
+
+          # Rust
           if (-not (rustc -vV | Select-String -Quiet '^host: x86_64-pc-windows-')) {
             throw "Expected a Rust compiler with a Windows x64 host."
           }
+
           if (-not (rustup target list --installed | Select-String -Quiet '^i686-pc-windows-gnu$')) {
             throw "Expected the Rust 32-bit Windows GNU target to be installed."
           }
-          if ((python -c "import struct; print(struct.calcsize('P') * 8)") -ne "32") {
+
+          # Python
+          $pythonBits = python -c "import struct; print(struct.calcsize('P') * 8)"
+
+          if ($LASTEXITCODE -ne 0 -or $pythonBits.Trim() -ne "32") {
             throw "Expected 32-bit Python."
           }
+
+          # Node.js
           if ((node -p "process.version") -ne "v12.22.3") {
             throw "Expected Node.js v12.22.3."
           }
+
           if ((node -p "process.arch") -ne "ia32") {
             throw "Expected a 32-bit Node.js runtime."
           }
+
+          # Mono
           $monoProbeSource = Join-Path $env:RUNNER_TEMP "mono-bitness.cs"
           $monoProbeAssembly = Join-Path $env:RUNNER_TEMP "mono-bitness.exe"
+
           'using System; class MonoBitness { static void Main() { Console.WriteLine(IntPtr.Size == 4 ? "32" : "64"); } }' |
             Set-Content -Path $monoProbeSource
+
           & mcs "-out:$monoProbeAssembly" $monoProbeSource
+
           if ($LASTEXITCODE -ne 0) {
             throw "Could not compile the Mono bitness probe."
           }
+
           $monoBitness = (& mono $monoProbeAssembly | Out-String).Trim()
-          if ($monoBitness -ne "32") {
+
+          if ($LASTEXITCODE -ne 0 -or $monoBitness -ne "32") {
             throw "Expected a 32-bit Mono runtime, received '$monoBitness'."
           }
 

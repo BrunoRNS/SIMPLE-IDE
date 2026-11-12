@@ -16,6 +16,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -94,8 +95,9 @@ class ThreadMasterTest {
             }
         };
 
-        new RunnableNode(root, () -> {});
+        RunnableNode node = new RunnableNode(root, () -> {});
 
+        assertNotNull(node);
         assertEquals(0, parentActions.get());
     }
 

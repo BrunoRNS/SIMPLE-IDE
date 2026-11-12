@@ -22,9 +22,10 @@ import org.slf4j.LoggerFactory;
 public class LspCompletionProvider extends DefaultCompletionProvider {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspCompletionProvider.class);
 
+  @SuppressWarnings("")
   public void setItems(List<CompletionItem> items) {
     clear();
-    List<Completion> completions = new ArrayList<>();
+    List<Completion> completions_ = new ArrayList<>();
     for (CompletionItem item : items) {
       if (item.getLabel() == null || item.getLabel().isBlank()) {
         continue;
@@ -34,9 +35,9 @@ public class LspCompletionProvider extends DefaultCompletionProvider {
       String inputText = item.getFilterText() == null ? item.getLabel() : item.getFilterText();
       LspCompletion completion = new LspCompletion(
           this, insertion, item.getDetail(), getDocumentation(item), item, inputText);
-      completions.add(completion);
+      completions_.add(completion);
     }
-    addCompletions(completions);
+    addCompletions(completions_);
   }
   	
 
