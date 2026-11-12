@@ -10,9 +10,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Consumer;
 
@@ -71,7 +73,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   private final CompletableFuture<Void> initialized = new CompletableFuture<>();
   private final RunnableNode runtimeNode = new RunnableNode(() -> {});
   private final RunnableNode startupNode;
-  private volatile RunnableNode errorReaderNode;
+  private volatile Thread errorReaderThread;
   private volatile ExecutorService lspExecutor;
   private volatile ScheduledFuture<?> initializationTimeoutTask;
   private volatile Process process;
@@ -144,8 +146,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
       }
 
       startErrorStreamReader(startedProcess);
-      ThreadMaster threadMaster = ThreadMaster.getInstance();
-      lspExecutor = threadMaster.createExecutorService(runtimeNode);
+      lspExecutor = createLspExecutor();
       Launcher<LanguageServer> launcher = LSPLauncher.createClientLauncher(
           this,
           startedProcess.getInputStream(),
@@ -446,7 +447,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   }
 
   private void startErrorStreamReader(Process serverProcess) {
-    RunnableNode errorReader = new RunnableNode(runtimeNode, () -> {
+    Thread errorReader = new Thread(() -> {
       try (BufferedReader reader = new BufferedReader(
           new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
         String line;
@@ -458,18 +459,20 @@ public final class LspClient implements LanguageClient, AutoCloseable {
           LOGGER.warn("Unable to read language server output.", error);
         }
       }
-    }, this::removeErrorStreamReader);
-    errorReaderNode = errorReader;
-    ThreadMaster.getInstance().register(errorReader);
+    }, "simpleide-lsp-stderr-" + serverProcess.pid());
+    errorReader.setDaemon(true);
+    errorReaderThread = errorReader;
+    errorReader.start();
   }
 
-  private void removeErrorStreamReader() {
-    RunnableNode errorReader = errorReaderNode;
-    if (errorReader == null) {
-      return;
-    }
-    errorReaderNode = null;
-    ThreadMaster.getInstance().removeNodeCascade(errorReader);
+  private ExecutorService createLspExecutor() {
+    AtomicInteger threadNumber = new AtomicInteger();
+    String threadPrefix = "simpleide-lsp-" + runtimeNode.getId() + "-";
+    return Executors.newFixedThreadPool(2, task -> {
+      Thread thread = new Thread(task, threadPrefix + threadNumber.incrementAndGet());
+      thread.setDaemon(true);
+      return thread;
+    });
   }
 
   @Override
@@ -555,6 +558,11 @@ public final class LspClient implements LanguageClient, AutoCloseable {
             LOGGER.warn("Unable to terminate language server process.");
           }
         }
+        try {
+          child.getErrorStream().close();
+        } catch (IOException error) {
+          LOGGER.debug("Unable to close language server stderr.", error);
+        }
       }
     } catch (InterruptedException error) {
       Thread.currentThread().interrupt();
@@ -572,6 +580,19 @@ public final class LspClient implements LanguageClient, AutoCloseable {
       initializationTimeoutTask = null;
       if (timeoutTask != null) {
         timeoutTask.cancel(false);
+      }
+      Thread errorReader = errorReaderThread;
+      errorReaderThread = null;
+      if (errorReader != null && errorReader != Thread.currentThread()) {
+        errorReader.interrupt();
+        try {
+          errorReader.join(250);
+        } catch (InterruptedException error) {
+          Thread.currentThread().interrupt();
+        }
+        if (errorReader.isAlive()) {
+          LOGGER.warn("Language server stderr reader did not stop after process shutdown.");
+        }
       }
       ThreadMaster.getInstance().removeNodeCascade(runtimeNode);
     }

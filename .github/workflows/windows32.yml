@@ -31,7 +31,7 @@ jobs:
           msystem: MINGW32
           path-type: inherit
           update: true
-          install: mingw-w64-i686-gcc
+          install: mingw-w64-i686-toolchain
 
       - name: Add 32-bit GCC to Windows PATH
         shell: pwsh
@@ -134,12 +134,20 @@ jobs:
           }
           $cppSource = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.cpp"
           $cppExecutable = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.exe"
-          '#include <iostream>
-            int main() { std::cout << "cpp-toolchain-ok" << std::endl; }' |
-            Set-Content -Path $cppSource
-          & g++ $cppSource -o $cppExecutable
-          if ($LASTEXITCODE -ne 0) {
-            throw "Could not compile the C++ toolchain probe."
+          $cppSourceCode = @'
+          #include <iostream>
+          int main() { std::cout << "cpp-toolchain-ok" << std::endl; }
+          '@
+          Set-Content -Path $cppSource -Value $cppSourceCode -Encoding Ascii
+          $compileOutput = & g++ $cppSource -o $cppExecutable 2>&1
+          $compileExitCode = $LASTEXITCODE
+          if ($compileExitCode -ne 0) {
+            Write-Host ($compileOutput | Out-String)
+            Write-Host "Compiler: $((Get-Command g++).Source)"
+            Write-Host "Compiler version: $(& g++ --version | Select-Object -First 1)"
+            Write-Host "C++ include search paths:"
+            & g++ -v -E -x c++ NUL 2>&1 | Select-String -Pattern "include|error|fatal"
+            throw "Could not compile the C++ toolchain probe (exit code $compileExitCode)."
           }
           $cppOutput = (& $cppExecutable | Out-String).Trim()
           if ($LASTEXITCODE -ne 0 -or $cppOutput -ne "cpp-toolchain-ok") {

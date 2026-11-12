@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.lsp.LspStatus;
+import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
@@ -101,6 +102,7 @@ public class EditorManager {
 
     EditorTab editorTab = new EditorTab(file, document);
     editorActions.configure(editorTab);
+    editorTab.enableLocalLanguageSupport();
 
     ThemeManager.getInstance().register(editorTab.getEditor());
 
@@ -116,18 +118,7 @@ public class EditorManager {
     jTabbedPane.setSelectedComponent(editorTab);
 
     languageServers.connect(document, editorTab::publishDiagnostics)
-        .whenComplete((client, error) -> {
-          if (error != null) {
-            Throwable cause = error instanceof CompletionException && error.getCause() != null
-                ? error.getCause()
-                : error;
-            LOGGER.error("LSP connection failed for {}.", path, cause);
-            return;
-          }
-          if (client != null) {
-            ThreadMaster.getInstance().executeOnEDT(() -> editorTab.connectLanguageServer(client));
-          }
-        });
+        .whenComplete((client, error) -> completeLanguageServerConnection(editorTab, client, error));
   }
 
   public void addNewTab(EditorTab tab) {
@@ -135,6 +126,7 @@ public class EditorManager {
       return;
     }
 
+    tab.enableLocalLanguageSupport();
     editorActions.configure(tab);
     if (jTabbedPane.getTabCount() == 1 && "Welcome".equals(jTabbedPane.getTitleAt(0))) {
       jTabbedPane.removeAll();
@@ -251,6 +243,26 @@ public class EditorManager {
       case CPP -> "cpp";
       default -> "plaintext";
     };
+  }
+
+  static void completeLanguageServerConnection(EditorTab tab, LspClient client, Throwable error) {
+    if (error != null) {
+      Throwable cause = error instanceof CompletionException && error.getCause() != null
+          ? error.getCause()
+          : error;
+      LOGGER.error("LSP connection failed for {}.", tab.getFile().getPath(), cause);
+      if (client != null) {
+        client.close();
+      }
+    }
+
+    ThreadMaster.getInstance().executeOnEDT(() -> {
+      if (client == null || error != null) {
+        tab.enableLocalLanguageSupport();
+      } else {
+        tab.connectLanguageServer(client);
+      }
+    });
   }
 
   private void configJTabbedPane() {

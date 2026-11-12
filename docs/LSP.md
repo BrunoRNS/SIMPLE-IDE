@@ -15,8 +15,12 @@ their launch/install metadata live in
 2. `LanguageServerManager` registers server startup with `ThreadMaster`.
    `LspManager` filters registry entries for the detected OS and architecture,
    selects the applicable server, checks any configured minimum runtime version,
-   and refreshes release metadata where configured. If no server matches, the
-   connection is skipped and its status returns to `IDLE`.
+   and refreshes release metadata when its cache expires. Successful metadata
+   lookups are reused for six hours (failed lookups for two minutes), avoiding
+   a blocking network check on every tab while still allowing installed servers
+   to update. If no server matches or
+   connection fails, the editor falls back to RSyntaxTextArea's local language
+   support when available.
 3. `LspInstaller` reuses an installation only when its `.installed` marker
    matches the selected version. Otherwise it installs via the configured
    package command or downloads and extracts the configured archive into
@@ -24,20 +28,21 @@ their launch/install metadata live in
    marker is written. Version metadata/API failures fall back to the registry
    version; installation failures are reported as `FAILED`.
 4. `LspClient` starts the server as a stdio subprocess, initializes the LSP
-   session, and sends document changes and requests. The LSP4J executor is a
-   `ThreadMaster`-backed executor attached beneath that server's runtime node.
-   Startup, stderr reading, process-exit handling, initialization timeout, and
-   executor work are therefore tracked and cancelled through `ThreadMaster`.
-   UI updates are queued with `ThreadMaster.executeOnEDT`; direct EDT dispatch
-   is confined to `ThreadMaster`'s internal scheduler and task lifecycle.
+   session, and sends document changes and requests. Each server has a small
+   dedicated daemon executor for LSP4J protocol work and a dedicated stderr
+   reader, so blocking process I/O does not occupy shared `ThreadMaster` workers.
+   Startup, process-exit handling, and initialization timeout remain managed
+   through `ThreadMaster`; closing the server stops its executor and reader.
+   UI updates are queued with `ThreadMaster.executeOnEDT`.
 5. Closing an editor sends `didClose`; closing the workspace/server shuts down
    the LSP process, its executor, and its managed runtime nodes.
 
-The managed worker pool is shared; each server gets a child executor whose
-submitted tasks are represented as child nodes in the thread tree. Initialization
-timeouts use the managed scheduler rather than the JVM common-pool timeout
-facility. Language server processes are operating-system processes, not Java
-threads.
+Initialization timeouts use the managed scheduler rather than the JVM
+common-pool timeout facility. Language server processes are operating-system
+processes, not Java threads. The local RSyntaxTextArea fallback provides only
+the features implemented by its language-support library; it is not an LSP
+server and does not provide equivalent support for every language (notably
+Python).
 
 ## Server coverage
 
@@ -49,11 +54,11 @@ installed or that the download/installation succeeds.
 
 | Language | Server | Linux | macOS | Windows | Runtime/version requirement |
 | --- | --- | --- | --- | --- | --- |
-| Java | Eclipse JDT LS; `jj-language-server` on Windows x86 | x64, ARM64 | x64, ARM64 | x86 (`jj-language-server`), x64, ARM64 | JDT LS selects the highest compatible entry requiring Java 17 or 21. Windows x86 uses Node/npm and strict npm engine checks. |
+| Java | Eclipse JDT LS | x64, ARM64 | x64, ARM64 | x64, ARM64 | JDT LS selects the highest compatible entry requiring Java 17 or 21. Windows x86 uses local fallback support when available. |
 | Kotlin | kotlin-language-server | x86, x64, ARM64 | x64, ARM64 | x86, x64, ARM64 | Java 11 or newer. |
 | Groovy | groovy-language-server | x64, ARM64 | x64, ARM64 | — | Java 17 or newer; the registry builds the server from source after download. |
-| JavaScript | typescript-language-server | x64, ARM64 | x64, ARM64 | x86, x64, ARM64 | Node.js 22.22.2 or newer. |
-| Python | Pyright | x64, ARM64 | x64, ARM64 | x86, x64, ARM64 | Node.js 14 or newer. |
+| JavaScript | typescript-language-server | x64, ARM64 | x64, ARM64 | x64, ARM64 | Node.js 22.22.2 or newer. Windows x86 uses local fallback support. |
+| Python | Pyright | x64, ARM64 | x64, ARM64 | x64, ARM64 | Node.js 14 or newer. Windows x86 has no equivalent local language-support provider. |
 | C# | csharp-ls | x64, ARM64 | x64, ARM64 | x86, x64, ARM64 | .NET SDK 10 or newer. |
 | C | clangd | x64, ARM64 | x64, ARM64 | x64 | The configured clangd release is installed from its platform archive. |
 | C++ | clangd | x64, ARM64 | x64, ARM64 | x64 | Shares the clangd installation with C. |
@@ -64,8 +69,7 @@ installed or that the download/installation succeeds.
 
 - The registry has no C/C++ server for Windows x86 or Windows ARM64, and no
   Groovy server for Windows.
-- Java's Windows x86 entry is a separate Node-based server, not JDT LS. JDT LS
-  entries cover x64 and ARM64 on Linux, macOS, and Windows.
+- Java, JavaScript, and Python have no language-server entry for Windows x86.
 - Some registry entries declare multiple equivalent architecture names.
   `LspServer.isSupportedOnCurrentPlatform()` normalizes x64/x86_64 and
   ARM64/aarch64 when matching the host.

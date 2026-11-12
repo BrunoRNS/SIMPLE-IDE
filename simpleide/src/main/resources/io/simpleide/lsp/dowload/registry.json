@@ -67,33 +67,6 @@
       "typeFile": "tar.gz"
     },
     {
-      "id": "jj-language-server-x86-windows",
-      "version": "0.2.0",
-      "name": "jj-language-server",
-      "languageId": "java",
-      "arch": ["x86"],
-      "os": ["WINDOWS"],
-      "latestVersionApi": "https://registry.npmjs.org/jj-language-server/latest",
-      "latestVersionPath": "version",
-      "installCommand": "cmd.exe",
-      "installArguments": [
-        "/c",
-        "npm.cmd",
-        "install",
-        "--prefix",
-        "${installDir}",
-        "--no-audit",
-        "--no-fund",
-        "--engine-strict",
-        "jj-language-server@${version}"
-      ],
-      "command": "node",
-      "arguments": [
-        "${installDir}/node_modules/jj-language-server/lib/cli.mjs",
-        "--stdio"
-      ]
-    },
-    {
       "id": "javascript-typescript-language-server",
       "version": "6.0.3",
       "name": "typescript-language-server",
@@ -126,7 +99,7 @@
       "version": "6.0.3",
       "name": "typescript-language-server",
       "languageId": "javascript",
-      "arch": ["x86", "x86_64", "aarch64", "arm64"],
+      "arch": ["x86_64", "aarch64", "arm64"],
       "os": ["WINDOWS"],
       "minimumVersion": "22.22.2",
       "versionCommand": "node",

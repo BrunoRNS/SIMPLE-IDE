@@ -9,6 +9,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -103,6 +104,7 @@ class EDTNodeListenerTest {
             assertThat(changed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
         }
 
-        assertThat(master.showTree()).hasSize(treeSizeBefore);
+        await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .untilAsserted(() -> assertThat(master.showTree()).hasSize(treeSizeBefore));
     }
 }

@@ -16,6 +16,7 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.fife.rsta.ac.LanguageSupportFactory;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ public class EditorTab extends JPanel {
   private final Document document;
   private final FileService fileService = new FileService();
   private LspEditorSupport lspSupport;
+  private boolean localLanguageSupportRegistered;
   private boolean closed;
   private final ButtonExit buttonExit;
   private final File file;
@@ -85,7 +87,19 @@ public class EditorTab extends JPanel {
       client.didClose(document.getUri());
       return;
     }
+    if (localLanguageSupportRegistered) {
+      LanguageSupportFactory.get().unregister(editor);
+      localLanguageSupportRegistered = false;
+    }
     lspSupport = new LspEditorSupport(editor, document, client);
+  }
+
+  public void enableLocalLanguageSupport() {
+    if (closed || lspSupport != null || localLanguageSupportRegistered) {
+      return;
+    }
+    LanguageSupportFactory.get().register(editor);
+    localLanguageSupportRegistered = true;
   }
 
   public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definitionAtCaret() {
@@ -181,6 +195,10 @@ public class EditorTab extends JPanel {
     closed = true;
     if (lspSupport != null) {
       lspSupport.close();
+    }
+    if (localLanguageSupportRegistered) {
+      LanguageSupportFactory.get().unregister(editor);
+      localLanguageSupportRegistered = false;
     }
     if (documentNode != null) {
       documentNode.close();

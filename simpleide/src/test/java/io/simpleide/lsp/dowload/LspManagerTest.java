@@ -118,18 +118,29 @@ class LspManagerTest {
     }
 
     @Test
-    void configuresJjLanguageServerOnlyForWindowsX86() {
-        LspServer jjLanguageServer = LspManager.getRegistry().getServers().stream()
-                .filter(server -> server.getId().equals("jj-language-server-x86-windows"))
-                .findFirst()
-                .orElseThrow();
+    void selectsTheJava21JdtlsReleaseOnLinuxX64() {
+        String originalOsName = System.getProperty("os.name");
+        String originalOsArch = System.getProperty("os.arch");
+        try {
+            System.setProperty("os.name", "Linux");
+            System.setProperty("os.arch", "amd64");
 
-        assertThat(jjLanguageServer.getArch()).containsExactly("x86");
-        assertThat(jjLanguageServer.getOs()).containsExactly("WINDOWS");
-        assertThat(jjLanguageServer.getVersionCommand()).isNull();
-        assertThat(jjLanguageServer.getInstallArguments()).contains("--engine-strict");
+            List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                    .filter(server -> server.getName().equals("jdtls"))
+                    .filter(LspServer::isSupportedOnCurrentPlatform)
+                    .toList();
+
+            assertThat(LspManager.selectClosestCompatibleServer(
+                    jdtlsServers, "openjdk version 21.0.1"))
+                    .extracting(LspServer::getId)
+                    .isEqualTo("jdtls-java21");
+        } finally {
+            System.setProperty("os.name", originalOsName);
+            System.setProperty("os.arch", originalOsArch);
+        }
     }
 
+    @Test
     @Test
     void configuresRustAnalyzerForWindowsX86() {
         LspServer rustServer = LspManager.getRegistry().getServers().stream()
@@ -170,13 +181,21 @@ class LspManagerTest {
                     .filter(LspServer::isSupportedOnCurrentPlatform)
                     .map(LspServer::getId))
                     .containsExactly(
-                            "jj-language-server-x86-windows",
-                            "javascript-typescript-language-server-windows",
                             "csharp-language-server-windows",
                             "kotlin-language-server-windows",
-                            "python-pyright-windows",
                             "go-gopls-windows",
                             "rust-analyzer-windows-x86");
+
+            assertThat(LspManager.getRegistry().getServers())
+                    .filteredOn(server -> List.of("java", "javascript", "python")
+                            .contains(server.getLanguageId()))
+                    .noneMatch(LspServer::isSupportedOnCurrentPlatform);
+
+            assertThat(LspManager.getRegistry().getServers().stream()
+                    .filter(server -> server.getLanguageId().equals("csharp"))
+                    .filter(LspServer::isSupportedOnCurrentPlatform))
+                    .extracting(LspServer::getId)
+                    .containsExactly("csharp-language-server-windows");
 
             System.setProperty("os.name", "Linux");
             assertThat(LspManager.getRegistry().getServers().stream()

@@ -1,10 +1,13 @@
 package io.simpleide.ui.editor;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -45,6 +48,30 @@ class EditorManagerTest {
       } catch (IOException error) {
         throw new AssertionError(error);
       }
+    });
+  }
+
+  @Test
+  void usesLocalLanguageSupportWhenNoLanguageServerMatches() throws Exception {
+    Path path = Files.writeString(root.resolve("Fallback.java"), "class Fallback {}");
+    AtomicReference<EditorTab> tab = new AtomicReference<>();
+
+    SwingUtilities.invokeAndWait(() -> {
+      try {
+        tab.set(new EditorTab(new File(path), new Document(path, "java")));
+        EditorManager.completeLanguageServerConnection(tab.get(), null, null);
+      } catch (IOException error) {
+        throw new AssertionError(error);
+      }
+    });
+
+    await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
+      SwingUtilities.invokeAndWait(() ->
+        assertThat(tab.get().getEditor().getParserCount()).isGreaterThan(0)));
+
+    SwingUtilities.invokeAndWait(() -> {
+      tab.get().close();
+      assertThat(tab.get().getEditor().getParserCount()).isZero();
     });
   }
 }
