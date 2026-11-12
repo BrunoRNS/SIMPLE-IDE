@@ -1,6 +1,6 @@
 # Handoff TODO for the next agent
 
-Continue the interrupted LSP, thread-lifecycle, and Windows x86 C++ CI work. Read this file first, then inspect the current worktree and preserve its changes. Nothing has been committed.
+Continue the interrupted LSP, thread-lifecycle, and Windows x86 C++ CI work. Read this file first, then inspect the current worktree and preserve its changes. The previous batch was committed as `fix ci 11`; the follow-up fixes below are uncommitted.
 
 ## User requirements
 
@@ -41,22 +41,41 @@ Continue the interrupted LSP, thread-lifecycle, and Windows x86 C++ CI work. Rea
 - `docs/LSP.md`
   - Updated coverage, fallback behavior, and thread/cache lifecycle documentation.
 
+## Follow-up fixes (uncommitted)
+
+- Removed `x86` from the Windows Python entry in `registry.json`; Windows x86
+  now has no Java, JavaScript, or Python language server.
+- Removed a duplicate `@Test` that prevented `LspManagerTest` from compiling.
+- Fixed `EditorManagerTest` to compare parser counts against the editor's
+  baseline: code folding also registers a parser, so the local language
+  support parser is removed but the folding parser remains after close.
+- Documented the actual bundled `languagesupport` 3.4.1 fallback coverage in
+  `docs/LSP.md` (Java, JavaScript, Groovy, and C among editor-mapped types;
+  no Python, C++, Kotlin, C#, Go, or Rust fallback).
+
 ## Verification state
 
-- The previous Java 21/Linux x64 CI run (`43255176533`, job `131311331274`) failed only in `EDTNodeListenerTest.documentNodeDispatchesEdtChangesThroughThreadMaster`: it asserted the global thread-tree size immediately after a latch and observed 26 instead of 25. This is consistent with the EDT task being removed just after the latch; the test now awaits cleanup.
-- The first local targeted Maven attempt compiled upstream modules but failed to compile `EditorManager` because the new `LspClient` type import was missing. That import was added.
-- After the missing import was fixed, the targeted run was started twice, most recently with:
+- `make test` passes locally: 20 bytecode-compiler tests and 183 application
+  tests, 0 failures, 8 skipped.
+- The targeted command
   `./mvnw -pl simpleide -am -Dtest=EditorManagerTest,LspManagerTest,EDTNodeListenerTest -Dsurefire.failIfNoSpecifiedTests=false test`
-- Both runs were stopped at the user's request before a result was available. Resume with this targeted command; do not claim tests passed. `make test` has not been run.
-- No Windows/MSYS2 environment is available locally, so the C++ workflow change still needs CI verification.
+  passes 22 tests.
+- `registry.json` parses as JSON and `.github/workflows/windows32.yml` parses
+  as YAML.
+- The previous Java 21/Linux x64 CI failure was only the thread-tree assertion
+  in `EDTNodeListenerTest.documentNodeDispatchesEdtChangesThroughThreadMaster`
+  observing 26 instead of 25. The test now waits for asynchronous task removal.
+- No Windows/MSYS2 environment is available locally, so the C++ workflow change
+  still needs CI verification.
+- The Java 21/Linux x64 LSP selection is covered by `LspManagerTest`; no
+  confirmed Java 21 LSP startup failure was reproduced.
 
 ## Next steps
 
-1. Inspect `git status` and the complete diff; check for accidental or conflicting edits.
-2. Run the targeted Maven test command above. Resolve compile/test failures, especially the new fallback parser assertion and asynchronous thread-tree cleanup.
-3. Add or adjust focused tests for release-cache concurrency and server selection if needed. Recheck that simulated Windows x86 properties do not affect unrelated tests.
-4. Review the server-selection/install path end to end for the reported wrong-server/version case. Verify Java 21 selects `jdtls-java21` on Linux x64 and that startup errors cannot silently select a different server.
-5. Confirm local fallback activation/unregistration and available language coverage against the actual RSyntaxTextArea library; keep Python's limitation explicit.
-6. Validate workflow YAML and inspect the next Windows x86 CI run for the captured `g++` diagnostics. If it still fails, use those diagnostics to fix the toolchain rather than guessing.
-7. Review thread shutdown paths for leaked processes/threads and ensure `ThreadMaster` tree nodes are removed deterministically.
-8. Re-run the targeted tests after fixes, inspect the final diff, and summarize verified results and any remaining Windows-only CI limitation.
+1. Inspect the next Windows x86 CI run and use the captured `g++` diagnostics
+   if the C++ probe still fails; do not guess further about the toolchain.
+2. Commit the follow-up fixes after review.
+3. If a wrong-server/version report recurs, capture the selected server id,
+   resolved version, command, and install marker before changing selection.
+4. Re-run targeted tests after any further changes and inspect the final diff,
+   including the remaining Windows-only CI limitation.

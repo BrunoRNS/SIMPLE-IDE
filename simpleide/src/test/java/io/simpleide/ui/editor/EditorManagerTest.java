@@ -65,13 +65,14 @@ class EditorManagerTest {
       }
     });
 
+    int baselineParsers = tab.get().getEditor().getParserCount();
     await().atMost(2, TimeUnit.SECONDS).untilAsserted(() ->
       SwingUtilities.invokeAndWait(() ->
-        assertThat(tab.get().getEditor().getParserCount()).isGreaterThan(0)));
+        assertThat(tab.get().getEditor().getParserCount()).isGreaterThan(baselineParsers)));
 
     SwingUtilities.invokeAndWait(() -> {
       tab.get().close();
-      assertThat(tab.get().getEditor().getParserCount()).isZero();
+      assertThat(tab.get().getEditor().getParserCount()).isEqualTo(baselineParsers);
     });
   }
 }

@@ -366,7 +366,7 @@
       "version": "1.1.414",
       "name": "pyright",
       "languageId": "python",
-      "arch": ["x86", "x86_64", "aarch64", "arm64"],
+      "arch": ["x86_64", "aarch64", "arm64"],
       "os": ["WINDOWS"],
       "minimumVersion": "14.0.0",
       "versionCommand": "node",

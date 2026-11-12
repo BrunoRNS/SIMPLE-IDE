@@ -141,7 +141,6 @@ class LspManagerTest {
     }
 
     @Test
-    @Test
     void configuresRustAnalyzerForWindowsX86() {
         LspServer rustServer = LspManager.getRegistry().getServers().stream()
                 .filter(server -> server.getId().equals("rust-analyzer-windows-x86"))

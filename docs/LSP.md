@@ -39,10 +39,20 @@ their launch/install metadata live in
 
 Initialization timeouts use the managed scheduler rather than the JVM
 common-pool timeout facility. Language server processes are operating-system
-processes, not Java threads. The local RSyntaxTextArea fallback provides only
-the features implemented by its language-support library; it is not an LSP
-server and does not provide equivalent support for every language (notably
-Python).
+processes, not Java threads.
+
+### Local language-support fallback
+
+When no language server matches the host or a connection fails, the editor
+installs `LanguageSupportFactory` support for the file's syntax style and
+removes it when a real LSP client connects or the tab closes. The bundled
+`languagesupport` 3.4.1 library provides support for Java, JavaScript, Groovy,
+C, CSS, HTML, JSP, Less, Perl, PHP, TypeScript, Unix shell, XML, and 6502
+assembly. Of the file types the editor currently maps, this covers Java,
+JavaScript, Groovy, and C. It has no provider for Python, C++, Kotlin, C#, Go,
+or Rust; those files keep syntax highlighting only, and Python has no local
+fallback. The fallback is not an LSP server and does not provide diagnostics,
+go-to-definition, or formatting.
 
 ## Server coverage
 
