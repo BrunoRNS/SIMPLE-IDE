@@ -43,9 +43,11 @@ jobs:
           pacman -Sy --noconfirm
 
           echo "Installing 32-bit MinGW GCC..."
+          pacman -S --needed --noconfirm mingw-w64-i686-toolchain
           pacman -S --needed --noconfirm mingw-w64-i686-gcc
 
           echo "Checking installed package..."
+          pacman -Q mingw-w64-i686-toolchain
           pacman -Q mingw-w64-i686-gcc
 
           echo "Checking compiler executables..."
@@ -233,8 +235,13 @@ jobs:
           }
 
           # C++ compilation and execution
-          $cppSource = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.cpp"
-          $cppExecutable = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.exe"
+
+          $cppDirectory = Join-Path $env:RUNNER_TEMP "cpp-toolchain-test"
+
+          New-Item -ItemType Directory -Path $cppDirectory -Force | Out-Null
+
+          $cppSource = Join-Path $cppDirectory "main.cpp"
+          $cppExecutable = Join-Path $cppDirectory "main.exe"
 
           $cppSourceCode = @'
           #include <iostream>
@@ -245,27 +252,43 @@ jobs:
           }
           '@
 
-          Set-Content -Path $cppSource -Value $cppSourceCode -Encoding Ascii
+          # Explicitly create the source file
+          Set-Content -LiteralPath $cppSource -Value $cppSourceCode -Encoding Ascii
 
-          $compileOutput = & g++ $cppSource -o $cppExecutable 2>&1
-          $compileExitCode = $LASTEXITCODE
-
-          if ($compileExitCode -ne 0) {
-            Write-Host ($compileOutput | Out-String)
-            Write-Host "Compiler: $((Get-Command g++).Source)"
-            Write-Host "Compiler version: $(& g++ --version | Select-Object -First 1)"
-            Write-Host "C++ include search paths:"
-            & g++ -v -E -x c++ NUL 2>&1 |
-              Select-String -Pattern "include|error|fatal"
-
-            throw "Could not compile the C++ toolchain probe (exit code $compileExitCode)."
+          # Verify that the source file exists
+          if (-not (Test-Path -LiteralPath $cppSource -PathType Leaf)) {
+              throw "C++ source file was not created: $cppSource"
           }
 
+          Write-Host "C++ source: $cppSource"
+          Write-Host "C++ executable: $cppExecutable"
+
+          Get-Item -LiteralPath $cppSource | Format-List FullName, Length
+
+          Get-Item -LiteralPath $cppSource | Format-List FullName, Length
+          Write-Host "C++ source contents:"
+          Get-Content -LiteralPath $cppSource
+
+          # Compile
+          & g++ $cppSource -o $cppExecutable
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "Could not compile the C++ source."
+          }
+
+          # Verify executable
+          if (-not (Test-Path -LiteralPath $cppExecutable -PathType Leaf)) {
+              throw "G++ did not generate the executable: $cppExecutable"
+          }
+
+          # Execute
           $cppOutput = (& $cppExecutable | Out-String).Trim()
 
           if ($LASTEXITCODE -ne 0 -or $cppOutput -ne "cpp-toolchain-ok") {
-            throw "Could not run the C++ toolchain probe; received '$cppOutput'."
+              throw "C++ execution failed. Output: '$cppOutput'"
           }
+
+          Write-Host "C++ compilation and execution successful."
 
           # Go
           $goCommand = Get-Command go -ErrorAction SilentlyContinue
