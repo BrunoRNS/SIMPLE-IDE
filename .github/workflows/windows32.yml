@@ -16,15 +16,6 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Configure Windows temp directory
-        shell: pwsh
-        run: |
-          $tempDirectory = Join-Path $env:RUNNER_TEMP "simpleide-ci"
-          New-Item -ItemType Directory -Force -Path $tempDirectory | Out-Null
-          Add-Content -Path $env:GITHUB_ENV -Value "TEMP=$tempDirectory"
-          Add-Content -Path $env:GITHUB_ENV -Value "TMP=$tempDirectory"
-          Add-Content -Path $env:GITHUB_ENV -Value "TMPDIR=$tempDirectory"
-
       - name: Set up 32-bit Java
         uses: actions/setup-java@v5
         with:
@@ -135,6 +126,24 @@ jobs:
           Write-Host "GCC target: $gccTarget"
           if ($gccTarget -notmatch '^(i[3-6]86|x86)-') {
             throw "Expected a 32-bit GCC toolchain, received '$gccTarget'."
+          }
+          $gxxTarget = (& g++ -dumpmachine | Out-String).Trim()
+          Write-Host "G++ target: $gxxTarget"
+          if ($LASTEXITCODE -ne 0 -or $gxxTarget -notmatch '^(i[3-6]86|x86)-') {
+            throw "Expected a working 32-bit G++ toolchain, received '$gxxTarget'."
+          }
+          $cppSource = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.cpp"
+          $cppExecutable = Join-Path $env:RUNNER_TEMP "cpp-toolchain-probe.exe"
+          '#include <iostream>
+            int main() { std::cout << "cpp-toolchain-ok" << std::endl; }' |
+            Set-Content -Path $cppSource
+          & g++ $cppSource -o $cppExecutable
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not compile the C++ toolchain probe."
+          }
+          $cppOutput = (& $cppExecutable | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0 -or $cppOutput -ne "cpp-toolchain-ok") {
+            throw "Could not run the C++ toolchain probe; received '$cppOutput'."
           }
           $goCommand = Get-Command go -ErrorAction SilentlyContinue
           if (-not $goCommand) {
