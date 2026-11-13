@@ -253,7 +253,7 @@ jobs:
           $cExecutable = Join-Path $env:RUNNER_TEMP "gcc-test.exe"
           'int main(void) { return 0; }' |
             Set-Content -LiteralPath $cSource -Encoding Ascii
-          & gcc $cSource -o $cExecutable
+          & gcc $cSource -o $cExecutable -static-libgcc
           if ($LASTEXITCODE -ne 0 -or -not (Test-Path $cExecutable)) {
             throw "GCC compilation failed."
           }

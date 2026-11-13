@@ -70,6 +70,11 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspClient.class);
   private static final long INITIALIZATION_TIMEOUT_SECONDS = 30;
 
+  static {
+    java.util.logging.Logger.getLogger("org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer")
+        .setLevel(java.util.logging.Level.WARNING);
+  }
+
   private final Consumer<PublishDiagnosticsParams> diagnosticsHandler;
   private final CompletableFuture<Void> initialized = new CompletableFuture<>();
   private final CompletableFuture<Void> shutdownComplete = new CompletableFuture<>();
@@ -567,13 +572,11 @@ public final class LspClient implements LanguageClient, AutoCloseable {
           activeServer.shutdown().get(2, TimeUnit.SECONDS);
         } catch (InterruptedException error) {
           interrupted = true;
-        } catch (ExecutionException | TimeoutException | RuntimeException error) {
-          LOGGER.debug("Language server shutdown did not complete cleanly.", error);
+        } catch (ExecutionException | TimeoutException | RuntimeException ignored) {
         }
         try {
           activeServer.exit();
-        } catch (RuntimeException error) {
-          LOGGER.debug("Unable to send language server exit notification.", error);
+        } catch (RuntimeException ignored) {
         }
       }
     } finally {

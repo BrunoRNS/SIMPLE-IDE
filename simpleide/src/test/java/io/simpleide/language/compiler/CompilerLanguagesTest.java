@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.nio.file.Files;
@@ -113,6 +114,36 @@ class CompilerLanguagesTest {
         assertEquals("i686-pc-windows-gnu", RustLanguage.windows32Target("Windows 11", "i686"));
         assertNull(RustLanguage.windows32Target("Windows 11", "amd64"));
         assertNull(RustLanguage.windows32Target("Linux", "x86"));
+    }
+
+    @Test
+    void windowsCAndCppUseStaticRuntimeLinkerFlags() {
+        withOperatingSystem("Windows 11", () -> {
+            List<String> cCommand = new CLanguage(tempDirectory.resolve("main.c"))
+                    .getProcessCommands().get(0);
+            assertTrue(cCommand.contains("-static-libgcc"));
+            assertFalse(cCommand.contains("-static-libstdc++"));
+
+            List<String> cppCommand = new CPPLanguage(tempDirectory.resolve("main.cpp"))
+                    .getProcessCommands().get(0);
+            assertTrue(cppCommand.contains("-static-libgcc"));
+            assertTrue(cppCommand.contains("-static-libstdc++"));
+        });
+    }
+
+    @Test
+    void nonWindowsCAndCppDoNotUseStaticRuntimeLinkerFlags() {
+        withOperatingSystem("Linux", () -> {
+            List<String> cCommand = new CLanguage(tempDirectory.resolve("main.c"))
+                    .getProcessCommands().get(0);
+            assertFalse(cCommand.contains("-static-libgcc"));
+            assertFalse(cCommand.contains("-static-libstdc++"));
+
+            List<String> cppCommand = new CPPLanguage(tempDirectory.resolve("main.cpp"))
+                    .getProcessCommands().get(0);
+            assertFalse(cppCommand.contains("-static-libgcc"));
+            assertFalse(cppCommand.contains("-static-libstdc++"));
+        });
     }
 
     @Test
@@ -260,6 +291,20 @@ class CompilerLanguagesTest {
         Input.getInstance().set("message");
 
         runAndAssertOutput(new RustLanguage(source), "rust-received:message");
+    }
+
+    private void withOperatingSystem(String osName, Runnable action) {
+        String originalOsName = System.getProperty("os.name");
+        try {
+            System.setProperty("os.name", osName);
+            action.run();
+        } finally {
+            if (originalOsName == null) {
+                System.clearProperty("os.name");
+            } else {
+                System.setProperty("os.name", originalOsName);
+            }
+        }
     }
 
     private void runAndAssertOutput(AbstractLanguage language, String expectedOutput) throws Exception {
