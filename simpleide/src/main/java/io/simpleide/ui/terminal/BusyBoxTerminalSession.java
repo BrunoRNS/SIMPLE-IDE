@@ -170,6 +170,15 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         return state;
     }
 
+    String watchDiagnostics() {
+        PtyProcess activeProcess = process;
+        if (activeProcess == null) {
+            return processDiagnostics() + ", descendants=[]";
+        }
+        return processDiagnostics()
+            + ", descendants=" + processTreeDiagnostics(ProcessTreeTerminator.captureDescendants(activeProcess));
+    }
+
     static final class FallbackStartupException extends IOException {
 
         private FallbackStartupException(String message, Throwable busyBoxFailure, Throwable fallbackFailure) {
@@ -186,11 +195,22 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             return;
         }
         LOGGER.info("Forcing terminal process-tree shutdown: {}", processDiagnostics());
+        boolean interrupted = Thread.interrupted();
         try {
             ProcessTreeTerminator.terminate(activeProcess, platform);
+            if (!activeProcess.waitFor(2, TimeUnit.SECONDS) && isProcessAlive(activeProcess)) {
+                LOGGER.warn("Terminal shell remained alive after forced termination: {}", processDiagnostics());
+            }
             LOGGER.info("Forced terminal shutdown returned: {}", processDiagnostics());
+        } catch (InterruptedException exception) {
+            interrupted = true;
+            LOGGER.warn("Interrupted while forcing the BusyBox process to exit: {}", processDiagnostics(), exception);
         } catch (RuntimeException exception) {
             LOGGER.error("Unable to force the BusyBox process to exit: {}", processDiagnostics(), exception);
+        } finally {
+            if (interrupted) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
 
@@ -349,27 +369,39 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
             LOGGER.error("Unable to stop the BusyBox process during cleanup.", exception);
             forceTerminate();
         } finally {
-            try {
-                BusyBoxTtyConnector activeConnector = connector;
-                if (activeConnector != null) {
-                    activeConnector.close();
-                }
-            } catch (RuntimeException exception) {
-                LOGGER.error("Unable to close the BusyBox PTY connector.", exception);
+            closeResources();
+            if (interrupted) {
+                Thread.currentThread().interrupt();
             }
-            try {
-                BusyBoxExecutable extractedExecutable = executable;
-                if (extractedExecutable != null) {
-                    extractedExecutable.close();
-                }
-            } catch (IOException exception) {
-                LOGGER.error("Unable to remove the extracted BusyBox executable.", exception);
-            } finally {
-                if (interrupted) {
-                    Thread.currentThread().interrupt();
-                }
-                ACTIVE_SESSIONS.remove(this);
+        }
+    }
+
+    void detach() {
+        terminationRequested.set(true);
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        closeResources();
+    }
+
+    private void closeResources() {
+        try {
+            BusyBoxTtyConnector activeConnector = connector;
+            if (activeConnector != null) {
+                activeConnector.close();
             }
+        } catch (RuntimeException exception) {
+            LOGGER.error("Unable to close the BusyBox PTY connector.", exception);
+        }
+        try {
+            BusyBoxExecutable extractedExecutable = executable;
+            if (extractedExecutable != null) {
+                extractedExecutable.close();
+            }
+        } catch (IOException exception) {
+            LOGGER.error("Unable to remove the extracted BusyBox executable.", exception);
+        } finally {
+            ACTIVE_SESSIONS.remove(this);
         }
     }
 

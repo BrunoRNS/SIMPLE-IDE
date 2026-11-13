@@ -2,12 +2,17 @@ package io.simpleide.ui.terminal;
 
 import java.awt.Component;
 import java.awt.Container;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.JButton;
@@ -20,6 +25,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.junit.jupiter.api.Test;
+
+import com.pty4j.PtyProcess;
+import com.pty4j.WinSize;
 
 import io.simpleide.language.config.LangPlatform;
 
@@ -93,6 +101,53 @@ class BusyBoxTerminalControllerTest {
         CountDownLatch closed = new CountDownLatch(1);
         controller.onWindowClosing(closed::countDown);
         assertTrue(closed.await(5, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void detachesAndRemovesTabWhenTerminalProcessCannotBeStopped() throws Exception {
+        LangPlatform platform = LangPlatform.getCurrentPlatform();
+        assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+
+        TerminalPanel panel = new TerminalPanel();
+        BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
+        SwingUtilities.invokeAndWait(() -> findButtons(panel).get(0).doClick());
+
+        await("The terminal should finish launching")
+            .atMost(10, TimeUnit.SECONDS)
+            .until(() -> terminalStates(controller).stream()
+                .anyMatch(state -> state.launchComplete && state.session != null && state.session.isAlive()));
+
+        BusyBoxTerminalSession session = terminalStates(controller).get(0).session;
+        NeverEndingPtyProcess stuckProcess = new NeverEndingPtyProcess();
+        setField(session, "process", stuckProcess);
+
+        CountDownLatch closeActionReturned = new CountDownLatch(1);
+        SwingUtilities.invokeLater(() -> {
+            findButtons(panel).stream()
+                .filter(BusyBoxTerminalControllerTest::isCloseButton)
+                .findFirst()
+                .orElseThrow()
+                .doClick();
+            closeActionReturned.countDown();
+        });
+        assertTrue(closeActionReturned.await(1, TimeUnit.SECONDS), "Closing a stuck terminal blocked the EDT.");
+
+        await("A terminal whose process cannot be stopped should still be removed from the UI")
+            .atMost(15, TimeUnit.SECONDS)
+            .until(() -> terminalStates(controller).isEmpty() && terminalTabCount(panel) == 0);
+
+        assertTrue(stuckProcess.isAlive(), "The fake unstoppable process should still be alive after detach.");
+        stuckProcess.markExited();
+
+        CountDownLatch closed = new CountDownLatch(1);
+        controller.onWindowClosing(closed::countDown);
+        assertTrue(closed.await(5, TimeUnit.SECONDS));
+    }
+
+    private static void setField(Object target, String name, Object value) throws Exception {
+        Field field = target.getClass().getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(target, value);
     }
 
     private static boolean isCloseButtonEnabled(TerminalPanel panel) {
@@ -200,4 +255,79 @@ class BusyBoxTerminalControllerTest {
     }
 
     private record TerminalState(BusyBoxTerminalSession session, boolean launchComplete) {}
+
+    private static final class NeverEndingPtyProcess extends PtyProcess {
+
+        private final AtomicBoolean alive = new AtomicBoolean(true);
+
+        @Override
+        public void setWinSize(WinSize winSize) {
+        }
+
+        @Override
+        public WinSize getWinSize() {
+            return new WinSize(80, 24);
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return OutputStream.nullOutputStream();
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public InputStream getErrorStream() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public int waitFor() {
+            return isAlive() ? -1 : 0;
+        }
+
+        @Override
+        public boolean waitFor(long timeout, TimeUnit unit) {
+            return !isAlive();
+        }
+
+        @Override
+        public int exitValue() {
+            if (isAlive()) {
+                throw new IllegalThreadStateException("Process has not exited.");
+            }
+            return 0;
+        }
+
+        @Override
+        public void destroy() {
+        }
+
+        @Override
+        public Process destroyForcibly() {
+            return this;
+        }
+
+        @Override
+        public boolean isAlive() {
+            return alive.get();
+        }
+
+        @Override
+        public long pid() {
+            return 999_999_999L;
+        }
+
+        @Override
+        public CompletableFuture<Process> onExit() {
+            return new CompletableFuture<>();
+        }
+
+        private void markExited() {
+            alive.set(false);
+        }
+    }
 }

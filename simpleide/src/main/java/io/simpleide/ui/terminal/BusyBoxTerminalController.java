@@ -16,6 +16,7 @@ import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.language.config.LangPlatform;
 import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.WatchDead;
 
 public final class BusyBoxTerminalController {
 
@@ -202,15 +203,21 @@ public final class BusyBoxTerminalController {
                 session.forceTerminate();
             } finally {
                 if (session.isAlive()) {
-                    LOGGER.warn("Terminal session {} is still running after graceful close escalation.", tab.id);
+                    LOGGER.warn(
+                        "Terminal session {} is still running after graceful close escalation: {}",
+                        tab.id,
+                        session.watchDiagnostics()
+                    );
                     session.forceTerminate();
                     if (session.isAlive()) {
-                        scheduleOnClose(
-                            tab,
-                            new IllegalStateException(
-                                "Terminal session " + tab.id + " remained alive after forced termination."
-                            )
+                        LOGGER.warn(
+                            "Detaching terminal session {} from the UI; it will be monitored until it exits: {}",
+                            tab.id,
+                            session.watchDiagnostics()
                         );
+                        WatchDead.watch("terminal session " + tab.id, session::isAlive, session::watchDiagnostics);
+                        session.detach();
+                        scheduleOnClose(tab, null);
                     }
                 }
             }

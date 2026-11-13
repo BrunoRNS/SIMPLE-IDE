@@ -1,11 +1,12 @@
 package io.simpleide.ui.terminal;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
@@ -222,9 +223,11 @@ class ProcessTreeTerminatorTest {
     }
 
     private static long processGroupId(long pid) throws Exception {
-        Process query = new ProcessBuilder("/bin/ps", "-o", "pgid=", "-p", Long.toString(pid)).start();
-        assertTrue(query.waitFor(2, TimeUnit.SECONDS), "Process group query timed out.");
-        assertEquals(0, query.exitValue());
-        return Long.parseLong(new String(query.getInputStream().readAllBytes()).trim());
+        String stat = Files.readString(Path.of("/proc", Long.toString(pid), "stat"));
+        int commandEnd = stat.lastIndexOf(')');
+        assertTrue(commandEnd >= 0, "Unexpected /proc stat format: " + stat);
+        String[] fields = stat.substring(commandEnd + 2).trim().split("\\s+");
+        assertTrue(fields.length >= 3, "Unexpected /proc stat format: " + stat);
+        return Long.parseLong(fields[2]);
     }
 }
