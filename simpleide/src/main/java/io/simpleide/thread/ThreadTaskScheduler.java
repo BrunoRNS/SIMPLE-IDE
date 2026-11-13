@@ -56,32 +56,33 @@ final class ThreadTaskScheduler {
     void schedule(NodePattern node) {
         BigInteger id = node.getId();
         ManagedTask task;
+        ThreadPoolExecutor taskExecutor;
         synchronized (this) {
             if (shutdown) {
                 throw new IllegalStateException("Thread task scheduler has been shut down.");
             }
-            if (!scheduledIds.add(id)) {
+            if (dedicatedExecutors.containsKey(id) || !scheduledIds.add(id)) {
                 return;
             }
             task = new ManagedTask(node, this::onTaskFinished);
             activeTasks.put(id, task);
-        if (dedicatedExecutors.containsKey(id)) {
-            return;
+            if (node.isEDT()) {
+                taskExecutor = null;
+            } else {
+                taskExecutor = executorFor(node);
+                taskExecutors.put(id, taskExecutor);
+            }
         }
-        if (!scheduledIds.add(id)) {
-            return;
-        }
-        if (node.isEDT()) {
+        if (taskExecutor == null) {
             EventQueue.invokeLater(task);
             return;
         }
-        ThreadPoolExecutor taskExecutor = executorFor(node);
-        taskExecutors.put(id, taskExecutor);
         try {
             taskExecutor.execute(task);
         } catch (RuntimeException exception) {
             synchronized (this) {
                 activeTasks.remove(id, task);
+                taskExecutors.remove(id, taskExecutor);
                 scheduledIds.remove(id);
             }
             LOGGER.error(
@@ -170,7 +171,8 @@ final class ThreadTaskScheduler {
             dedicatedExecutors.clear();
         }
         LOGGER.info("Shutting down thread manager; cancelling {} active node(s).", tasks.size());
-        tasks.forEach(task -> this.cancel(task));
+        tasks.forEach(ScheduledTask::cancel);
+        pools.forEach(ThreadPoolExecutor::shutdownNow);
         timer.shutdownNow();
         executor.shutdownNow();
     }

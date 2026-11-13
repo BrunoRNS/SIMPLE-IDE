@@ -80,7 +80,7 @@ public final class ProcessTreeTerminator {
             }
         }
 
-        if (!windows) {
+        if (!windows && root.isAlive()) {
             terminatePosixProcessGroup(process);
         }
         terminate(root, signalledPids);

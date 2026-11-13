@@ -280,24 +280,25 @@ public final class BusyBoxTerminalController {
     }
 
     private Runnable getWindowCloseCallbackIfFinished() {
+        Runnable callback;
         synchronized (tabsLock) {
             if (!windowClosing || !tabs.isEmpty()) {
                 return null;
             }
-            terminalWorkers.close();
-            Runnable callback = onAllTabsClosed;
+            callback = onAllTabsClosed;
             onAllTabsClosed = null;
-            return callback;
         }
+        terminalWorkers.close();
+        return callback;
     }
 
     private void runCloseCallback() {
         Runnable callback;
         synchronized (tabsLock) {
-            terminalWorkers.close();
             callback = onAllTabsClosed;
             onAllTabsClosed = null;
         }
+        terminalWorkers.close();
         if (callback != null) {
             callback.run();
         }

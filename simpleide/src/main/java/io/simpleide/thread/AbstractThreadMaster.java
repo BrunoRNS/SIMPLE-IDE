@@ -105,7 +105,7 @@ public abstract class AbstractThreadMaster implements Tree {
             }
             tree.addNode(task);
             try {
-                if (!initialized) {
+                if (!initialized.get()) {
                     initialize();
                 } else {
                     scheduler.schedule(task);
