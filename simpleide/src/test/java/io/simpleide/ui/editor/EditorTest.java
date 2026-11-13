@@ -2,10 +2,12 @@ package io.simpleide.ui.editor;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.file.Files;
+import java.awt.Font;
 import java.nio.file.Path;
 
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.plaf.FontUIResource;
 
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.Test;
@@ -19,24 +21,26 @@ class EditorTest {
   Path tempDirectory;
 
   @Test
-  void loadFileDisplaysItsContentsAndUsesSyntaxStylesForEveryLanguage() throws Exception {
-    String[] extensions = {
-        "java", "kt", "groovy", "js", "py", "cs", "cpp", "c", "go", "rs"
-    };
-    String[] syntaxStyles = {
-        SyntaxConstants.SYNTAX_STYLE_JAVA, SyntaxConstants.SYNTAX_STYLE_KOTLIN,
-        SyntaxConstants.SYNTAX_STYLE_GROOVY, SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT,
-        SyntaxConstants.SYNTAX_STYLE_PYTHON, SyntaxConstants.SYNTAX_STYLE_CSHARP,
-        SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS, SyntaxConstants.SYNTAX_STYLE_C,
-        SyntaxConstants.SYNTAX_STYLE_GO, SyntaxConstants.SYNTAX_STYLE_RUST
-    };
-    File[] files = new File[extensions.length];
-    for (int index = 0; index < extensions.length; index++) {
-      files[index] = new File(Files.writeString(
-          tempDirectory.resolve("main." + extensions[index]), "source"));
-    }
-    File textFile = new File(Files.writeString(tempDirectory.resolve("notes.txt"), "plain text"));
+  void updatesEditorFontWhenTheUiFontSizeChanges() throws Exception {
+    Object originalFont = UIManager.get("TextArea.font");
+    try {
+      SwingUtilities.invokeAndWait(() -> {
+        UIManager.put("TextArea.font", new FontUIResource(Font.MONOSPACED, Font.PLAIN, 15));
+        Editor editor = new Editor();
+        assertThat(editor.getFont().getSize()).isEqualTo(15);
 
+        UIManager.put("TextArea.font", new FontUIResource(Font.MONOSPACED, Font.PLAIN, 24));
+        editor.updateUI();
+
+        assertThat(editor.getFont().getSize()).isEqualTo(24);
+      });
+    } finally {
+      SwingUtilities.invokeAndWait(() -> restoreUiValue("TextArea.font", originalFont));
+    }
+  }
+
+  @Test
+  void loadFileDisplaysItsContentsAndUsesItsSyntaxStyle() throws Exception {
     SwingUtilities.invokeAndWait(() -> {
       Editor editor = new Editor();
       for (int index = 0; index < files.length; index++) {
@@ -48,5 +52,13 @@ class EditorTest {
       assertThat(editor.getText()).isEqualTo("plain text");
       assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_NONE);
     });
+  }
+
+  private static void restoreUiValue(String key, Object value) {
+    if (value == null) {
+      UIManager.getDefaults().remove(key);
+    } else {
+      UIManager.put(key, value);
+    }
   }
 }

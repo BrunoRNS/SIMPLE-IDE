@@ -22,9 +22,7 @@ test-nolang:
 	$(MVNW) -B -DexcludedGroups=language-tools test
 
 run: jar
-	java -Dsimpleide.lsp.ambus.home="$(AMBUS_HOME)" -jar "$(APP_JAR)"
-
-jar: build
+	java --enable-preview -jar $(APP_JAR)
 
 clean:
 	$(MVNW) -B clean
