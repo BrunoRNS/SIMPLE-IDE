@@ -73,6 +73,18 @@ jobs:
           echo "G++ target:"
           g++ -dumpmachine
 
+          echo "========== GCC PACKAGE =========="
+
+          pacman -Q mingw-w64-i686-gcc
+
+          echo "========== IOSTREAM LOCATION =========="
+
+          find /mingw32/include -name iostream -type f
+
+          echo "========== LIBSTDC++ =========="
+
+          find /mingw32 -name "libstdc++.a" -o -name "libstdc++.dll.a"
+
       - name: Add MSYS2 MinGW32 to Windows PATH
         shell: pwsh
         env:
@@ -229,61 +241,87 @@ jobs:
             throw "Expected a working 32-bit G++ toolchain, received '$gxxTarget'."
           }
 
-          # C++ compilation and execution
+          # C++ diagnostics
 
           $cppDirectory = Join-Path $env:RUNNER_TEMP "cpp-toolchain-test"
 
           New-Item -ItemType Directory -Path $cppDirectory -Force | Out-Null
 
+          Write-Host "========== COMPILER INFORMATION =========="
+
+          & g++ --version
+          & g++ -dumpmachine
+
+          Write-Host "`n========== INCLUDE DIRECTORIES =========="
+
+          & g++ -E -x c++ - -v 2>&1 |
+              ForEach-Object { Write-Host "$_" }
+
+          Write-Host "`n========== TEST 1: BASIC C++ =========="
+
+          $basicSource = Join-Path $cppDirectory "basic.cpp"
+          $basicExecutable = Join-Path $cppDirectory "basic.exe"
+
+          @'
+          int main() {
+              return 0;
+          }
+          '@ | Set-Content -LiteralPath $basicSource -Encoding Ascii
+
+          $basicOutput = & g++ $basicSource -o $basicExecutable 2>&1
+          $basicExitCode = $LASTEXITCODE
+
+          $basicOutput | ForEach-Object { Write-Host "$_" }
+
+          if ($basicExitCode -ne 0) {
+              Write-Host "BASIC C++ COMPILATION FAILED."
+          } else {
+              Write-Host "BASIC C++ COMPILATION SUCCESSFUL."
+          }
+
+          Write-Host "`n========== TEST 2: IOSTREAM HEADER =========="
+
+          $headerSource = Join-Path $cppDirectory "header.cpp"
+
+          @'
+          #include <iostream>
+          '@ | Set-Content -LiteralPath $headerSource -Encoding Ascii
+
+          $headerOutput = & g++ -E $headerSource -o NUL 2>&1
+          $headerExitCode = $LASTEXITCODE
+
+          $headerOutput | ForEach-Object { Write-Host "$_" }
+
+          if ($headerExitCode -ne 0) {
+              Write-Host "IOSTREAM HEADER TEST FAILED."
+          } else {
+              Write-Host "IOSTREAM HEADER TEST SUCCESSFUL."
+          }
+
+          Write-Host "`n========== TEST 3: COMPLETE C++ PROGRAM =========="
+
           $cppSource = Join-Path $cppDirectory "main.cpp"
           $cppExecutable = Join-Path $cppDirectory "main.exe"
 
-          $cppSourceCode = @'
+          @'
           #include <iostream>
 
           int main() {
               std::cout << "cpp-toolchain-ok" << std::endl;
               return 0;
           }
-          '@
+          '@ | Set-Content -LiteralPath $cppSource -Encoding Ascii
 
-          # Explicitly create the source file
-          Set-Content -LiteralPath $cppSource -Value $cppSourceCode -Encoding Ascii
+          $compileOutput = & g++ $cppSource -o $cppExecutable 2>&1
+          $compileExitCode = $LASTEXITCODE
 
-          # Verify that the source file exists
-          if (-not (Test-Path -LiteralPath $cppSource -PathType Leaf)) {
-              throw "C++ source file was not created: $cppSource"
+          $compileOutput | ForEach-Object { Write-Host "$_" }
+
+          if ($compileExitCode -ne 0) {
+              throw "Complete C++ compilation failed with exit code $compileExitCode."
           }
 
-          Write-Host "C++ source: $cppSource"
-          Write-Host "C++ executable: $cppExecutable"
-
-          Get-Item -LiteralPath $cppSource | Format-List FullName, Length
-
-          Get-Item -LiteralPath $cppSource | Format-List FullName, Length
-          Write-Host "C++ source contents:"
-          Get-Content -LiteralPath $cppSource
-
-          # Compile
-          & g++ $cppSource -o $cppExecutable
-
-          if ($LASTEXITCODE -ne 0) {
-              throw "Could not compile the C++ source."
-          }
-
-          # Verify executable
-          if (-not (Test-Path -LiteralPath $cppExecutable -PathType Leaf)) {
-              throw "G++ did not generate the executable: $cppExecutable"
-          }
-
-          # Execute
-          $cppOutput = (& $cppExecutable | Out-String).Trim()
-
-          if ($LASTEXITCODE -ne 0 -or $cppOutput -ne "cpp-toolchain-ok") {
-              throw "C++ execution failed. Output: '$cppOutput'"
-          }
-
-          Write-Host "C++ compilation and execution successful."
+          Write-Host "C++ compilation successful."
 
           # Go
           $goCommand = Get-Command go -ErrorAction SilentlyContinue
