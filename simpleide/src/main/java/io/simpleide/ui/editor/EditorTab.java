@@ -5,6 +5,7 @@ import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
@@ -17,7 +18,9 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.fife.rsta.ac.LanguageSupport;
 import org.fife.rsta.ac.LanguageSupportFactory;
+import org.fife.rsta.ac.java.JavaLanguageSupport;
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.fife.ui.autocomplete.CompletionProvider;
 import org.fife.ui.rtextarea.RTextScrollPane;
@@ -36,6 +39,7 @@ import io.simpleide.utils.service.FileService;
 
 public class EditorTab extends JPanel {
   private static final Logger LOGGER = LoggerFactory.getLogger(EditorTab.class);
+  private static final AtomicBoolean JAVA_JRE_CLASS_SOURCE_REGISTERED = new AtomicBoolean();
 
   private final Editor editor;
   private final Document document;
@@ -104,6 +108,9 @@ public class EditorTab extends JPanel {
       String syntaxStyle = editor.getSyntaxEditingStyle();
       if (LanguageSupportFactory.get().getSupportFor(syntaxStyle) != null) {
         try {
+          if ("text/java".equals(syntaxStyle)) {
+            ensureJreClassesAvailable();
+          }
           LanguageSupportFactory.get().register(editor);
           localLanguageSupportRegistered = true;
           return;
@@ -116,6 +123,26 @@ public class EditorTab extends JPanel {
       }
     }
     enableKeywordCompletion();
+  }
+
+  /**
+   * RSTA's Java completion provider only knows about the classpath it is explicitly given. Without
+   * the current JRE it cannot even resolve {@code java.lang.Object}, which produces the
+   * "Couldn't find ClassFile for: java.lang.Object" warnings and leaves completion empty.
+   */
+  private static void ensureJreClassesAvailable() {
+    if (!JAVA_JRE_CLASS_SOURCE_REGISTERED.compareAndSet(false, true)) {
+      return;
+    }
+    LanguageSupport support = LanguageSupportFactory.get().getSupportFor("text/java");
+    if (!(support instanceof JavaLanguageSupport javaSupport)) {
+      return;
+    }
+    try {
+      javaSupport.getJarManager().addCurrentJreClassFileSource();
+    } catch (IOException | RuntimeException error) {
+      LOGGER.warn("Unable to add the current JRE to local Java completion.", error);
+    }
   }
 
   boolean hasLocalLanguageSupport() {

@@ -21,6 +21,17 @@ class NodePatternTest {
         assertTrue(firstId.signum() > 0);
     }
 
+    @Test
+    void generatesIdsBeyondThe32BitRange() {
+        BigInteger start = BigInteger.ONE.shiftLeft(32);
+        NodeIdGenerator generator = new NodeIdGenerator(start);
+
+        BigInteger id = generator.nextId();
+
+        assertEquals(start.add(BigInteger.ONE), id);
+        assertTrue(id.bitLength() > 32);
+    }
+
     private static final class TestPattern implements NodePattern {
         @Override
         public Runnable onStart() {

@@ -5,7 +5,6 @@ import java.lang.ref.WeakReference;
 import java.math.BigInteger;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 
 public interface NodePattern {
 
@@ -22,8 +21,7 @@ public interface NodePattern {
     final class NodeIds {
         private static final ReferenceQueue<NodePattern> COLLECTED = new ReferenceQueue<>();
         private static final Map<IdentityReference, BigInteger> IDS = new HashMap<>();
-        private static final AtomicReference<BigInteger> NEXT =
-            new AtomicReference<>(BigInteger.ZERO);
+        private static final NodeIdGenerator NEXT = new NodeIdGenerator();
 
         private NodeIds() {}
 
@@ -40,7 +38,7 @@ public interface NodePattern {
                     return existing;
                 }
 
-                BigInteger id = NEXT.updateAndGet(current -> current.add(BigInteger.ONE));
+                BigInteger id = NEXT.nextId();
                 IDS.put(new IdentityReference(node, COLLECTED), id);
                 return id;
             }

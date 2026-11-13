@@ -34,13 +34,13 @@
       "typeFile": "tar.gz"
     },
     {
-      "id": "jdtls-java21",
+      "id": "jdtls-java25",
       "version": "1.63.0",
       "name": "jdtls",
       "languageId": "java",
       "arch": ["x86_64", "aarch64", "arm64"],
       "os": ["MACOS", "WINDOWS", "LINUX"],
-      "minimumVersion": "21",
+      "minimumVersion": "25",
       "versionCommand": "java",
       "versionArguments": ["-version"],
       "command": "java",

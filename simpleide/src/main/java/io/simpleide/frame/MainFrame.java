@@ -7,13 +7,15 @@ import java.nio.file.Path;
 
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
-import javax.swing.JSplitPane;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 
 import org.slf4j.LoggerFactory;
 
+import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.frame.log.LogPanel;
@@ -28,6 +30,8 @@ import io.simpleide.ui.editor.EditorManager;
 import io.simpleide.ui.editor.LspStatusBar;
 import io.simpleide.ui.menubar.MenuBarFactory;
 import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.ui.terminal.BusyBoxTerminalController;
+import io.simpleide.ui.terminal.TerminalPanel;
 import io.simpleide.ui.treefile.Directory;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.Tree;
@@ -40,13 +44,28 @@ public class MainFrame extends JFrame implements Runnable {
   private Tree tree;
   private Watcher watcher;
   private EditorManager editorManager;
+  private BusyBoxTerminalController terminalController;
 
   @Override
   public void run() {
 
-    setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+    setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
     setLocationRelativeTo(null);
     addWindowListener(new WindowAdapter() {
+      @Override
+      public void windowClosing(WindowEvent event) {
+        if (terminalController == null) {
+          dispose();
+          return;
+        }
+        try {
+          terminalController.onWindowClosing(MainFrame.this::dispose);
+        } catch (RuntimeException exception) {
+          logger.error("Unable to close the terminal sessions cleanly.", exception);
+          dispose();
+        }
+      }
+
       @Override
       public void windowClosed(WindowEvent event) {
         if (watcher != null) {
@@ -64,6 +83,12 @@ public class MainFrame extends JFrame implements Runnable {
     JScrollPane logPane = new JScrollPane(logPanel);
     LspStatusBar lspStatusBar = new LspStatusBar();
 
+    TerminalPanel terminalPanel = new TerminalPanel();
+    terminalController = new BusyBoxTerminalController(terminalPanel);
+    JTabbedPane outputTabs = new JTabbedPane();
+    outputTabs.addTab("Debug Console", logPane);
+    outputTabs.addTab("Terminal", terminalPanel);
+
     editorManager = new EditorManager(
         this::createNewFile,
         this::createNewDirectory,
@@ -74,7 +99,7 @@ public class MainFrame extends JFrame implements Runnable {
     editorTreePane.setResizeWeight(0.2);
     editorTreePane.setContinuousLayout(true);
 
-    JSplitPane mainVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorTreePane, logPane);
+    JSplitPane mainVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorTreePane, outputTabs);
     mainVerticalSplit.setResizeWeight(0.8);
     mainVerticalSplit.setContinuousLayout(true);
 
@@ -194,11 +219,17 @@ public class MainFrame extends JFrame implements Runnable {
   }
 
   private void attachLogAppender(LogPanel logPanel) {
+    configureTerminalLoggers();
     Logger rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
     SwingLogAppender appender = new SwingLogAppender(logPanel);
     appender.setContext(rootLogger.getLoggerContext());
     appender.start();
     rootLogger.addAppender(appender);
+  }
+
+  private void configureTerminalLoggers() {
+    ((Logger) LoggerFactory.getLogger("com.jediterm")).setLevel(Level.INFO);
+    ((Logger) LoggerFactory.getLogger("com.pty4j")).setLevel(Level.INFO);
   }
 
 }

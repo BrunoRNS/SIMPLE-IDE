@@ -104,7 +104,7 @@ class LspManagerTest {
     }
 
     @Test
-    void providesJdtlsVersionsForJava17AndJava21On64BitPlatforms() {
+    void providesJdtlsVersionsForJava17AndJava25On64BitPlatforms() {
         List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
                 .filter(server -> server.getName().equals("jdtls"))
                 .toList();
@@ -112,13 +112,13 @@ class LspManagerTest {
         assertThat(jdtlsServers).extracting(LspServer::getVersion)
                 .containsExactly("1.43.0", "1.63.0");
         assertThat(jdtlsServers).extracting(LspServer::getMinimumVersion)
-                .containsExactly("17", "21");
+                .containsExactly("17", "25");
         assertThat(jdtlsServers)
                 .allSatisfy(server -> assertThat(server.getArch()).doesNotContain("x86"));
     }
 
     @Test
-    void selectsTheJava21JdtlsReleaseOnLinuxX64() {
+    void selectsTheJava17CompatibleJdtlsReleaseOnJava21() {
         String originalOsName = System.getProperty("os.name");
         String originalOsArch = System.getProperty("os.arch");
         try {
@@ -133,11 +133,63 @@ class LspManagerTest {
             assertThat(LspManager.selectClosestCompatibleServer(
                     jdtlsServers, "openjdk version 21.0.1"))
                     .extracting(LspServer::getId)
-                    .isEqualTo("jdtls-java21");
+                    .isEqualTo("jdtls-java17");
         } finally {
             System.setProperty("os.name", originalOsName);
             System.setProperty("os.arch", originalOsArch);
         }
+    }
+
+    @Test
+    void selectsTheJava25JdtlsReleaseOnJava25() {
+        String originalOsName = System.getProperty("os.name");
+        String originalOsArch = System.getProperty("os.arch");
+        try {
+            System.setProperty("os.name", "Linux");
+            System.setProperty("os.arch", "amd64");
+
+            List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                    .filter(server -> server.getName().equals("jdtls"))
+                    .filter(LspServer::isSupportedOnCurrentPlatform)
+                    .toList();
+
+            assertThat(LspManager.selectClosestCompatibleServer(
+                    jdtlsServers, "openjdk version 25.0.1"))
+                    .extracting(LspServer::getId)
+                    .isEqualTo("jdtls-java25");
+        } finally {
+            System.setProperty("os.name", originalOsName);
+            System.setProperty("os.arch", originalOsArch);
+        }
+    }
+
+    @Test
+    void selectsTheJava17JdtlsReleaseAsFallbackWhenTheJava25ReleaseFails() {
+        List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getName().equals("jdtls"))
+                .toList();
+        LspServer primary = LspManager.selectClosestCompatibleServer(
+                jdtlsServers, "openjdk version 25.0.1");
+
+        assertThat(primary).extracting(LspServer::getId).isEqualTo("jdtls-java25");
+        assertThat(LspManager.selectFallbackServer(
+                jdtlsServers, "openjdk version 25.0.1", primary))
+                .extracting(LspServer::getId)
+                .isEqualTo("jdtls-java17");
+    }
+
+    @Test
+    void doesNotSelectAFallbackWhenTheSelectedJdtlsReleaseIsAlreadyTheOldest() {
+        List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getName().equals("jdtls"))
+                .toList();
+        LspServer primary = LspManager.selectClosestCompatibleServer(
+                jdtlsServers, "openjdk version 21.0.1");
+
+        assertThat(primary).extracting(LspServer::getId).isEqualTo("jdtls-java17");
+        assertThat(LspManager.selectFallbackServer(
+                jdtlsServers, "openjdk version 21.0.1", primary))
+                .isNull();
     }
 
     @Test

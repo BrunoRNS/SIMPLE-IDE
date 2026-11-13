@@ -51,3 +51,31 @@ jobs:
 
       - name: Run tests
         run: make test
+
+      - name: Report failed tests
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          failures = 0
+          for report in sorted(glob.glob('*/target/surefire-reports/TEST-*.xml')):
+              try:
+                  root = ET.parse(report).getroot()
+              except Exception as error:
+                  print(f"::warning::Unable to parse {report}: {error}")
+                  continue
+              for case in root.iter('testcase'):
+                  for kind in ('failure', 'error'):
+                      node = case.find(kind)
+                      if node is None:
+                          continue
+                      failures += 1
+                      name = f"{case.get('classname')}.{case.get('name')}"
+                      message = (node.get('message') or node.text or kind).strip()
+                      message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                      print(f"::error title={name}::{message[:1500]}")
+          print(f"Surefire reported {failures} failed or errored test(s).")
+          PY

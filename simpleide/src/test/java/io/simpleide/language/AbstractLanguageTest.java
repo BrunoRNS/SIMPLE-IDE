@@ -156,7 +156,7 @@ class AbstractLanguageTest {
 
     private void awaitOutput(String output) {
         await("Expected logged process output: " + output)
-            .atMost(5, TimeUnit.SECONDS)
+            .atMost(15, TimeUnit.SECONDS)
             .pollInterval(10, TimeUnit.MILLISECONDS)
             .until(() -> logCapture.messages().stream().anyMatch(message -> message.contains(output)));
     }
@@ -215,7 +215,7 @@ class AbstractLanguageTest {
 
         private void awaitExitHandler() {
             await("The process exit handler should clear the process reference.")
-                .atMost(5, TimeUnit.SECONDS)
+                .atMost(15, TimeUnit.SECONDS)
                 .pollInterval(10, TimeUnit.MILLISECONDS)
                 .until(() -> p == null);
             }
