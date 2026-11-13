@@ -12,6 +12,7 @@ import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.table.DefaultTableModel;
 
+import io.simpleide.SimpleIDEVersion;
 import io.simpleide.frame.popup.InfoPopUP;
 
 public class HelpMenu extends JMenu {
@@ -78,7 +79,8 @@ public class HelpMenu extends JMenu {
   private void showAbout() {
     new InfoPopUP(
         "About Simple IDE",
-        "Simple IDE\nA lightweight, extensible development environment.",
+        "Simple IDE " + SimpleIDEVersion.VERSION
+            + "\nA lightweight, extensible development environment.",
         this).startManaged();
   }
 

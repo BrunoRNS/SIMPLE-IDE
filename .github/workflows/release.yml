@@ -1,0 +1,53 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Read application version
+        id: version
+        run: |
+          VERSION="$(sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties)"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build fat JAR on Alpine x64 with JDK 17
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker run --rm --platform linux/amd64 \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --env VERSION="$VERSION" \
+            --workdir /workspace \
+            eclipse-temurin:17-jdk-alpine \
+            sh -ec '
+              apk add --no-cache bash curl
+              ./mvnw -B -DskipTests package
+              mkdir -p dist
+              cp simpleide/target/simpleide.jar "dist/simpleide-${VERSION}.jar"
+            '
+
+      - name: Create GitHub release and upload fat JAR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          TAG="v$VERSION"
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "Simple IDE $VERSION" \
+              --notes "Simple IDE $VERSION release."
+          fi
+          gh release upload "$TAG" "dist/simpleide-$VERSION.jar" --clobber

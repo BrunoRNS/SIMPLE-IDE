@@ -53,6 +53,27 @@ class EditorManagerTest {
   }
 
   @Test
+  void displaysOpenedLanguageFileBeforeLanguageServerConnects() throws Exception {
+    Path path = Files.writeString(root.resolve("Main.java"), "class Main {}");
+    EditorManager manager = EditorManager.getInstance();
+    if (manager == null) {
+      manager = new EditorManager(() -> {}, () -> {}, () -> {});
+    }
+    EditorManager testManager = manager;
+
+    SwingUtilities.invokeAndWait(() -> {
+      try {
+        testManager.openFile(new File(path));
+
+        assertThat(testManager.getJTabbedPane().getSelectedComponent()).isInstanceOf(EditorTab.class);
+        assertThat(testManager.getSelectedEditor().getText()).isEqualTo("class Main {}");
+      } catch (IOException error) {
+        throw new AssertionError(error);
+      }
+    });
+  }
+
+  @Test
   void usesLocalLanguageSupportWhenNoLanguageServerMatches() throws Exception {
     Path path = Files.writeString(root.resolve("Fallback.java"), "class Fallback {}");
     AtomicReference<EditorTab> tab = new AtomicReference<>();

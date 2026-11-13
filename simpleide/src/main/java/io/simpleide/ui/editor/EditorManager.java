@@ -95,17 +95,13 @@ public class EditorManager {
       return;
     }
 
-    removeWelcomeScreen();
-
     Document document = manager.open(
         path,
         getLanguageId(file.getTypeFile()));
 
     EditorTab editorTab = new EditorTab(file, document);
     editorActions.configure(editorTab);
-    editorTab.enableLocalLanguageSupport();
-
-    ThemeManager.getInstance().register(editorTab.getEditor());
+    removeWelcomeScreen();
 
     jTabbedPane.addTab(
         file.getName(),
@@ -117,6 +113,20 @@ public class EditorManager {
 
     openedEditors.put(path, editorTab);
     jTabbedPane.setSelectedComponent(editorTab);
+
+    try {
+      editorTab.enableLocalLanguageSupport();
+    } catch (RuntimeException | LinkageError error) {
+      LOGGER.error(
+          "Unable to initialize local language support for {}; the file remains open.",
+          path,
+          error);
+    }
+    try {
+      ThemeManager.getInstance().register(editorTab.getEditor());
+    } catch (RuntimeException error) {
+      LOGGER.error("Unable to apply the editor theme to {}; the file remains open.", path, error);
+    }
 
     languageServers.connect(document, editorTab::publishDiagnostics)
         .whenComplete((client, error) -> completeLanguageServerConnection(editorTab, client, error));

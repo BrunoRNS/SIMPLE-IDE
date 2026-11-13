@@ -21,6 +21,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import io.simpleide.SimpleIDEVersion;
+
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.ClientInfo;
 import org.eclipse.lsp4j.CompletionCapabilities;
@@ -298,7 +300,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     InitializeParams params = new InitializeParams();
 
     params.setProcessId(Math.toIntExact(ProcessHandle.current().pid()));
-    params.setClientInfo(new ClientInfo("SIMPLE-IDE", "0.0.1"));
+    params.setClientInfo(new ClientInfo("SIMPLE-IDE", SimpleIDEVersion.VERSION));
     params.setCapabilities(createClientCapabilities());
 
     if (workspaceRoot != null) {
