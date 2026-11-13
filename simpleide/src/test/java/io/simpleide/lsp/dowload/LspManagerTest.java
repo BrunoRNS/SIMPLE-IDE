@@ -164,6 +164,35 @@ class LspManagerTest {
     }
 
     @Test
+    void selectsTheJava17JdtlsReleaseAsFallbackWhenTheJava25ReleaseFails() {
+        List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getName().equals("jdtls"))
+                .toList();
+        LspServer primary = LspManager.selectClosestCompatibleServer(
+                jdtlsServers, "openjdk version 25.0.1");
+
+        assertThat(primary).extracting(LspServer::getId).isEqualTo("jdtls-java25");
+        assertThat(LspManager.selectFallbackServer(
+                jdtlsServers, "openjdk version 25.0.1", primary))
+                .extracting(LspServer::getId)
+                .isEqualTo("jdtls-java17");
+    }
+
+    @Test
+    void doesNotSelectAFallbackWhenTheSelectedJdtlsReleaseIsAlreadyTheOldest() {
+        List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getName().equals("jdtls"))
+                .toList();
+        LspServer primary = LspManager.selectClosestCompatibleServer(
+                jdtlsServers, "openjdk version 21.0.1");
+
+        assertThat(primary).extracting(LspServer::getId).isEqualTo("jdtls-java17");
+        assertThat(LspManager.selectFallbackServer(
+                jdtlsServers, "openjdk version 21.0.1", primary))
+                .isNull();
+    }
+
+    @Test
     void configuresRustAnalyzerForWindowsX86() {
         LspServer rustServer = LspManager.getRegistry().getServers().stream()
                 .filter(server -> server.getId().equals("rust-analyzer-windows-x86"))

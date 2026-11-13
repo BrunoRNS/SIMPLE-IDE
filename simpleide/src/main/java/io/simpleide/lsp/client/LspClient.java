@@ -6,9 +6,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -55,6 +57,7 @@ import org.eclipse.lsp4j.TextDocumentSyncKind;
 import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
 import org.eclipse.lsp4j.WorkspaceFolder;
+import org.eclipse.lsp4j.WorkspaceClientCapabilities;
 import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.launch.LSPLauncher;
@@ -68,7 +71,8 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 public final class LspClient implements LanguageClient, AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspClient.class);
-  private static final long INITIALIZATION_TIMEOUT_SECONDS = 30;
+  private static final long INITIALIZATION_TIMEOUT_SECONDS = 60;
+  private static final int MAX_RECENT_ERROR_LINES = 20;
 
   static {
     java.util.logging.Logger.getLogger("org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer")
@@ -78,6 +82,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
   private final Consumer<PublishDiagnosticsParams> diagnosticsHandler;
   private final CompletableFuture<Void> initialized = new CompletableFuture<>();
   private final CompletableFuture<Void> shutdownComplete = new CompletableFuture<>();
+  private final Deque<String> recentErrorLines = new ConcurrentLinkedDeque<>();
   private final RunnableNode runtimeNode = new RunnableNode(() -> {
   });
   private final RunnableNode startupNode;
@@ -171,8 +176,18 @@ public final class LspClient implements LanguageClient, AutoCloseable {
         try {
           ThreadMaster.getInstance().register(new RunnableNode(runtimeNode, () -> {
             if (!closed && !initialized.isDone()) {
-              IOException error = new IOException(
-                  "Language server exited before initialization (code " + exited.exitValue() + ").");
+              LspServerStartupException error = new LspServerStartupException(exited.exitValue());
+              String output = recentErrorOutput();
+              if (!output.isBlank()) {
+                LOGGER.error("Language server output before exit:{}{}", System.lineSeparator(), output);
+              }
+              if (error.isJvmCompatibilityFailure()) {
+                LOGGER.warn(
+                    "Language server exited with code 13 before initialization. This usually means "
+                        + "the Java runtime used to launch it is older than the server requires. "
+                        + "On institutional machines with a fixed Java runtime this is a known issue; "
+                        + "Simple IDE will try a compatible language server version when available.");
+              }
               if (initialized.completeExceptionally(error)) {
                 LOGGER.error("Language server exited before initialization.", error);
                 close();
@@ -286,9 +301,12 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     params.setCapabilities(createClientCapabilities());
 
     if (workspaceRoot != null) {
+      String rootUri = workspaceRoot.toUri().toString();
+      params.setRootUri(rootUri);
+      params.setRootPath(workspaceRoot.toAbsolutePath().toString());
       params.setWorkspaceFolders(List.of(
           new WorkspaceFolder(
-              workspaceRoot.toUri().toString(),
+              rootUri,
               workspaceRoot.getFileName().toString())));
     }
 
@@ -453,6 +471,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
     ClientCapabilities capabilities = new ClientCapabilities();
     capabilities.setTextDocument(textDocumentCapabilities);
+
+    WorkspaceClientCapabilities workspaceCapabilities = new WorkspaceClientCapabilities();
+    workspaceCapabilities.setWorkspaceFolders(true);
+    capabilities.setWorkspace(workspaceCapabilities);
     return capabilities;
   }
 
@@ -462,6 +484,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
           new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
         String line;
         while ((line = reader.readLine()) != null) {
+          recentErrorLines.addLast(line);
+          while (recentErrorLines.size() > MAX_RECENT_ERROR_LINES) {
+            recentErrorLines.removeFirst();
+          }
           LOGGER.debug("[LSP server] {}", line);
         }
       } catch (IOException error) {
@@ -473,6 +499,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
     errorReader.setDaemon(true);
     errorReaderThread = errorReader;
     errorReader.start();
+  }
+
+  private String recentErrorOutput() {
+    return String.join(System.lineSeparator(), recentErrorLines);
   }
 
   private ExecutorService createLspExecutor() {

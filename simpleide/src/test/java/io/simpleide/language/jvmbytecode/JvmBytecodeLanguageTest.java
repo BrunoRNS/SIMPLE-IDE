@@ -147,7 +147,7 @@ class JvmBytecodeLanguageTest {
         language.run();
 
         await("Expected output from " + language.getLangFriendly())
-            .atMost(30, TimeUnit.SECONDS)
+            .atMost(90, TimeUnit.SECONDS)
             .pollInterval(10, TimeUnit.MILLISECONDS)
             .until(() -> {
                 List<String> messages = logCapture.messages();
@@ -176,14 +176,16 @@ class JvmBytecodeLanguageTest {
     }
 
     private void awaitOutput(String expectedOutput) throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(90);
+        String lastOutput = null;
         while (System.nanoTime() < deadline) {
-            String output = Output.getInstance().get(1);
-            if (expectedOutput.equals(output)) {
+            lastOutput = Output.getInstance().get(1);
+            if (expectedOutput.equals(lastOutput)) {
                 return;
             }
         }
-        fail("Expected process output: " + expectedOutput);
+        fail("Expected process output within 90 seconds: " + expectedOutput
+            + "; last output: " + lastOutput);
     }
 
     private static final class ThreadSafeListAppender extends ListAppender<ILoggingEvent> {

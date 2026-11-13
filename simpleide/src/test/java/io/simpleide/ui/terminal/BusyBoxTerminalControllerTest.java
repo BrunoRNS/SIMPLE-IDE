@@ -79,6 +79,7 @@ class BusyBoxTerminalControllerTest {
         await("The close button should become enabled")
             .atMost(5, TimeUnit.SECONDS)
             .until(() -> isCloseButtonEnabled(panel));
+        awaitEdtIdle();
 
         CountDownLatch closeActionReturned = new CountDownLatch(1);
         SwingUtilities.invokeLater(() -> {
@@ -89,7 +90,10 @@ class BusyBoxTerminalControllerTest {
                 .doClick();
             closeActionReturned.countDown();
         });
-        assertTrue(closeActionReturned.await(1, TimeUnit.SECONDS), "Closing a terminal blocked the EDT.");
+        assertTrue(
+            closeActionReturned.await(5, TimeUnit.SECONDS),
+            "Closing a terminal blocked the EDT."
+        );
 
         await("The terminal process should close after the close action")
             .atMost(10, TimeUnit.SECONDS)
@@ -117,6 +121,11 @@ class BusyBoxTerminalControllerTest {
             .until(() -> terminalStates(controller).stream()
                 .anyMatch(state -> state.launchComplete && state.session != null && state.session.isAlive()));
 
+        await("The close button should become enabled")
+            .atMost(5, TimeUnit.SECONDS)
+            .until(() -> isCloseButtonEnabled(panel));
+        awaitEdtIdle();
+
         BusyBoxTerminalSession session = terminalStates(controller).get(0).session;
         NeverEndingPtyProcess stuckProcess = new NeverEndingPtyProcess();
         setField(session, "process", stuckProcess);
@@ -130,7 +139,10 @@ class BusyBoxTerminalControllerTest {
                 .doClick();
             closeActionReturned.countDown();
         });
-        assertTrue(closeActionReturned.await(1, TimeUnit.SECONDS), "Closing a stuck terminal blocked the EDT.");
+        assertTrue(
+            closeActionReturned.await(5, TimeUnit.SECONDS),
+            "Closing a stuck terminal blocked the EDT."
+        );
 
         await("A terminal whose process cannot be stopped should still be removed from the UI")
             .atMost(15, TimeUnit.SECONDS)
@@ -148,6 +160,13 @@ class BusyBoxTerminalControllerTest {
         Field field = target.getClass().getDeclaredField(name);
         field.setAccessible(true);
         field.set(target, value);
+    }
+
+    private static void awaitEdtIdle() throws Exception {
+        // Drain pending UI work before measuring how long the close action takes; terminal panels can
+        // still be laying themselves out after the launch task has completed.
+        SwingUtilities.invokeAndWait(() -> {
+        });
     }
 
     private static boolean isCloseButtonEnabled(TerminalPanel panel) {

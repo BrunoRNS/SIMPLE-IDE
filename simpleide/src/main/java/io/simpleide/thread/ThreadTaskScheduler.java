@@ -148,8 +148,8 @@ final class ThreadTaskScheduler {
                 }
             }
         }
+        poolsToShutdown.forEach(ThreadPoolExecutor::shutdownNow);
         tasksToCancel.forEach(ScheduledTask::cancel);
-        poolsToShutdown.forEach(ThreadPoolExecutor::shutdown);
     }
 
     void shutdown() {

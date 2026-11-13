@@ -28,9 +28,9 @@ import io.simpleide.language.config.LangPlatform;
 public final class ProcessTreeTerminator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProcessTreeTerminator.class);
-    private static final int MAX_TREE_SWEEPS = 4;
+    private static final int MAX_TREE_SWEEPS = 3;
     private static final int MAX_ANCESTOR_DEPTH = 128;
-    private static final long DESCENDANT_EXIT_TIMEOUT_SECONDS = 5;
+    private static final long DESCENDANT_EXIT_TIMEOUT_MILLIS = 2_000;
 
     private ProcessTreeTerminator() {
     }
@@ -170,7 +170,9 @@ public final class ProcessTreeTerminator {
             if (isRootAlive(root, process)) {
                 terminateRoot(process);
             }
-            awaitCapturedDescendants(ordered);
+            if (sweep + 1 < MAX_TREE_SWEEPS) {
+                awaitCapturedDescendants(ordered);
+            }
         }
 
         if (macArm64) {
@@ -297,7 +299,7 @@ public final class ProcessTreeTerminator {
         if (descendants.isEmpty()) {
             return;
         }
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(DESCENDANT_EXIT_TIMEOUT_SECONDS);
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(DESCENDANT_EXIT_TIMEOUT_MILLIS);
         while (descendants.stream().anyMatch(ProcessHandle::isAlive)) {
             long remainingNanos = deadline - System.nanoTime();
             if (remainingNanos <= 0) {

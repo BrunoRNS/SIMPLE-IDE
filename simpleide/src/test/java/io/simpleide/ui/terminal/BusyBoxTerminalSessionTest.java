@@ -50,7 +50,7 @@ class BusyBoxTerminalSessionTest {
             assertNotNull(session.getConnector());
 
             session.close();
-            assertFalse(session.isAlive());
+            awaitSessionClosed(session);
         }
     }
 
@@ -329,7 +329,7 @@ class BusyBoxTerminalSessionTest {
 
             first.close();
 
-            assertFalse(first.isAlive());
+            awaitSessionClosed(first);
             assertTrue(first.isTerminationRequested());
             assertFalse(second.isTerminationRequested());
             assertTrue(second.isAlive());
@@ -402,6 +402,15 @@ class BusyBoxTerminalSessionTest {
                 session.processDiagnostics()
             );
         }
+    }
+
+    private static void awaitSessionClosed(BusyBoxTerminalSession session) {
+        // pty4j observes the native process exit asynchronously on macOS, so allow the reaper a
+        // bounded window instead of requiring the session to look dead immediately.
+        await("The terminal session should close: " + session.processDiagnostics())
+            .atMost(CLOSE_RETURN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .pollInterval(100, TimeUnit.MILLISECONDS)
+            .until(() -> !session.isAlive());
     }
 
     private static ProcessHandle awaitChild(ProcessHandle process) throws InterruptedException {
