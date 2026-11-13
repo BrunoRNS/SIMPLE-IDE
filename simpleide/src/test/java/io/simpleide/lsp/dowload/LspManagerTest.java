@@ -92,7 +92,7 @@ class LspManagerTest {
     void registryContainsTheRequestedLanguageServers() {
         assertThat(LspManager.getRegistry().getServers())
                 .extracting(LspServer::getLanguageId)
-                .contains("java", "javascript", "csharp", "c", "cpp", "groovy", "kotlin", "python", "go");
+                .contains("java", "javascript", "csharp", "c", "cpp", "groovy", "kotlin", "python", "go", "rust");
 
         LspServer goServer = LspManager.getRegistry().getServers().stream()
                 .filter(server -> server.getLanguageId().equals("go"))
@@ -104,7 +104,7 @@ class LspManagerTest {
     }
 
     @Test
-    void providesJdtlsVersionsForJava17AndJava21On64BitPlatforms() {
+    void providesJdtlsVersionsForJava17AndJava25On64BitPlatforms() {
         List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
                 .filter(server -> server.getName().equals("jdtls"))
                 .toList();
@@ -112,22 +112,96 @@ class LspManagerTest {
         assertThat(jdtlsServers).extracting(LspServer::getVersion)
                 .containsExactly("1.43.0", "1.63.0");
         assertThat(jdtlsServers).extracting(LspServer::getMinimumVersion)
-                .containsExactly("17", "21");
+                .containsExactly("17", "25");
         assertThat(jdtlsServers)
                 .allSatisfy(server -> assertThat(server.getArch()).doesNotContain("x86"));
     }
 
     @Test
-    void configuresJjLanguageServerOnlyForWindowsX86() {
-        LspServer jjLanguageServer = LspManager.getRegistry().getServers().stream()
-                .filter(server -> server.getId().equals("jj-language-server-x86-windows"))
+    void selectsTheJava17CompatibleJdtlsReleaseOnJava21() {
+        String originalOsName = System.getProperty("os.name");
+        String originalOsArch = System.getProperty("os.arch");
+        try {
+            System.setProperty("os.name", "Linux");
+            System.setProperty("os.arch", "amd64");
+
+            List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                    .filter(server -> server.getName().equals("jdtls"))
+                    .filter(LspServer::isSupportedOnCurrentPlatform)
+                    .toList();
+
+            assertThat(LspManager.selectClosestCompatibleServer(
+                    jdtlsServers, "openjdk version 21.0.1"))
+                    .extracting(LspServer::getId)
+                    .isEqualTo("jdtls-java17");
+        } finally {
+            System.setProperty("os.name", originalOsName);
+            System.setProperty("os.arch", originalOsArch);
+        }
+    }
+
+    @Test
+    void selectsTheJava25JdtlsReleaseOnJava25() {
+        String originalOsName = System.getProperty("os.name");
+        String originalOsArch = System.getProperty("os.arch");
+        try {
+            System.setProperty("os.name", "Linux");
+            System.setProperty("os.arch", "amd64");
+
+            List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                    .filter(server -> server.getName().equals("jdtls"))
+                    .filter(LspServer::isSupportedOnCurrentPlatform)
+                    .toList();
+
+            assertThat(LspManager.selectClosestCompatibleServer(
+                    jdtlsServers, "openjdk version 25.0.1"))
+                    .extracting(LspServer::getId)
+                    .isEqualTo("jdtls-java25");
+        } finally {
+            System.setProperty("os.name", originalOsName);
+            System.setProperty("os.arch", originalOsArch);
+        }
+    }
+
+    @Test
+    void selectsTheJava17JdtlsReleaseAsFallbackWhenTheJava25ReleaseFails() {
+        List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getName().equals("jdtls"))
+                .toList();
+        LspServer primary = LspManager.selectClosestCompatibleServer(
+                jdtlsServers, "openjdk version 25.0.1");
+
+        assertThat(primary).extracting(LspServer::getId).isEqualTo("jdtls-java25");
+        assertThat(LspManager.selectFallbackServer(
+                jdtlsServers, "openjdk version 25.0.1", primary))
+                .extracting(LspServer::getId)
+                .isEqualTo("jdtls-java17");
+    }
+
+    @Test
+    void doesNotSelectAFallbackWhenTheSelectedJdtlsReleaseIsAlreadyTheOldest() {
+        List<LspServer> jdtlsServers = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getName().equals("jdtls"))
+                .toList();
+        LspServer primary = LspManager.selectClosestCompatibleServer(
+                jdtlsServers, "openjdk version 21.0.1");
+
+        assertThat(primary).extracting(LspServer::getId).isEqualTo("jdtls-java17");
+        assertThat(LspManager.selectFallbackServer(
+                jdtlsServers, "openjdk version 21.0.1", primary))
+                .isNull();
+    }
+
+    @Test
+    void configuresRustAnalyzerForWindowsX86() {
+        LspServer rustServer = LspManager.getRegistry().getServers().stream()
+                .filter(server -> server.getId().equals("rust-analyzer-windows-x86"))
                 .findFirst()
                 .orElseThrow();
 
-        assertThat(jjLanguageServer.getArch()).containsExactly("x86");
-        assertThat(jjLanguageServer.getOs()).containsExactly("WINDOWS");
-        assertThat(jjLanguageServer.getVersionCommand()).isNull();
-        assertThat(jjLanguageServer.getInstallArguments()).contains("--engine-strict");
+        assertThat(rustServer.getArch()).containsExactly("x86");
+        assertThat(rustServer.getOs()).containsExactly("WINDOWS");
+        assertThat(rustServer.getLatestAssetName()).isEqualTo("rust-analyzer-i686-pc-windows-msvc.zip");
     }
 
     @Test
@@ -158,12 +232,21 @@ class LspManagerTest {
                     .filter(LspServer::isSupportedOnCurrentPlatform)
                     .map(LspServer::getId))
                     .containsExactly(
-                            "jj-language-server-x86-windows",
-                            "javascript-typescript-language-server-windows",
                             "csharp-language-server-windows",
                             "kotlin-language-server-windows",
-                            "python-pyright-windows",
-                            "go-gopls-windows");
+                            "go-gopls-windows",
+                            "rust-analyzer-windows-x86");
+
+            assertThat(LspManager.getRegistry().getServers())
+                    .filteredOn(server -> List.of("java", "javascript", "python")
+                            .contains(server.getLanguageId()))
+                    .noneMatch(LspServer::isSupportedOnCurrentPlatform);
+
+            assertThat(LspManager.getRegistry().getServers().stream()
+                    .filter(server -> server.getLanguageId().equals("csharp"))
+                    .filter(LspServer::isSupportedOnCurrentPlatform))
+                    .extracting(LspServer::getId)
+                    .containsExactly("csharp-language-server-windows");
 
             System.setProperty("os.name", "Linux");
             assertThat(LspManager.getRegistry().getServers().stream()

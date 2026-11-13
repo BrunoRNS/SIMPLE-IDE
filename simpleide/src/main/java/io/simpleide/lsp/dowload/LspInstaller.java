@@ -97,9 +97,7 @@ public final class LspInstaller {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return failInstallation(server, lspDirectory, statusId, statusListener, e);
-        } catch (IOException e) {
-            return failInstallation(server, lspDirectory, statusId, statusListener, e);
-        } catch (RuntimeException e) {
+        } catch (IOException | RuntimeException e) {
             return failInstallation(server, lspDirectory, statusId, statusListener, e);
         }
     }

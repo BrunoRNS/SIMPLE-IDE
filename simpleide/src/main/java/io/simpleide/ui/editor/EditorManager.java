@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.lsp.LspStatus;
+import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
@@ -36,11 +37,13 @@ public class EditorManager {
   private final EditorActions editorActions;
   private JTabbedPane jTabbedPane;
   private Runnable createFile;
+  @SuppressWarnings("unused")
   private Runnable createFolder;
   private Runnable openFolder;
 
   public EditorManager(Runnable createFile, Runnable createFolder, Runnable openFolder) {
-    this(createFile, createFolder, openFolder, ignored -> { });
+    this(createFile, createFolder, openFolder, ignored -> {
+    });
   }
 
   public EditorManager(
@@ -77,6 +80,7 @@ public class EditorManager {
     return null;
   }
 
+  @SuppressWarnings("")
   public void openFile(File file) {
     if (file == null) {
       return;
@@ -99,6 +103,7 @@ public class EditorManager {
 
     EditorTab editorTab = new EditorTab(file, document);
     editorActions.configure(editorTab);
+    editorTab.enableLocalLanguageSupport();
 
     ThemeManager.getInstance().register(editorTab.getEditor());
 
@@ -114,18 +119,7 @@ public class EditorManager {
     jTabbedPane.setSelectedComponent(editorTab);
 
     languageServers.connect(document, editorTab::publishDiagnostics)
-        .whenComplete((client, error) -> {
-          if (error != null) {
-            Throwable cause = error instanceof CompletionException && error.getCause() != null
-                ? error.getCause()
-                : error;
-            LOGGER.error("LSP connection failed for {}.", path, cause);
-            return;
-          }
-          if (client != null) {
-            ThreadMaster.getInstance().executeOnEDT(() -> editorTab.connectLanguageServer(client));
-          }
-        });
+        .whenComplete((client, error) -> completeLanguageServerConnection(editorTab, client, error));
   }
 
   public void addNewTab(EditorTab tab) {
@@ -133,6 +127,7 @@ public class EditorManager {
       return;
     }
 
+    tab.enableLocalLanguageSupport();
     editorActions.configure(tab);
     if (jTabbedPane.getTabCount() == 1 && "Welcome".equals(jTabbedPane.getTitleAt(0))) {
       jTabbedPane.removeAll();
@@ -146,14 +141,15 @@ public class EditorManager {
   }
 
   public void closeAll() {
-    openedEditors.values().forEach(tab -> {
-      tab.close();
-      manager.close(tab.getDocument().getUri());
-      languageServers.disconnect(tab.getDocument());
-      ThemeManager.getInstance().unregister(tab.getEditor());
-    });
-    openedEditors.clear();
-    languageServers.close();
+    try (languageServers) {
+      openedEditors.values().forEach(tab -> {
+        tab.close();
+        manager.close(tab.getDocument().getUri());
+        languageServers.disconnect(tab.getDocument());
+        ThemeManager.getInstance().unregister(tab.getEditor());
+      });
+      openedEditors.clear();
+    }
   }
 
   public void closeTab(EditorTab tab) {
@@ -199,11 +195,11 @@ public class EditorManager {
     }
   }
 
-  EditorTab getOpenedEditor(Path path) {
+  public EditorTab getOpenedEditor(Path path) {
     return openedEditors.get(path);
   }
 
-  void selectEditorTab(EditorTab tab) {
+  public void selectEditorTab(EditorTab tab) {
     jTabbedPane.setSelectedComponent(tab);
   }
 
@@ -242,11 +238,43 @@ public class EditorManager {
       case GROOVY -> "groovy";
       case JAVASCRIPT -> "javascript";
       case GO -> "go";
+      case RUST -> "rust";
       case PYTHON -> "python";
       case C -> "c";
       case CPP -> "cpp";
       default -> "plaintext";
     };
+  }
+
+  static void completeLanguageServerConnection(EditorTab tab, LspClient client, Throwable error) {
+    if (error != null) {
+      Throwable cause = error;
+
+      if (error instanceof CompletionException && error.getCause() != null) {
+        cause = error.getCause();
+      }
+
+      LOGGER.error(
+          "LSP connection failed for {}.",
+          tab.getFile().getPath(),
+          cause);
+
+      if (client != null) {
+        try {
+          client.close();
+        } catch (Exception closeError) {
+          LOGGER.warn("Failed to close LSP client.", closeError);
+        }
+      }
+    }
+
+    ThreadMaster.getInstance().executeOnEDT(() -> {
+      if (client == null || error != null) {
+        tab.enableLocalLanguageSupport();
+      } else {
+        tab.connectLanguageServer(client);
+      }
+    });
   }
 
   private void configJTabbedPane() {

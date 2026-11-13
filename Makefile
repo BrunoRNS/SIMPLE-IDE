@@ -8,9 +8,7 @@ APP_JAR := simpleide/target/simpleide.jar
 AMBUS_ZIP := ambus/target/ambus-0.0.1-SNAPSHOT.zip
 AMBUS_HOME := $(CURDIR)/ambus/target/lsp_configurado
 
-.PHONY: build test run jar all clean
-
-all: build test
+.PHONY: build test test-nolang run jar clean
 
 build:
 	$(MVNW) -B -DskipTests package
@@ -20,8 +18,11 @@ build:
 test:
 	$(MVNW) -B test
 
+test-nolang:
+	$(MVNW) -B -DexcludedGroups=language-tools test
+
 run: jar
-	java -Dsimpleide.lsp.ambus.home="$(AMBUS_HOME)" -jar "$(APP_JAR)"
+	java --enable-preview -Dsimpleide.lsp.ambus.home="$(AMBUS_HOME)" -jar "$(APP_JAR)"
 
 jar: build
 

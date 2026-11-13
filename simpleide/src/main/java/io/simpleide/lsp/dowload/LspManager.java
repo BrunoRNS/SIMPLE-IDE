@@ -19,19 +19,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.language.config.LangPlatform;
 
 public class LspManager {
+    private static final Logger LOGGER = LoggerFactory.getLogger(LspManager.class);
     private static final Pattern VERSION_PATTERN = Pattern.compile("(?<!\\d)(\\d+(?:\\.\\d+)*)(?!\\d)");
 
     public static List<String> getComandRun(String language) {
@@ -69,6 +69,70 @@ public class LspManager {
         throw new IllegalStateException(
                 "Unable to install language server " + server.getName()
                         + (detectedVersion == null ? "" : " (language version " + detectedVersion + ")"));
+    }
+
+    public static List<String> getFallbackCommandRun(
+            String language,
+            Path workspaceRoot,
+            String statusId,
+            Consumer<LspStatus> statusListener) {
+        List<LspServer> candidates = getRegistry().getServers().stream()
+                .filter(server -> server.getLanguageId().equals(language)
+                        && server.isSupportedOnCurrentPlatform())
+                .toList();
+        LspServer primary = selectServer(candidates);
+        if (primary == null) {
+            return new ArrayList<>();
+        }
+
+        LspServer versionProbe = candidates.stream()
+                .filter(server -> server.getMinimumVersion() != null
+                        && !server.getMinimumVersion().isBlank())
+                .filter(server -> server.getVersionCommand() != null
+                        && !server.getVersionCommand().isBlank())
+                .findFirst()
+                .orElse(null);
+        if (versionProbe == null) {
+            return new ArrayList<>();
+        }
+
+        LspServer fallback = selectFallbackServer(
+                candidates, runVersionCommand(versionProbe), primary);
+        if (fallback == null) {
+            return new ArrayList<>();
+        }
+
+        publishStatus(statusListener, statusId, fallback.getName(), LspStatus.State.CHECKING_VERSION);
+        if (LspInstaller.isInstalled(fallback)
+                || LspInstaller.dowloading(fallback, statusId, statusListener)) {
+            LOGGER.info("Falling back to language server {} {} for {}.",
+                    fallback.getName(), fallback.getVersion(), language);
+            return createCommand(fallback, workspaceRoot);
+        }
+        return new ArrayList<>();
+    }
+
+    static LspServer selectFallbackServer(
+            List<LspServer> candidates, String detectedVersion, LspServer primary) {
+        if (primary == null
+                || detectedVersion == null
+                || detectedVersion.isBlank()
+                || primary.getMinimumVersion() == null
+                || primary.getMinimumVersion().isBlank()) {
+            return null;
+        }
+
+        return candidates.stream()
+                .filter(candidate -> candidate != primary)
+                .filter(candidate -> candidate.getMinimumVersion() != null
+                        && !candidate.getMinimumVersion().isBlank())
+                .filter(candidate -> compareVersions(
+                        candidate.getMinimumVersion(), primary.getMinimumVersion()) < 0)
+                .filter(candidate -> compareVersions(
+                        detectedVersion, candidate.getMinimumVersion()) >= 0)
+                .max((first, second) -> compareVersions(
+                        first.getMinimumVersion(), second.getMinimumVersion()))
+                .orElse(null);
     }
 
     private static LspServer selectServer(List<LspServer> candidates) {
@@ -288,30 +352,24 @@ public class LspManager {
             command.addAll(server.getVersionArguments());
         }
 
-        Process process;
+        Path outputFile;
+        try {
+            outputFile = Files.createTempFile("simpleide-lsp-version-", ".log");
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Unable to create output file for language version command: " + command, e);
+        }
+
+        Process process = null;
         try {
             process = new ProcessBuilder(command)
                     .redirectErrorStream(true)
+                    .redirectOutput(outputFile.toFile())
                     .start();
-        } catch (IOException e) {
-            throw new IllegalStateException(
-                    "Unable to run language version command: " + command, e);
-        }
-
-        CompletableFuture<String> output = CompletableFuture.supplyAsync(() -> {
-            try {
-                return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            } catch (IOException e) {
-                throw new CompletionException(e);
-            }
-        });
-
-        try {
             if (!process.waitFor(10, TimeUnit.SECONDS)) {
-                process.destroyForcibly();
                 throw new IllegalStateException("Language version command timed out: " + command);
             }
-            String result = output.get(2, TimeUnit.SECONDS);
+            String result = Files.readString(outputFile, StandardCharsets.UTF_8).trim();
             if (process.exitValue() != 0) {
                 throw new IllegalStateException(
                         "Language version command failed with exit code "
@@ -323,12 +381,20 @@ public class LspManager {
             }
             return result;
         } catch (InterruptedException e) {
-            process.destroyForcibly();
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while checking language version.", e);
-        } catch (ExecutionException | TimeoutException e) {
-            process.destroyForcibly();
+        } catch (IOException e) {
             throw new IllegalStateException("Unable to read language version command output.", e);
+        } finally {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+            try {
+                Files.deleteIfExists(outputFile);
+            } catch (IOException error) {
+                outputFile.toFile().deleteOnExit();
+                LOGGER.warn("Unable to delete language version output file {}.", outputFile, error);
+            }
         }
     }
 

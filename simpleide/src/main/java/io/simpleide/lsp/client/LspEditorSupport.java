@@ -11,10 +11,10 @@ import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionList;
 import org.eclipse.lsp4j.CompletionParams;
 import org.eclipse.lsp4j.CompletionTriggerKind;
+import org.eclipse.lsp4j.DefinitionParams;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DocumentFormattingParams;
 import org.eclipse.lsp4j.FormattingOptions;
-import org.eclipse.lsp4j.DefinitionParams;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.Position;
@@ -59,7 +59,9 @@ public final class LspEditorSupport implements AutoCloseable {
     autoCompletion.setAutoCompleteSingleChoices(false);
     autoCompletion.setShowDescWindow(true);
     autoCompletion.install(editor);
-    completionTimer = new Timer(180, ignored -> requestCompletions());
+    completionTimer = new Timer(
+        180,
+        ignored -> ThreadMaster.getInstance().executeOnEDT(this::requestCompletions));
     completionTimer.setRepeats(false);
 
     lastSentText = editor.getText();
@@ -87,6 +89,7 @@ public final class LspEditorSupport implements AutoCloseable {
     }
   }
 
+  @SuppressWarnings("")
   public void publishDiagnostics(PublishDiagnosticsParams params) {
     if (closed || params == null || !document.getUri().equals(params.getUri())) {
       return;
@@ -202,6 +205,7 @@ public final class LspEditorSupport implements AutoCloseable {
     }
   }
 
+  @SuppressWarnings("")
   private List<CompletionItem> getCompletionItems(
       Either<List<CompletionItem>, CompletionList> completionResult) {
     if (completionResult == null) {

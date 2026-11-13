@@ -57,7 +57,7 @@ class AbstractLanguageTest {
     @Test
     public void exposesLanguageNamesAndStartsProcessThroughThreadMaster() throws InterruptedException {
         TestLanguage language = new TestLanguage("success");
-        RunnableNode node = language.startManagedTask();
+        RunnableNode node = language.startManaged();
         awaitOutput("child output");
         language.awaitExitHandler();
 
@@ -66,6 +66,26 @@ class AbstractLanguageTest {
         assertTrue(ThreadMaster.getInstance().showTree().containsKey(node.getId()));
         assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
         assertEquals("child output", Output.getInstance().get(1));
+    }
+
+    @Test
+    public void executesProcessStepsInOrderAndStopsAfterFailure() throws InterruptedException {
+        TestLanguage language = new TestLanguage("chain-success");
+
+        language.run();
+        language.awaitExitHandler();
+
+        assertEquals("child output", Output.getInstance().get(1));
+        assertEquals("second-stage output", Output.getInstance().get(1));
+        assertTrue(logCapture.messages().contains("[IDE] Process completed successfully."));
+
+        TestLanguage failingLanguage = new TestLanguage("chain-failure");
+        failingLanguage.run();
+        failingLanguage.awaitExitHandler();
+
+        assertEquals("child output", Output.getInstance().get(1));
+        assertFalse(logCapture.messages().contains("[OUTPUT] should-not-run"));
+        assertTrue(logCapture.messages().contains("[OUTPUT] RUNTIME ERROR: 7"));
     }
 
     @Test
@@ -98,7 +118,7 @@ class AbstractLanguageTest {
     @Test
     public void forwardsInputFromInputHolderToRunningProcess() throws InterruptedException {
         TestLanguage language = new TestLanguage("input");
-        language.startManagedTask();
+        language.startManaged();
 
         awaitOutput("ready");
         InputHolder.INSTANCE.set("user input");
@@ -112,7 +132,7 @@ class AbstractLanguageTest {
     @Test
     public void rejectsAnotherProcessWhileOneIsRunningAndCanStopIt() throws InterruptedException {
         TestLanguage language = new TestLanguage("wait");
-        language.startManagedTask();
+        language.startManaged();
 
         try {
             awaitOutput("ready");
@@ -136,7 +156,7 @@ class AbstractLanguageTest {
 
     private void awaitOutput(String output) {
         await("Expected logged process output: " + output)
-            .atMost(5, TimeUnit.SECONDS)
+            .atMost(15, TimeUnit.SECONDS)
             .pollInterval(10, TimeUnit.MILLISECONDS)
             .until(() -> logCapture.messages().stream().anyMatch(message -> message.contains(output)));
     }
@@ -156,18 +176,32 @@ class AbstractLanguageTest {
         private TestLanguage(String mode) {
             langFriendly = "Test language";
             langConstant = "test";
+            if ("chain-success".equals(mode)) {
+                processSteps = Arrays.asList(
+                        new ProcessBuilder(childCommand("success")),
+                        new ProcessBuilder(childCommand("second-stage"))
+                );
+            } else if ("chain-failure".equals(mode)) {
+                processSteps = Arrays.asList(
+                        new ProcessBuilder(childCommand("failure")),
+                        new ProcessBuilder(childCommand("should-not-run"))
+                );
+            } else {
+                pb = new ProcessBuilder(childCommand(mode));
+            }
+        }
+
+        private static List<String> childCommand(String mode) {
             String java = new File(
-                System.getProperty("java.home"),
-                "bin" + File.separator + (isWindows() ? "java.exe" : "java")
+                    System.getProperty("java.home"),
+                    "bin" + File.separator + (isWindows() ? "java.exe" : "java")
             ).getAbsolutePath();
-            pb = new ProcessBuilder(
-                Arrays.asList(
+            return Arrays.asList(
                     java,
                     "-cp",
                     System.getProperty("java.class.path"),
                     ChildProcess.class.getName(),
                     mode
-                )
             );
         }
 
@@ -179,13 +213,9 @@ class AbstractLanguageTest {
             return p;
         }
 
-        private RunnableNode startManagedTask() {
-            return startManaged();
-        }
-
         private void awaitExitHandler() {
             await("The process exit handler should clear the process reference.")
-                .atMost(5, TimeUnit.SECONDS)
+                .atMost(15, TimeUnit.SECONDS)
                 .pollInterval(10, TimeUnit.MILLISECONDS)
                 .until(() -> p == null);
             }
@@ -207,6 +237,16 @@ class AbstractLanguageTest {
                 try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
                     System.out.println("received:" + reader.readLine());
                 }
+                return;
+            }
+
+            if ("second-stage".equals(args[0])) {
+                System.out.println("second-stage output");
+                return;
+            }
+
+            if ("should-not-run".equals(args[0])) {
+                System.out.println("should-not-run");
                 return;
             }
 

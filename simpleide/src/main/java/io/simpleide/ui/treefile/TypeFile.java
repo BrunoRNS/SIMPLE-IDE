@@ -9,10 +9,10 @@ public enum TypeFile {
   KOTLIN("kotlin"),
   JAVASCRIPT("javascript"),
   GO("go"),
+  RUST("rust"),
   PYTHON("python"),
   BINARY("binary"),
   CPP("c++"),
-  ASM("Assembly-65x"),
   C("C");
 
   private final String name;

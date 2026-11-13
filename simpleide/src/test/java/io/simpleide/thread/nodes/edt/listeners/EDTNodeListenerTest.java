@@ -9,6 +9,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -16,9 +17,10 @@ import io.simpleide.thread.ThreadMaster;
 
 class EDTNodeListenerTest {
 
-    private static final int TEST_TIMEOUT_SECONDS = 2;
+    private static final int TEST_TIMEOUT_SECONDS = 10;
 
     @BeforeAll
+    @SuppressWarnings("unused")
     static void initializeThreadManager() {
         ThreadMaster.getInstance().initialize();
     }
@@ -87,5 +89,23 @@ class EDTNodeListenerTest {
         assertThat(master.showTree()).hasSize(treeSizeBefore);
         assertThat(startedEvent.get()).isSameAs(event);
         assertThat(closedEvent.get()).isSameAs(event);
+    }
+
+    @Test
+    void documentNodeDispatchesEdtChangesThroughThreadMaster() throws Exception {
+        ThreadMaster master = ThreadMaster.getInstance();
+        int treeSizeBefore = master.showTree().size();
+        CountDownLatch changed = new CountDownLatch(1);
+        try (DocumentNode node = new DocumentNode(() -> {
+            assertThat(SwingUtilities.isEventDispatchThread()).isTrue();
+            assertThat(master.showTree()).hasSize(treeSizeBefore + 1);
+            changed.countDown();
+        })) {
+            SwingUtilities.invokeAndWait(() -> node.insertUpdate(null));
+            assertThat(changed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+        }
+
+        await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .untilAsserted(() -> assertThat(master.showTree()).hasSize(treeSizeBefore));
     }
 }

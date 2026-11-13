@@ -1,6 +1,9 @@
 package io.simpleide.ui.editor;
 
+import java.awt.Font;
 import java.util.Objects;
+
+import javax.swing.UIManager;
 
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
@@ -12,7 +15,21 @@ public class Editor extends RSyntaxTextArea {
 
   public Editor() {
     super();
+    applyUiFont();
     config();
+  }
+
+  @Override
+  public void updateUI() {
+    super.updateUI();
+    applyUiFont();
+  }
+
+  private void applyUiFont() {
+    Font editorFont = UIManager.getFont("TextArea.font");
+    if (editorFont != null) {
+      setFont(editorFont);
+    }
   }
 
   public void loadFile(File file) {
@@ -38,10 +55,10 @@ public class Editor extends RSyntaxTextArea {
       case KOTLIN -> SyntaxConstants.SYNTAX_STYLE_KOTLIN;
       case JAVASCRIPT -> SyntaxConstants.SYNTAX_STYLE_JAVASCRIPT;
       case GO -> SyntaxConstants.SYNTAX_STYLE_GO;
+      case RUST -> SyntaxConstants.SYNTAX_STYLE_RUST;
       case PYTHON -> SyntaxConstants.SYNTAX_STYLE_PYTHON;
       case C -> SyntaxConstants.SYNTAX_STYLE_C;
       case CPP -> SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS;
-      case ASM -> SyntaxConstants.SYNTAX_STYLE_ASSEMBLER_6502;
       case TXT, BINARY -> SyntaxConstants.SYNTAX_STYLE_NONE;
     };
   }

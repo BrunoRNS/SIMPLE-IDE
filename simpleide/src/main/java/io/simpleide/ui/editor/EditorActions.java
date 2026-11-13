@@ -89,6 +89,7 @@ final class EditorActions {
     });
   }
 
+  @SuppressWarnings("")
   private void goToDefinition(EditorTab sourceTab) {
     sourceTab.definitionAtCaret().whenComplete((definitions, error) -> {
       if (error != null) {
@@ -100,10 +101,17 @@ final class EditorActions {
             showInformation(sourceTab, "The language server is not connected for this file.");
           } else {
             LOGGER.error("Unable to find definition in {}.", sourceTab.getFile().getPath(), cause);
-            new ErrorPopUP(
+            if (cause != null) {
+              new ErrorPopUP(
                 "Unable to find definition: " + cause.getMessage(),
                 sourceTab,
                 ErrorTypePopUp.INTERNAL_ERROR).startManaged();
+            } else {
+              new ErrorPopUP(
+                "Unable to find definition for cause NULL",
+                sourceTab,
+                ErrorTypePopUp.INTERNAL_ERROR).startManaged();
+            }
           }
         });
         return;
@@ -114,6 +122,7 @@ final class EditorActions {
     });
   }
 
+  @SuppressWarnings("")
   private DefinitionTarget getFirstDefinition(
       Either<List<? extends Location>, List<? extends LocationLink>> definitions) {
     if (definitions == null) {

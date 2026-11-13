@@ -1,9 +1,11 @@
 package io.simpleide.ui.editor;
 
 import java.awt.BorderLayout;
+import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
@@ -16,6 +18,11 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.fife.rsta.ac.LanguageSupport;
+import org.fife.rsta.ac.LanguageSupportFactory;
+import org.fife.rsta.ac.java.JavaLanguageSupport;
+import org.fife.ui.autocomplete.AutoCompletion;
+import org.fife.ui.autocomplete.CompletionProvider;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,23 +34,26 @@ import io.simpleide.lsp.client.LspEditorSupport;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
 import io.simpleide.ui.treefile.File;
-
 import io.simpleide.utils.ResourceUtil;
 import io.simpleide.utils.service.FileService;
 
 public class EditorTab extends JPanel {
   private static final Logger LOGGER = LoggerFactory.getLogger(EditorTab.class);
+  private static final AtomicBoolean JAVA_JRE_CLASS_SOURCE_REGISTERED = new AtomicBoolean();
 
   private final Editor editor;
   private final Document document;
   private final EditorSearchPanel searchPanel;
   private final FileService fileService = new FileService();
   private LspEditorSupport lspSupport;
+  private boolean localLanguageSupportRegistered;
+  private AutoCompletion localAutoCompletion;
+  private CompletionProvider localCompletionProvider;
   private boolean closed;
-  private ButtonExit buttonExit;
-  private File file;
-  private RTextScrollPane scrollPane;
-  private String name;
+  private final ButtonExit buttonExit;
+  private final File file;
+  private final RTextScrollPane scrollPane;
+  private final String name;
   private boolean isEdit;
   private DocumentNode documentNode;
 
@@ -63,6 +73,7 @@ public class EditorTab extends JPanel {
     configIsEdit();
   }
 
+  @Override
   public String getName() {
     return name;
   }
@@ -92,7 +103,61 @@ public class EditorTab extends JPanel {
       client.didClose(document.getUri());
       return;
     }
+    unregisterLocalLanguageSupport();
     lspSupport = new LspEditorSupport(editor, document, client);
+  }
+
+  public void enableLocalLanguageSupport() {
+    if (closed || lspSupport != null || hasLocalLanguageSupport()) {
+      return;
+    }
+    if (!GraphicsEnvironment.isHeadless()) {
+      String syntaxStyle = editor.getSyntaxEditingStyle();
+      if (LanguageSupportFactory.get().getSupportFor(syntaxStyle) != null) {
+        try {
+          if ("text/java".equals(syntaxStyle)) {
+            ensureJreClassesAvailable();
+          }
+          LanguageSupportFactory.get().register(editor);
+          localLanguageSupportRegistered = true;
+          return;
+        } catch (RuntimeException error) {
+          LOGGER.warn(
+              "Unable to register local language support for {}; using keyword completion.",
+              file.getPath(),
+              error);
+        }
+      }
+    }
+    enableKeywordCompletion();
+  }
+
+  /**
+   * RSTA's Java completion provider only knows about the classpath it is explicitly given. Without
+   * the current JRE it cannot even resolve {@code java.lang.Object}, which produces the
+   * "Couldn't find ClassFile for: java.lang.Object" warnings and leaves completion empty.
+   */
+  private static void ensureJreClassesAvailable() {
+    if (!JAVA_JRE_CLASS_SOURCE_REGISTERED.compareAndSet(false, true)) {
+      return;
+    }
+    LanguageSupport support = LanguageSupportFactory.get().getSupportFor("text/java");
+    if (!(support instanceof JavaLanguageSupport javaSupport)) {
+      return;
+    }
+    try {
+      javaSupport.getJarManager().addCurrentJreClassFileSource();
+    } catch (IOException | RuntimeException error) {
+      LOGGER.warn("Unable to add the current JRE to local Java completion.", error);
+    }
+  }
+
+  boolean hasLocalLanguageSupport() {
+    return localLanguageSupportRegistered || localAutoCompletion != null;
+  }
+
+  CompletionProvider getLocalCompletionProvider() {
+    return localCompletionProvider;
   }
 
   public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definitionAtCaret() {
@@ -102,6 +167,7 @@ public class EditorTab extends JPanel {
     return lspSupport.definitionAtCaret();
   }
 
+  @SuppressWarnings("")
   public void goToRange(Range range) {
     if (range == null || range.getStart() == null) {
       return;
@@ -133,7 +199,6 @@ public class EditorTab extends JPanel {
       case KOTLIN -> "kotlin.png";
       case JAVASCRIPT -> "javascript.png";
       case PYTHON -> "python.png";
-      case ASM -> "assembly.png";
       case CPP -> "cpp.png";
       case C -> "c.png";
       case TXT, BINARY -> null;
@@ -189,11 +254,42 @@ public class EditorTab extends JPanel {
     if (lspSupport != null) {
       lspSupport.close();
     }
+    unregisterLocalLanguageSupport();
     if (documentNode != null) {
       documentNode.close();
       editor.getDocument().removeDocumentListener(documentNode);
     }
     document.setOpened(false);
+  }
+
+  private void enableKeywordCompletion() {
+    CompletionProvider provider =
+        LocalCompletionProviders.forSyntaxStyle(editor.getSyntaxEditingStyle());
+    if (provider == null) {
+      return;
+    }
+    AutoCompletion autoCompletion = new AutoCompletion(provider);
+    autoCompletion.setAutoActivationEnabled(true);
+    autoCompletion.setAutoActivationDelay(300);
+    autoCompletion.install(editor);
+    localAutoCompletion = autoCompletion;
+    localCompletionProvider = provider;
+  }
+
+  private void unregisterLocalLanguageSupport() {
+    if (localAutoCompletion != null) {
+      localAutoCompletion.uninstall();
+      localAutoCompletion = null;
+      localCompletionProvider = null;
+    }
+    if (localLanguageSupportRegistered) {
+      try {
+        LanguageSupportFactory.get().unregister(editor);
+      } catch (RuntimeException error) {
+        LOGGER.warn("Unable to unregister local language support for {}.", file.getPath(), error);
+      }
+      localLanguageSupportRegistered = false;
+    }
   }
 
   private void configIsEdit() {

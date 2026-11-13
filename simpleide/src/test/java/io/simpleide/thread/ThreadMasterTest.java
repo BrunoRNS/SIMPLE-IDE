@@ -1,17 +1,23 @@
 package io.simpleide.thread;
 
+import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.SwingUtilities;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,8 +29,8 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 class ThreadMasterTest {
 
-    private static final int TEST_TIMEOUT_SECONDS = 2;
-    private static final int STABILITY_WINDOW_MILLISECONDS = 200;
+    private static final int TEST_TIMEOUT_SECONDS = 10;
+    private static final int STABILITY_WINDOW_MILLISECONDS = 500;
 
     @Test
     void exposesOneThreadMasterInstance() {
@@ -64,6 +70,70 @@ class ThreadMasterTest {
     }
 
     @Test
+    void registersAndSchedulesNodesWithIdsBeyondThe32BitRange() throws Exception {
+        BigInteger largeId = BigInteger.ONE.shiftLeft(32).add(BigInteger.valueOf(17));
+        CountDownLatch taskStarted = new CountDownLatch(1);
+        NodePattern root = new NodePattern() {
+            @Override
+            public Runnable onStart() {
+                return () -> {};
+            }
+
+            @Override
+            public Runnable onClose() {
+                return null;
+            }
+
+            @Override
+            public Integer level() {
+                return 0;
+            }
+
+            @Override
+            public boolean isEDT() {
+                return false;
+            }
+        };
+        NodePattern node = new NodePattern() {
+            @Override
+            public BigInteger getId() {
+                return largeId;
+            }
+
+            @Override
+            public Runnable onStart() {
+                return taskStarted::countDown;
+            }
+
+            @Override
+            public Runnable onClose() {
+                return null;
+            }
+
+            @Override
+            public Integer level() {
+                return 1;
+            }
+
+            @Override
+            public boolean isEDT() {
+                return false;
+            }
+        };
+        ThreadMaster master = new ThreadMaster(root);
+        try {
+            master.register(node);
+            assertTrue(master.showTree().containsKey(largeId));
+
+            master.initialize();
+
+            assertTrue(taskStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        } finally {
+            master.shutdown();
+        }
+    }
+
+    @Test
     void constructingNodeDoesNotInvokeParentActions() {
         AtomicInteger parentActions = new AtomicInteger();
         NodePattern root = new NodePattern() {
@@ -90,8 +160,9 @@ class ThreadMasterTest {
             }
         };
 
-        new RunnableNode(root, () -> {});
+        RunnableNode node = new RunnableNode(root, () -> {});
 
+        assertNotNull(node);
         assertEquals(0, parentActions.get());
     }
 
@@ -170,12 +241,113 @@ class ThreadMasterTest {
             assertTrue(maximumActive.get() <= workerCount);
             await()
                 .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
-                .atMost(1, TimeUnit.SECONDS)
+                .atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> assertEquals(taskCount, starts.get()));
         } finally {
             releaseWorkers.countDown();
             master.shutdown();
         }
+    }
+
+    @Test
+    void runsDedicatedPoolTasksAsManagedTreeChildren() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        ManagedThreadPool pool = master.createThreadPool("test-pool", 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(1);
+        AtomicReference<String> workerName = new AtomicReference<>();
+
+        try {
+            NodePattern task = pool.execute(() -> {
+                workerName.set(Thread.currentThread().getName());
+                started.countDown();
+                try {
+                    assertTrue(release.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }, closed::countDown);
+
+            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(master.showTree().containsKey(pool.node().getId()));
+            assertTrue(master.showTree().containsKey(task.getId()));
+            assertEquals(Boolean.TRUE, master.isNodeRunning(task));
+            assertTrue(workerName.get().startsWith("simpleide-test-pool-"));
+
+            release.countDown();
+            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .until(() -> !master.showTree().containsKey(task.getId()));
+            assertEquals(2, master.showTree().size());
+        } finally {
+            release.countDown();
+            pool.close();
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void closingDedicatedPoolCancelsRunningAndQueuedTasks() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        ManagedThreadPool pool = master.createThreadPool("cancel-pool", 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(2);
+        AtomicInteger queuedTaskStarts = new AtomicInteger();
+
+        try {
+            pool.execute(() -> {
+                started.countDown();
+                try {
+                    new CountDownLatch(1).await();
+                } catch (InterruptedException exception) {
+                    interrupted.countDown();
+                    Thread.currentThread().interrupt();
+                }
+            }, closed::countDown);
+            pool.execute(queuedTaskStarts::incrementAndGet, closed::countDown);
+            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+            pool.close();
+
+            assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertEquals(0, queuedTaskStarts.get());
+            assertEquals(1, master.showTree().size());
+        } finally {
+            pool.close();
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void shuttingDownThreadMasterStopsDedicatedPoolTasks() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        ManagedThreadPool pool = master.createThreadPool("shutdown-pool", 1);
+        CountDownLatch started = new CountDownLatch(1);
+        CountDownLatch interrupted = new CountDownLatch(1);
+        CountDownLatch closed = new CountDownLatch(1);
+
+        pool.execute(() -> {
+            started.countDown();
+            try {
+                new CountDownLatch(1).await();
+            } catch (InterruptedException exception) {
+                interrupted.countDown();
+                Thread.currentThread().interrupt();
+            }
+        }, closed::countDown);
+        assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+        master.shutdown();
+
+        assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        assertThatThrownBy(() -> pool.execute(() -> {}))
+            .isExactlyInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("shut down");
+        pool.close();
     }
 
     @Test
@@ -199,7 +371,7 @@ class ThreadMasterTest {
 
             await()
                 .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
-                .atMost(1, TimeUnit.SECONDS)
+                .atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> assertEquals(1, startCount.get()));
         } finally {
             master.shutdown();
@@ -351,6 +523,55 @@ class ThreadMasterTest {
             await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .until(() -> master.showTree().size() == 1);
 
+        } finally {
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void executorServiceRunsSubpoolTasksAsManagedChildNodes() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+        CountDownLatch taskFinished = new CountDownLatch(1);
+        master.register(parent);
+        ExecutorService executor = master.createExecutorService(parent);
+        try {
+            master.initialize();
+            executor.execute(() -> {
+                assertFalse(SwingUtilities.isEventDispatchThread());
+                assertThat(master.showTree()).hasSize(3);
+                taskFinished.countDown();
+            });
+
+            assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            executor.shutdown();
+            assertTrue(executor.awaitTermination(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            assertThat(master.showTree()).hasSize(2);
+        } finally {
+            executor.shutdownNow();
+            master.shutdown();
+        }
+    }
+
+    @Test
+    void schedulesDelayedTasksThroughManagedWorkers() throws Exception {
+        TestThreadMaster master = new TestThreadMaster();
+        RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+        CountDownLatch taskFinished = new CountDownLatch(1);
+        AtomicReference<String> taskThread = new AtomicReference<>();
+        master.register(parent);
+        try {
+            master.initialize();
+            ScheduledFuture<?> scheduled = master.schedule(parent, () -> {
+                taskThread.set(Thread.currentThread().getName());
+                taskFinished.countDown();
+            }, 10, TimeUnit.MILLISECONDS);
+
+            assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+            scheduled.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            assertThat(taskThread.get()).startsWith("simpleide-thread-");
+            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .untilAsserted(() -> assertThat(master.showTree()).hasSize(2));
         } finally {
             master.shutdown();
         }

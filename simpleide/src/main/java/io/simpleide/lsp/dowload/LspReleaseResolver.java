@@ -15,6 +15,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.Comparator;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +29,10 @@ final class LspReleaseResolver {
             "api.nuget.org",
             "proxy.golang.org",
             "registry.npmjs.org");
+    private static final long SUCCESS_CACHE_NANOS = TimeUnit.HOURS.toNanos(6);
+    private static final long FAILURE_CACHE_NANOS = TimeUnit.MINUTES.toNanos(2);
+    private static final ConcurrentMap<String, CachedRelease> RELEASE_CACHE = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, Object> REFRESH_LOCKS = new ConcurrentHashMap<>();
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(10))
             .followRedirects(HttpClient.Redirect.NEVER)
@@ -39,6 +46,35 @@ final class LspReleaseResolver {
             return;
         }
 
+        String key = server.getId() == null
+                ? server.getLanguageId() + ":" + server.getName()
+                : server.getId();
+        CachedRelease cached = RELEASE_CACHE.get(key);
+        if (isFresh(cached)) {
+            cached.applyTo(server);
+            return;
+        }
+
+        synchronized (REFRESH_LOCKS.computeIfAbsent(key, ignored -> new Object())) {
+            cached = RELEASE_CACHE.get(key);
+            if (isFresh(cached)) {
+                cached.applyTo(server);
+                return;
+            }
+            boolean refreshed = refreshFromApi(server);
+            RELEASE_CACHE.put(key, new CachedRelease(
+                    server.getVersion(),
+                    server.getUrl(),
+                    System.nanoTime(),
+                    refreshed ? SUCCESS_CACHE_NANOS : FAILURE_CACHE_NANOS));
+        }
+    }
+
+    private static boolean isFresh(CachedRelease cached) {
+        return cached != null && System.nanoTime() - cached.refreshedAtNanos < cached.ttlNanos;
+    }
+
+    private static boolean refreshFromApi(LspServer server) {
         try {
             URI apiUri = URI.create(server.getLatestVersionApi());
             if (!"https".equalsIgnoreCase(apiUri.getScheme())
@@ -98,6 +134,7 @@ final class LspReleaseResolver {
             if (downloadUrl != null) {
                 server.setUrl(downloadUrl);
             }
+            return true;
         } catch (InterruptedException error) {
             Thread.currentThread().interrupt();
             LOGGER.warn("Interrupted while checking the latest version of LSP {}. Using registry version {}.",
@@ -106,6 +143,7 @@ final class LspReleaseResolver {
             LOGGER.warn("Unable to check the latest version of LSP {}. Using registry version {}.",
                     server.getName(), server.getVersion(), error);
         }
+        return false;
     }
 
     private static String readVersion(JsonObject metadata, LspServer server) throws IOException {
@@ -126,5 +164,12 @@ final class LspReleaseResolver {
                 .filter(version -> !version.contains("-"))
                 .max(Comparator.comparing(version -> version, LspManager::compareVersions))
                 .orElseThrow(() -> new IOException("Version API returned no stable versions."));
+    }
+
+    private record CachedRelease(String version, String url, long refreshedAtNanos, long ttlNanos) {
+        private void applyTo(LspServer server) {
+            server.setVersion(version);
+            server.setUrl(url);
+        }
     }
 }

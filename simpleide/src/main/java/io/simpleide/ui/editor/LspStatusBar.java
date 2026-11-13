@@ -11,10 +11,10 @@ import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
-import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
 import io.simpleide.lsp.LspStatus;
+import io.simpleide.thread.ThreadMaster;
 
 public final class LspStatusBar extends JPanel {
   private final Map<String, LspStatus> statuses = new HashMap<>();
@@ -49,11 +49,7 @@ public final class LspStatusBar extends JPanel {
       }
       refreshStatus();
     };
-    if (SwingUtilities.isEventDispatchThread()) {
-      update.run();
-    } else {
-      SwingUtilities.invokeLater(update);
-    }
+    ThreadMaster.getInstance().executeOnEDT(update);
   }
 
   private void refreshStatus() {

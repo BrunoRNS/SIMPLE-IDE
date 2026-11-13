@@ -4,7 +4,6 @@ import java.util.Objects;
 
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.SwingUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,10 +38,6 @@ public final class DocumentNode extends EDTNode implements DocumentListener, Aut
 
     private void dispatchChange() {
         if (closed) {
-            return;
-        }
-        if (SwingUtilities.isEventDispatchThread()) {
-            onChange.run();
             return;
         }
         try {

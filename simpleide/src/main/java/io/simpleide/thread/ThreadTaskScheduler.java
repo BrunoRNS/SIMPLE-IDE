@@ -4,12 +4,15 @@ import java.awt.EventQueue;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -17,6 +20,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.thread.nodes.Node;
 import io.simpleide.thread.nodes.NodePattern;
 
 final class ThreadTaskScheduler {
@@ -27,6 +31,8 @@ final class ThreadTaskScheduler {
         Math.max(4, Math.min(8, Runtime.getRuntime().availableProcessors()));
 
     private final Map<BigInteger, ManagedTask> activeTasks = new LinkedHashMap<>();
+    private final Map<BigInteger, ThreadPoolExecutor> taskExecutors = new HashMap<>();
+    private final Map<BigInteger, ThreadPoolExecutor> dedicatedExecutors = new HashMap<>();
     private final Set<BigInteger> scheduledIds = new HashSet<>();
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
         WORKER_COUNT,
@@ -34,38 +40,83 @@ final class ThreadTaskScheduler {
         0L,
         TimeUnit.MILLISECONDS,
         new ArrayBlockingQueue<>(MAX_QUEUED_TASKS),
-        new ManagedThreadFactory(),
+        new ManagedThreadFactory("simpleide-thread-"),
         new ThreadPoolExecutor.AbortPolicy()
+    );
+    private final ScheduledThreadPoolExecutor timer = new ScheduledThreadPoolExecutor(
+        1,
+        new ManagedThreadFactory("simpleide-timer-")
     );
     private boolean shutdown;
 
-    synchronized void schedule(NodePattern node) {
-        if (shutdown) {
-            throw new IllegalStateException("Thread task scheduler has been shut down.");
-        }
+    ThreadTaskScheduler() {
+        timer.setRemoveOnCancelPolicy(true);
+    }
+
+    void schedule(NodePattern node) {
         BigInteger id = node.getId();
-        if (!scheduledIds.add(id)) {
-            return;
+        ManagedTask task;
+        ThreadPoolExecutor taskExecutor;
+        synchronized (this) {
+            if (shutdown) {
+                throw new IllegalStateException("Thread task scheduler has been shut down.");
+            }
+            if (dedicatedExecutors.containsKey(id) || !scheduledIds.add(id)) {
+                return;
+            }
+            task = new ManagedTask(node, this::onTaskFinished);
+            activeTasks.put(id, task);
+            if (node.isEDT()) {
+                taskExecutor = null;
+            } else {
+                taskExecutor = executorFor(node);
+                taskExecutors.put(id, taskExecutor);
+            }
         }
-        ManagedTask task = new ManagedTask(node, this::onTaskFinished);
-        activeTasks.put(id, task);
-        if (node.isEDT()) {
+        if (taskExecutor == null) {
             EventQueue.invokeLater(task);
             return;
         }
         try {
-            executor.execute(task);
+            taskExecutor.execute(task);
         } catch (RuntimeException exception) {
-            activeTasks.remove(id, task);
-            scheduledIds.remove(id);
+            synchronized (this) {
+                activeTasks.remove(id, task);
+                taskExecutors.remove(id, taskExecutor);
+                scheduledIds.remove(id);
+            }
             LOGGER.error(
                 "Unable to schedule thread node id={}; queue contains {} task(s).",
                 id,
-                executor.getQueue().size(),
+                taskExecutor.getQueue().size(),
                 exception
             );
             throw exception;
         }
+    }
+
+    synchronized void registerDedicatedPool(NodePattern poolNode, String name, int workerCount) {
+        if (shutdown) {
+            throw new IllegalStateException("Thread task scheduler has been shut down.");
+        }
+        if (workerCount < 1) {
+            throw new IllegalArgumentException("Thread pool worker count must be positive.");
+        }
+        BigInteger id = poolNode.getId();
+        if (dedicatedExecutors.containsKey(id)) {
+            throw new IllegalStateException("A thread pool is already registered for node " + id + ".");
+        }
+        String threadPrefix = "simpleide-" + name + "-" + id + "-worker-";
+        ThreadPoolExecutor dedicatedExecutor = new ThreadPoolExecutor(
+            workerCount,
+            workerCount,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new ArrayBlockingQueue<>(MAX_QUEUED_TASKS),
+            new ManagedThreadFactory(threadPrefix),
+            new ThreadPoolExecutor.AbortPolicy()
+        );
+        dedicatedExecutors.put(id, dedicatedExecutor);
     }
 
     synchronized boolean isRunning(BigInteger nodeId) {
@@ -73,50 +124,96 @@ final class ThreadTaskScheduler {
         return task != null && task.isRunning();
     }
 
+    synchronized ScheduledFuture<?> schedule(Runnable action, long delay, TimeUnit unit) {
+        if (shutdown) {
+            throw new IllegalStateException("Thread task scheduler has been shut down.");
+        }
+        return timer.schedule(action, delay, unit);
+    }
+
     void cancel(Collection<NodePattern> nodes) {
-        List<ManagedTask> tasksToCancel = new ArrayList<>();
+        List<ScheduledTask> tasksToCancel = new ArrayList<>();
+        List<ThreadPoolExecutor> poolsToShutdown = new ArrayList<>();
         synchronized (this) {
             for (NodePattern node : nodes) {
-                scheduledIds.remove(node.getId());
-                ManagedTask task = activeTasks.remove(node.getId());
+                BigInteger id = node.getId();
+                scheduledIds.remove(id);
+                ManagedTask task = activeTasks.remove(id);
                 if (task != null) {
-                    tasksToCancel.add(task);
+                    tasksToCancel.add(new ScheduledTask(task, taskExecutors.remove(id)));
+                }
+                ThreadPoolExecutor pool = dedicatedExecutors.remove(id);
+                if (pool != null) {
+                    poolsToShutdown.add(pool);
                 }
             }
         }
-        tasksToCancel.forEach(this::cancel);
+        poolsToShutdown.forEach(ThreadPoolExecutor::shutdownNow);
+        tasksToCancel.forEach(ScheduledTask::cancel);
     }
 
     void shutdown() {
-        List<ManagedTask> tasks;
+        List<ScheduledTask> tasks;
+        List<ThreadPoolExecutor> pools;
         synchronized (this) {
             if (shutdown) {
                 return;
             }
             shutdown = true;
-            tasks = new ArrayList<>(activeTasks.values());
+            tasks = new ArrayList<>(activeTasks.size());
+            for (ManagedTask task : activeTasks.values()) {
+                tasks.add(new ScheduledTask(task, taskExecutors.get(task.getNodeId())));
+            }
             activeTasks.clear();
+            taskExecutors.clear();
             scheduledIds.clear();
+            pools = new ArrayList<>(dedicatedExecutors.values());
+            dedicatedExecutors.clear();
         }
         LOGGER.info("Shutting down thread manager; cancelling {} active node(s).", tasks.size());
-        tasks.forEach(task -> this.cancel(task));
+        tasks.forEach(ScheduledTask::cancel);
+        pools.forEach(ThreadPoolExecutor::shutdownNow);
+        timer.shutdownNow();
         executor.shutdownNow();
     }
 
-    private void cancel(ManagedTask task) {
-        task.cancel(() -> executor.remove(task));
+    private ThreadPoolExecutor executorFor(NodePattern node) {
+        if (node instanceof Node managedNode) {
+            ThreadPoolExecutor dedicatedExecutor = dedicatedExecutors.get(managedNode.getSuperNode().getId());
+            if (dedicatedExecutor != null) {
+                return dedicatedExecutor;
+            }
+        }
+        return executor;
     }
 
     private synchronized void onTaskFinished(ManagedTask task) {
-        activeTasks.remove(task.getNodeId(), task);
+        if (activeTasks.remove(task.getNodeId(), task)) {
+            taskExecutors.remove(task.getNodeId());
+        }
+    }
+
+    private record ScheduledTask(ManagedTask task, ThreadPoolExecutor executor) {
+        private void cancel() {
+            task.cancel(() -> {
+                if (executor != null) {
+                    executor.remove(task);
+                }
+            });
+        }
     }
 
     private static final class ManagedThreadFactory implements ThreadFactory {
+        private final String namePrefix;
         private int sequence;
+
+        private ManagedThreadFactory(String namePrefix) {
+            this.namePrefix = namePrefix;
+        }
 
         @Override
         public synchronized Thread newThread(Runnable task) {
-            Thread thread = new Thread(task, "simpleide-thread-" + ++sequence);
+            Thread thread = new Thread(task, namePrefix + ++sequence);
             thread.setDaemon(true);
             LOGGER.debug("Created managed worker {}.", thread.getName());
             return thread;

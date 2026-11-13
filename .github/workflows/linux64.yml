@@ -10,6 +10,8 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: linux-x64
     strategy:
       fail-fast: false
       matrix:
@@ -19,11 +21,33 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
+
+      - name: Install language toolchains
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes build-essential golang-go mono-devel nodejs python3 rustc
+
+      - name: Verify language toolchains
+        run: |
+          command -v gcc
+          command -v g++
+          command -v mcs
+          command -v mono
+          command -v go
+          command -v rustc
+          command -v node
+          command -v python3
+          test "$(go env GOOS)" = linux
+          test "$(go env GOARCH)" = amd64
+          rustc -vV | grep -Eq '^host: x86_64-unknown-linux-gnu$'
+          test "$(node -p 'process.arch')" = x64
+          python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
+          file -L "$(command -v mono)" | grep -Eq 'ELF 64-bit.*(x86-64|x86_64)'
 
       - name: Run tests
         run: make test
