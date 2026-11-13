@@ -49,6 +49,82 @@ public abstract class AbstractThreadMaster implements Tree {
         LOGGER.debug("Registered thread node id={} level={}", node.getId(), node.level());
     }
 
+    public ManagedThreadPool createThreadPool(String name, int workerCount) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("Thread pool name must not be blank.");
+        }
+        if (workerCount < 1) {
+            throw new IllegalArgumentException("Thread pool worker count must be positive.");
+        }
+
+        synchronized (this) {
+            ensureRunning();
+            RunnableNode poolNode = new RunnableNode(tree.getRoot().getNode(), () -> {});
+            tree.addNode(poolNode);
+            try {
+                scheduler.registerDedicatedPool(poolNode, name, workerCount);
+            } catch (RuntimeException exception) {
+                scheduler.cancel(tree.removeNodeCascadeAndCollect(poolNode));
+                throw exception;
+            }
+            LOGGER.info("Registered managed thread pool '{}' with {} worker(s).", name, workerCount);
+            return new ManagedThreadPool(this, poolNode, name);
+        }
+    }
+
+    NodePattern executeOnPool(ManagedThreadPool pool, Runnable action, Runnable onClose) {
+        if (action == null) {
+            throw new IllegalArgumentException("Thread pool action must not be null.");
+        }
+        if (pool == null || pool.owner() != this) {
+            throw new IllegalArgumentException("Thread pool must belong to this ThreadMaster.");
+        }
+
+        class PoolTaskNode extends RunnableNode {
+            private PoolTaskNode() {
+                super(pool.node(), (Runnable) null, onClose);
+            }
+
+            @Override
+            public Runnable onStart() {
+                return () -> {
+                    try {
+                        action.run();
+                    } finally {
+                        removeNodeCascade(this);
+                    }
+                };
+            }
+        }
+
+        PoolTaskNode task = new PoolTaskNode();
+        synchronized (this) {
+            ensureRunning();
+            if (!tree.contains(pool.node())) {
+                throw new IllegalStateException("Thread pool '" + pool.name() + "' has been closed.");
+            }
+            tree.addNode(task);
+            try {
+                if (!initialized) {
+                    initialize();
+                } else {
+                    scheduler.schedule(task);
+                }
+            } catch (RuntimeException exception) {
+                scheduler.cancel(tree.removeNodeCascadeAndCollect(task));
+                throw exception;
+            }
+        }
+        return task;
+    }
+
+    void closePool(ManagedThreadPool pool) {
+        if (pool.owner() != this) {
+            throw new IllegalArgumentException("Thread pool must belong to this ThreadMaster.");
+        }
+        removeNodeCascade(pool.node());
+    }
+
     public NodePattern executeOnEDT(Runnable action, Runnable onClose) {
         if (action == null) {
             throw new IllegalArgumentException("EDT action must not be null.");
