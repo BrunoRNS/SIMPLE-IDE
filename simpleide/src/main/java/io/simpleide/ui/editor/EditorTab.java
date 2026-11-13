@@ -43,6 +43,7 @@ public class EditorTab extends JPanel {
 
   private final Editor editor;
   private final Document document;
+  private final EditorSearchPanel searchPanel;
   private final FileService fileService = new FileService();
   private LspEditorSupport lspSupport;
   private boolean localLanguageSupportRegistered;
@@ -58,6 +59,7 @@ public class EditorTab extends JPanel {
 
   public EditorTab(File file, Document document) {
     this.editor = new Editor();
+    this.searchPanel = new EditorSearchPanel(editor);
     this.isEdit = false;
     this.file = file;
     this.document = document;
@@ -65,6 +67,7 @@ public class EditorTab extends JPanel {
     this.scrollPane = new RTextScrollPane(editor);
     this.buttonExit = new ButtonExit(this);
     setLayout(new BorderLayout());
+    add(searchPanel, BorderLayout.NORTH);
     add(this.scrollPane, BorderLayout.CENTER);
     editor.loadFile(file);
     configIsEdit();
@@ -89,6 +92,10 @@ public class EditorTab extends JPanel {
 
   public Editor getEditor() {
     return editor;
+  }
+
+  void showSearchPanel(boolean showReplacement) {
+    searchPanel.open(showReplacement);
   }
 
   public void connectLanguageServer(LspClient client) {

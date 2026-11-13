@@ -17,6 +17,8 @@ public final class ThemeMenu extends JMenu {
   protected JRadioButtonMenuItem dark;
   protected JRadioButtonMenuItem light;
   protected JRadioButtonMenuItem darcula;
+  protected JRadioButtonMenuItem brown;
+  protected JRadioButtonMenuItem brownLight;
   protected ButtonGroup buttonGroup;
 
   public ThemeMenu() {
@@ -30,6 +32,8 @@ public final class ThemeMenu extends JMenu {
     add(dark);
     add(light);
     add(darcula);
+    add(brown);
+    add(brownLight);
   }
 
   protected void createItems() {
@@ -38,11 +42,15 @@ public final class ThemeMenu extends JMenu {
     light = new JRadioButtonMenuItem("Light");
     dark = new JRadioButtonMenuItem("Dark");
     darcula = new JRadioButtonMenuItem("Darcula");
+    brown = new JRadioButtonMenuItem("Brown");
+    brownLight = new JRadioButtonMenuItem("Brown Light");
     dark.setSelected(true);
 
     buttonGroup.add(light);
     buttonGroup.add(dark);
     buttonGroup.add(darcula);
+    buttonGroup.add(brown);
+    buttonGroup.add(brownLight);
   }
 
   protected void configureActions() {
@@ -59,6 +67,16 @@ public final class ThemeMenu extends JMenu {
     darcula.addActionListener(new ActionNode(e -> {
       LOGGER.info("Set Darcula theme");
       ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DRACULA);
+    }));
+
+    brown.addActionListener(new ActionNode(e -> {
+      LOGGER.info("Set Brown theme");
+      ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.BROWN);
+    }));
+
+    brownLight.addActionListener(new ActionNode(e -> {
+      LOGGER.info("Set Brown Light theme");
+      ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.BROWN_LIGHT);
     }));
   }
 }

@@ -44,6 +44,7 @@ public class HelpMenu extends JMenu {
     JTable shortcutsTable = new JTable(model_);
     shortcutsTable.setFillsViewportHeight(true);
     model_.addRow(new Object[] {"Ctrl+S", "Save the current file"});
+    model_.addRow(new Object[] {"Ctrl+F / Ctrl+H", "Find and replace text"});
     model_.addRow(new Object[] {"Ctrl+Click / Ctrl+B / F12", "Go to definition"});
 
     JPanel panel = new JPanel(new GridLayout(0, 1, 0, 8));

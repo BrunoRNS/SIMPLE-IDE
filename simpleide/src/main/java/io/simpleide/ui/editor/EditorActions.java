@@ -46,6 +46,16 @@ final class EditorActions {
         () -> editorManager.saveTab(tab));
     bindEditorAction(
         editor,
+        "simpleide.find",
+        KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK),
+        () -> tab.showSearchPanel(false));
+    bindEditorAction(
+        editor,
+        "simpleide.replace",
+        KeyStroke.getKeyStroke(KeyEvent.VK_H, InputEvent.CTRL_DOWN_MASK),
+        () -> tab.showSearchPanel(true));
+    bindEditorAction(
+        editor,
         "simpleide.goToDefinition",
         KeyStroke.getKeyStroke(KeyEvent.VK_B, InputEvent.CTRL_DOWN_MASK),
         () -> goToDefinition(tab));

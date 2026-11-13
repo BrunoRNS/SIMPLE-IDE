@@ -25,6 +25,7 @@ public class App {
     threadMaster.register(new EDTNode(() -> new MainFrame().run()));
     threadMaster.initialize();
     
+   
   }
 
 }
