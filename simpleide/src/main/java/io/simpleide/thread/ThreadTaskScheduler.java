@@ -11,6 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -26,7 +28,7 @@ final class ThreadTaskScheduler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ThreadTaskScheduler.class);
     static final int MAX_QUEUED_TASKS = 256;
     static final int WORKER_COUNT =
-        Math.max(1, Math.min(2, Runtime.getRuntime().availableProcessors()));
+        Math.max(4, Math.min(8, Runtime.getRuntime().availableProcessors()));
 
     private final Map<BigInteger, ManagedTask> activeTasks = new LinkedHashMap<>();
     private final Map<BigInteger, ThreadPoolExecutor> taskExecutors = new HashMap<>();
@@ -41,21 +43,34 @@ final class ThreadTaskScheduler {
         new ManagedThreadFactory("simpleide-thread-"),
         new ThreadPoolExecutor.AbortPolicy()
     );
+    private final ScheduledThreadPoolExecutor timer = new ScheduledThreadPoolExecutor(
+        1,
+        new ManagedThreadFactory("simpleide-timer-")
+    );
     private boolean shutdown;
 
-    synchronized void schedule(NodePattern node) {
-        if (shutdown) {
-            throw new IllegalStateException("Thread task scheduler has been shut down.");
-        }
+    ThreadTaskScheduler() {
+        timer.setRemoveOnCancelPolicy(true);
+    }
+
+    void schedule(NodePattern node) {
         BigInteger id = node.getId();
+        ManagedTask task;
+        synchronized (this) {
+            if (shutdown) {
+                throw new IllegalStateException("Thread task scheduler has been shut down.");
+            }
+            if (!scheduledIds.add(id)) {
+                return;
+            }
+            task = new ManagedTask(node, this::onTaskFinished);
+            activeTasks.put(id, task);
         if (dedicatedExecutors.containsKey(id)) {
             return;
         }
         if (!scheduledIds.add(id)) {
             return;
         }
-        ManagedTask task = new ManagedTask(node, this::onTaskFinished);
-        activeTasks.put(id, task);
         if (node.isEDT()) {
             EventQueue.invokeLater(task);
             return;
@@ -65,9 +80,10 @@ final class ThreadTaskScheduler {
         try {
             taskExecutor.execute(task);
         } catch (RuntimeException exception) {
-            activeTasks.remove(id, task);
-            taskExecutors.remove(id);
-            scheduledIds.remove(id);
+            synchronized (this) {
+                activeTasks.remove(id, task);
+                scheduledIds.remove(id);
+            }
             LOGGER.error(
                 "Unable to schedule thread node id={}; queue contains {} task(s).",
                 id,
@@ -105,6 +121,13 @@ final class ThreadTaskScheduler {
     synchronized boolean isRunning(BigInteger nodeId) {
         ManagedTask task = activeTasks.get(nodeId);
         return task != null && task.isRunning();
+    }
+
+    synchronized ScheduledFuture<?> schedule(Runnable action, long delay, TimeUnit unit) {
+        if (shutdown) {
+            throw new IllegalStateException("Thread task scheduler has been shut down.");
+        }
+        return timer.schedule(action, delay, unit);
     }
 
     void cancel(Collection<NodePattern> nodes) {
@@ -146,13 +169,9 @@ final class ThreadTaskScheduler {
             pools = new ArrayList<>(dedicatedExecutors.values());
             dedicatedExecutors.clear();
         }
-        LOGGER.info(
-            "Shutting down thread manager; cancelling {} active node(s) and {} dedicated pool(s).",
-            tasks.size(),
-            pools.size()
-        );
-        tasks.forEach(ScheduledTask::cancel);
-        pools.forEach(ThreadPoolExecutor::shutdownNow);
+        LOGGER.info("Shutting down thread manager; cancelling {} active node(s).", tasks.size());
+        tasks.forEach(task -> this.cancel(task));
+        timer.shutdownNow();
         executor.shutdownNow();
     }
 

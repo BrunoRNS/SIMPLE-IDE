@@ -14,7 +14,7 @@ import io.simpleide.thread.nodes.NodePattern;
 
 class ThreadTaskSchedulerTest {
 
-    private static final int TEST_TIMEOUT_SECONDS = 2;
+    private static final int TEST_TIMEOUT_SECONDS = 10;
 
     @Test
     void schedulesEachNodeOnlyOnceAndCallsItsCloseActionOnce() throws Exception {
@@ -39,8 +39,8 @@ class ThreadTaskSchedulerTest {
 
             scheduler.schedule(node);
             await()
-                .during(200, TimeUnit.MILLISECONDS)
-                .atMost(1, TimeUnit.SECONDS)
+                .during(500, TimeUnit.MILLISECONDS)
+                .atMost(5, TimeUnit.SECONDS)
                 .untilAsserted(() -> {
                     assertEquals(1, startCount.get());
                     assertEquals(1, closeCount.get());

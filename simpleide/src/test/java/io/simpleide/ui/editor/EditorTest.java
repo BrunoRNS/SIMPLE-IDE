@@ -11,11 +11,14 @@ import javax.swing.plaf.FontUIResource;
 
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TypeFile;
 
 class EditorTest {
+
+  @TempDir
+  Path tempDirectory;
 
   @Test
   void updatesEditorFontWhenTheUiFontSizeChanges() throws Exception {
@@ -40,16 +43,10 @@ class EditorTest {
   void loadFileDisplaysItsContentsAndUsesItsSyntaxStyle() throws Exception {
     SwingUtilities.invokeAndWait(() -> {
       Editor editor = new Editor();
-      File pythonFile = new File(
-          Path.of("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer("print('hello')"));
-
-      editor.loadFile(pythonFile);
-
-      assertThat(editor.getText()).isEqualTo("print('hello')");
-      assertThat(editor.getSyntaxEditingStyle()).isEqualTo(SyntaxConstants.SYNTAX_STYLE_PYTHON);
-
-      File textFile = new File(
-          Path.of("notes.txt"), "notes.txt", TypeFile.TXT, new StringBuffer("plain text"));
+      for (int index = 0; index < files.length; index++) {
+        editor.loadFile(files[index]);
+        assertThat(editor.getSyntaxEditingStyle()).isEqualTo(syntaxStyles[index]);
+      }
       editor.loadFile(textFile);
 
       assertThat(editor.getText()).isEqualTo("plain text");

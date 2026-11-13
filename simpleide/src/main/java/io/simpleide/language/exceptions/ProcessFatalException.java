@@ -7,15 +7,14 @@ public final class ProcessFatalException
 extends UncheckedIOException
 {
 
-    private IOException cause = null;
-    private Process pcause = null;
+    private final Process processCause;
 
     public ProcessFatalException(
         String message,
         IOException cause
     ) {
         super(message, cause);
-        this.cause = cause;
+        this.processCause = null;
     }
 
     public ProcessFatalException(
@@ -23,15 +22,16 @@ extends UncheckedIOException
         Process pcause
     ) {
         super(message, new IOException(message));
-        this.pcause = pcause;
+        this.processCause = pcause;
     }
 
+    @Override
     public IOException getCause() {
-        return this.cause;
+        return (IOException) super.getCause();
     }
 
     public Process getProcessCause() {
-        return this.pcause;
+        return this.processCause;
     }
     
 }

@@ -1,7 +1,12 @@
 package io.simpleide.language.jvmbytecode;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Locale;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,14 +18,13 @@ public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
 
     private final static Logger LOGGER = LoggerFactory.getLogger(AbstractBytecodeLanguage.class);
 
-    private static final String COMPILER_JAR_RESOURCE =
-        "simplebytecode-compiler.jar";
+    private static final String COMPILER_JAR_RESOURCE
+            = "simplebytecode-compiler.jar";
     private static final Path COMPILER_JAR = getCompilerJarPath();
 
     protected AbstractBytecodeLanguage(Path filePath, String friendlyName, String languageConstant) {
         if (filePath == null) {
-            LOGGER.error("[IDE] Cannot configure {} execution: source file path is null.", friendlyName);
-            return;
+            throw new IllegalArgumentException("Source file path must not be null.");
         }
         if (COMPILER_JAR == null) {
             LOGGER.error("[IDE] Cannot configure {} execution: compiler JAR is unavailable.", friendlyName);
@@ -30,17 +34,76 @@ public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
         this.langFriendly = friendlyName;
         this.langConstant = languageConstant;
         Path sourceFile = filePath.toAbsolutePath().normalize();
-        Path javaExecutable = Path.of(
-            System.getProperty("java.home"),
-            "bin",
-            System.getProperty("os.name").toLowerCase().contains("win") ? "java.exe" : "java"
-        );
+        Optional<Path> javaExecutable = findJavaExecutable();
+        if (javaExecutable.isEmpty()) {
+            LOGGER.error("[IDE] Cannot configure {} execution: Java executable was not found.", friendlyName);
+            return;
+        }
+
         this.pb = new ProcessBuilder(
-            javaExecutable.toString(),
-            "-jar",
-            COMPILER_JAR.toString(),
-            sourceFile.toString()
+                javaExecutable.get().toString(),
+                "-jar",
+                COMPILER_JAR.toString(),
+                sourceFile.toString()
         );
+    }
+
+    public static boolean isAvailable() {
+        return COMPILER_JAR != null && findJavaExecutable().isPresent();
+    }
+
+    private static Optional<Path> findJavaExecutable() {
+        boolean isWindows = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+        String exeName = isWindows ? "java.exe" : "java";
+
+        Optional<String> currentCmd = ProcessHandle.current().info().command();
+        if (currentCmd.isPresent()) {
+            Path cmdPath = Paths.get(currentCmd.get());
+            Path fileName = cmdPath.getFileName();
+            if (fileName != null && fileName.toString().equalsIgnoreCase(exeName)) {
+                Optional<Path> executable = executableFile(cmdPath);
+                if (executable.isPresent()) {
+                    return executable;
+                }
+            }
+        }
+
+        String javaHomeProp = System.getProperty("java.home");
+        if (javaHomeProp != null && !javaHomeProp.isEmpty()) {
+            Optional<Path> executable = executableFile(Paths.get(javaHomeProp, "bin", exeName));
+            if (executable.isPresent()) {
+                return executable;
+            }
+        }
+
+        String envJavaHome = System.getenv("JAVA_HOME");
+        if (envJavaHome != null && !envJavaHome.isEmpty()) {
+            Optional<Path> executable = executableFile(Paths.get(envJavaHome, "bin", exeName));
+            if (executable.isPresent()) {
+                return executable;
+            }
+        }
+
+        String pathEnv = System.getenv("PATH");
+        if (pathEnv != null) {
+            for (String dir : pathEnv.split(File.pathSeparator)) {
+                if (!dir.isBlank()) {
+                    Optional<Path> executable = executableFile(Paths.get(dir, exeName));
+                    if (executable.isPresent()) {
+                        return executable;
+                    }
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static Optional<Path> executableFile(Path path) {
+        Path absolutePath = path.toAbsolutePath().normalize();
+        return Files.isRegularFile(absolutePath) && Files.isExecutable(absolutePath)
+                ? Optional.of(absolutePath)
+                : Optional.empty();
     }
 
     private static Path getCompilerJarPath() {
@@ -48,9 +111,9 @@ public abstract class AbstractBytecodeLanguage extends AbstractLanguage {
             return ResourceUtil.getResourcePath(AbstractBytecodeLanguage.class, COMPILER_JAR_RESOURCE);
         } catch (IOException exception) {
             LOGGER.error(
-                "[IDE] Could not locate the embedded simplebytecode compiler JAR: {}",
-                COMPILER_JAR_RESOURCE,
-                exception
+                    "[IDE] Could not locate the embedded simplebytecode compiler JAR: {}",
+                    COMPILER_JAR_RESOURCE,
+                    exception
             );
             return null;
         }
