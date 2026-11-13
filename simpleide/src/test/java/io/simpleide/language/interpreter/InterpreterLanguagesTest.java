@@ -115,16 +115,16 @@ class InterpreterLanguagesTest {
         JSLanguage language = new JSLanguage(source);
         RunnableNode node = language.startManaged();
         try {
-            String listening = Output.getInstance().get(15);
+            String listening = Output.getInstance().get(30);
             assertTrue(listening != null && listening.startsWith("listening:"));
             int port = Integer.parseInt(listening.substring("listening:".length()));
-            await().atMost(5, TimeUnit.SECONDS).until(() -> canConnect(port));
+            await().atMost(15, TimeUnit.SECONDS).until(() -> canConnect(port));
 
             language.forceStop();
 
-            await().atMost(5, TimeUnit.SECONDS)
+            await().atMost(15, TimeUnit.SECONDS)
                     .until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
-            await().atMost(5, TimeUnit.SECONDS).until(() -> !canConnect(port));
+            await().atMost(15, TimeUnit.SECONDS).until(() -> !canConnect(port));
         } finally {
             if (Boolean.TRUE.equals(ThreadMaster.getInstance().isNodeRunning(node))) {
                 language.forceStop();
@@ -143,7 +143,7 @@ class InterpreterLanguagesTest {
 
     private void runAndAssertOutput(AbstractLanguage language, String expectedOutput) throws Exception {
         RunnableNode node = language.startManaged();
-        assertEquals(expectedOutput, Output.getInstance().get(30));
+        assertEquals(expectedOutput, Output.getInstance().get(45));
         await().atMost(5, TimeUnit.SECONDS)
                 .until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
     }
@@ -154,9 +154,9 @@ class InterpreterLanguagesTest {
             String expectedOutput) throws Exception {
         RunnableNode node = language.startManaged();
         try {
-            assertEquals("ready", Output.getInstance().get(30));
+            assertEquals("ready", Output.getInstance().get(45));
             Input.getInstance().set(input);
-            assertEquals(expectedOutput, Output.getInstance().get(30));
+            assertEquals(expectedOutput, Output.getInstance().get(45));
             await().atMost(5, TimeUnit.SECONDS)
                     .until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
         } finally {

@@ -2,7 +2,6 @@ package io.simpleide.ui.terminal;
 
 import java.awt.Component;
 import java.awt.Container;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;

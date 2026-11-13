@@ -293,6 +293,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
         : CompletableFuture.completedFuture(Either.forLeft(List.of())));
   }
 
+  @SuppressWarnings("deprecation")
   private void initialize(Path workspaceRoot) {
     InitializeParams params = new InitializeParams();
 
