@@ -1,13 +1,20 @@
 # Running Languages
 
-Simple IDE registers a language only when its required tools are available. The language setup is initialized once at application startup:
+Simple IDE implements Java, Kotlin, Groovy, JavaScript, Python, C#, C++, C,
+Go, and Rust. A language is registered only when its required tools are
+available. The language setup is initialized once at application startup:
 
 ```java
 LangConfig config = LangConfigHolder.LANG_CONFIG;
 new LangSetup(config).run();
 ```
 
-`LangSetup` registers extensions for the installed compilers and interpreters, plus Java, Kotlin, and Groovy when the embedded bytecode compiler is present. `LangConfig.getLanguage(extension)` returns the language class for a registered extension, or `null` when the extension is unavailable. Use `LangConfig.createLanguage(extension, sourcePath)` to construct an available language with the source file's `Path`:
+`LangSetup` registers extensions for installed compilers and interpreters, plus
+Java, Kotlin, and Groovy when the embedded bytecode compiler is present.
+`LangConfig.getLanguage(extension)` returns the language class for a registered
+extension, or `null` when the language or its required tools are unavailable.
+Use `LangConfig.createLanguage(extension, sourcePath)` to construct an
+available language with the source file's `Path`:
 
 ```java
 Path source = Path.of("/projects/example/main.py");
@@ -50,13 +57,23 @@ String line = Output.getInstance().get(5);
 
 ## Supported language toolchains
 
-| Language | Required tools |
-| --- | --- |
-| C | `gcc` and GNU `as` |
-| C++ | `g++` and GNU `as` |
-| C# | Mono `mcs` and `mono` |
-| JavaScript | `node` |
-| Python 3 | `python3` on Linux/macOS, `python` on Windows |
-| Java, Kotlin, Groovy | JDK plus the embedded Simple IDE bytecode compiler |
+| Language | Registered extensions | Implementation | Required tools |
+| --- | --- | --- | --- |
+| Java | `.java`, `.jav` | Embedded bytecode compiler | JDK and embedded Simple IDE bytecode compiler |
+| Kotlin | `.kt`, `.kts` | Embedded bytecode compiler | JDK and embedded Simple IDE bytecode compiler |
+| Groovy | `.groovy`, `.gvy`, `.gy`, `.gsh` | Embedded bytecode compiler | JDK and embedded Simple IDE bytecode compiler |
+| JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs`, `.jscript` | Interpreter | `node` |
+| Python 3 | `.py`, `.pyi`, `.pyw`, `.py3` | Interpreter | `python3` on Linux/macOS; `python` on Windows |
+| C# | `.cs`, `.csx` | Compiler and Mono runtime | `mcs`, `mono` |
+| C++ | `.cpp`, `.hpp`, `.cc`, `.cxx`, `.hxx` | Compiler/linker | `g++` |
+| C | `.c`, `.h` | Compiler/linker | `gcc` |
+| Go | `.go` | Compiler | `go` |
+| Rust | `.rs` | Compiler | `rustc`; Windows x86 also needs the i686 GNU target and `gcc` linker |
 
-C and C++ source is compiled to assembly, assembled to an object file, linked to a temporary executable, and run. C# source is compiled to a .NET executable with `mcs` and run with Mono.
+C and C++ are each compiled and linked directly by one `gcc` or `g++` command
+into a temporary executable. Go uses `go build`; Rust uses `rustc`. C# is
+compiled to a temporary executable by `mcs` and run with Mono. Build artifacts
+are removed when the language process finishes.
+
+For editor language-server features and per-platform LSP availability, see
+[`LSP.md`](LSP.md).

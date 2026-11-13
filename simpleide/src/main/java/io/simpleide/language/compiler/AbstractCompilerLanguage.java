@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -98,6 +99,10 @@ public abstract class AbstractCompilerLanguage extends AbstractLanguage {
         return artifactDirectory;
     }
 
+    protected static boolean isWindows() {
+        return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("win");
+    }
+
     protected final void writeArtifact(Path artifact, String contents) {
         try {
             Files.writeString(artifact, contents);
@@ -128,6 +133,12 @@ public abstract class AbstractCompilerLanguage extends AbstractLanguage {
 
     public List<String> execute() {
         return execute;
+    }
+
+    final List<List<String>> getProcessCommands() {
+        return processSteps.stream()
+                .map(step -> List.copyOf(step.command()))
+                .toList();
     }
 
     @Override

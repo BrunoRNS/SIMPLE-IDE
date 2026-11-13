@@ -65,7 +65,7 @@ final class ManagedTask implements Runnable {
     void cancel(Runnable removeFromQueue) {
         cancelled = true;
         Thread currentRunner = runner;
-        if (currentRunner != null && !node.isEDT()) {
+        if (currentRunner != null && currentRunner != Thread.currentThread() && !node.isEDT()) {
             currentRunner.interrupt();
         } else if (!started.get()) {
             if (!node.isEDT()) {

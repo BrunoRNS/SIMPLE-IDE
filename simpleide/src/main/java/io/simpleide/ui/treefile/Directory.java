@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-public class Directory extends TreeFile {
+public final class Directory extends TreeFile {
   private final List<TreeFile> children = new ArrayList<>();
   private boolean childrenLoaded;
 
@@ -49,7 +49,14 @@ public class Directory extends TreeFile {
   }
 
   void refreshChildren() throws IOException {
-    List<TreeFile> refreshedChildren = readChildren(getPath());
+    replaceChildren(readChildrenFromDisk());
+  }
+
+  List<TreeFile> readChildrenFromDisk() throws IOException {
+    return readChildren(getPath());
+  }
+
+  void replaceChildren(List<TreeFile> refreshedChildren) {
     children.clear();
     children.addAll(refreshedChildren);
     childrenLoaded = true;

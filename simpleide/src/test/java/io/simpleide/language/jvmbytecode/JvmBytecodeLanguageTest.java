@@ -72,6 +72,11 @@ class JvmBytecodeLanguageTest {
     }
 
     @Test
+    void reportsAvailableWhenCompilerJarAndJavaRuntimeExist() {
+        assertTrue(AbstractBytecodeLanguage.isAvailable());
+    }
+
+    @Test
     void runsJavaThroughEmbeddedCompilerJar() throws Exception {
         JavaLanguage language = new JavaLanguage(writeSource(
             "java",

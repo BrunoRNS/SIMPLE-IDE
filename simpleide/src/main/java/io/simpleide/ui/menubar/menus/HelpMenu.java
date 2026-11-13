@@ -4,7 +4,6 @@ import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 
 import javax.swing.AbstractAction;
-import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -44,9 +43,10 @@ public class HelpMenu extends JMenu {
     };
     JTable shortcutsTable = new JTable(model_);
     shortcutsTable.setFillsViewportHeight(true);
+    model_.addRow(new Object[] {"Ctrl+S", "Save the current file"});
+    model_.addRow(new Object[] {"Ctrl+Click / Ctrl+B / F12", "Go to definition"});
 
     JPanel panel = new JPanel(new GridLayout(0, 1, 0, 8));
-    panel.add(new JLabel("No keyboard shortcuts are currently configured."));
     panel.add(new JScrollPane(shortcutsTable));
 
     new InfoPopUP("Keyboard Shortcuts", panel, this).startManaged();

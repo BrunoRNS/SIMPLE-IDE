@@ -20,11 +20,14 @@ Run the commands below from the repository root.
 
 | Command | Description |
 | --- | --- |
-| `make build` | Compiles the Maven project without running tests. |
-| `make test` | Runs the project tests, including language tests when their toolchains are installed. |
+| `make all` | Runs the tests, then packages the IDE and Ambus. |
+| `make build` | Packages the IDE and the separate Ambus Java LSP without running tests. |
+| `make test` | Runs the project's tests. |
+| `make jar` | Alias for `make build`. |
+| `make run` | Packages both artifacts, then launches the IDE configured to use the local Ambus build. |
+| `make clean` | Removes generated Maven build outputs. |
 | `make test-nolang` | Runs tests without the external-language execution tests. |
-| `make jar` | Builds the runnable FAT JAR with `io.simpleide.App` as its main class. |
-| `make run` | Packages the application, then launches its executable JAR. |
+
 
 The executable JAR is created at
 `simpleide/target/maven-mutation-testing-jar-with-dependencies.jar`. Run it

@@ -101,7 +101,7 @@ public class LangSetup implements Runnable {
         if (this.validate(JSLanguage.class)) {
             this.setupLanguage(
                 JSLanguage.class,
-                ".js", ".mjs", ".cjs", ".jscript"
+                ".js", ".jsx", ".mjs", ".cjs", ".jscript"
             );
         }
         if (this.validate(Python3Language.class)) {

@@ -10,6 +10,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -24,7 +26,7 @@ final class ThreadTaskScheduler {
     private static final Logger LOGGER = LoggerFactory.getLogger(ThreadTaskScheduler.class);
     static final int MAX_QUEUED_TASKS = 256;
     static final int WORKER_COUNT =
-        Math.max(1, Math.min(2, Runtime.getRuntime().availableProcessors()));
+        Math.max(4, Math.min(8, Runtime.getRuntime().availableProcessors()));
 
     private final Map<BigInteger, ManagedTask> activeTasks = new LinkedHashMap<>();
     private final Set<BigInteger> scheduledIds = new HashSet<>();
@@ -34,21 +36,32 @@ final class ThreadTaskScheduler {
         0L,
         TimeUnit.MILLISECONDS,
         new ArrayBlockingQueue<>(MAX_QUEUED_TASKS),
-        new ManagedThreadFactory(),
+        new ManagedThreadFactory("simpleide-thread-"),
         new ThreadPoolExecutor.AbortPolicy()
+    );
+    private final ScheduledThreadPoolExecutor timer = new ScheduledThreadPoolExecutor(
+        1,
+        new ManagedThreadFactory("simpleide-timer-")
     );
     private boolean shutdown;
 
-    synchronized void schedule(NodePattern node) {
-        if (shutdown) {
-            throw new IllegalStateException("Thread task scheduler has been shut down.");
-        }
+    ThreadTaskScheduler() {
+        timer.setRemoveOnCancelPolicy(true);
+    }
+
+    void schedule(NodePattern node) {
         BigInteger id = node.getId();
-        if (!scheduledIds.add(id)) {
-            return;
+        ManagedTask task;
+        synchronized (this) {
+            if (shutdown) {
+                throw new IllegalStateException("Thread task scheduler has been shut down.");
+            }
+            if (!scheduledIds.add(id)) {
+                return;
+            }
+            task = new ManagedTask(node, this::onTaskFinished);
+            activeTasks.put(id, task);
         }
-        ManagedTask task = new ManagedTask(node, this::onTaskFinished);
-        activeTasks.put(id, task);
         if (node.isEDT()) {
             EventQueue.invokeLater(task);
             return;
@@ -56,8 +69,10 @@ final class ThreadTaskScheduler {
         try {
             executor.execute(task);
         } catch (RuntimeException exception) {
-            activeTasks.remove(id, task);
-            scheduledIds.remove(id);
+            synchronized (this) {
+                activeTasks.remove(id, task);
+                scheduledIds.remove(id);
+            }
             LOGGER.error(
                 "Unable to schedule thread node id={}; queue contains {} task(s).",
                 id,
@@ -71,6 +86,13 @@ final class ThreadTaskScheduler {
     synchronized boolean isRunning(BigInteger nodeId) {
         ManagedTask task = activeTasks.get(nodeId);
         return task != null && task.isRunning();
+    }
+
+    synchronized ScheduledFuture<?> schedule(Runnable action, long delay, TimeUnit unit) {
+        if (shutdown) {
+            throw new IllegalStateException("Thread task scheduler has been shut down.");
+        }
+        return timer.schedule(action, delay, unit);
     }
 
     void cancel(Collection<NodePattern> nodes) {
@@ -100,6 +122,7 @@ final class ThreadTaskScheduler {
         }
         LOGGER.info("Shutting down thread manager; cancelling {} active node(s).", tasks.size());
         tasks.forEach(task -> this.cancel(task));
+        timer.shutdownNow();
         executor.shutdownNow();
     }
 
@@ -112,11 +135,16 @@ final class ThreadTaskScheduler {
     }
 
     private static final class ManagedThreadFactory implements ThreadFactory {
+        private final String prefix;
         private int sequence;
+
+        private ManagedThreadFactory(String prefix) {
+            this.prefix = prefix;
+        }
 
         @Override
         public synchronized Thread newThread(Runnable task) {
-            Thread thread = new Thread(task, "simpleide-thread-" + ++sequence);
+            Thread thread = new Thread(task, prefix + ++sequence);
             thread.setDaemon(true);
             LOGGER.debug("Created managed worker {}.", thread.getName());
             return thread;

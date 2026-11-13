@@ -41,15 +41,16 @@ public class File extends TreeFile {
     String ext = name.substring(name.lastIndexOf('.') + 1).toLowerCase(Locale.ROOT);
     TypeFile typeFile;
     switch (ext) {
-      case "java" -> typeFile = TypeFile.JAVA;
+      case "jav", "java" -> typeFile = TypeFile.JAVA;
+      case "cs", "csx" -> typeFile = TypeFile.CSHARP;
       case "kt", "kts" -> typeFile = TypeFile.KOTLIN;
-      case "groovy" -> typeFile = TypeFile.GROOVY;
-      case "js", "mjs", "cjs" -> typeFile = TypeFile.JAVASCRIPT;
-      case "py" -> typeFile = TypeFile.PYTHON;
-      case "c", "h" -> typeFile = TypeFile.C;
-      case "cc", "cpp", "cxx", "hpp" -> typeFile = TypeFile.CPP;
+      case "groovy", "gvy", "gy", "gsh" -> typeFile = TypeFile.GROOVY;
+      case "js", "jsx", "mjs", "cjs", "jscript" -> typeFile = TypeFile.JAVASCRIPT;
       case "go" -> typeFile = TypeFile.GO;
       case "rs" -> typeFile = TypeFile.RUST;
+      case "py", "pyi", "pyw", "py3" -> typeFile = TypeFile.PYTHON;
+      case "c", "h" -> typeFile = TypeFile.C;
+      case "cc", "cpp", "cxx", "hpp", "hxx" -> typeFile = TypeFile.CPP;
       default -> typeFile = TypeFile.TXT;
     }
     LOGGER.info("Load file by extension {}", ext);
