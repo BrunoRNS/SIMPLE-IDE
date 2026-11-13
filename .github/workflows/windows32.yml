@@ -44,11 +44,6 @@ jobs:
 
           echo "Installing 32-bit MinGW GCC..."
           pacman -S --needed --noconfirm mingw-w64-i686-toolchain
-          pacman -S --needed --noconfirm mingw-w64-i686-gcc
-
-          echo "Checking installed package..."
-          pacman -Q mingw-w64-i686-toolchain
-          pacman -Q mingw-w64-i686-gcc
 
           echo "Checking compiler executables..."
           for compiler in gcc g++; do
