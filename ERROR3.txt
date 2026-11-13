@@ -1,0 +1,4 @@
+Kill tests / terminal tests
+
+while running make test crashes HOST machine, fix dangerous kill/tty/pty
+before running any make test.

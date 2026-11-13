@@ -188,8 +188,8 @@ class BusyBoxTerminalSessionTest {
 
     private static void assertMacArm64CloseReturnsWithBackgroundChild(boolean force) throws Exception {
         assumeTrue(
-            !System.getProperty("os.name").toLowerCase().contains("win"),
-            "This test requires a POSIX system shell."
+            LangPlatform.getCurrentPlatform() == LangPlatform.MACOSAARCH64,
+            "This test exercises macOS ARM64 PTY shutdown and must not run on other hosts."
         );
 
         LOGGER.info(

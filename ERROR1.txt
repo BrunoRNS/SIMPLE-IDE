@@ -1,0 +1,35 @@
+08:38:50.349 [AWT-EventQueue-0] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=147 level=1
+08:38:51.029 [AWT-EventQueue-0] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=150 level=1
+08:38:51.662 [AWT-EventQueue-0] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=153 level=1
+08:38:51.663 [simpleide-thread-1] INFO io.simpleide.ui.treefile.File -- Load file by extension java
+08:38:53.368 [AWT-EventQueue-0] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=160 level=1
+08:38:53.371 [AWT-EventQueue-0] INFO io.simpleide.ui.treefile.Tree -- Tree state updated: selected=/home/aluno/Documentos/t/SIMPLE-IDE/simpleide/src/main/java/io/simpleide/App.java, currentDirectory=/home/aluno/Documentos/t/SIMPLE-IDE/simpleide/src/main/java/io/simpleide
+08:39:01.237 [simpleide-thread-3] INFO io.simpleide.lsp.dowload.LspInstaller -- LSP downloaded successfully: /home/aluno/.simpleide/lsp/java1.63.0/lsp-download.1221957328295939061.tar.gz
+08:39:01.845 [simpleide-thread-3] INFO io.simpleide.lsp.dowload.LspInstaller -- LSP jdtls installed successfully.
+08:39:01.891 [simpleide-thread-3] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=174 level=1
+08:39:01.892 [simpleide-thread-3] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=175 level=2
+08:39:02.071 [simpleide-lsp-stderr-12463] DEBUG io.simpleide.lsp.client.LspClient -- [LSP server] WARNING: Using incubator modules: jdk.incubator.vector
+08:39:02.159 [simpleide-thread-4] DEBUG io.simpleide.thread.ThreadTaskScheduler -- Created managed worker simpleide-timer-1.
+08:39:05.086 [ForkJoinPool.commonPool-worker-2] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=181 level=2
+08:39:05.087 [simpleide-thread-3] ERROR io.simpleide.ui.editor.EditorManager -- LSP connection failed for /home/aluno/Documentos/t/SIMPLE-IDE/simpleide/src/main/java/io/simpleide/App.java.
+java.io.IOException: Language server exited before initialization (code 13).
+        at io.simpleide.lsp.client.LspClient.lambda$startServer$4(LspClient.java:175)
+        at io.simpleide.thread.ManagedTask.run(ManagedTask.java:51)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+        at java.base/java.lang.Thread.run(Thread.java:1583)
+08:39:05.091 [simpleide-thread-3] ERROR io.simpleide.lsp.client.LspClient -- Language server exited before initialization.
+java.io.IOException: Language server exited before initialization (code 13).
+        at io.simpleide.lsp.client.LspClient.lambda$startServer$4(LspClient.java:175)
+        at io.simpleide.thread.ManagedTask.run(ManagedTask.java:51)
+        at java.base/java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1144)
+        at java.base/java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:642)
+        at java.base/java.lang.Thread.run(Thread.java:1583)
+08:39:05.093 [simpleide-thread-3] DEBUG io.simpleide.thread.AbstractThreadMaster -- Registered thread node id=187 level=1
+08:39:08.752 [AWT-EventQueue-0] INFO io.simpleide.ui.treefile.Tree -- Tree state updated: selected=/home/aluno/Documentos/t/SIMPLE-IDE/.github, currentDirectory=/home/aluno/Documentos/t/SIMPLE-IDE/.github
+nov. 13, 2026 8:39:14 AM org.fife.rsta.ac.java.SourceCompletionProvider log
+INFORMAÇÕES: [DEBUG]: Couldn't find ClassFile for: java.lang.Object
+nov. 13, 2026 8:39:15 AM org.fife.rsta.ac.java.SourceCompletionProvider log
+INFORMAÇÕES: [DEBUG]: Couldn't find ClassFile for: java.lang.Object
+nov. 13, 2026 8:39:46 AM org.fife.rsta.ac.java.SourceCompletionProvider log
+INFORMAÇÕES: [DEBUG]: Couldn't find ClassFile for: java.lang.Object

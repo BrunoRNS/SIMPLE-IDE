@@ -18,6 +18,8 @@ import org.junit.jupiter.api.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.language.config.LangPlatform;
+
 class ProcessTreeTerminatorTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProcessTreeTerminatorTest.class);
@@ -110,7 +112,7 @@ class ProcessTreeTerminatorTest {
     void terminatesMacArm64ProcessTreeWithNestedChildren() throws Exception {
         assumeFalse(
             System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win"),
-            "This test requires a POSIX shell and pkill."
+            "This test requires a POSIX shell."
         );
         Process root = new ProcessBuilder(
             "sh",
@@ -147,6 +149,27 @@ class ProcessTreeTerminatorTest {
                 ProcessTreeTerminator.terminateMacArm64(root);
             }
         }
+    }
+
+    @Test
+    void neverTerminatesPidOneTheCurrentJvmOrItsAncestors() {
+        ProcessHandle current = ProcessHandle.current();
+        assertFalse(ProcessTreeTerminator.isSafeToTerminate(current));
+
+        ProcessTreeTerminator.terminateCapturedDescendants(List.of(current), LangPlatform.LINUXX64);
+        assertTrue(current.isAlive(), "The terminator must never signal the current JVM.");
+
+        ProcessHandle.of(1).ifPresent(pidOne ->
+            assertFalse(
+                ProcessTreeTerminator.isSafeToTerminate(pidOne),
+                "The terminator must never signal PID 1."
+            ));
+
+        current.parent().ifPresent(parent ->
+            assertFalse(
+                ProcessTreeTerminator.isSafeToTerminate(parent),
+                "The terminator must never signal an ancestor of the current JVM."
+            ));
     }
 
     private static ProcessHandle awaitChild(Process process) throws InterruptedException {

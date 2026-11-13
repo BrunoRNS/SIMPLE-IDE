@@ -1,13 +1,10 @@
 package io.simpleide.ui.terminal;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -18,13 +15,22 @@ import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.config.LangPlatform;
 
+/**
+ * Terminates a terminal process and its descendants.
+ *
+ * <p>The implementation deliberately never shells out to {@code kill}, {@code pkill} or any
+ * process-group helper. Once a child is reparented (for example to PID 1) the operating system may
+ * reuse or lose that relationship, and signalling such a PID can kill unrelated host processes.
+ * Only {@link ProcessHandle} instances that were captured while they were still descendants of the
+ * terminal process are signalled, deepest-first. As an additional safety net, PID 1, the current
+ * JVM and all of its ancestors are never signalled.</p>
+ */
 public final class ProcessTreeTerminator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ProcessTreeTerminator.class);
     private static final int MAX_TREE_SWEEPS = 4;
-    private static final String MACOS_PKILL = "/usr/bin/pkill";
-    private static final long MACOS_PKILL_TIMEOUT_SECONDS = 5;
-    private static final long MACOS_CHILD_EXIT_TIMEOUT_SECONDS = 5;
+    private static final int MAX_ANCESTOR_DEPTH = 128;
+    private static final long DESCENDANT_EXIT_TIMEOUT_SECONDS = 5;
 
     private ProcessTreeTerminator() {
     }
@@ -38,131 +44,23 @@ public final class ProcessTreeTerminator {
     }
 
     private static void terminate(Process process, boolean macArm64) {
-        if (macArm64) {
-            terminateMacArm64(process);
+        if (process == null) {
             return;
         }
 
-        boolean windows = isWindows();
-        if (windows) {
-            terminateWindowsTree(process);
-        }
-
-        ProcessHandle root;
-        try {
-            Optional<ProcessHandle> processHandle = ProcessHandle.of(process.pid());
-            if (processHandle.isEmpty()) {
-                terminateRoot(process);
-                return;
-            }
-            root = processHandle.get();
-        } catch (RuntimeException exception) {
-            LOGGER.error("Unable to inspect the BusyBox process tree.", exception);
-            terminateRoot(process);
-            return;
-        }
-
-        Set<Long> signalledPids = new HashSet<>();
-        for (int sweep = 0; sweep < MAX_TREE_SWEEPS && root.isAlive(); sweep++) {
-            List<ProcessHandle> descendants;
-            try (var handles = root.descendants()) {
-                descendants = handles.toList();
-            } catch (RuntimeException exception) {
-                LOGGER.error("Unable to inspect BusyBox child processes.", exception);
-                break;
-            }
-
-            for (ProcessHandle descendant : descendants) {
-                terminate(descendant, signalledPids);
-            }
-            if (descendants.isEmpty()) {
-                break;
-            }
-        }
-
-        if (!windows && root.isAlive()) {
-            terminatePosixProcessGroup(process);
-        }
-        terminate(root, signalledPids);
-        terminateRoot(process);
+        ProcessHandle root = findHandle(process.pid()).orElse(null);
+        List<ProcessHandle> descendants = captureDescendants(process);
+        terminateTree(process, root, descendants, macArm64);
     }
 
-    static void terminateMacArm64(Process process) {
-        ProcessHandle root;
-        try {
-            Optional<ProcessHandle> processHandle = ProcessHandle.of(process.pid());
-            if (processHandle.isEmpty()) {
-                terminateRoot(process);
-                if (process.isAlive()) {
-                    terminateMacArm64Pid(process.pid());
-                }
-                return;
-            }
-            root = processHandle.get();
-        } catch (RuntimeException exception) {
-            LOGGER.error("Unable to inspect the macOS ARM64 BusyBox process tree.", exception);
-            terminateRoot(process);
-            if (process.isAlive()) {
-                terminateMacArm64Pid(process.pid());
-            }
-            return;
-        }
-
-        Map<Long, ProcessHandle> capturedDescendants = new HashMap<>();
-        for (int sweep = 0; sweep < MAX_TREE_SWEEPS && root.isAlive(); sweep++) {
-            List<ProcessHandle> descendants = captureDescendants(root).stream()
-                .filter(descendant -> !capturedDescendants.containsKey(descendant.pid()))
-                .toList();
-            if (descendants.isEmpty()) {
-                LOGGER.debug(
-                    "No new macOS ARM64 descendants found during shutdown sweep {}: rootPid={}, "
-                        + "previouslyCapturedPids={}.",
-                    sweep + 1,
-                    root.pid(),
-                    capturedDescendants.keySet()
-                );
-                break;
-            }
-            descendants.forEach(descendant -> capturedDescendants.putIfAbsent(descendant.pid(), descendant));
-            LOGGER.info(
-                "Terminating macOS ARM64 process-tree sweep {}: rootPid={}, descendantPids={}.",
-                sweep + 1,
-                root.pid(),
-                descendants.stream().map(ProcessHandle::pid).toList()
-            );
-            terminateMacArm64Descendants(process, descendants);
-        }
-        terminate(root, new HashSet<>());
-        terminateRoot(process);
-        if (root.isAlive()) {
-            terminateMacArm64Pid(root.pid());
-        }
-        List<ProcessHandle> orderedDescendants = new ArrayList<>(capturedDescendants.values());
-        awaitCapturedDescendants(orderedDescendants);
-        for (ProcessHandle descendant : orderedDescendants) {
-            if (descendant.isAlive()) {
-                terminateMacArm64Pid(descendant.pid());
-            }
-        }
-        awaitCapturedDescendants(orderedDescendants);
-        LOGGER.info(
-            "Completed macOS ARM64 process-tree shutdown: rootPid={}, rootAlive={}, descendantStates={}.",
-            process.pid(),
-            process.isAlive(),
-            orderedDescendants.stream().map(ProcessTreeTerminator::describeProcess).toList()
-        );
-    }
-
-    private static List<ProcessHandle> captureDescendants(ProcessHandle root) {
-        try (var handles = root.descendants()) {
-            return handles.toList();
-        } catch (RuntimeException exception) {
-            LOGGER.warn("Unable to capture macOS ARM64 BusyBox child processes.", exception);
+    /**
+     * Captures the descendants of a live process. Captured handles are safe to terminate later even
+     * if the operating system reparents them in the meantime.
+     */
+    public static List<ProcessHandle> captureDescendants(Process process) {
+        if (process == null) {
             return List.of();
         }
-    }
-
-    static List<ProcessHandle> captureDescendants(Process process) {
         Optional<ProcessHandle> root;
         try {
             root = ProcessHandle.of(process.pid());
@@ -190,146 +88,138 @@ public final class ProcessTreeTerminator {
     }
 
     private static void terminateCapturedDescendants(List<ProcessHandle> descendants, boolean macArm64) {
-        if (macArm64) {
-            terminateMacArm64Descendants(descendants);
+        if (descendants == null || descendants.isEmpty()) {
             return;
         }
+        List<ProcessHandle> ordered = deepestFirst(descendants);
         Set<Long> signalledPids = new HashSet<>();
-        for (ProcessHandle descendant : descendants) {
+        for (ProcessHandle descendant : ordered) {
             terminate(descendant, signalledPids);
         }
+        awaitCapturedDescendants(ordered);
+        if (macArm64) {
+            // PTY-backed processes can need a second signal while their reaper thread catches up.
+            for (ProcessHandle descendant : ordered) {
+                if (descendant.isAlive()) {
+                    terminate(descendant, new HashSet<>());
+                }
+            }
+            awaitCapturedDescendants(ordered);
+        }
+    }
+
+    static void terminateMacArm64(Process process) {
+        terminate(process, true);
     }
 
     static void terminateMacArm64Descendants(List<ProcessHandle> descendants) {
         terminateMacArm64Descendants(null, descendants);
     }
 
+    /**
+     * Stops only the supplied descendants (never the root shell) so a graceful close can still send
+     * EOF to the terminal afterwards.
+     */
     static void terminateMacArm64Descendants(Process root, List<ProcessHandle> descendants) {
-        Map<Long, Long> parentIds = new HashMap<>();
-        for (ProcessHandle descendant : descendants) {
-            descendant.parent().ifPresent(parent -> parentIds.put(descendant.pid(), parent.pid()));
+        if (descendants == null || descendants.isEmpty()) {
+            return;
         }
-        List<ProcessHandle> ordered = new ArrayList<>(descendants);
-        ordered.sort(Comparator.comparingInt(handle -> -descendantDepth(handle, parentIds)));
+        List<ProcessHandle> ordered = deepestFirst(descendants);
         Set<Long> signalledPids = new HashSet<>();
-        Set<Long> signalledParents = new HashSet<>();
         for (ProcessHandle descendant : ordered) {
-            long parentPid = parentIds.getOrDefault(descendant.pid(), -1L);
-            if (parentPid > 0 && signalledParents.add(parentPid)) {
-                terminateMacArm64Children(parentPid);
+            terminate(descendant, signalledPids);
+        }
+        awaitCapturedDescendants(ordered);
+        for (ProcessHandle descendant : ordered) {
+            if (descendant.isAlive()) {
+                terminate(descendant, new HashSet<>());
             }
+        }
+        awaitCapturedDescendants(ordered);
+    }
+
+    private static void terminateTree(
+        Process process,
+        ProcessHandle root,
+        List<ProcessHandle> descendants,
+        boolean macArm64
+    ) {
+        List<ProcessHandle> ordered = deepestFirst(descendants);
+        Set<Long> signalledPids = new HashSet<>();
+
+        // Kill children before their parents, otherwise the children are reparented and may escape.
+        for (ProcessHandle descendant : ordered) {
             terminate(descendant, signalledPids);
         }
         if (root != null) {
-            if (signalledParents.add(root.pid())) {
-                terminateMacArm64Children(root.pid());
-            }
-        } else {
-            awaitCapturedDescendants(ordered);
-            for (ProcessHandle descendant : ordered) {
-                if (descendant.isAlive()) {
-                    terminateMacArm64Pid(descendant.pid());
-                }
-            }
-            awaitCapturedDescendants(ordered);
+            terminate(root, signalledPids);
         }
-    }
+        terminateRoot(process);
 
-    private static void terminateMacArm64Children(long parentPid) {
-        if (!isLiveProcess(parentPid)) {
-            return;
-        }
-
-        List<ProcessHandle> directChildren;
-        try (var descendants = ProcessHandle.of(parentPid).orElseThrow().descendants()) {
-            directChildren = descendants
-                .filter(child -> child.parent().map(ProcessHandle::pid).orElse(-1L) == parentPid)
+        for (int sweep = 0; sweep < MAX_TREE_SWEEPS; sweep++) {
+            List<ProcessHandle> remaining = ordered.stream()
+                .filter(ProcessHandle::isAlive)
+                .filter(ProcessTreeTerminator::isSafeToTerminate)
                 .toList();
-            if (directChildren.isEmpty()) {
-                LOGGER.debug("No direct children remain under macOS ARM64 process {} before pkill.", parentPid);
+            if (remaining.isEmpty() && !isRootAlive(root, process)) {
                 return;
             }
-        } catch (RuntimeException exception) {
-            LOGGER.warn("Unable to verify children of macOS ARM64 process {} before pkill.", parentPid, exception);
-            return;
-        }
-
-        Process pkill;
-        long startedAt = System.nanoTime();
-        try {
-            pkill = new ProcessBuilder(
-                MACOS_PKILL,
-                "-KILL",
-                "-P",
-                Long.toString(parentPid)
-            ).redirectErrorStream(true).start();
-        } catch (IOException | RuntimeException exception) {
-            LOGGER.warn("Unable to start pkill for macOS ARM64 parent process {}.", parentPid, exception);
-            return;
-        }
-
-        try {
-            LOGGER.info(
-                "Running scoped macOS ARM64 pkill: parentPid={}, directChildPids={}, timeoutSeconds={}.",
-                parentPid,
-                directChildren.stream().map(ProcessHandle::pid).toList(),
-                MACOS_PKILL_TIMEOUT_SECONDS
-            );
-            if (!pkill.waitFor(MACOS_PKILL_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                pkill.destroyForcibly();
-                LOGGER.warn(
-                    "Timed out running scoped pkill: parentPid={}, directChildPids={}, elapsedMillis={}.",
-                    parentPid,
-                    directChildren.stream().map(ProcessHandle::pid).toList(),
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-                );
-            } else {
-                String output = new String(pkill.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-                if (pkill.exitValue() == 0) {
-                    LOGGER.info(
-                        "Scoped pkill completed: parentPid={}, exitCode=0, elapsedMillis={}, output={}.",
-                        parentPid,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
-                        output
-                    );
-                } else if (pkill.exitValue() == 1) {
-                    LOGGER.debug(
-                        "Scoped pkill found no remaining direct children: parentPid={}, elapsedMillis={}, output={}.",
-                        parentPid,
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
-                        output
-                    );
-                } else {
-                    LOGGER.warn(
-                        "Scoped pkill failed: parentPid={}, exitCode={}, elapsedMillis={}, output={}.",
-                        parentPid,
-                        pkill.exitValue(),
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
-                        output
-                    );
-                }
+            for (ProcessHandle remainingProcess : remaining) {
+                terminate(remainingProcess, new HashSet<>());
             }
-        } catch (InterruptedException exception) {
-            pkill.destroyForcibly();
-            Thread.currentThread().interrupt();
-            LOGGER.warn(
-                "Interrupted running scoped pkill: parentPid={}, directChildPids={}.",
-                parentPid,
-                directChildren.stream().map(ProcessHandle::pid).toList(),
-                exception
+            if (isRootAlive(root, process)) {
+                terminateRoot(process);
+            }
+            awaitCapturedDescendants(ordered);
+        }
+
+        if (macArm64) {
+            LOGGER.debug(
+                "macOS ARM64 terminal shutdown finished after {} sweeps; rootPid={}, rootAlive={}, "
+                    + "descendants={}.",
+                MAX_TREE_SWEEPS,
+                process.pid(),
+                process.isAlive(),
+                ordered.stream().map(ProcessTreeTerminator::describeProcess).toList()
             );
-        } catch (IOException exception) {
-            LOGGER.warn("Unable to read scoped pkill output for parent process {}.", parentPid, exception);
         }
     }
 
-    private static boolean isLiveProcess(long pid) {
+    private static boolean isRootAlive(ProcessHandle root, Process process) {
+        if (root != null && root.isAlive()) {
+            return true;
+        }
         try {
-            return ProcessHandle.of(pid).map(ProcessHandle::isAlive).orElse(false);
+            return process.isAlive();
         } catch (RuntimeException exception) {
-            LOGGER.warn("Unable to verify macOS ARM64 process {} before termination.", pid, exception);
             return false;
         }
+    }
+
+    private static Optional<ProcessHandle> findHandle(long pid) {
+        try {
+            return ProcessHandle.of(pid);
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Unable to inspect process {}.", pid, exception);
+            return Optional.empty();
+        }
+    }
+
+    private static List<ProcessHandle> deepestFirst(List<ProcessHandle> descendants) {
+        if (descendants == null || descendants.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Long> parentIds = new HashMap<>();
+        for (ProcessHandle descendant : descendants) {
+            try {
+                descendant.parent().ifPresent(parent -> parentIds.put(descendant.pid(), parent.pid()));
+            } catch (RuntimeException exception) {
+                LOGGER.debug("Unable to read the parent of process {}.", descendant.pid(), exception);
+            }
+        }
+        List<ProcessHandle> ordered = new ArrayList<>(descendants);
+        ordered.sort(Comparator.comparingInt(handle -> -descendantDepth(handle, parentIds)));
+        return ordered;
     }
 
     private static int descendantDepth(ProcessHandle process, Map<Long, Long> parentIds) {
@@ -347,12 +237,71 @@ public final class ProcessTreeTerminator {
         return depth;
     }
 
+    private static void terminate(ProcessHandle handle, Set<Long> signalledPids) {
+        if (handle == null || !isSafeToTerminate(handle)) {
+            return;
+        }
+        if (!signalledPids.add(handle.pid())) {
+            return;
+        }
+        try {
+            if (handle.isAlive()) {
+                handle.destroyForcibly();
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Unable to force process {} to exit.", handle.pid(), exception);
+        }
+    }
+
+    /**
+     * Refuses to signal PID 1, the current JVM, or any ancestor of the current JVM. Signalling an
+     * ancestor (for example a desktop session or the shell that started the test run) can take down
+     * the entire host session.
+     */
+    static boolean isSafeToTerminate(ProcessHandle handle) {
+        long pid = handle.pid();
+        if (pid <= 1) {
+            LOGGER.debug("Refusing to terminate protected process pid={}.", pid);
+            return false;
+        }
+
+        ProcessHandle current = ProcessHandle.current();
+        if (pid == current.pid()) {
+            LOGGER.debug("Refusing to terminate the current JVM pid={}.", pid);
+            return false;
+        }
+
+        Set<Long> ancestors = currentAncestors();
+        if (ancestors.contains(pid)) {
+            LOGGER.debug("Refusing to terminate an ancestor of the current JVM pid={}.", pid);
+            return false;
+        }
+        return true;
+    }
+
+    private static Set<Long> currentAncestors() {
+        Set<Long> ancestors = new HashSet<>();
+        Optional<ProcessHandle> parent = ProcessHandle.current().parent();
+        int depth = 0;
+        while (parent.isPresent() && depth++ < MAX_ANCESTOR_DEPTH) {
+            ProcessHandle ancestor = parent.get();
+            if (!ancestors.add(ancestor.pid())) {
+                break;
+            }
+            parent = ancestor.parent();
+        }
+        return ancestors;
+    }
+
     private static void awaitCapturedDescendants(List<ProcessHandle> descendants) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(MACOS_CHILD_EXIT_TIMEOUT_SECONDS);
+        if (descendants.isEmpty()) {
+            return;
+        }
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(DESCENDANT_EXIT_TIMEOUT_SECONDS);
         while (descendants.stream().anyMatch(ProcessHandle::isAlive)) {
             long remainingNanos = deadline - System.nanoTime();
             if (remainingNanos <= 0) {
-                LOGGER.debug("Timed out waiting for macOS ARM64 terminal children to exit.");
+                LOGGER.debug("Timed out waiting for terminal child processes to exit.");
                 return;
             }
             try {
@@ -373,186 +322,22 @@ public final class ProcessTreeTerminator {
             + ", arguments=" + String.join(" ", info.arguments().orElse(new String[0]));
     }
 
-    private static void terminateMacArm64Pid(long pid) {
-        Process kill;
-        long startedAt = System.nanoTime();
-        try {
-            LOGGER.info("Sending scoped SIGKILL to macOS ARM64 process pid={}.", pid);
-            kill = new ProcessBuilder("/bin/kill", "-KILL", Long.toString(pid))
-                .redirectErrorStream(true)
-                .start();
-        } catch (IOException | RuntimeException exception) {
-            LOGGER.warn("Unable to signal macOS ARM64 terminal child process {}.", pid, exception);
-            return;
-        }
-        try {
-            if (!kill.waitFor(1, TimeUnit.SECONDS)) {
-                kill.destroyForcibly();
-                LOGGER.warn("Timed out signaling macOS ARM64 terminal child process {}.", pid);
-            } else if (kill.exitValue() != 0) {
-                String output = new String(kill.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-                if (!isLiveProcess(pid)) {
-                    LOGGER.debug(
-                        "Process exited while signaling macOS ARM64 PID {} (exitCode={}, elapsedMillis={}, output={}).",
-                        pid,
-                        kill.exitValue(),
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt),
-                        output
-                    );
-                } else {
-                    LOGGER.warn(
-                        "Unable to signal macOS ARM64 terminal child process {} (exit code {}): {}",
-                        pid,
-                        kill.exitValue(),
-                        output
-                    );
-                }
-            } else {
-                LOGGER.info(
-                    "Scoped SIGKILL completed for macOS ARM64 PID {} in {}ms.",
-                    pid,
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt)
-                );
-            }
-        } catch (InterruptedException exception) {
-            kill.destroyForcibly();
-            Thread.currentThread().interrupt();
-            LOGGER.warn("Interrupted signaling macOS ARM64 terminal child process {}.", pid, exception);
-        } catch (IOException exception) {
-            LOGGER.warn("Unable to read macOS ARM64 terminal child termination output.", exception);
-        }
-    }
-
-    private static void terminatePosixProcessGroup(Process process) {
-        Process groupQuery;
-        try {
-            groupQuery = new ProcessBuilder(
-                "/bin/ps",
-                "-o",
-                "pgid=",
-                "-p",
-                Long.toString(process.pid())
-            ).redirectErrorStream(true).start();
-        } catch (IOException | RuntimeException exception) {
-            LOGGER.warn("Unable to query the BusyBox process group; falling back to process handles.", exception);
-            return;
-        }
-
-        Process groupKill = null;
-        try {
-            if (!groupQuery.waitFor(2, TimeUnit.SECONDS)) {
-                groupQuery.destroyForcibly();
-                LOGGER.warn("Timed out querying the BusyBox process group.");
-                return;
-            }
-            String processGroupOutput = new String(groupQuery.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-            if (groupQuery.exitValue() != 0) {
-                LOGGER.warn(
-                    "Unable to query the BusyBox process group (exit code {}): {}; "
-                        + "falling back to process handles.",
-                    groupQuery.exitValue(),
-                    processGroupOutput
-                );
-                return;
-            }
-
-            if (processGroupOutput.isEmpty() || Long.parseLong(processGroupOutput) != process.pid()) {
-                LOGGER.debug(
-                    "BusyBox process {} is not the leader of its process group; using process handles.",
-                    process.pid()
-                );
-                return;
-            }
-
-            groupKill = new ProcessBuilder(
-                "/bin/kill",
-                "-KILL",
-                "-" + process.pid()
-            ).redirectErrorStream(true).start();
-            if (!groupKill.waitFor(2, TimeUnit.SECONDS)) {
-                groupKill.destroyForcibly();
-                LOGGER.warn("Timed out terminating the BusyBox process group.");
-            } else {
-                String killOutput = new String(groupKill.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
-                if (groupKill.exitValue() != 0) {
-                    LOGGER.warn(
-                        "Unable to terminate the BusyBox process group (exit code {}): {}; "
-                            + "falling back to process handles.",
-                        groupKill.exitValue(),
-                        killOutput
-                    );
-                }
-            }
-        } catch (InterruptedException exception) {
-            groupQuery.destroyForcibly();
-            if (groupKill != null) {
-                groupKill.destroyForcibly();
-            }
-            Thread.currentThread().interrupt();
-            LOGGER.warn("Interrupted while terminating the BusyBox process group.", exception);
-        } catch (IOException | RuntimeException exception) {
-            LOGGER.warn("Unable to terminate the BusyBox process group; falling back to process handles.", exception);
-        }
-    }
-
-    private static void terminateWindowsTree(Process process) {
-        Process taskkill;
-        try {
-            taskkill = new ProcessBuilder(
-                "taskkill",
-                "/PID",
-                Long.toString(process.pid()),
-                "/T",
-                "/F"
-            ).redirectErrorStream(true).redirectOutput(ProcessBuilder.Redirect.DISCARD).start();
-        } catch (IOException | RuntimeException exception) {
-            LOGGER.error("Unable to terminate the BusyBox process tree with taskkill.", exception);
-            return;
-        }
-
-        try {
-            if (!taskkill.waitFor(5, TimeUnit.SECONDS)) {
-                taskkill.destroyForcibly();
-                LOGGER.error("Timed out while terminating the BusyBox process tree with taskkill.");
-            } else if (taskkill.exitValue() != 0) {
-                LOGGER.error(
-                    "taskkill failed to terminate the BusyBox process tree with exit code {}.",
-                    taskkill.exitValue()
-                );
-            }
-        } catch (InterruptedException exception) {
-            taskkill.destroyForcibly();
-            Thread.currentThread().interrupt();
-            LOGGER.error("Interrupted while terminating the BusyBox process tree with taskkill.", exception);
-        }
-    }
-
-    private static void terminate(ProcessHandle handle, Set<Long> signalledPids) {
-        if (!signalledPids.add(handle.pid())) {
-            return;
-        }
-        try {
-            handle.destroyForcibly();
-        } catch (RuntimeException exception) {
-            LOGGER.error("Unable to force process {} to exit.", handle.pid(), exception);
-        }
-    }
-
     private static void terminateRoot(Process process) {
-        try {
-            process.destroyForcibly();
-        } catch (RuntimeException exception) {
-            LOGGER.error("Unable to force the BusyBox process to exit.", exception);
+        if (process == null) {
+            return;
         }
-    }
-
-    private static boolean isWindows() {
-        return System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win");
+        try {
+            if (process.isAlive()) {
+                process.destroyForcibly();
+            }
+        } catch (RuntimeException exception) {
+            LOGGER.warn("Unable to force the terminal process {} to exit.", process.pid(), exception);
+        }
     }
 
     private static boolean isMacArm64() {
-        String operatingSystem = System.getProperty("os.name").toLowerCase(Locale.ROOT);
-        String architecture = System.getProperty("os.arch").toLowerCase(Locale.ROOT);
+        String operatingSystem = System.getProperty("os.name").toLowerCase(java.util.Locale.ROOT);
+        String architecture = System.getProperty("os.arch").toLowerCase(java.util.Locale.ROOT);
         return operatingSystem.contains("mac") && (architecture.equals("aarch64") || architecture.equals("arm64"));
     }
 }

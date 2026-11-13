@@ -338,12 +338,16 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
     @Override
     public void close() {
-        closeGracefullyAndWait();
+        // Never repeat a potentially slow graceful shutdown when the caller already terminated the
+        // session (forceTerminate, closeGracefullyAndWait or a failed start).
+        if (!terminationRequested.get()) {
+            closeGracefullyAndWait();
+        }
         close(false);
     }
 
     void close(boolean force) {
-        terminationRequested.set(true);
+        boolean alreadyTerminating = terminationRequested.getAndSet(true);
         if (!closed.compareAndSet(false, true)) {
             return;
         }
@@ -352,14 +356,13 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
         boolean interrupted = Thread.interrupted();
         try {
             if (activeProcess != null && isProcessAlive(activeProcess)) {
-                if (force) {
+                if (force || alreadyTerminating) {
                     forceTerminate();
                 } else {
                     activeProcess.destroy();
-                }
-                if (isProcessAlive(activeProcess) && !activeProcess.waitFor(2, TimeUnit.SECONDS)) {
-                    forceTerminate();
-                    activeProcess.waitFor(2, TimeUnit.SECONDS);
+                    if (isProcessAlive(activeProcess) && !activeProcess.waitFor(2, TimeUnit.SECONDS)) {
+                        forceTerminate();
+                    }
                 }
             }
         } catch (InterruptedException exception) {
