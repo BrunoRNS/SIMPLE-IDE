@@ -10,7 +10,7 @@ make format
 make format-check
 ```
 
-- Google Java Format 1.24.0.
+- Google Java Format 1.28.0.
 - Two-space indentation.
 - 100-column line limit where the formatter can honor it.
 - Braces on the same line for control statements and methods.

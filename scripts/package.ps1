@@ -96,12 +96,16 @@ function Build-AppImage {
     }
 
     $appImage = Join-Path $imageDir "SimpleIDE"
-    $launcher = Join-Path $appImage "bin\SimpleIDE.exe"
+    # On Windows the jpackage launcher sits at the root of the app image.
+    $launcher = Join-Path $appImage "SimpleIDE.exe"
     if (-not (Test-Path $appImage)) {
         throw "jpackage did not create the expected application image: $appImage"
     }
     if (-not (Test-Path $launcher)) {
-        throw "The application image has no launcher: $launcher"
+        $launcher = Get-ChildItem -Path $appImage -Filter "SimpleIDE.exe" -Recurse | Select-Object -First 1
+    }
+    if ($null -eq $launcher -or -not (Test-Path $launcher)) {
+        throw "The application image has no launcher: $appImage\SimpleIDE.exe"
     }
 
     $archive = Join-Path $pkgDir "$artifactBase.zip"

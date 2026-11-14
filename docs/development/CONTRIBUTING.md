@@ -147,8 +147,8 @@ normal build fails when a changed Java file is not formatted.
 
 Configuration lives in the parent `pom.xml`:
 
-- Spotless 2.44.3.
-- Google Java Format 1.24.0.
+- Spotless 3.11.0.
+- Google Java Format 1.28.0.
 - AOSP style disabled; default Google style is used.
 
 See [Code style](CODE_STYLE.md) for naming, package and comment conventions that
