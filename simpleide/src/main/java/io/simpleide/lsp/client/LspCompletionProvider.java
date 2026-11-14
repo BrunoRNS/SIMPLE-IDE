@@ -2,10 +2,8 @@ package io.simpleide.lsp.client;
 
 import java.util.ArrayList;
 import java.util.List;
-
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
-
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.InsertReplaceEdit;
 import org.eclipse.lsp4j.Position;
@@ -33,13 +31,13 @@ public class LspCompletionProvider extends DefaultCompletionProvider {
 
       String insertion = getInsertionText(item);
       String inputText = item.getFilterText() == null ? item.getLabel() : item.getFilterText();
-      LspCompletion completion = new LspCompletion(
-          this, insertion, item.getDetail(), getDocumentation(item), item, inputText);
+      LspCompletion completion =
+          new LspCompletion(
+              this, insertion, item.getDetail(), getDocumentation(item), item, inputText);
       completions_.add(completion);
     }
     addCompletions(completions_);
   }
-  	
 
   private String getInsertionText(CompletionItem item) {
     String insertion = item.getInsertText();
@@ -55,9 +53,10 @@ public class LspCompletionProvider extends DefaultCompletionProvider {
       insertion = item.getLabel();
     }
     if (item.getInsertTextFormat() == org.eclipse.lsp4j.InsertTextFormat.Snippet) {
-      insertion = insertion
-          .replaceAll("\\$\\{\\d+:([^}]*)\\}", "$1")
-          .replaceAll("\\$\\{\\d+\\}|\\$\\d", "");
+      insertion =
+          insertion
+              .replaceAll("\\$\\{\\d+:([^}]*)\\}", "$1")
+              .replaceAll("\\$\\{\\d+\\}|\\$\\d", "");
     }
     return insertion;
   }
@@ -73,7 +72,8 @@ public class LspCompletionProvider extends DefaultCompletionProvider {
     return textEdit.getRight() == null ? null : textEdit.getRight().getInsert();
   }
 
-  private static int getOffset(RSyntaxTextArea textArea, Position position) throws BadLocationException {
+  private static int getOffset(RSyntaxTextArea textArea, Position position)
+      throws BadLocationException {
     int lineStart = textArea.getLineStartOffset(position.getLine());
     int offset = lineStart + position.getCharacter();
     if (offset > textArea.getLineEndOffset(position.getLine())) {

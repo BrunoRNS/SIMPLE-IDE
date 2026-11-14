@@ -4,6 +4,5 @@ import io.simpleide.language.io.Input;
 
 public final class InputHolder {
 
-    public static final Input INSTANCE = new Input();
-    
+  public static final Input INSTANCE = new Input();
 }

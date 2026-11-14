@@ -2,10 +2,9 @@ package io.simpleide.frame.log;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import javax.swing.SwingUtilities;
-
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.LoggingEvent;
+import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 
 class SwingLogAppenderTest {
@@ -21,9 +20,9 @@ class SwingLogAppenderTest {
     event.setMessage("algo deu errado");
 
     appender.append(event);
-    SwingUtilities.invokeAndWait(() -> {
-    });
+    SwingUtilities.invokeAndWait(() -> {});
 
-    assertThat(logPanel.getText()).isEqualToNormalizingNewlines("[ERROR][MyLogger] algo deu errado\n");
+    assertThat(logPanel.getText())
+        .isEqualToNormalizingNewlines("[ERROR][MyLogger] algo deu errado\n");
   }
 }

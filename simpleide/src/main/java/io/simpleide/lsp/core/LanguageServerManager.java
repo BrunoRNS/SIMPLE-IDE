@@ -1,5 +1,11 @@
 package io.simpleide.lsp.core;
 
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.lsp.client.LspClient;
+import io.simpleide.lsp.client.LspServerStartupException;
+import io.simpleide.lsp.dowload.LspManager;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,32 +22,33 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.lsp.LspStatus;
-import io.simpleide.lsp.client.LspClient;
-import io.simpleide.lsp.client.LspServerStartupException;
-import io.simpleide.lsp.dowload.LspManager;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
-
 public final class LanguageServerManager implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(LanguageServerManager.class);
 
-  private static final Set<String> WORKSPACE_MARKERS = Set.of(
-      "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
-      "settings.gradle.kts", "Cargo.toml", "package.json", "pyproject.toml", "setup.py",
-      "go.mod", "compile_commands.json");
+  private static final Set<String> WORKSPACE_MARKERS =
+      Set.of(
+          "pom.xml",
+          "build.gradle",
+          "build.gradle.kts",
+          "settings.gradle",
+          "settings.gradle.kts",
+          "Cargo.toml",
+          "package.json",
+          "pyproject.toml",
+          "setup.py",
+          "go.mod",
+          "compile_commands.json");
 
   private final Map<ServerKey, ServerEntry> servers = new ConcurrentHashMap<>();
   private final Consumer<LspStatus> statusListener;
   private volatile boolean closed;
 
   public LanguageServerManager() {
-    this(ignored -> { });
+    this(ignored -> {});
   }
 
   public LanguageServerManager(Consumer<LspStatus> statusListener) {
@@ -71,25 +78,28 @@ public final class LanguageServerManager implements AutoCloseable {
     String statusId = statusId(key);
     ServerEntry entry;
     try {
-      entry = servers.computeIfAbsent(
-          key, ignored -> new ServerEntry(document.getLanguageId(), root, environment, statusId));
+      entry =
+          servers.computeIfAbsent(
+              key,
+              ignored -> new ServerEntry(document.getLanguageId(), root, environment, statusId));
     } catch (RuntimeException error) {
       return CompletableFuture.failedFuture(error);
     }
     if (closed) {
       servers.remove(key, entry);
-      entry.client.whenComplete((client, error) -> {
-        if (client != null) {
-          client.close();
-        }
-      });
+      entry.client.whenComplete(
+          (client, error) -> {
+            if (client != null) {
+              client.close();
+            }
+          });
       ThreadMaster.getInstance().removeNodeCascade(entry.startupNode);
       return CompletableFuture.failedFuture(
           new IllegalStateException("Language server manager is closed."));
     }
     entry.diagnosticsHandlers.put(document.getUri(), diagnosticsHandler);
-    return entry.client
-        .whenComplete((client, error) -> {
+    return entry.client.whenComplete(
+        (client, error) -> {
           if (error != null || client == null) {
             servers.remove(key, entry);
           }
@@ -210,7 +220,8 @@ public final class LanguageServerManager implements AutoCloseable {
   }
 
   private final class ServerEntry {
-    private final Map<String, Consumer<PublishDiagnosticsParams>> diagnosticsHandlers = new ConcurrentHashMap<>();
+    private final Map<String, Consumer<PublishDiagnosticsParams>> diagnosticsHandlers =
+        new ConcurrentHashMap<>();
     private final CompletableFuture<LspClient> client = new CompletableFuture<>();
     private final String languageId;
     private final Path root;
@@ -220,23 +231,28 @@ public final class LanguageServerManager implements AutoCloseable {
     private volatile LspClient activeClient;
     private volatile boolean startupFinished;
 
-    private ServerEntry(String languageId, Path root, Map<String, String> environment, String statusId) {
+    private ServerEntry(
+        String languageId, Path root, Map<String, String> environment, String statusId) {
       this.languageId = languageId;
       this.root = root;
       this.environment = environment;
       this.statusId = statusId;
       startupNode = new RunnableNode(this::start, this::onStartupNodeClosed);
-      client.whenComplete((lspClient, error) -> {
-        if (error != null) {
-          if (!closed) {
-            LOGGER.error("Unable to start language server {} for workspace {}.",
-                languageId, root, error);
-            publishStatus(statusId, languageId, LspStatus.State.FAILED);
-          }
-        } else if (closed && lspClient != null) {
-          lspClient.close();
-        }
-      });
+      client.whenComplete(
+          (lspClient, error) -> {
+            if (error != null) {
+              if (!closed) {
+                LOGGER.error(
+                    "Unable to start language server {} for workspace {}.",
+                    languageId,
+                    root,
+                    error);
+                publishStatus(statusId, languageId, LspStatus.State.FAILED);
+              }
+            } else if (closed && lspClient != null) {
+              lspClient.close();
+            }
+          });
 
       try {
         ThreadMaster.getInstance().register(startupNode);
@@ -270,19 +286,26 @@ public final class LanguageServerManager implements AutoCloseable {
     private void startAttempt(List<String> command, int attempt) {
       if (closed) {
         closeActiveClient();
-        client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
+        client.completeExceptionally(
+            new CancellationException("Language server startup was cancelled."));
         return;
       }
 
       publishStatus(statusId, languageId, LspStatus.State.STARTING);
       LspClient lspClient;
       try {
-        lspClient = new LspClient(command, root, diagnostics -> {
-          Consumer<PublishDiagnosticsParams> handler = diagnosticsHandlers.get(diagnostics.getUri());
-          if (handler != null) {
-            handler.accept(diagnostics);
-          }
-        }, environment);
+        lspClient =
+            new LspClient(
+                command,
+                root,
+                diagnostics -> {
+                  Consumer<PublishDiagnosticsParams> handler =
+                      diagnosticsHandlers.get(diagnostics.getUri());
+                  if (handler != null) {
+                    handler.accept(diagnostics);
+                  }
+                },
+                environment);
       } catch (IOException | RuntimeException error) {
         handleStartupFailure(error, attempt);
         return;
@@ -291,25 +314,29 @@ public final class LanguageServerManager implements AutoCloseable {
       activeClient = lspClient;
       if (closed) {
         closeActiveClient();
-        client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
+        client.completeExceptionally(
+            new CancellationException("Language server startup was cancelled."));
         return;
       }
 
-      lspClient.getInitialized().whenComplete((ignored, error) -> {
-        if (error == null) {
-          if (closed) {
-            lspClient.close();
-            return;
-          }
-          publishStatus(statusId, languageId, LspStatus.State.RUNNING);
-          client.complete(lspClient);
-          if (closed) {
-            lspClient.close();
-          }
-        } else {
-          handleStartupFailure(unwrapCompletionException(error), attempt);
-        }
-      });
+      lspClient
+          .getInitialized()
+          .whenComplete(
+              (ignored, error) -> {
+                if (error == null) {
+                  if (closed) {
+                    lspClient.close();
+                    return;
+                  }
+                  publishStatus(statusId, languageId, LspStatus.State.RUNNING);
+                  client.complete(lspClient);
+                  if (closed) {
+                    lspClient.close();
+                  }
+                } else {
+                  handleStartupFailure(unwrapCompletionException(error), attempt);
+                }
+              });
     }
 
     private void handleStartupFailure(Throwable error, int attempt) {
@@ -318,14 +345,14 @@ public final class LanguageServerManager implements AutoCloseable {
         return;
       }
 
-      boolean jvmCompatibilityFailure = error instanceof LspServerStartupException startup
-          && startup.isJvmCompatibilityFailure();
+      boolean jvmCompatibilityFailure =
+          error instanceof LspServerStartupException startup && startup.isJvmCompatibilityFailure();
       if (jvmCompatibilityFailure) {
         if (attempt == 0) {
           List<String> fallbackCommand = new ArrayList<>();
           try {
-            fallbackCommand = LspManager.getFallbackCommandRun(
-                languageId, root, statusId, statusListener);
+            fallbackCommand =
+                LspManager.getFallbackCommandRun(languageId, root, statusId, statusListener);
           } catch (RuntimeException fallbackError) {
             error.addSuppressed(fallbackError);
           }
@@ -334,18 +361,24 @@ public final class LanguageServerManager implements AutoCloseable {
             return;
           }
           if (!fallbackCommand.isEmpty()) {
-            LOGGER.warn("Language server {} for workspace {} exited with code 13 before "
-                + "initialization; retrying with a compatible version. On institutional machines "
-                + "with a fixed Java runtime this is a known issue.", languageId, root);
+            LOGGER.warn(
+                "Language server {} for workspace {} exited with code 13 before "
+                    + "initialization; retrying with a compatible version. On institutional machines "
+                    + "with a fixed Java runtime this is a known issue.",
+                languageId,
+                root);
             closeActiveClient();
             startAttempt(fallbackCommand, attempt + 1);
             return;
           }
         }
-        LOGGER.warn("Language server {} for workspace {} cannot run with the Java runtime in use. "
-            + "No compatible fallback is available. On institutional machines with a fixed Java "
-            + "runtime this is a known issue; install a compatible JDK or set "
-            + "-Dsimpleide.lsp.javaHome.", languageId, root);
+        LOGGER.warn(
+            "Language server {} for workspace {} cannot run with the Java runtime in use. "
+                + "No compatible fallback is available. On institutional machines with a fixed Java "
+                + "runtime this is a known issue; install a compatible JDK or set "
+                + "-Dsimpleide.lsp.javaHome.",
+            languageId,
+            root);
       }
 
       closeActiveClient();
@@ -376,7 +409,8 @@ public final class LanguageServerManager implements AutoCloseable {
     private void onStartupNodeClosed() {
       if (!startupFinished) {
         if (!client.isDone()) {
-          client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
+          client.completeExceptionally(
+              new CancellationException("Language server startup was cancelled."));
         }
         closeActiveClient();
       }
@@ -390,6 +424,5 @@ public final class LanguageServerManager implements AutoCloseable {
     }
   }
 
-  private record ServerKey(String languageId, Path workspaceRoot) {
-  }
+  private record ServerKey(String languageId, Path workspaceRoot) {}
 }

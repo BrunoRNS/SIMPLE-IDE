@@ -4,11 +4,13 @@ import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
 import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
 import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
 
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.FileSystems;
-import java.nio.file.Files;
 import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
@@ -23,12 +25,8 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 public final class Watcher implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(Watcher.class);
@@ -180,14 +178,16 @@ public final class Watcher implements AutoCloseable {
   }
 
   private void registerAll(Path root) throws IOException {
-    Files.walkFileTree(root, new SimpleFileVisitor<>() {
-      @Override
-      public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
-          throws IOException {
-        register(directory);
-        return FileVisitResult.CONTINUE;
-      }
-    });
+    Files.walkFileTree(
+        root,
+        new SimpleFileVisitor<>() {
+          @Override
+          public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
+              throws IOException {
+            register(directory);
+            return FileVisitResult.CONTINUE;
+          }
+        });
   }
 
   private void register(Path path) throws IOException {
@@ -238,7 +238,8 @@ public final class Watcher implements AutoCloseable {
       closed = true;
       node = watcherNode;
     }
-    started.completeExceptionally(new IllegalStateException("File watcher was closed before starting."));
+    started.completeExceptionally(
+        new IllegalStateException("File watcher was closed before starting."));
     if (node != null) {
       try {
         ThreadMaster.getInstance().removeNodeCascade(node);

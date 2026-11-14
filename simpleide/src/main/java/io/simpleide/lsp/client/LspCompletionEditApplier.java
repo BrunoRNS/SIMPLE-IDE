@@ -3,11 +3,9 @@ package io.simpleide.lsp.client;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.Document;
-
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.TextEdit;
@@ -18,8 +16,7 @@ import org.slf4j.LoggerFactory;
 public final class LspCompletionEditApplier {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspCompletionEditApplier.class);
 
-  private LspCompletionEditApplier() {
-  }
+  private LspCompletionEditApplier() {}
 
   @SuppressWarnings("")
   public static List<ResolvedTextEdit> captureAdditionalEdits(
@@ -90,8 +87,11 @@ public final class LspCompletionEditApplier {
     }
   }
 
-  private static int toOffset(RSyntaxTextArea editor, Position position) throws BadLocationException {
-    if (position == null || position.getLine() < 0 || position.getLine() >= editor.getLineCount()
+  private static int toOffset(RSyntaxTextArea editor, Position position)
+      throws BadLocationException {
+    if (position == null
+        || position.getLine() < 0
+        || position.getLine() >= editor.getLineCount()
         || position.getCharacter() < 0) {
       throw new BadLocationException("LSP position is outside the document.", -1);
     }
@@ -101,11 +101,13 @@ public final class LspCompletionEditApplier {
     String lineText = editor.getText(lineStart, lineEnd - lineStart);
     int contentLength = lineText.length();
     while (contentLength > 0
-        && (lineText.charAt(contentLength - 1) == '\n' || lineText.charAt(contentLength - 1) == '\r')) {
+        && (lineText.charAt(contentLength - 1) == '\n'
+            || lineText.charAt(contentLength - 1) == '\r')) {
       contentLength--;
     }
     if (position.getCharacter() > contentLength) {
-      throw new BadLocationException("LSP character is outside the line.", lineStart + position.getCharacter());
+      throw new BadLocationException(
+          "LSP character is outside the line.", lineStart + position.getCharacter());
     }
     return lineStart + position.getCharacter();
   }
@@ -135,6 +137,5 @@ public final class LspCompletionEditApplier {
     return List.of();
   }
 
-  public record ResolvedTextEdit(int start, int end, String newText) {
-  }
+  public record ResolvedTextEdit(int start, int end, String newText) {}
 }

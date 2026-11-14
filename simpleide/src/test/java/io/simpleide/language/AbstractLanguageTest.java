@@ -1,23 +1,11 @@
 package io.simpleide.language;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
-import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
@@ -27,233 +15,241 @@ import io.simpleide.language.io.Output;
 import io.simpleide.language.io.holder.InputHolder;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class AbstractLanguageTest {
 
-    private Logger languageLogger;
-    private ThreadSafeListAppender logCapture;
+  private Logger languageLogger;
+  private ThreadSafeListAppender logCapture;
 
-    @BeforeEach
-    public void captureLanguageLogs() throws InterruptedException {
-        while (Output.getInstance().get(0) != null) {
-            // Clear output left by a previous test.
-        }
-        while (InputHolder.INSTANCE.get(0) != null) {
-            // Clear input left by a previous test.
-        }
-        languageLogger = (Logger) LoggerFactory.getLogger(AbstractLanguage.class);
-        logCapture = new ThreadSafeListAppender();
-        logCapture.setContext(languageLogger.getLoggerContext());
-        logCapture.start();
-        languageLogger.addAppender(logCapture);
+  @BeforeEach
+  public void captureLanguageLogs() throws InterruptedException {
+    while (Output.getInstance().get(0) != null) {
+      // Clear output left by a previous test.
     }
-
-    @AfterEach
-    public void stopCapturingLanguageLogs() {
-        languageLogger.detachAppender(logCapture);
-        logCapture.stop();
+    while (InputHolder.INSTANCE.get(0) != null) {
+      // Clear input left by a previous test.
     }
+    languageLogger = (Logger) LoggerFactory.getLogger(AbstractLanguage.class);
+    logCapture = new ThreadSafeListAppender();
+    logCapture.setContext(languageLogger.getLoggerContext());
+    logCapture.start();
+    languageLogger.addAppender(logCapture);
+  }
 
-    @Test
-    public void exposesLanguageNamesAndStartsProcessThroughThreadMaster() throws InterruptedException {
-        TestLanguage language = new TestLanguage("success");
-        RunnableNode node = language.startManaged();
-        awaitOutput("child output");
+  @AfterEach
+  public void stopCapturingLanguageLogs() {
+    languageLogger.detachAppender(logCapture);
+    logCapture.stop();
+  }
+
+  @Test
+  public void exposesLanguageNamesAndStartsProcessThroughThreadMaster()
+      throws InterruptedException {
+    TestLanguage language = new TestLanguage("success");
+    RunnableNode node = language.startManaged();
+    awaitOutput("child output");
+    language.awaitExitHandler();
+
+    assertEquals("Test language", language.getLangFriendly());
+    assertEquals("test", language.getLangConstant());
+    assertTrue(ThreadMaster.getInstance().showTree().containsKey(node.getId()));
+    assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
+    assertEquals("child output", Output.getInstance().get(1));
+  }
+
+  @Test
+  public void executesProcessStepsInOrderAndStopsAfterFailure() throws InterruptedException {
+    TestLanguage language = new TestLanguage("chain-success");
+
+    language.run();
+    language.awaitExitHandler();
+
+    assertEquals("child output", Output.getInstance().get(1));
+    assertEquals("second-stage output", Output.getInstance().get(1));
+    assertTrue(logCapture.messages().contains("[IDE] Process completed successfully."));
+
+    TestLanguage failingLanguage = new TestLanguage("chain-failure");
+    failingLanguage.run();
+    failingLanguage.awaitExitHandler();
+
+    assertEquals("child output", Output.getInstance().get(1));
+    assertFalse(logCapture.messages().contains("[OUTPUT] should-not-run"));
+    assertTrue(logCapture.messages().contains("[OUTPUT] RUNTIME ERROR: 7"));
+  }
+
+  @Test
+  public void capturesOutputAndSuccessfulExit() throws InterruptedException {
+    TestLanguage language = new TestLanguage("success");
+
+    language.run();
+    language.awaitExitHandler();
+
+    assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
+    assertTrue(logCapture.messages().contains("[IDE] Process completed successfully."));
+    assertEquals("child output", Output.getInstance().get(1));
+  }
+
+  @Test
+  public void capturesOutputAndReportsNonzeroExit() throws InterruptedException {
+    TestLanguage language = new TestLanguage("failure");
+
+    language.run();
+    language.awaitExitHandler();
+
+    assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
+    assertTrue(logCapture.messages().contains("[OUTPUT] RUNTIME ERROR: 7"));
+    assertTrue(
+        logCapture
+            .messages()
+            .contains("[Runtime Error] The developer's program broke with code: 7"));
+    assertEquals("child output", Output.getInstance().get(1));
+  }
+
+  @Test
+  public void forwardsInputFromInputHolderToRunningProcess() throws InterruptedException {
+    TestLanguage language = new TestLanguage("input");
+    language.startManaged();
+
+    awaitOutput("ready");
+    InputHolder.INSTANCE.set("user input");
+    awaitOutput("received:user input");
+    language.awaitExitHandler();
+
+    assertEquals("ready", Output.getInstance().get(1));
+    assertEquals("received:user input", Output.getInstance().get(1));
+  }
+
+  @Test
+  public void rejectsAnotherProcessWhileOneIsRunningAndCanStopIt() throws InterruptedException {
+    TestLanguage language = new TestLanguage("wait");
+    language.startManaged();
+
+    try {
+      awaitOutput("ready");
+      assertEquals("ready", Output.getInstance().get(1));
+      assertThatThrownBy(language::run)
+          .isInstanceOfSatisfying(
+              ProcessAlreadyExistsException.class,
+              exception -> assertSame(language.getProcess(), exception.getActualProcess()));
+      language.forceStop();
+      language.awaitExitHandler();
+      assertTrue(logCapture.messages().contains("[IDE] Process manually interrupted by the user."));
+      assertFalse(
+          logCapture.messages().stream().anyMatch(message -> message.contains("Runtime Error")));
+    } finally {
+      if (language.getProcess() != null && language.getProcess().isAlive()) {
+        language.forceStop();
         language.awaitExitHandler();
+      }
+    }
+  }
 
-        assertEquals("Test language", language.getLangFriendly());
-        assertEquals("test", language.getLangConstant());
-        assertTrue(ThreadMaster.getInstance().showTree().containsKey(node.getId()));
-        assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
-        assertEquals("child output", Output.getInstance().get(1));
+  private void awaitOutput(String output) {
+    await("Expected logged process output: " + output)
+        .atMost(15, TimeUnit.SECONDS)
+        .pollInterval(10, TimeUnit.MILLISECONDS)
+        .until(() -> logCapture.messages().stream().anyMatch(message -> message.contains(output)));
+  }
+
+  private static final class ThreadSafeListAppender extends ListAppender<ILoggingEvent> {
+    @Override
+    protected synchronized void append(ILoggingEvent event) {
+      super.append(event);
     }
 
-    @Test
-    public void executesProcessStepsInOrderAndStopsAfterFailure() throws InterruptedException {
-        TestLanguage language = new TestLanguage("chain-success");
+    private synchronized List<String> messages() {
+      return list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
+  }
 
-        language.run();
-        language.awaitExitHandler();
-
-        assertEquals("child output", Output.getInstance().get(1));
-        assertEquals("second-stage output", Output.getInstance().get(1));
-        assertTrue(logCapture.messages().contains("[IDE] Process completed successfully."));
-
-        TestLanguage failingLanguage = new TestLanguage("chain-failure");
-        failingLanguage.run();
-        failingLanguage.awaitExitHandler();
-
-        assertEquals("child output", Output.getInstance().get(1));
-        assertFalse(logCapture.messages().contains("[OUTPUT] should-not-run"));
-        assertTrue(logCapture.messages().contains("[OUTPUT] RUNTIME ERROR: 7"));
+  private static final class TestLanguage extends AbstractLanguage {
+    private TestLanguage(String mode) {
+      langFriendly = "Test language";
+      langConstant = "test";
+      if ("chain-success".equals(mode)) {
+        processSteps =
+            Arrays.asList(
+                new ProcessBuilder(childCommand("success")),
+                new ProcessBuilder(childCommand("second-stage")));
+      } else if ("chain-failure".equals(mode)) {
+        processSteps =
+            Arrays.asList(
+                new ProcessBuilder(childCommand("failure")),
+                new ProcessBuilder(childCommand("should-not-run")));
+      } else {
+        pb = new ProcessBuilder(childCommand(mode));
+      }
     }
 
-    @Test
-    public void capturesOutputAndSuccessfulExit() throws InterruptedException {
-        TestLanguage language = new TestLanguage("success");
-
-        language.run();
-        language.awaitExitHandler();
-
-        assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
-        assertTrue(logCapture.messages().contains("[IDE] Process completed successfully."));
-        assertEquals("child output", Output.getInstance().get(1));
+    private static List<String> childCommand(String mode) {
+      String java =
+          new File(
+                  System.getProperty("java.home"),
+                  "bin" + File.separator + (isWindows() ? "java.exe" : "java"))
+              .getAbsolutePath();
+      return Arrays.asList(
+          java, "-cp", System.getProperty("java.class.path"), ChildProcess.class.getName(), mode);
     }
 
-    @Test
-    public void capturesOutputAndReportsNonzeroExit() throws InterruptedException {
-        TestLanguage language = new TestLanguage("failure");
-
-        language.run();
-        language.awaitExitHandler();
-
-        assertTrue(logCapture.messages().contains("[OUTPUT] child output"));
-        assertTrue(logCapture.messages().contains("[OUTPUT] RUNTIME ERROR: 7"));
-        assertTrue(logCapture.messages().contains(
-            "[Runtime Error] The developer's program broke with code: 7"
-        ));
-        assertEquals("child output", Output.getInstance().get(1));
+    private static boolean isWindows() {
+      return System.getProperty("os.name").toLowerCase().contains("win");
     }
 
-    @Test
-    public void forwardsInputFromInputHolderToRunningProcess() throws InterruptedException {
-        TestLanguage language = new TestLanguage("input");
-        language.startManaged();
-
-        awaitOutput("ready");
-        InputHolder.INSTANCE.set("user input");
-        awaitOutput("received:user input");
-        language.awaitExitHandler();
-
-        assertEquals("ready", Output.getInstance().get(1));
-        assertEquals("received:user input", Output.getInstance().get(1));
+    private Process getProcess() {
+      return p;
     }
 
-    @Test
-    public void rejectsAnotherProcessWhileOneIsRunningAndCanStopIt() throws InterruptedException {
-        TestLanguage language = new TestLanguage("wait");
-        language.startManaged();
+    private void awaitExitHandler() {
+      await("The process exit handler should clear the process reference.")
+          .atMost(15, TimeUnit.SECONDS)
+          .pollInterval(10, TimeUnit.MILLISECONDS)
+          .until(() -> p == null);
+    }
+  }
 
-        try {
-            awaitOutput("ready");
-            assertEquals("ready", Output.getInstance().get(1));
-            assertThatThrownBy(language::run)
-                .isInstanceOfSatisfying(
-                    ProcessAlreadyExistsException.class,
-                    exception -> assertSame(language.getProcess(), exception.getActualProcess())
-                );
-            language.forceStop();
-            language.awaitExitHandler();
-            assertTrue(logCapture.messages().contains("[IDE] Process manually interrupted by the user."));
-            assertFalse(logCapture.messages().stream().anyMatch(message -> message.contains("Runtime Error")));
-        } finally {
-            if (language.getProcess() != null && language.getProcess().isAlive()) {
-                language.forceStop();
-                language.awaitExitHandler();
-            }
+  public static final class ChildProcess {
+    public static void main(String[] args) throws IOException, InterruptedException {
+      if ("wait".equals(args[0])) {
+        System.out.println("ready");
+        System.out.flush();
+        Thread.sleep(5_000);
+        return;
+      }
+
+      if ("input".equals(args[0])) {
+        System.out.println("ready");
+        System.out.flush();
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
+          System.out.println("received:" + reader.readLine());
         }
+        return;
+      }
+
+      if ("second-stage".equals(args[0])) {
+        System.out.println("second-stage output");
+        return;
+      }
+
+      if ("should-not-run".equals(args[0])) {
+        System.out.println("should-not-run");
+        return;
+      }
+
+      System.out.println("child output");
+      if ("failure".equals(args[0])) {
+        System.exit(7);
+      }
     }
-
-    private void awaitOutput(String output) {
-        await("Expected logged process output: " + output)
-            .atMost(15, TimeUnit.SECONDS)
-            .pollInterval(10, TimeUnit.MILLISECONDS)
-            .until(() -> logCapture.messages().stream().anyMatch(message -> message.contains(output)));
-    }
-
-    private static final class ThreadSafeListAppender extends ListAppender<ILoggingEvent> {
-        @Override
-        protected synchronized void append(ILoggingEvent event) {
-            super.append(event);
-        }
-
-        private synchronized List<String> messages() {
-            return list.stream().map(ILoggingEvent::getFormattedMessage).toList();
-        }
-    }
-
-    private static final class TestLanguage extends AbstractLanguage {
-        private TestLanguage(String mode) {
-            langFriendly = "Test language";
-            langConstant = "test";
-            if ("chain-success".equals(mode)) {
-                processSteps = Arrays.asList(
-                        new ProcessBuilder(childCommand("success")),
-                        new ProcessBuilder(childCommand("second-stage"))
-                );
-            } else if ("chain-failure".equals(mode)) {
-                processSteps = Arrays.asList(
-                        new ProcessBuilder(childCommand("failure")),
-                        new ProcessBuilder(childCommand("should-not-run"))
-                );
-            } else {
-                pb = new ProcessBuilder(childCommand(mode));
-            }
-        }
-
-        private static List<String> childCommand(String mode) {
-            String java = new File(
-                    System.getProperty("java.home"),
-                    "bin" + File.separator + (isWindows() ? "java.exe" : "java")
-            ).getAbsolutePath();
-            return Arrays.asList(
-                    java,
-                    "-cp",
-                    System.getProperty("java.class.path"),
-                    ChildProcess.class.getName(),
-                    mode
-            );
-        }
-
-        private static boolean isWindows() {
-            return System.getProperty("os.name").toLowerCase().contains("win");
-        }
-
-        private Process getProcess() {
-            return p;
-        }
-
-        private void awaitExitHandler() {
-            await("The process exit handler should clear the process reference.")
-                .atMost(15, TimeUnit.SECONDS)
-                .pollInterval(10, TimeUnit.MILLISECONDS)
-                .until(() -> p == null);
-            }
-
-    }
-
-    public static final class ChildProcess {
-        public static void main(String[] args) throws IOException, InterruptedException {
-            if ("wait".equals(args[0])) {
-                System.out.println("ready");
-                System.out.flush();
-                Thread.sleep(5_000);
-                return;
-            }
-
-            if ("input".equals(args[0])) {
-                System.out.println("ready");
-                System.out.flush();
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in))) {
-                    System.out.println("received:" + reader.readLine());
-                }
-                return;
-            }
-
-            if ("second-stage".equals(args[0])) {
-                System.out.println("second-stage output");
-                return;
-            }
-
-            if ("should-not-run".equals(args[0])) {
-                System.out.println("should-not-run");
-                return;
-            }
-
-            System.out.println("child output");
-            if ("failure".equals(args[0])) {
-                System.exit(7);
-            }
-        }
-    }
+  }
 }

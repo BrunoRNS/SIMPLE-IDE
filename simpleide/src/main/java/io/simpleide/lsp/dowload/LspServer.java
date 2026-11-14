@@ -1,314 +1,342 @@
 package io.simpleide.lsp.dowload;
 
+import io.simpleide.language.config.LangPlatform;
 import java.util.List;
 import java.util.Map;
 
-import io.simpleide.language.config.LangPlatform;
-
 public class LspServer {
 
-    private String id;
-    private String version;
-    private String name;
-    private String languageId;
-    private String typeFile;
-    private String installKey;
-    private String archiverCommand;
-    private List<String> paramsArchiverCommand;
+  private String id;
+  private String version;
+  private String name;
+  private String languageId;
+  private String typeFile;
+  private String installKey;
+  private String archiverCommand;
+  private List<String> paramsArchiverCommand;
 
-    private List<String> os;
-    private List<String> arch;
-    private String minimumVersion;
-    private String url;
-    private String command;
-    private List<String> arguments;
-    private String installCommand;
-    private List<String> installArguments;
-    private String postInstallCommand;
-    private List<String> postInstallArguments;
-    private String versionCommand;
-    private List<String> versionArguments;
-    private String latestVersionApi;
-    private String latestVersionPath;
-    private String latestVersionListPath;
-    private String latestAssetName;
-    private String latestVersionUrlTemplate;
-    private Map<String, String> installEnvironment;
+  private List<String> os;
+  private List<String> arch;
+  private String minimumVersion;
+  private String url;
+  private String command;
+  private List<String> arguments;
+  private String installCommand;
+  private List<String> installArguments;
+  private String postInstallCommand;
+  private List<String> postInstallArguments;
+  private String versionCommand;
+  private List<String> versionArguments;
+  private String latestVersionApi;
+  private String latestVersionPath;
+  private String latestVersionListPath;
+  private String latestAssetName;
+  private String latestVersionUrlTemplate;
+  private Map<String, String> installEnvironment;
 
-    public LspServer(String id, String version, String name, String languageId, List<String> os, List<String> arch,
-            String minimumVersion, String url, String command, List<String> arguments, String installCommand,
-            List<String> installArguments, String typeFile, String versionCommand, List<String> versionArguments,
-            List<String> paramsArchiverCommand, String archiverCommand) {
-        this.id = id;
-        this.version = version;
-        this.name = name;
-        this.languageId = languageId;
-        this.os = os;
-        this.arch = arch;
-        this.minimumVersion = minimumVersion;
-        this.url = url;
-        this.command = command;
-        this.arguments = arguments;
-        this.installCommand = installCommand;
-        this.installArguments = installArguments;
-        this.typeFile = typeFile;
-        this.archiverCommand = archiverCommand;
-        this.paramsArchiverCommand = paramsArchiverCommand;
-        this.versionCommand = versionCommand;
-        this.versionArguments = versionArguments;
+  public LspServer(
+      String id,
+      String version,
+      String name,
+      String languageId,
+      List<String> os,
+      List<String> arch,
+      String minimumVersion,
+      String url,
+      String command,
+      List<String> arguments,
+      String installCommand,
+      List<String> installArguments,
+      String typeFile,
+      String versionCommand,
+      List<String> versionArguments,
+      List<String> paramsArchiverCommand,
+      String archiverCommand) {
+    this.id = id;
+    this.version = version;
+    this.name = name;
+    this.languageId = languageId;
+    this.os = os;
+    this.arch = arch;
+    this.minimumVersion = minimumVersion;
+    this.url = url;
+    this.command = command;
+    this.arguments = arguments;
+    this.installCommand = installCommand;
+    this.installArguments = installArguments;
+    this.typeFile = typeFile;
+    this.archiverCommand = archiverCommand;
+    this.paramsArchiverCommand = paramsArchiverCommand;
+    this.versionCommand = versionCommand;
+    this.versionArguments = versionArguments;
+  }
 
+  public LspServer(
+      String id,
+      String version,
+      String name,
+      String languageId,
+      List<String> os,
+      List<String> arch,
+      String minimumVersion,
+      String url,
+      String command,
+      List<String> arguments) {
+    this.id = id;
+    this.version = version;
+    this.name = name;
+    this.languageId = languageId;
+    this.os = os;
+    this.arch = arch;
+    this.minimumVersion = minimumVersion;
+    this.url = url;
+    this.command = command;
+    this.arguments = arguments;
+    this.installArguments = List.of();
+    this.versionArguments = List.of();
+  }
+
+  public boolean isSupportedOnCurrentPlatform() {
+    LangPlatform current = LangPlatform.getCurrentPlatform();
+
+    if (current == LangPlatform.UNKNOWN) {
+      return false;
     }
 
-    public LspServer(String id, String version, String name, String languageId, List<String> os, List<String> arch,
-            String minimumVersion, String url, String command, List<String> arguments) {
-        this.id = id;
-        this.version = version;
-        this.name = name;
-        this.languageId = languageId;
-        this.os = os;
-        this.arch = arch;
-        this.minimumVersion = minimumVersion;
-        this.url = url;
-        this.command = command;
-        this.arguments = arguments;
-        this.installArguments = List.of();
-        this.versionArguments = List.of();
+    boolean osSupported =
+        os != null
+            && os.stream().anyMatch(supportedOs -> supportedOs.equalsIgnoreCase(current.getOs()));
+
+    boolean archSupported =
+        arch != null
+            && arch.stream()
+                .anyMatch(
+                    supportedArch -> supportedArch.equalsIgnoreCase(current.getArchitecture()));
+
+    if (!archSupported && arch != null) {
+      archSupported =
+          arch.stream()
+              .anyMatch(
+                  supportedArch -> {
+                    String normalized = supportedArch.toLowerCase();
+                    if (current.getArchitecture().equals("x64")) {
+                      return normalized.contains("x86_64") || normalized.contains("x64");
+                    }
+                    if (current.getArchitecture().equals("aarch64")) {
+                      return normalized.contains("arm64") || normalized.contains("aarch64");
+                    }
+                    return false;
+                  });
     }
 
-    public boolean isSupportedOnCurrentPlatform() {
-        LangPlatform current = LangPlatform.getCurrentPlatform();
+    return osSupported && archSupported;
+  }
 
-        if (current == LangPlatform.UNKNOWN) {
-            return false;
-        }
+  public String getId() {
+    return id;
+  }
 
-        boolean osSupported = os != null && os.stream()
-                .anyMatch(supportedOs -> supportedOs.equalsIgnoreCase(current.getOs()));
+  public void setId(String id) {
+    this.id = id;
+  }
 
-        boolean archSupported = arch != null && arch.stream()
-                .anyMatch(supportedArch -> supportedArch.equalsIgnoreCase(current.getArchitecture()));
+  public String getVersion() {
+    return version;
+  }
 
-        if (!archSupported && arch != null) {
-            archSupported = arch.stream().anyMatch(supportedArch -> {
-                String normalized = supportedArch.toLowerCase();
-                if (current.getArchitecture().equals("x64")) {
-                    return normalized.contains("x86_64") || normalized.contains("x64");
-                }
-                if (current.getArchitecture().equals("aarch64")) {
-                    return normalized.contains("arm64") || normalized.contains("aarch64");
-                }
-                return false;
-            });
-        }
+  public void setVersion(String version) {
+    this.version = version;
+  }
 
-        return osSupported && archSupported;
-    }
+  public String getName() {
+    return name;
+  }
 
-    public String getId() {
-        return id;
-    }
+  public void setName(String name) {
+    this.name = name;
+  }
 
-    public void setId(String id) {
-        this.id = id;
-    }
+  public String getLanguageId() {
+    return languageId;
+  }
 
-    public String getVersion() {
-        return version;
-    }
+  public void setLanguageId(String languageId) {
+    this.languageId = languageId;
+  }
 
-    public void setVersion(String version) {
-        this.version = version;
-    }
+  public String getCommand() {
+    return command;
+  }
 
-    public String getName() {
-        return name;
-    }
+  public void setCommand(String command) {
+    this.command = command;
+  }
 
-    public void setName(String name) {
-        this.name = name;
-    }
+  public List<String> getArguments() {
+    return arguments;
+  }
 
-    public String getLanguageId() {
-        return languageId;
-    }
+  public void setArguments(List<String> arguments) {
+    this.arguments = arguments;
+  }
 
-    public void setLanguageId(String languageId) {
-        this.languageId = languageId;
-    }
+  public List<String> getOs() {
+    return os;
+  }
 
-    public String getCommand() {
-        return command;
-    }
+  public void setOs(List<String> os) {
+    this.os = os;
+  }
 
-    public void setCommand(String command) {
-        this.command = command;
-    }
+  public List<String> getArch() {
+    return arch;
+  }
 
-    public List<String> getArguments() {
-        return arguments;
-    }
+  public void setArch(List<String> arch) {
+    this.arch = arch;
+  }
 
-    public void setArguments(List<String> arguments) {
-        this.arguments = arguments;
-    }
+  public String getMinimumVersion() {
+    return minimumVersion;
+  }
 
-    public List<String> getOs() {
-        return os;
-    }
+  public void setMinimumVersion(String minimumVersion) {
+    this.minimumVersion = minimumVersion;
+  }
 
-    public void setOs(List<String> os) {
-        this.os = os;
-    }
+  public String getUrl() {
+    return url;
+  }
 
-    public List<String> getArch() {
-        return arch;
-    }
+  public void setUrl(String url) {
+    this.url = url;
+  }
 
-    public void setArch(List<String> arch) {
-        this.arch = arch;
-    }
+  public String getTypeFile() {
+    return typeFile;
+  }
 
-    public String getMinimumVersion() {
-        return minimumVersion;
-    }
+  public void setTypeFile(String typeFile) {
+    this.typeFile = typeFile;
+  }
 
-    public void setMinimumVersion(String minimumVersion) {
-        this.minimumVersion = minimumVersion;
-    }
+  public String getInstallKey() {
+    return installKey;
+  }
 
-    public String getUrl() {
-        return url;
-    }
+  public void setInstallKey(String installKey) {
+    this.installKey = installKey;
+  }
 
-    public void setUrl(String url) {
-        this.url = url;
-    }
+  public String getInstallCommand() {
+    return installCommand;
+  }
 
-    public String getTypeFile() {
-        return typeFile;
-    }
+  public void setInstallCommand(String installCommand) {
+    this.installCommand = installCommand;
+  }
 
-    public void setTypeFile(String typeFile) {
-        this.typeFile = typeFile;
-    }
+  public List<String> getInstallArguments() {
+    return installArguments;
+  }
 
-    public String getInstallKey() {
-        return installKey;
-    }
+  public void setInstallArguments(List<String> installArguments) {
+    this.installArguments = installArguments;
+  }
 
-    public void setInstallKey(String installKey) {
-        this.installKey = installKey;
-    }
+  public String getPostInstallCommand() {
+    return postInstallCommand;
+  }
 
-    public String getInstallCommand() {
-        return installCommand;
-    }
+  public void setPostInstallCommand(String postInstallCommand) {
+    this.postInstallCommand = postInstallCommand;
+  }
 
-    public void setInstallCommand(String installCommand) {
-        this.installCommand = installCommand;
-    }
+  public List<String> getPostInstallArguments() {
+    return postInstallArguments;
+  }
 
-    public List<String> getInstallArguments() {
-        return installArguments;
-    }
+  public void setPostInstallArguments(List<String> postInstallArguments) {
+    this.postInstallArguments = postInstallArguments;
+  }
 
-    public void setInstallArguments(List<String> installArguments) {
-        this.installArguments = installArguments;
-    }
+  public String getVersionCommand() {
+    return versionCommand;
+  }
 
-    public String getPostInstallCommand() {
-        return postInstallCommand;
-    }
+  public void setVersionCommand(String versionCommand) {
+    this.versionCommand = versionCommand;
+  }
 
-    public void setPostInstallCommand(String postInstallCommand) {
-        this.postInstallCommand = postInstallCommand;
-    }
+  public List<String> getVersionArguments() {
+    return versionArguments;
+  }
 
-    public List<String> getPostInstallArguments() {
-        return postInstallArguments;
-    }
+  public void setVersionArguments(List<String> versionArguments) {
+    this.versionArguments = versionArguments;
+  }
 
-    public void setPostInstallArguments(List<String> postInstallArguments) {
-        this.postInstallArguments = postInstallArguments;
-    }
+  public String getLatestVersionApi() {
+    return latestVersionApi;
+  }
 
-    public String getVersionCommand() {
-        return versionCommand;
-    }
+  public void setLatestVersionApi(String latestVersionApi) {
+    this.latestVersionApi = latestVersionApi;
+  }
 
-    public void setVersionCommand(String versionCommand) {
-        this.versionCommand = versionCommand;
-    }
+  public String getLatestVersionPath() {
+    return latestVersionPath;
+  }
 
-    public List<String> getVersionArguments() {
-        return versionArguments;
-    }
+  public void setLatestVersionPath(String latestVersionPath) {
+    this.latestVersionPath = latestVersionPath;
+  }
 
-    public void setVersionArguments(List<String> versionArguments) {
-        this.versionArguments = versionArguments;
-    }
+  public String getLatestVersionListPath() {
+    return latestVersionListPath;
+  }
 
-    public String getLatestVersionApi() {
-        return latestVersionApi;
-    }
+  public void setLatestVersionListPath(String latestVersionListPath) {
+    this.latestVersionListPath = latestVersionListPath;
+  }
 
-    public void setLatestVersionApi(String latestVersionApi) {
-        this.latestVersionApi = latestVersionApi;
-    }
+  public String getLatestAssetName() {
+    return latestAssetName;
+  }
 
-    public String getLatestVersionPath() {
-        return latestVersionPath;
-    }
+  public void setLatestAssetName(String latestAssetName) {
+    this.latestAssetName = latestAssetName;
+  }
 
-    public void setLatestVersionPath(String latestVersionPath) {
-        this.latestVersionPath = latestVersionPath;
-    }
+  public String getLatestVersionUrlTemplate() {
+    return latestVersionUrlTemplate;
+  }
 
-    public String getLatestVersionListPath() {
-        return latestVersionListPath;
-    }
+  public void setLatestVersionUrlTemplate(String latestVersionUrlTemplate) {
+    this.latestVersionUrlTemplate = latestVersionUrlTemplate;
+  }
 
-    public void setLatestVersionListPath(String latestVersionListPath) {
-        this.latestVersionListPath = latestVersionListPath;
-    }
+  public Map<String, String> getInstallEnvironment() {
+    return installEnvironment;
+  }
 
-    public String getLatestAssetName() {
-        return latestAssetName;
-    }
+  public void setInstallEnvironment(Map<String, String> installEnvironment) {
+    this.installEnvironment = installEnvironment;
+  }
 
-    public void setLatestAssetName(String latestAssetName) {
-        this.latestAssetName = latestAssetName;
-    }
+  public String getArchiverCommand() {
+    return archiverCommand;
+  }
 
-    public String getLatestVersionUrlTemplate() {
-        return latestVersionUrlTemplate;
-    }
+  public void setArchiverCommand(String archiverCommand) {
+    this.archiverCommand = archiverCommand;
+  }
 
-    public void setLatestVersionUrlTemplate(String latestVersionUrlTemplate) {
-        this.latestVersionUrlTemplate = latestVersionUrlTemplate;
-    }
+  public List<String> getParamsArchiverCommand() {
+    return paramsArchiverCommand;
+  }
 
-    public Map<String, String> getInstallEnvironment() {
-        return installEnvironment;
-    }
-
-    public void setInstallEnvironment(Map<String, String> installEnvironment) {
-        this.installEnvironment = installEnvironment;
-    }
-
-    public String getArchiverCommand() {
-        return archiverCommand;
-    }
-
-    public void setArchiverCommand(String archiverCommand) {
-        this.archiverCommand = archiverCommand;
-    }
-
-    public List<String> getParamsArchiverCommand() {
-        return paramsArchiverCommand;
-    }
-
-    public void setParamsArchiverCommand(List<String> paramsArchiverCommand) {
-        this.paramsArchiverCommand = paramsArchiverCommand;
-    }
+  public void setParamsArchiverCommand(List<String> paramsArchiverCommand) {
+    this.paramsArchiverCommand = paramsArchiverCommand;
+  }
 }

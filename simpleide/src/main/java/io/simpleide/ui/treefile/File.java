@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,6 +33,16 @@ public class File extends TreeFile {
 
   private static String loadNameFile(Path path) {
     return path.getFileName().toString();
+  }
+
+  /**
+   * Resolves the editor file type from a path's extension.
+   *
+   * @param path path to inspect
+   * @return the matching file type, or {@link TypeFile#TXT} when unknown
+   */
+  public static TypeFile typeOf(Path path) {
+    return getTypeFile(path);
   }
 
   private static TypeFile getTypeFile(Path path) {

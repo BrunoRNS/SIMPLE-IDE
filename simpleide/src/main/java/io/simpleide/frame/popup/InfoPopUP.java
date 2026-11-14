@@ -1,19 +1,23 @@
 package io.simpleide.frame.popup;
 
-import java.util.Map;
-
-import javax.swing.JComponent;
-import javax.swing.JOptionPane;
-
 import io.simpleide.frame.utils.LoadIcon;
 import io.simpleide.utils.mappeable.Mappeable;
 import io.simpleide.utils.mappeable.MappeableSupport;
+import java.util.Map;
+import javax.swing.JComponent;
+import javax.swing.JOptionPane;
 
 @Mappeable
 public class InfoPopUP extends PopUP implements MappeableSupport {
 
   public InfoPopUP(String title, Object message, JComponent parent, Object option) {
-    super(parent, title, message, JOptionPane.INFORMATION_MESSAGE, LoadIcon.loadingIcon("info.png"), option);
+    super(
+        parent,
+        title,
+        message,
+        JOptionPane.INFORMATION_MESSAGE,
+        LoadIcon.loadingIcon("info.png"),
+        option);
   }
 
   public InfoPopUP(String title, Object message) {
@@ -37,5 +41,4 @@ public class InfoPopUP extends PopUP implements MappeableSupport {
   public void setMap(Map<String, Object> m) {
     setMaping(m);
   }
-
 }

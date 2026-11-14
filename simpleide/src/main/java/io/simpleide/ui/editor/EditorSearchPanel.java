@@ -3,7 +3,6 @@ package io.simpleide.ui.editor;
 import java.awt.FlowLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-
 import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -11,7 +10,6 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
-
 import org.fife.ui.rtextarea.SearchContext;
 import org.fife.ui.rtextarea.SearchEngine;
 import org.fife.ui.rtextarea.SearchResult;
@@ -45,31 +43,62 @@ final class EditorSearchPanel extends JPanel {
     replacementRow.add(new JLabel("Replace with:"));
     replacementRow.add(replacementField);
     JButton replaceButton = new JButton("Replace");
-    replaceButton.addActionListener(event -> replaceOne(searchField.getText(), replacementField.getText()));
+    replaceButton.addActionListener(
+        event -> replaceOne(searchField.getText(), replacementField.getText()));
     replacementRow.add(replaceButton);
     JButton replaceAllButton = new JButton("Replace all");
-    replaceAllButton.addActionListener(event -> replaceAll(searchField.getText(), replacementField.getText()));
+    replaceAllButton.addActionListener(
+        event -> replaceAll(searchField.getText(), replacementField.getText()));
     replacementRow.add(replaceAllButton);
     replacementRow.setVisible(false);
     add(replacementRow);
 
     add(status);
-    bindKey(searchField, "editorSearch.next", KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
+    bindKey(
+        searchField,
+        "editorSearch.next",
+        KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
         () -> find(searchField.getText(), true));
-    bindKey(searchField, "editorSearch.previous", KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.SHIFT_DOWN_MASK),
+    bindKey(
+        searchField,
+        "editorSearch.previous",
+        KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, KeyEvent.SHIFT_DOWN_MASK),
         () -> find(searchField.getText(), false));
-    bindKey(replacementField, "editorSearch.replace", KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
+    bindKey(
+        replacementField,
+        "editorSearch.replace",
+        KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0),
         () -> replaceOne(searchField.getText(), replacementField.getText()));
-    bindKey(searchField, "editorSearch.find", KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK),
+    bindKey(
+        searchField,
+        "editorSearch.find",
+        KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK),
         () -> open(false));
-    bindKey(replacementField, "editorSearch.find", KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK),
+    bindKey(
+        replacementField,
+        "editorSearch.find",
+        KeyStroke.getKeyStroke(KeyEvent.VK_F, KeyEvent.CTRL_DOWN_MASK),
         () -> open(false));
-    bindKey(searchField, "editorSearch.showReplace", KeyStroke.getKeyStroke(KeyEvent.VK_H, KeyEvent.CTRL_DOWN_MASK),
+    bindKey(
+        searchField,
+        "editorSearch.showReplace",
+        KeyStroke.getKeyStroke(KeyEvent.VK_H, KeyEvent.CTRL_DOWN_MASK),
         () -> open(true));
-    bindKey(replacementField, "editorSearch.showReplace",
-        KeyStroke.getKeyStroke(KeyEvent.VK_H, KeyEvent.CTRL_DOWN_MASK), () -> open(true));
-    bindKey(searchField, "editorSearch.close", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), this::close);
-    bindKey(replacementField, "editorSearch.close", KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), this::close);
+    bindKey(
+        replacementField,
+        "editorSearch.showReplace",
+        KeyStroke.getKeyStroke(KeyEvent.VK_H, KeyEvent.CTRL_DOWN_MASK),
+        () -> open(true));
+    bindKey(
+        searchField,
+        "editorSearch.close",
+        KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+        this::close);
+    bindKey(
+        replacementField,
+        "editorSearch.close",
+        KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+        this::close);
     setVisible(false);
   }
 
@@ -138,12 +167,16 @@ final class EditorSearchPanel extends JPanel {
 
   private void bindKey(JTextField field, String name, KeyStroke keyStroke, Runnable action) {
     field.getInputMap().put(keyStroke, name);
-    field.getActionMap().put(name, new AbstractAction() {
-      @Override
-      public void actionPerformed(ActionEvent event) {
-        action.run();
-      }
-    });
+    field
+        .getActionMap()
+        .put(
+            name,
+            new AbstractAction() {
+              @Override
+              public void actionPerformed(ActionEvent event) {
+                action.run();
+              }
+            });
   }
 
   private void close() {

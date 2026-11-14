@@ -51,3 +51,22 @@ jobs:
 
       - name: Run tests
         run: make test
+
+      - name: Validate fat JAR and generated packages
+        if: matrix.java == '17'
+        env:
+          SIMPLEIDE_PKG_OS: linux
+          SIMPLEIDE_PKG_ARCH: x64
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fakeroot rpm
+          make pkg-verify
+      - name: Upload invalid packages for debugging
+        if: failure() && matrix.java == '17'
+        uses: actions/upload-artifact@v4
+        with:
+          name: invalid-packages-linux-x64
+          path: simpleide/target/pkg/
+          if-no-files-found: ignore
+          retention-days: 7

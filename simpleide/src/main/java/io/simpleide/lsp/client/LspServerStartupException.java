@@ -23,8 +23,9 @@ public final class LspServerStartupException extends IOException {
   private static String createMessage(int exitCode) {
     String message = "Language server exited before initialization (code " + exitCode + ").";
     if (exitCode == 13) {
-      message += " The Java runtime used to launch it is probably older than the server requires."
-          + " On institutional machines with a fixed Java runtime this is a known issue.";
+      message +=
+          " The Java runtime used to launch it is probably older than the server requires."
+              + " On institutional machines with a fixed Java runtime this is a known issue.";
     }
     return message;
   }

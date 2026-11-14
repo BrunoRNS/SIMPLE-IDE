@@ -1,21 +1,15 @@
 package io.simpleide.language.exceptions;
 
-public final class ProcessAlreadyExistsException 
-extends RuntimeException
-{
+public final class ProcessAlreadyExistsException extends RuntimeException {
 
-    private volatile Process actualProcess = null;
+  private volatile Process actualProcess = null;
 
-    public ProcessAlreadyExistsException(
-        String message,
-        Process actual
-    ) {
-        super(message);
-        this.actualProcess = actual;
-    }
+  public ProcessAlreadyExistsException(String message, Process actual) {
+    super(message);
+    this.actualProcess = actual;
+  }
 
-    public Process getActualProcess() {
-        return this.actualProcess;
-    }
-    
+  public Process getActualProcess() {
+    return this.actualProcess;
+  }
 }

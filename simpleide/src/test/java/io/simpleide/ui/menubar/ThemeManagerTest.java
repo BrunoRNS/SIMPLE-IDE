@@ -1,21 +1,18 @@
 package io.simpleide.ui.menubar;
 
-import java.awt.Color;
-
-import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
-
 import static org.assertj.core.api.Assertions.assertThat;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
-import org.fife.ui.rsyntaxtextarea.TokenTypes;
-
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.ui.editor.Editor;
+import java.awt.Color;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import org.fife.ui.rsyntaxtextarea.TokenTypes;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 class ThemeManagerTest {
 
@@ -71,7 +68,8 @@ class ThemeManagerTest {
     assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.COMMENT_MULTILINE).foreground)
         .isNotEqualTo(editor.getSyntaxScheme().getStyle(TokenTypes.COMMENT_EOL).foreground);
     assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.LITERAL_NUMBER_FLOAT).foreground)
-        .isNotEqualTo(editor.getSyntaxScheme().getStyle(TokenTypes.LITERAL_NUMBER_DECIMAL_INT).foreground);
+        .isNotEqualTo(
+            editor.getSyntaxScheme().getStyle(TokenTypes.LITERAL_NUMBER_DECIMAL_INT).foreground);
     assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.MARKUP_TAG_NAME).foreground)
         .isEqualTo(new Color(0xFF6B9E));
     assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.ERROR_CHAR).foreground)

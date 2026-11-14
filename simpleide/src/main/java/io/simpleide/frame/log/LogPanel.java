@@ -1,18 +1,15 @@
 package io.simpleide.frame.log;
 
+import io.simpleide.thread.ThreadMaster;
 import java.awt.Color;
-
 import javax.swing.JTextPane;
 import javax.swing.UIManager;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.simpleide.thread.ThreadMaster;
 
 public class LogPanel extends JTextPane {
 

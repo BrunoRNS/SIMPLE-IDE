@@ -12,9 +12,7 @@ class LspServerStartupExceptionTest {
 
     assertThat(error.getExitCode()).isEqualTo(13);
     assertThat(error.isJvmCompatibilityFailure()).isTrue();
-    assertThat(error.getMessage())
-        .contains("code 13")
-        .containsIgnoringCase("known issue");
+    assertThat(error.getMessage()).contains("code 13").containsIgnoringCase("known issue");
   }
 
   @Test
@@ -23,8 +21,6 @@ class LspServerStartupExceptionTest {
 
     assertThat(error.getExitCode()).isEqualTo(1);
     assertThat(error.isJvmCompatibilityFailure()).isFalse();
-    assertThat(error.getMessage())
-        .contains("code 1")
-        .doesNotContainIgnoringCase("known issue");
+    assertThat(error.getMessage()).contains("code 1").doesNotContainIgnoringCase("known issue");
   }
 }

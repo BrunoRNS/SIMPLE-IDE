@@ -1,5 +1,10 @@
 package io.simpleide.ui.editor;
 
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.InfoPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.treefile.File;
 import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -10,23 +15,15 @@ import java.net.URI;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletionException;
-
 import javax.swing.AbstractAction;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
-
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.simpleide.frame.popup.ErrorPopUP;
-import io.simpleide.frame.popup.InfoPopUP;
-import io.simpleide.frame.popup.utils.ErrorTypePopUp;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.treefile.File;
 
 final class EditorActions {
   private static final Logger LOGGER = LoggerFactory.getLogger(EditorActions.class);
@@ -64,62 +61,80 @@ final class EditorActions {
         "simpleide.goToDefinitionF12",
         KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0),
         () -> goToDefinition(tab));
-    editor.addMouseListener(new MouseAdapter() {
-      @Override
-      public void mouseClicked(MouseEvent event) {
-        if (event.getButton() != MouseEvent.BUTTON1 || !event.isControlDown()) {
-          return;
-        }
-        int offset = editor.viewToModel2D(event.getPoint());
-        if (offset >= 0 && offset <= editor.getDocument().getLength()) {
-          editor.setCaretPosition(offset);
-          goToDefinition(tab);
-        }
-      }
-    });
+    editor.addMouseListener(
+        new MouseAdapter() {
+          @Override
+          public void mouseClicked(MouseEvent event) {
+            if (event.getButton() != MouseEvent.BUTTON1 || !event.isControlDown()) {
+              return;
+            }
+            int offset = editor.viewToModel2D(event.getPoint());
+            if (offset >= 0 && offset <= editor.getDocument().getLength()) {
+              editor.setCaretPosition(offset);
+              goToDefinition(tab);
+            }
+          }
+        });
   }
 
   private void bindEditorAction(Editor editor, String name, KeyStroke keyStroke, Runnable action) {
     editor.getInputMap(JComponent.WHEN_FOCUSED).put(keyStroke, name);
-    editor.getActionMap().put(name, new AbstractAction() {
-      @Override
-      public void actionPerformed(ActionEvent event) {
-        action.run();
-      }
-    });
+    editor
+        .getActionMap()
+        .put(
+            name,
+            new AbstractAction() {
+              @Override
+              public void actionPerformed(ActionEvent event) {
+                action.run();
+              }
+            });
   }
 
   @SuppressWarnings("")
   private void goToDefinition(EditorTab sourceTab) {
-    sourceTab.definitionAtCaret().whenComplete((definitions, error) -> {
-      if (error != null) {
-        Throwable cause = error instanceof CompletionException && error.getCause() != null
-            ? error.getCause()
-            : error;
-        ThreadMaster.getInstance().executeOnEDT(() -> {
-          if (cause instanceof IllegalStateException) {
-            showInformation(sourceTab, "The language server is not connected for this file.");
-          } else {
-            LOGGER.error("Unable to find definition in {}.", sourceTab.getFile().getPath(), cause);
-            if (cause != null) {
-              new ErrorPopUP(
-                "Unable to find definition: " + cause.getMessage(),
-                sourceTab,
-                ErrorTypePopUp.INTERNAL_ERROR).startManaged();
-            } else {
-              new ErrorPopUP(
-                "Unable to find definition for cause NULL",
-                sourceTab,
-                ErrorTypePopUp.INTERNAL_ERROR).startManaged();
-            }
-          }
-        });
-        return;
-      }
+    sourceTab
+        .definitionAtCaret()
+        .whenComplete(
+            (definitions, error) -> {
+              if (error != null) {
+                Throwable cause =
+                    error instanceof CompletionException && error.getCause() != null
+                        ? error.getCause()
+                        : error;
+                ThreadMaster.getInstance()
+                    .executeOnEDT(
+                        () -> {
+                          if (cause instanceof IllegalStateException) {
+                            showInformation(
+                                sourceTab, "The language server is not connected for this file.");
+                          } else {
+                            LOGGER.error(
+                                "Unable to find definition in {}.",
+                                sourceTab.getFile().getPath(),
+                                cause);
+                            if (cause != null) {
+                              new ErrorPopUP(
+                                      "Unable to find definition: " + cause.getMessage(),
+                                      sourceTab,
+                                      ErrorTypePopUp.INTERNAL_ERROR)
+                                  .startManaged();
+                            } else {
+                              new ErrorPopUP(
+                                      "Unable to find definition for cause NULL",
+                                      sourceTab,
+                                      ErrorTypePopUp.INTERNAL_ERROR)
+                                  .startManaged();
+                            }
+                          }
+                        });
+                return;
+              }
 
-      DefinitionTarget target = getFirstDefinition(definitions);
-      ThreadMaster.getInstance().executeOnEDT(() -> navigateToDefinition(sourceTab, target));
-    });
+              DefinitionTarget target = getFirstDefinition(definitions);
+              ThreadMaster.getInstance()
+                  .executeOnEDT(() -> navigateToDefinition(sourceTab, target));
+            });
   }
 
   @SuppressWarnings("")
@@ -148,9 +163,10 @@ final class EditorActions {
     if (link == null) {
       return null;
     }
-    Range range = link.getTargetSelectionRange() == null
-        ? link.getTargetRange()
-        : link.getTargetSelectionRange();
+    Range range =
+        link.getTargetSelectionRange() == null
+            ? link.getTargetRange()
+            : link.getTargetSelectionRange();
     return new DefinitionTarget(link.getTargetUri(), range);
   }
 
@@ -179,9 +195,10 @@ final class EditorActions {
     } catch (IllegalArgumentException | IOException error) {
       LOGGER.error("Unable to open definition target {}.", target.uri(), error);
       new ErrorPopUP(
-          "Unable to open definition: " + error.getMessage(),
-          sourceTab,
-          ErrorTypePopUp.INTERNAL_ERROR).startManaged();
+              "Unable to open definition: " + error.getMessage(),
+              sourceTab,
+              ErrorTypePopUp.INTERNAL_ERROR)
+          .startManaged();
     }
   }
 
@@ -189,6 +206,5 @@ final class EditorActions {
     new InfoPopUP("Go to Definition", message, sourceTab).startManaged();
   }
 
-  private record DefinitionTarget(String uri, Range range) {
-  }
+  private record DefinitionTarget(String uri, Range range) {}
 }

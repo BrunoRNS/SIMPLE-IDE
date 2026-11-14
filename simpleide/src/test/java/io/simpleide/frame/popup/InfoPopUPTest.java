@@ -5,14 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.awt.Component;
 import java.awt.Container;
 import java.util.Collections;
-
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-
 import org.junit.jupiter.api.Test;
 
 public class InfoPopUPTest {
@@ -28,10 +26,12 @@ public class InfoPopUPTest {
     assertThat(popup.jp.getOptions()).containsExactly("Ok");
     assertThat(popup.jp.getInitialValue()).isEqualTo("Ok");
     assertThat(popup.jp.getIcon())
-        .isInstanceOfSatisfying(ImageIcon.class, icon -> {
-          assertThat(icon.getIconWidth()).isPositive();
-          assertThat(icon.getIconHeight()).isPositive();
-        });
+        .isInstanceOfSatisfying(
+            ImageIcon.class,
+            icon -> {
+              assertThat(icon.getIconWidth()).isPositive();
+              assertThat(icon.getIconHeight()).isPositive();
+            });
   }
 
   @Test
@@ -82,12 +82,10 @@ public class InfoPopUPTest {
 
   private static boolean containsIcon(Container container, Icon expectedIcon) {
     for (Component component : container.getComponents()) {
-      if (component instanceof JLabel
-          && ((JLabel) component).getIcon() == expectedIcon) {
+      if (component instanceof JLabel && ((JLabel) component).getIcon() == expectedIcon) {
         return true;
       }
-      if (component instanceof Container
-          && containsIcon((Container) component, expectedIcon)) {
+      if (component instanceof Container && containsIcon((Container) component, expectedIcon)) {
         return true;
       }
     }

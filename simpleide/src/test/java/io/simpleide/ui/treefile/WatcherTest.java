@@ -2,6 +2,7 @@ package io.simpleide.ui.treefile;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.simpleide.thread.ThreadMaster;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,22 +11,17 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
 import javax.swing.SwingUtilities;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
-
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.simpleide.thread.ThreadMaster;
-
 class WatcherTest {
 
-  @TempDir
-  Path root;
+  @TempDir Path root;
 
   @Test
   void refreshesLoadedDirectoriesWhenFilesAreCreatedAndDeletedExternally() throws Exception {
@@ -40,53 +36,54 @@ class WatcherTest {
     AtomicReference<Directory> nestedDirectoryReference = new AtomicReference<>();
 
     ThreadMaster.getInstance().initialize();
-    SwingUtilities.invokeAndWait(() -> {
-      Tree tree = new Tree(rootDirectory);
-      DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
-      DefaultMutableTreeNode nestedNode = childNamed(rootNode, "src");
-      Directory nestedDirectory = (Directory) nestedNode.getUserObject();
-      nestedDirectoryReference.set(nestedDirectory);
-      tree.getModel().addTreeModelListener(new TreeModelListener() {
-        @Override
-        public void treeNodesChanged(TreeModelEvent event) {
-        }
+    SwingUtilities.invokeAndWait(
+        () -> {
+          Tree tree = new Tree(rootDirectory);
+          DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+          DefaultMutableTreeNode nestedNode = childNamed(rootNode, "src");
+          Directory nestedDirectory = (Directory) nestedNode.getUserObject();
+          nestedDirectoryReference.set(nestedDirectory);
+          tree.getModel()
+              .addTreeModelListener(
+                  new TreeModelListener() {
+                    @Override
+                    public void treeNodesChanged(TreeModelEvent event) {}
 
-        @Override
-        public void treeNodesInserted(TreeModelEvent event) {
-        }
+                    @Override
+                    public void treeNodesInserted(TreeModelEvent event) {}
 
-        @Override
-        public void treeNodesRemoved(TreeModelEvent event) {
-        }
+                    @Override
+                    public void treeNodesRemoved(TreeModelEvent event) {}
 
-        @Override
-        public void treeStructureChanged(TreeModelEvent event) {
-          if (event.getTreePath().getLastPathComponent() == nestedNode) {
-            boolean fileExists = nestedDirectory.getChildren().stream()
-                .anyMatch(child -> child.getName().equals("external.txt"));
-            if (fileExists) {
-              fileWasLoaded.set(true);
-              externalFileLoaded.countDown();
-            } else {
-              nestedLoaded.countDown();
-              if (fileWasLoaded.get()) {
-                externalFileRemoved.countDown();
-              }
-            }
+                    @Override
+                    public void treeStructureChanged(TreeModelEvent event) {
+                      if (event.getTreePath().getLastPathComponent() == nestedNode) {
+                        boolean fileExists =
+                            nestedDirectory.getChildren().stream()
+                                .anyMatch(child -> child.getName().equals("external.txt"));
+                        if (fileExists) {
+                          fileWasLoaded.set(true);
+                          externalFileLoaded.countDown();
+                        } else {
+                          nestedLoaded.countDown();
+                          if (fileWasLoaded.get()) {
+                            externalFileRemoved.countDown();
+                          }
+                        }
+                      }
+                    }
+                  });
+
+          Watcher watcher;
+          try {
+            watcher = new Watcher(tree);
+          } catch (IOException error) {
+            throw new AssertionError(error);
           }
-        }
-      });
-
-      Watcher watcher;
-      try {
-        watcher = new Watcher(tree);
-      } catch (IOException error) {
-        throw new AssertionError(error);
-      }
-      watcherReference.set(watcher);
-      watcherStarted.set(watcher.start(root));
-      tree.expandPath(new TreePath(nestedNode.getPath()));
-    });
+          watcherReference.set(watcher);
+          watcherStarted.set(watcher.start(root));
+          tree.expandPath(new TreePath(nestedNode.getPath()));
+        });
 
     try {
       watcherStarted.get().get(20, TimeUnit.SECONDS);

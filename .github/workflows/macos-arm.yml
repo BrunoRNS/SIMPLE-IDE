@@ -62,6 +62,21 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Validate fat JAR and generated packages
+        if: matrix.java == '17'
+        env:
+          SIMPLEIDE_PKG_OS: macos
+          SIMPLEIDE_PKG_ARCH: arm64
+        run: make pkg-verify
+      - name: Upload invalid packages for debugging
+        if: failure() && matrix.java == '17'
+        uses: actions/upload-artifact@v4
+        with:
+          name: invalid-packages-macos-arm64
+          path: simpleide/target/pkg/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Report failed tests
         if: failure()
         shell: bash

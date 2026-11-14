@@ -1,0 +1,33 @@
+Simple IDE embedded BusyBox third-party licenses
+================================================
+
+Bundled component: BusyBox
+License: GNU General Public License version 2 (GPLv2)
+Copyright: The BusyBox project and its contributors.
+Upstream: https://busybox.net/
+
+Bundled component: busybox-w32
+License: GNU General Public License version 2 (GPLv2)
+Upstream: https://frippery.org/busybox/
+
+The complete GPLv2 text is included in the LICENSE.txt file of every platform
+directory. The corresponding source archive is included in the same directory.
+
+Directory map
+-------------
+
+  linux/linux-x86/              GPLv2 + modified BusyBox 1.20.0 source
+  linux/linux-x64/              GPLv2 + modified BusyBox 1.20.0 source
+  linux/linux-arm64/            GPLv2 + BusyBox 1.20.0 ARM64 source
+  macos/macos-intel/            GPLv2 + macOS Intel source
+  macos/macos-arm64/            GPLv2 + macOS ARM64 source
+  windows/windows-x86/          GPLv2 + busybox-w32 source
+  windows/windows-x64-unicode/  GPLv2 + busybox-w32 source
+  windows/windows-arm64/        GPLv2 + busybox-w32 source
+
+The BusyBox binaries are separate programs invoked by Simple IDE's terminal.
+They are not linked into Simple IDE's Java code. Simple IDE itself is licensed
+under the BSD 3-Clause License.
+
+For the complete project inventory, including Maven dependencies and runtime
+language-server downloads, see docs/THIRD_PARTY_LICENSES.md.
