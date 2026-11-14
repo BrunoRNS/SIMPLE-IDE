@@ -6,72 +6,92 @@ import java.util.function.Consumer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
+/**
+ * {@link javax.swing.event.ChangeListener} that runs its callbacks as an EDT node.
+ *
+ * <p>
+ * Each state change is dispatched through the thread manager so the callback is tracked
+ * as tree work. The callbacks receive the originating {@code ChangeEvent}.
+ *
+ * <p>
+ * Covered by {@code EDTNodeListenerTest}.
+ *
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ */
 public class ChangeNode extends EDTNode implements ChangeListener {
 
-  protected ChangeEvent event;
-  protected Consumer<ChangeEvent> c_onStart;
-  protected Consumer<ChangeEvent> c_onClose;
+	protected ChangeEvent event;
 
-  public ChangeNode(Consumer<ChangeEvent> onStart) {
-    super();
-    this.c_onStart = onStart;
-  }
+	protected Consumer<ChangeEvent> c_onStart;
 
-  public ChangeNode(Consumer<ChangeEvent> onStart, Consumer<ChangeEvent> onClose) {
-    super();
-    this.c_onStart = onStart;
-    this.c_onClose = onClose;
-  }
+	protected Consumer<ChangeEvent> c_onClose;
 
-  @Override
-  public Runnable onStart() {
-    return new ChangeNodeStartRunnable(this, event);
-  }
+	public ChangeNode(Consumer<ChangeEvent> onStart) {
+		super();
+		this.c_onStart = onStart;
+	}
 
-  @Override
-  public Runnable onClose() {
-    return new ChangeNodeCloseRunnable(this, event);
-  }
+	public ChangeNode(Consumer<ChangeEvent> onStart, Consumer<ChangeEvent> onClose) {
+		super();
+		this.c_onStart = onStart;
+		this.c_onClose = onClose;
+	}
 
-  @Override
-  public void stateChanged(ChangeEvent e) {
-    this.event = e;
-    ThreadMaster.getInstance().executeOnEDT(this.onStart(), this.onClose());
-  }
+	@Override
+	public Runnable onStart() {
+		return new ChangeNodeStartRunnable(this, event);
+	}
+
+	@Override
+	public Runnable onClose() {
+		return new ChangeNodeCloseRunnable(this, event);
+	}
+
+	@Override
+	public void stateChanged(ChangeEvent e) {
+		this.event = e;
+		ThreadMaster.getInstance().executeOnEDT(this.onStart(), this.onClose());
+	}
+
 }
 
 class ChangeNodeStartRunnable implements Runnable {
 
-  private final ChangeNode node;
-  private final ChangeEvent event;
+	private final ChangeNode node;
 
-  public ChangeNodeStartRunnable(ChangeNode node, ChangeEvent event) {
-    this.node = node;
-    this.event = event;
-  }
+	private final ChangeEvent event;
 
-  @Override
-  public void run() {
-    if (this.node.c_onStart != null) {
-      this.node.c_onStart.accept(this.event);
-    }
-  }
+	public ChangeNodeStartRunnable(ChangeNode node, ChangeEvent event) {
+		this.node = node;
+		this.event = event;
+	}
+
+	@Override
+	public void run() {
+		if (this.node.c_onStart != null) {
+			this.node.c_onStart.accept(this.event);
+		}
+	}
+
 }
 
 class ChangeNodeCloseRunnable implements Runnable {
 
-  private final ChangeNode node;
-  private final ChangeEvent event;
+	private final ChangeNode node;
 
-  public ChangeNodeCloseRunnable(ChangeNode node, ChangeEvent event) {
-    this.node = node;
-    this.event = event;
-  }
+	private final ChangeEvent event;
 
-  @Override
-  public void run() {
-    if (this.node.c_onClose != null) {
-      this.node.c_onClose.accept(this.event);
-    }
-  }
+	public ChangeNodeCloseRunnable(ChangeNode node, ChangeEvent event) {
+		this.node = node;
+		this.event = event;
+	}
+
+	@Override
+	public void run() {
+		if (this.node.c_onClose != null) {
+			this.node.c_onClose.accept(this.event);
+		}
+	}
+
 }

@@ -10,38 +10,41 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Tests {@link io.simpleide.ui.menubar.menus.FileMenu}.
+ */
 class FileMenuTest {
 
-  @Test
-  void fileActionsInvokeTheirCallbacksOnTheEdt() throws Exception {
-    CountDownLatch callbacksCompleted = new CountDownLatch(4);
-    AtomicInteger callbacksInvoked = new AtomicInteger();
-    AtomicBoolean callbacksOnEdt = new AtomicBoolean(true);
-    Runnable callback =
-        () -> {
-          callbacksOnEdt.compareAndSet(true, SwingUtilities.isEventDispatchThread());
-          callbacksInvoked.incrementAndGet();
-          callbacksCompleted.countDown();
-        };
+	@Test
+	void fileActionsInvokeTheirCallbacksOnTheEdt() throws Exception {
+		CountDownLatch callbacksCompleted = new CountDownLatch(4);
+		AtomicInteger callbacksInvoked = new AtomicInteger();
+		AtomicBoolean callbacksOnEdt = new AtomicBoolean(true);
+		Runnable callback = () -> {
+			callbacksOnEdt.compareAndSet(true, SwingUtilities.isEventDispatchThread());
+			callbacksInvoked.incrementAndGet();
+			callbacksCompleted.countDown();
+		};
 
-    SwingUtilities.invokeAndWait(
-        () -> {
-          FileMenu menu = new FileMenu(callback, callback, callback, callback);
-          menu.getItem(0).doClick();
-          menu.getItem(1).doClick();
-          menu.getItem(2).doClick();
-          menu.getItem(3).doClick();
-        });
+		SwingUtilities.invokeAndWait(() -> {
+			FileMenu menu = new FileMenu(callback, callback, callback, callback);
+			menu.getItem(0).doClick();
+			menu.getItem(1).doClick();
+			menu.getItem(2).doClick();
+			menu.getItem(3).doClick();
+		});
 
-    assertThat(callbacksCompleted.await(10, TimeUnit.SECONDS)).isTrue();
-    assertThat(callbacksInvoked).hasValue(4);
-    assertThat(callbacksOnEdt).isTrue();
-  }
+		assertThat(callbacksCompleted.await(10, TimeUnit.SECONDS)).isTrue();
+		assertThat(callbacksInvoked).hasValue(4);
+		assertThat(callbacksOnEdt).isTrue();
+	}
 
-  @Test
-  void rejectsMissingActionCallbacks() {
-    assertThatThrownBy(() -> new FileMenu(null, () -> {}, () -> {}, () -> {}))
-        .isInstanceOf(NullPointerException.class)
-        .hasMessage("createFile");
-  }
+	@Test
+	void rejectsMissingActionCallbacks() {
+		assertThatThrownBy(() -> new FileMenu(null, () -> {
+		}, () -> {
+		}, () -> {
+		})).isInstanceOf(NullPointerException.class).hasMessage("createFile");
+	}
+
 }

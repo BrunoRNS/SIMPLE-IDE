@@ -1,20 +1,22 @@
 # Code style
 
-Simple IDE uses Google Java Format through Spotless. The formatter is mandatory;
-the conventions below cover what it does not enforce.
+Simple IDE uses Spring Java Format. The formatter is mandatory; the conventions
+below cover what it does not enforce.
 
 ## Formatting
 
 ```sh
 make format
-make format-check
+make check-format
 ```
 
-- Google Java Format 1.30.0.
-- Two-space indentation.
-- 100-column line limit where the formatter can honor it.
+- Spring Java Format 0.0.48.
+- Java 17 source baseline, configured in `.springjavaformatconfig`.
+- Tab indentation with a four-column visual width.
+- 120-column line limit.
 - Braces on the same line for control statements and methods.
-- Imports are sorted and unused imports are removed by the formatter.
+- Imports are not reordered or removed by the formatter; keep them sorted and
+  remove unused imports manually.
 - One blank line between members; no blank line at the start or end of a block.
 - Trailing whitespace is removed.
 
@@ -23,7 +25,8 @@ diff, restore the file and rerun `make format` on the intended change only.
 
 ## Java version
 
-- Source and target are Java 17.
+- Source and target are Java 17. CI also builds and tests on Java 21,
+  25 and 27 to keep the project forward compatible.
 - Use records for immutable data carriers.
 - Use switch expressions for exhaustive mappings.
 - Use `var` when the type is obvious from the right-hand side.
@@ -98,8 +101,8 @@ not on Swing; `lsp` may depend on `thread` and editor support where necessary.
 - No wildcard imports.
 - Import static members individually when used repeatedly; otherwise qualify.
 - Do not import `java.awt.*` or `javax.swing.*`.
-- Remove unused imports. Spotless does this automatically.
-- Keep import groups in the formatter's order: static, then non-static, sorted.
+- Remove unused imports manually. Spring Java Format does not change imports.
+- Keep import groups sorted: static, then non-static.
 
 ## Strings and localization
 

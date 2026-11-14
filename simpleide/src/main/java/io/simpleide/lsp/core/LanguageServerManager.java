@@ -26,403 +26,440 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Coordinates language server processes for documents and workspaces.
+ *
+ * <p>
+ * The manager detects a workspace root from build markers, shares one {@link LspClient}
+ * per language and workspace root, and forwards diagnostics to the handler registered for
+ * each document URI. Startup failures are reported as {@link LspStatus} events, and a
+ * Java runtime compatibility failure can trigger a retry with an older server version.
+ * Closing the manager cancels startup tasks and shuts down all clients.
+ *
+ * @author LuisOtavio13
+ * @since v1.0.0beta
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ */
 public final class LanguageServerManager implements AutoCloseable {
-  private static final Logger LOGGER = LoggerFactory.getLogger(LanguageServerManager.class);
 
-  private static final Set<String> WORKSPACE_MARKERS =
-      Set.of(
-          "pom.xml",
-          "build.gradle",
-          "build.gradle.kts",
-          "settings.gradle",
-          "settings.gradle.kts",
-          "Cargo.toml",
-          "package.json",
-          "pyproject.toml",
-          "setup.py",
-          "go.mod",
-          "compile_commands.json");
+	private static final Logger LOGGER = LoggerFactory.getLogger(LanguageServerManager.class);
 
-  private final Map<ServerKey, ServerEntry> servers = new ConcurrentHashMap<>();
-  private final Consumer<LspStatus> statusListener;
-  private volatile boolean closed;
+	private static final Set<String> WORKSPACE_MARKERS = Set.of("pom.xml", "build.gradle", "build.gradle.kts",
+			"settings.gradle", "settings.gradle.kts", "Cargo.toml", "package.json", "pyproject.toml", "setup.py",
+			"go.mod", "compile_commands.json");
 
-  public LanguageServerManager() {
-    this(ignored -> {});
-  }
+	private final Map<ServerKey, ServerEntry> servers = new ConcurrentHashMap<>();
 
-  public LanguageServerManager(Consumer<LspStatus> statusListener) {
-    this.statusListener = Objects.requireNonNull(statusListener, "statusListener");
-  }
+	private final Consumer<LspStatus> statusListener;
 
-  public CompletableFuture<LspClient> connect(
-      Document document, Consumer<PublishDiagnosticsParams> diagnosticsHandler) {
+	private volatile boolean closed;
 
-    Objects.requireNonNull(document, "document");
-    Objects.requireNonNull(diagnosticsHandler, "diagnosticsHandler");
-    if (closed) {
-      return CompletableFuture.failedFuture(
-          new IllegalStateException("Language server manager is closed."));
-    }
+	/**
+	 * Creates a manager that ignores status updates.
+	 */
+	public LanguageServerManager() {
+		this(ignored -> {
+		});
+	}
 
-    Path root = findWorkspaceRoot(document.getPath());
-    Map<String, String> environment;
+	/**
+	 * Creates a manager that reports installation and startup status to a listener.
+	 * @param statusListener consumer for status events
+	 */
+	public LanguageServerManager(Consumer<LspStatus> statusListener) {
+		this.statusListener = Objects.requireNonNull(statusListener, "statusListener");
+	}
 
-    try {
-      environment = getEnvironment(document.getLanguageId());
-    } catch (IllegalArgumentException | IllegalStateException error) {
-      return CompletableFuture.failedFuture(error);
-    }
+	/**
+	 * Connects a document to a shared language server, starting it when necessary.
+	 * @param document document to connect
+	 * @param diagnosticsHandler consumer for diagnostics of this document
+	 * @return a future completed with the initialized client, or failed when startup
+	 * fails
+	 */
+	public CompletableFuture<LspClient> connect(Document document,
+			Consumer<PublishDiagnosticsParams> diagnosticsHandler) {
 
-    ServerKey key = new ServerKey(document.getLanguageId(), root);
-    String statusId = statusId(key);
-    ServerEntry entry;
-    try {
-      entry =
-          servers.computeIfAbsent(
-              key,
-              ignored -> new ServerEntry(document.getLanguageId(), root, environment, statusId));
-    } catch (RuntimeException error) {
-      return CompletableFuture.failedFuture(error);
-    }
-    if (closed) {
-      servers.remove(key, entry);
-      entry.client.whenComplete(
-          (client, error) -> {
-            if (client != null) {
-              client.close();
-            }
-          });
-      ThreadMaster.getInstance().removeNodeCascade(entry.startupNode);
-      return CompletableFuture.failedFuture(
-          new IllegalStateException("Language server manager is closed."));
-    }
-    entry.diagnosticsHandlers.put(document.getUri(), diagnosticsHandler);
-    return entry.client.whenComplete(
-        (client, error) -> {
-          if (error != null || client == null) {
-            servers.remove(key, entry);
-          }
-        });
-  }
+		Objects.requireNonNull(document, "document");
+		Objects.requireNonNull(diagnosticsHandler, "diagnosticsHandler");
+		if (closed) {
+			return CompletableFuture.failedFuture(new IllegalStateException("Language server manager is closed."));
+		}
 
-  public void disconnect(Document document) {
-    for (ServerEntry entry : servers.values()) {
-      entry.diagnosticsHandlers.remove(document.getUri());
-    }
-  }
+		Path root = findWorkspaceRoot(document.getPath());
+		Map<String, String> environment;
 
-  @Override
-  public void close() {
-    if (closed) {
-      return;
-    }
-    closed = true;
-    List<LspClient> clients = new ArrayList<>();
-    List<ServerEntry> entries = new ArrayList<>(servers.values());
-    long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
-    for (ServerEntry entry : entries) {
-      try {
-        ThreadMaster.getInstance().removeNodeCascade(entry.startupNode);
-      } catch (RuntimeException error) {
-        LOGGER.warn("Unable to unregister language server startup task.", error);
-      }
-      if (!entry.client.isDone()) {
-        entry.client.completeExceptionally(
-            new CancellationException("Language server manager is closed."));
-      }
-      LspClient client = awaitClient(entry.client, deadline);
-      if (client == null) {
-        client = entry.activeClient();
-      }
-      if (client != null) {
-        clients.add(client);
-      }
-      publishStatus(entry.statusId, entry.languageId, LspStatus.State.IDLE);
-    }
-    servers.clear();
+		try {
+			environment = getEnvironment(document.getLanguageId());
+		}
+		catch (IllegalArgumentException | IllegalStateException error) {
+			return CompletableFuture.failedFuture(error);
+		}
 
-    for (LspClient client : clients) {
-      client.close();
-    }
-    for (LspClient client : clients) {
-      long remaining = deadline - System.nanoTime();
-      if (remaining <= 0 || !client.awaitShutdown(remaining, TimeUnit.NANOSECONDS)) {
-        LOGGER.warn("Language server did not shut down within the grace period.");
-      }
-    }
-  }
+		ServerKey key = new ServerKey(document.getLanguageId(), root);
+		String statusId = statusId(key);
+		ServerEntry entry;
+		try {
+			entry = servers.computeIfAbsent(key,
+					ignored -> new ServerEntry(document.getLanguageId(), root, environment, statusId));
+		}
+		catch (RuntimeException error) {
+			return CompletableFuture.failedFuture(error);
+		}
+		if (closed) {
+			servers.remove(key, entry);
+			entry.client.whenComplete((client, error) -> {
+				if (client != null) {
+					client.close();
+				}
+			});
+			ThreadMaster.getInstance().removeNodeCascade(entry.startupNode);
+			return CompletableFuture.failedFuture(new IllegalStateException("Language server manager is closed."));
+		}
+		entry.diagnosticsHandlers.put(document.getUri(), diagnosticsHandler);
+		return entry.client.whenComplete((client, error) -> {
+			if (error != null || client == null) {
+				servers.remove(key, entry);
+			}
+		});
+	}
 
-  private LspClient awaitClient(CompletableFuture<LspClient> client, long deadline) {
-    long remaining = deadline - System.nanoTime();
-    if (remaining <= 0) {
-      return completedClient(client);
-    }
-    try {
-      return client.get(remaining, TimeUnit.NANOSECONDS);
-    } catch (InterruptedException error) {
-      Thread.currentThread().interrupt();
-      return completedClient(client);
-    } catch (ExecutionException | TimeoutException error) {
-      return completedClient(client);
-    }
-  }
+	/**
+	 * Removes the diagnostics handler registered for a document.
+	 * @param document document to disconnect
+	 */
+	public void disconnect(Document document) {
+		for (ServerEntry entry : servers.values()) {
+			entry.diagnosticsHandlers.remove(document.getUri());
+		}
+	}
 
-  private LspClient completedClient(CompletableFuture<LspClient> client) {
-    if (!client.isDone() || client.isCompletedExceptionally() || client.isCancelled()) {
-      return null;
-    }
-    try {
-      return client.getNow(null);
-    } catch (RuntimeException error) {
-      return null;
-    }
-  }
+	/**
+	 * Cancels startup tasks and closes every managed language server client.
+	 */
+	@Override
+	public void close() {
+		if (closed) {
+			return;
+		}
+		closed = true;
+		List<LspClient> clients = new ArrayList<>();
+		List<ServerEntry> entries = new ArrayList<>(servers.values());
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+		for (ServerEntry entry : entries) {
+			try {
+				ThreadMaster.getInstance().removeNodeCascade(entry.startupNode);
+			}
+			catch (RuntimeException error) {
+				LOGGER.warn("Unable to unregister language server startup task.", error);
+			}
+			if (!entry.client.isDone()) {
+				entry.client.completeExceptionally(new CancellationException("Language server manager is closed."));
+			}
+			LspClient client = awaitClient(entry.client, deadline);
+			if (client == null) {
+				client = entry.activeClient();
+			}
+			if (client != null) {
+				clients.add(client);
+			}
+			publishStatus(entry.statusId, entry.languageId, LspStatus.State.IDLE);
+		}
+		servers.clear();
 
-  private String statusId(ServerKey key) {
-    return key.languageId() + "@" + key.workspaceRoot();
-  }
+		for (LspClient client : clients) {
+			client.close();
+		}
+		for (LspClient client : clients) {
+			long remaining = deadline - System.nanoTime();
+			if (remaining <= 0 || !client.awaitShutdown(remaining, TimeUnit.NANOSECONDS)) {
+				LOGGER.warn("Language server did not shut down within the grace period.");
+			}
+		}
+	}
 
-  private void publishStatus(String id, String serverName, LspStatus.State state) {
-    statusListener.accept(new LspStatus(id, serverName, state));
-  }
+	private LspClient awaitClient(CompletableFuture<LspClient> client, long deadline) {
+		long remaining = deadline - System.nanoTime();
+		if (remaining <= 0) {
+			return completedClient(client);
+		}
+		try {
+			return client.get(remaining, TimeUnit.NANOSECONDS);
+		}
+		catch (InterruptedException error) {
+			Thread.currentThread().interrupt();
+			return completedClient(client);
+		}
+		catch (ExecutionException | TimeoutException error) {
+			return completedClient(client);
+		}
+	}
 
-  private Map<String, String> getEnvironment(String languageId) {
-    if (!"java".equals(languageId)) {
-      return Map.of();
-    }
+	private LspClient completedClient(CompletableFuture<LspClient> client) {
+		if (!client.isDone() || client.isCompletedExceptionally() || client.isCancelled()) {
+			return null;
+		}
+		try {
+			return client.getNow(null);
+		}
+		catch (RuntimeException error) {
+			return null;
+		}
+	}
 
-    String javaHome = System.getProperty("simpleide.lsp.javaHome");
-    if (javaHome == null || javaHome.isBlank()) {
-      return Map.of();
-    }
+	private String statusId(ServerKey key) {
+		return key.languageId() + "@" + key.workspaceRoot();
+	}
 
-    Path path = Path.of(javaHome).toAbsolutePath().normalize();
-    if (!Files.isDirectory(path)) {
-      throw new IllegalArgumentException("Configured LSP Java home is not a directory: " + path);
-    }
-    return Map.of("JAVA_HOME", path.toString());
-  }
+	private void publishStatus(String id, String serverName, LspStatus.State state) {
+		statusListener.accept(new LspStatus(id, serverName, state));
+	}
 
-  private Path findWorkspaceRoot(Path documentPath) {
-    Path directory = documentPath.toAbsolutePath().normalize().getParent();
-    if (directory == null) {
-      return null;
-    }
-    for (Path current = directory; current != null; current = current.getParent()) {
-      for (String marker : WORKSPACE_MARKERS) {
-        if (Files.exists(current.resolve(marker))) {
-          return current;
-        }
-      }
-    }
-    return directory;
-  }
+	private Map<String, String> getEnvironment(String languageId) {
+		if (!"java".equals(languageId)) {
+			return Map.of();
+		}
 
-  private final class ServerEntry {
-    private final Map<String, Consumer<PublishDiagnosticsParams>> diagnosticsHandlers =
-        new ConcurrentHashMap<>();
-    private final CompletableFuture<LspClient> client = new CompletableFuture<>();
-    private final String languageId;
-    private final Path root;
-    private final Map<String, String> environment;
-    private final String statusId;
-    private final RunnableNode startupNode;
-    private volatile LspClient activeClient;
-    private volatile boolean startupFinished;
+		String javaHome = System.getProperty("simpleide.lsp.javaHome");
+		if (javaHome == null || javaHome.isBlank()) {
+			return Map.of();
+		}
 
-    private ServerEntry(
-        String languageId, Path root, Map<String, String> environment, String statusId) {
-      this.languageId = languageId;
-      this.root = root;
-      this.environment = environment;
-      this.statusId = statusId;
-      startupNode = new RunnableNode(this::start, this::onStartupNodeClosed);
-      client.whenComplete(
-          (lspClient, error) -> {
-            if (error != null) {
-              if (!closed) {
-                LOGGER.error(
-                    "Unable to start language server {} for workspace {}.",
-                    languageId,
-                    root,
-                    error);
-                publishStatus(statusId, languageId, LspStatus.State.FAILED);
-              }
-            } else if (closed && lspClient != null) {
-              lspClient.close();
-            }
-          });
+		Path path = Path.of(javaHome).toAbsolutePath().normalize();
+		if (!Files.isDirectory(path)) {
+			throw new IllegalArgumentException("Configured LSP Java home is not a directory: " + path);
+		}
+		return Map.of("JAVA_HOME", path.toString());
+	}
 
-      try {
-        ThreadMaster.getInstance().register(startupNode);
-      } catch (RuntimeException error) {
-        ThreadMaster.getInstance().removeNodeCascade(startupNode);
-        client.completeExceptionally(error);
-      }
-    }
+	private Path findWorkspaceRoot(Path documentPath) {
+		Path directory = documentPath.toAbsolutePath().normalize().getParent();
+		if (directory == null) {
+			return null;
+		}
+		for (Path current = directory; current != null; current = current.getParent()) {
+			for (String marker : WORKSPACE_MARKERS) {
+				if (Files.exists(current.resolve(marker))) {
+					return current;
+				}
+			}
+		}
+		return directory;
+	}
 
-    private void start() {
-      try {
-        if (closed) {
-          publishStatus(statusId, languageId, LspStatus.State.IDLE);
-          client.complete(null);
-          return;
-        }
-        List<String> command = LspManager.getComandRun(languageId, root, statusId, statusListener);
-        if (command.isEmpty() || closed) {
-          publishStatus(statusId, languageId, LspStatus.State.IDLE);
-          client.complete(null);
-          return;
-        }
-        startAttempt(command, 0);
-      } catch (RuntimeException error) {
-        client.completeExceptionally(error);
-      } finally {
-        startupFinished = true;
-      }
-    }
+	/**
+	 * Startup state and diagnostics handlers for one language and workspace root.
+	 *
+	 * @author LuisOtavio13
+	 * @since v1.0.0beta
+	 */
+	private final class ServerEntry {
 
-    private void startAttempt(List<String> command, int attempt) {
-      if (closed) {
-        closeActiveClient();
-        client.completeExceptionally(
-            new CancellationException("Language server startup was cancelled."));
-        return;
-      }
+		private final Map<String, Consumer<PublishDiagnosticsParams>> diagnosticsHandlers = new ConcurrentHashMap<>();
 
-      publishStatus(statusId, languageId, LspStatus.State.STARTING);
-      LspClient lspClient;
-      try {
-        lspClient =
-            new LspClient(
-                command,
-                root,
-                diagnostics -> {
-                  Consumer<PublishDiagnosticsParams> handler =
-                      diagnosticsHandlers.get(diagnostics.getUri());
-                  if (handler != null) {
-                    handler.accept(diagnostics);
-                  }
-                },
-                environment);
-      } catch (IOException | RuntimeException error) {
-        handleStartupFailure(error, attempt);
-        return;
-      }
+		private final CompletableFuture<LspClient> client = new CompletableFuture<>();
 
-      activeClient = lspClient;
-      if (closed) {
-        closeActiveClient();
-        client.completeExceptionally(
-            new CancellationException("Language server startup was cancelled."));
-        return;
-      }
+		private final String languageId;
 
-      lspClient
-          .getInitialized()
-          .whenComplete(
-              (ignored, error) -> {
-                if (error == null) {
-                  if (closed) {
-                    lspClient.close();
-                    return;
-                  }
-                  publishStatus(statusId, languageId, LspStatus.State.RUNNING);
-                  client.complete(lspClient);
-                  if (closed) {
-                    lspClient.close();
-                  }
-                } else {
-                  handleStartupFailure(unwrapCompletionException(error), attempt);
-                }
-              });
-    }
+		private final Path root;
 
-    private void handleStartupFailure(Throwable error, int attempt) {
-      if (closed) {
-        closeActiveClient();
-        return;
-      }
+		private final Map<String, String> environment;
 
-      boolean jvmCompatibilityFailure =
-          error instanceof LspServerStartupException startup && startup.isJvmCompatibilityFailure();
-      if (jvmCompatibilityFailure) {
-        if (attempt == 0) {
-          List<String> fallbackCommand = new ArrayList<>();
-          try {
-            fallbackCommand =
-                LspManager.getFallbackCommandRun(languageId, root, statusId, statusListener);
-          } catch (RuntimeException fallbackError) {
-            error.addSuppressed(fallbackError);
-          }
-          if (closed) {
-            closeActiveClient();
-            return;
-          }
-          if (!fallbackCommand.isEmpty()) {
-            LOGGER.warn(
-                "Language server {} for workspace {} exited with code 13 before "
-                    + "initialization; retrying with a compatible version. On institutional machines "
-                    + "with a fixed Java runtime this is a known issue.",
-                languageId,
-                root);
-            closeActiveClient();
-            startAttempt(fallbackCommand, attempt + 1);
-            return;
-          }
-        }
-        LOGGER.warn(
-            "Language server {} for workspace {} cannot run with the Java runtime in use. "
-                + "No compatible fallback is available. On institutional machines with a fixed Java "
-                + "runtime this is a known issue; install a compatible JDK or set "
-                + "-Dsimpleide.lsp.javaHome.",
-            languageId,
-            root);
-      }
+		private final String statusId;
 
-      closeActiveClient();
-      client.completeExceptionally(error);
-    }
+		private final RunnableNode startupNode;
 
-    private Throwable unwrapCompletionException(Throwable error) {
-      Throwable cause = error;
-      while ((cause instanceof CompletionException || cause instanceof ExecutionException)
-          && cause.getCause() != null) {
-        cause = cause.getCause();
-      }
-      return cause;
-    }
+		private volatile LspClient activeClient;
 
-    private void closeActiveClient() {
-      LspClient current = activeClient;
-      activeClient = null;
-      if (current != null) {
-        current.close();
-      }
-    }
+		private volatile boolean startupFinished;
 
-    private LspClient activeClient() {
-      return activeClient;
-    }
+		private ServerEntry(String languageId, Path root, Map<String, String> environment, String statusId) {
+			this.languageId = languageId;
+			this.root = root;
+			this.environment = environment;
+			this.statusId = statusId;
+			startupNode = new RunnableNode(this::start, this::onStartupNodeClosed);
+			client.whenComplete((lspClient, error) -> {
+				if (error != null) {
+					if (!closed) {
+						LOGGER.error("Unable to start language server {} for workspace {}.", languageId, root, error);
+						publishStatus(statusId, languageId, LspStatus.State.FAILED);
+					}
+				}
+				else if (closed && lspClient != null) {
+					lspClient.close();
+				}
+			});
 
-    private void onStartupNodeClosed() {
-      if (!startupFinished) {
-        if (!client.isDone()) {
-          client.completeExceptionally(
-              new CancellationException("Language server startup was cancelled."));
-        }
-        closeActiveClient();
-      }
-      ThreadMaster threadMaster = ThreadMaster.getInstance();
-      try {
-        threadMaster.executeOnEDT(() -> threadMaster.removeNodeCascade(startupNode));
-      } catch (RuntimeException error) {
-        LOGGER.warn("Unable to unregister completed language server startup task.", error);
-        threadMaster.removeNodeCascade(startupNode);
-      }
-    }
-  }
+			try {
+				ThreadMaster.getInstance().register(startupNode);
+			}
+			catch (RuntimeException error) {
+				ThreadMaster.getInstance().removeNodeCascade(startupNode);
+				client.completeExceptionally(error);
+			}
+		}
 
-  private record ServerKey(String languageId, Path workspaceRoot) {}
+		private void start() {
+			try {
+				if (closed) {
+					publishStatus(statusId, languageId, LspStatus.State.IDLE);
+					client.complete(null);
+					return;
+				}
+				List<String> command = LspManager.getComandRun(languageId, root, statusId, statusListener);
+				if (command.isEmpty() || closed) {
+					publishStatus(statusId, languageId, LspStatus.State.IDLE);
+					client.complete(null);
+					return;
+				}
+				startAttempt(command, 0);
+			}
+			catch (RuntimeException error) {
+				client.completeExceptionally(error);
+			}
+			finally {
+				startupFinished = true;
+			}
+		}
+
+		private void startAttempt(List<String> command, int attempt) {
+			if (closed) {
+				closeActiveClient();
+				client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
+				return;
+			}
+
+			publishStatus(statusId, languageId, LspStatus.State.STARTING);
+			LspClient lspClient;
+			try {
+				lspClient = new LspClient(command, root, diagnostics -> {
+					Consumer<PublishDiagnosticsParams> handler = diagnosticsHandlers.get(diagnostics.getUri());
+					if (handler != null) {
+						handler.accept(diagnostics);
+					}
+				}, environment);
+			}
+			catch (IOException | RuntimeException error) {
+				handleStartupFailure(error, attempt);
+				return;
+			}
+
+			activeClient = lspClient;
+			if (closed) {
+				closeActiveClient();
+				client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
+				return;
+			}
+
+			lspClient.getInitialized().whenComplete((ignored, error) -> {
+				if (error == null) {
+					if (closed) {
+						lspClient.close();
+						return;
+					}
+					publishStatus(statusId, languageId, LspStatus.State.RUNNING);
+					client.complete(lspClient);
+					if (closed) {
+						lspClient.close();
+					}
+				}
+				else {
+					handleStartupFailure(unwrapCompletionException(error), attempt);
+				}
+			});
+		}
+
+		private void handleStartupFailure(Throwable error, int attempt) {
+			if (closed) {
+				closeActiveClient();
+				return;
+			}
+
+			boolean jvmCompatibilityFailure = error instanceof LspServerStartupException startup
+					&& startup.isJvmCompatibilityFailure();
+			if (jvmCompatibilityFailure) {
+				if (attempt == 0) {
+					List<String> fallbackCommand = new ArrayList<>();
+					try {
+						fallbackCommand = LspManager.getFallbackCommandRun(languageId, root, statusId, statusListener);
+					}
+					catch (RuntimeException fallbackError) {
+						error.addSuppressed(fallbackError);
+					}
+					if (closed) {
+						closeActiveClient();
+						return;
+					}
+					if (!fallbackCommand.isEmpty()) {
+						LOGGER.warn("Language server {} for workspace {} exited with code 13 before "
+								+ "initialization; retrying with a compatible version. On institutional machines "
+								+ "with a fixed Java runtime this is a known issue.", languageId, root);
+						closeActiveClient();
+						startAttempt(fallbackCommand, attempt + 1);
+						return;
+					}
+				}
+				LOGGER.warn("Language server {} for workspace {} cannot run with the Java runtime in use. "
+						+ "No compatible fallback is available. On institutional machines with a fixed Java "
+						+ "runtime this is a known issue; install a compatible JDK or set "
+						+ "-Dsimpleide.lsp.javaHome.", languageId, root);
+			}
+
+			closeActiveClient();
+			client.completeExceptionally(error);
+		}
+
+		private Throwable unwrapCompletionException(Throwable error) {
+			Throwable cause = error;
+			while ((cause instanceof CompletionException || cause instanceof ExecutionException)
+					&& cause.getCause() != null) {
+				cause = cause.getCause();
+			}
+			return cause;
+		}
+
+		private void closeActiveClient() {
+			LspClient current = activeClient;
+			activeClient = null;
+			if (current != null) {
+				current.close();
+			}
+		}
+
+		private LspClient activeClient() {
+			return activeClient;
+		}
+
+		private void onStartupNodeClosed() {
+			if (!startupFinished) {
+				if (!client.isDone()) {
+					client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
+				}
+				closeActiveClient();
+			}
+			ThreadMaster threadMaster = ThreadMaster.getInstance();
+			try {
+				threadMaster.executeOnEDT(() -> threadMaster.removeNodeCascade(startupNode));
+			}
+			catch (RuntimeException error) {
+				LOGGER.warn("Unable to unregister completed language server startup task.", error);
+				threadMaster.removeNodeCascade(startupNode);
+			}
+		}
+
+	}
+
+	/**
+	 * Key that identifies a shared server by language and workspace root.
+	 *
+	 * @param languageId LSP language identifier
+	 * @param workspaceRoot detected workspace root
+	 * @author LuisOtavio13
+	 * @since v1.0.0beta
+	 */
+	private record ServerKey(String languageId, Path workspaceRoot) {
+	}
+
 }

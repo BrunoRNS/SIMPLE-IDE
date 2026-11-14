@@ -10,48 +10,72 @@ import javax.swing.KeyStroke;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * File menu with new file, save, new folder and set-directory items.
+ *
+ * <p>
+ * Each item forwards to the callback supplied at construction through an EDT node, so
+ * menu work is managed by the thread tree. Save is bound to Ctrl+S.
+ *
+ * <p>
+ * Covered by {@code FileMenuTest}.
+ *
+ * @author LuisOtavio13
+ * @since v1.0.0beta
+ */
 public class FileMenu extends JMenu {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(FileMenu.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(FileMenu.class);
 
-  private JMenuItem newFile;
-  private JMenuItem saveFile;
-  private JMenuItem newFolder;
-  private JMenuItem setDirectory;
+	private JMenuItem newFile;
 
-  public FileMenu(
-      Runnable createFile, Runnable createFolder, Runnable setDirectory, Runnable saveFile) {
-    super("File");
-    Objects.requireNonNull(createFile, "createFile");
-    Objects.requireNonNull(createFolder, "createFolder");
-    Objects.requireNonNull(setDirectory, "setDirectory");
-    Objects.requireNonNull(saveFile, "saveFile");
-    createItems();
-    configureMenu();
-    configureActions(createFile, createFolder, setDirectory, saveFile);
-    LOGGER.info("Created File menu");
-  }
+	private JMenuItem saveFile;
 
-  private void configureMenu() {
-    add(newFile);
-    add(saveFile);
-    add(newFolder);
-    add(setDirectory);
-  }
+	private JMenuItem newFolder;
 
-  private void configureActions(
-      Runnable createFile, Runnable createFolder, Runnable setDirectory, Runnable saveFile) {
-    newFile.addActionListener(new ActionNode(e -> createFile.run()));
-    this.saveFile.addActionListener(new ActionNode(e -> saveFile.run()));
-    newFolder.addActionListener(new ActionNode(e -> createFolder.run()));
-    this.setDirectory.addActionListener(new ActionNode(e -> setDirectory.run()));
-  }
+	private JMenuItem setDirectory;
 
-  private void createItems() {
-    this.newFile = new JMenuItem("New File");
-    this.saveFile = new JMenuItem("Save");
-    this.saveFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
-    this.newFolder = new JMenuItem("New Folder");
-    this.setDirectory = new JMenuItem("Set directory");
-  }
+	/**
+	 * Creates the file menu.
+	 * @param createFile action that creates a new file
+	 * @param createFolder action that creates a new folder
+	 * @param setDirectory action that selects the working directory
+	 * @param saveFile action that saves the current file
+	 * @throws NullPointerException when any action is {@code null}
+	 */
+	public FileMenu(Runnable createFile, Runnable createFolder, Runnable setDirectory, Runnable saveFile) {
+		super("File");
+		Objects.requireNonNull(createFile, "createFile");
+		Objects.requireNonNull(createFolder, "createFolder");
+		Objects.requireNonNull(setDirectory, "setDirectory");
+		Objects.requireNonNull(saveFile, "saveFile");
+		createItems();
+		configureMenu();
+		configureActions(createFile, createFolder, setDirectory, saveFile);
+		LOGGER.info("Created File menu");
+	}
+
+	private void configureMenu() {
+		add(newFile);
+		add(saveFile);
+		add(newFolder);
+		add(setDirectory);
+	}
+
+	private void configureActions(Runnable createFile, Runnable createFolder, Runnable setDirectory,
+			Runnable saveFile) {
+		newFile.addActionListener(new ActionNode(e -> createFile.run()));
+		this.saveFile.addActionListener(new ActionNode(e -> saveFile.run()));
+		newFolder.addActionListener(new ActionNode(e -> createFolder.run()));
+		this.setDirectory.addActionListener(new ActionNode(e -> setDirectory.run()));
+	}
+
+	private void createItems() {
+		this.newFile = new JMenuItem("New File");
+		this.saveFile = new JMenuItem("Save");
+		this.saveFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
+		this.newFolder = new JMenuItem("New Folder");
+		this.setDirectory = new JMenuItem("Set directory");
+	}
+
 }

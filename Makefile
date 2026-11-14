@@ -11,7 +11,7 @@ PKG_DIR := simpleide/target/pkg
 VERSION := $(shell sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties 2>/dev/null | tr -d '\r')
 JAVA_OPTS ?= -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED
 
-.PHONY: all build test test-nolang jar pkg pkg-verify change-version run clean format format-check verify help
+.PHONY: all build test test-nolang jar pkg pkg-verify change-version run clean format check-format format-check verify help
 
 all: test jar
 
@@ -57,16 +57,19 @@ change-version:
 run: jar
 	java $(JAVA_OPTS) -jar "$(APP_JAR)"
 
-# Apply the project Java formatter.
+# Apply the Spring Java Format style to every Java source.
 format:
-	$(MVNW) -B spotless:apply
+	$(MVNW) -B spring-javaformat:apply
 
-# Fail when any Java source is not formatted according to the project style.
-format-check:
-	$(MVNW) -B spotless:check
+# Fail when any Java source is not formatted according to the Spring Java Format style.
+check-format:
+	$(MVNW) -B spring-javaformat:validate
+
+# Backwards-compatible alias for check-format.
+format-check: check-format
 
 # Full local validation: formatting, tests and packaging.
-verify: format-check test jar
+verify: check-format test jar
 
 clean:
 	$(MVNW) -B clean
@@ -84,8 +87,9 @@ help:
 	@echo "  make change-version VERSION"
 	@echo "                     Change the project version (asks for confirmation)"
 	@echo "  make run           Launch the executable fat JAR"
-	@echo "  make format        Apply the standard Java formatter"
-	@echo "  make format-check  Check formatting without changing files"
+	@echo "  make format        Apply the Spring Java Format style"
+	@echo "  make check-format  Check formatting without changing files"
+	@echo "  make format-check  Alias for check-format"
 	@echo "  make verify        Check formatting, run tests and package"
 	@echo "  make clean         Remove generated build and package outputs"
 	@echo ""

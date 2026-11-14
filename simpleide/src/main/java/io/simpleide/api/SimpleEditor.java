@@ -19,187 +19,192 @@ import javax.swing.JComponent;
 /**
  * A standalone editor tab that can be embedded in any Swing container.
  *
- * <p>The tab includes the editor, search panel and line numbers. Local language support is
- * available immediately. A language server can be started lazily with {@link
- * #startLanguageServer()}; the server process is stopped when the editor is closed.
+ * <p>
+ * The tab includes the editor, search panel and line numbers. Local language support is
+ * available immediately. A language server can be started lazily with
+ * {@link #startLanguageServer()}; the server process is stopped when the editor is
+ * closed.
+ *
+ * <p>
+ * Covered by {@code SimpleEditorTest}.
+ *
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
  */
 public final class SimpleEditor implements AutoCloseable {
 
-  private final Path path;
-  private final Document document;
-  private final EditorTab tab;
-  private final LanguageServerManager languageServers;
-  private CompletableFuture<LspClient> languageServer;
-  private volatile boolean closed;
+	private final Path path;
 
-  private SimpleEditor(Path path, Consumer<LspStatus> statusListener) throws IOException {
-    this.path = Objects.requireNonNull(path, "path").toAbsolutePath().normalize();
-    File file = new File(this.path);
-    this.document = new Document(this.path, languageIdFor(file.getTypeFile()));
-    this.tab = new EditorTab(file, document);
-    this.languageServers = new LanguageServerManager(statusListener);
-  }
+	private final Document document;
 
-  /**
-   * Opens a source file in a standalone editor tab.
-   *
-   * @param path source file
-   * @return a new editor tab
-   * @throws IOException when the file cannot be read
-   */
-  public static SimpleEditor open(Path path) throws IOException {
-    return open(path, ignored -> {});
-  }
+	private final EditorTab tab;
 
-  /**
-   * Opens a source file and reports language-server lifecycle changes.
-   *
-   * @param path source file
-   * @param statusListener language-server status listener
-   * @return a new editor tab
-   * @throws IOException when the file cannot be read
-   */
-  public static SimpleEditor open(Path path, Consumer<LspStatus> statusListener)
-      throws IOException {
-    return new SimpleEditor(path, Objects.requireNonNull(statusListener, "statusListener"));
-  }
+	private final LanguageServerManager languageServers;
 
-  /**
-   * Returns the embeddable Swing component.
-   *
-   * @return the editor tab component
-   */
-  public JComponent component() {
-    return tab;
-  }
+	private CompletableFuture<LspClient> languageServer;
 
-  /**
-   * Returns the underlying editor tab.
-   *
-   * @return the editor tab
-   */
-  public EditorTab tab() {
-    return tab;
-  }
+	private volatile boolean closed;
 
-  /**
-   * Returns the RSyntaxTextArea-based editor.
-   *
-   * @return the editor
-   */
-  public Editor textArea() {
-    return tab.getEditor();
-  }
+	private SimpleEditor(Path path, Consumer<LspStatus> statusListener) throws IOException {
+		this.path = Objects.requireNonNull(path, "path").toAbsolutePath().normalize();
+		File file = new File(this.path);
+		this.document = new Document(this.path, languageIdFor(file.getTypeFile()));
+		this.tab = new EditorTab(file, document);
+		this.languageServers = new LanguageServerManager(statusListener);
+	}
 
-  /**
-   * Returns the LSP document associated with this editor.
-   *
-   * @return the document
-   */
-  public Document document() {
-    return document;
-  }
+	/**
+	 * Opens a source file in a standalone editor tab.
+	 * @param path source file
+	 * @return a new editor tab
+	 * @throws IOException when the file cannot be read
+	 */
+	public static SimpleEditor open(Path path) throws IOException {
+		return open(path, ignored -> {
+		});
+	}
 
-  /**
-   * Returns the normalized source path.
-   *
-   * @return the source path
-   */
-  public Path path() {
-    return path;
-  }
+	/**
+	 * Opens a source file and reports language-server lifecycle changes.
+	 * @param path source file
+	 * @param statusListener language-server status listener
+	 * @return a new editor tab
+	 * @throws IOException when the file cannot be read
+	 */
+	public static SimpleEditor open(Path path, Consumer<LspStatus> statusListener) throws IOException {
+		return new SimpleEditor(path, Objects.requireNonNull(statusListener, "statusListener"));
+	}
 
-  /** Enables local completion and syntax support when no language server is connected. */
-  public void enableLocalLanguageSupport() {
-    tab.enableLocalLanguageSupport();
-  }
+	/**
+	 * Returns the embeddable Swing component.
+	 * @return the editor tab component
+	 */
+	public JComponent component() {
+		return tab;
+	}
 
-  /**
-   * Starts the language server for this file, if one is available for the platform.
-   *
-   * <p>The returned future completes when the server has initialized and the editor is connected.
-   * Repeated calls return the same future. The server is closed by {@link #close()}.
-   *
-   * @return a future with the connected language-server client
-   */
-  public synchronized CompletableFuture<LspClient> startLanguageServer() {
-    ensureOpen();
-    if (languageServer != null) {
-      return languageServer;
-    }
-    Threads.master();
-    languageServer =
-        languageServers
-            .connect(document, tab::publishDiagnostics)
-            .thenApply(
-                client -> {
-                  tab.connectLanguageServer(client);
-                  return client;
-                });
-    return languageServer;
-  }
+	/**
+	 * Returns the underlying editor tab.
+	 * @return the editor tab
+	 */
+	public EditorTab tab() {
+		return tab;
+	}
 
-  /**
-   * Saves the editor content to disk.
-   *
-   * @throws IOException when the file cannot be written
-   */
-  public void save() throws IOException {
-    ensureOpen();
-    tab.save();
-  }
+	/**
+	 * Returns the RSyntaxTextArea-based editor.
+	 * @return the editor
+	 */
+	public Editor textArea() {
+		return tab.getEditor();
+	}
 
-  /**
-   * Saves the editor content to a different file and loads it in the editor.
-   *
-   * @param target destination file
-   * @throws IOException when the file cannot be written or read back
-   */
-  public void saveAs(Path target) throws IOException {
-    ensureOpen();
-    Path destination = Objects.requireNonNull(target, "target").toAbsolutePath().normalize();
-    Files.writeString(destination, textArea().getText());
-    textArea().loadFile(new File(destination));
-  }
+	/**
+	 * Returns the LSP document associated with this editor.
+	 * @return the document
+	 */
+	public Document document() {
+		return document;
+	}
 
-  /**
-   * Returns whether the content has unsaved changes.
-   *
-   * @return {@code true} when the editor content is modified
-   */
-  public boolean isModified() {
-    return tab.isEdit();
-  }
+	/**
+	 * Returns the normalized source path.
+	 * @return the source path
+	 */
+	public Path path() {
+		return path;
+	}
 
-  @Override
-  public void close() {
-    if (closed) {
-      return;
-    }
-    closed = true;
-    tab.close();
-    languageServers.close();
-  }
+	/**
+	 * Enables local completion and syntax support when no language server is connected.
+	 */
+	public void enableLocalLanguageSupport() {
+		tab.enableLocalLanguageSupport();
+	}
 
-  private void ensureOpen() {
-    if (closed) {
-      throw new IllegalStateException("The editor has been closed.");
-    }
-  }
+	/**
+	 * Starts the language server for this file, if one is available for the platform.
+	 *
+	 * <p>
+	 * The returned future completes when the server has initialized and the editor is
+	 * connected. Repeated calls return the same future. The server is closed by
+	 * {@link #close()}.
+	 * @return a future with the connected language-server client
+	 */
+	public synchronized CompletableFuture<LspClient> startLanguageServer() {
+		ensureOpen();
+		if (languageServer != null) {
+			return languageServer;
+		}
+		Threads.master();
+		languageServer = languageServers.connect(document, tab::publishDiagnostics).thenApply(client -> {
+			tab.connectLanguageServer(client);
+			return client;
+		});
+		return languageServer;
+	}
 
-  private static String languageIdFor(TypeFile type) {
-    return switch (type) {
-      case JAVA -> "java";
-      case CSHARP -> "csharp";
-      case KOTLIN -> "kotlin";
-      case GROOVY -> "groovy";
-      case JAVASCRIPT -> "javascript";
-      case GO -> "go";
-      case RUST -> "rust";
-      case PYTHON -> "python";
-      case C -> "c";
-      case CPP -> "cpp";
-      default -> "plaintext";
-    };
-  }
+	/**
+	 * Saves the editor content to disk.
+	 * @throws IOException when the file cannot be written
+	 */
+	public void save() throws IOException {
+		ensureOpen();
+		tab.save();
+	}
+
+	/**
+	 * Saves the editor content to a different file and loads it in the editor.
+	 * @param target destination file
+	 * @throws IOException when the file cannot be written or read back
+	 */
+	public void saveAs(Path target) throws IOException {
+		ensureOpen();
+		Path destination = Objects.requireNonNull(target, "target").toAbsolutePath().normalize();
+		Files.writeString(destination, textArea().getText());
+		textArea().loadFile(new File(destination));
+	}
+
+	/**
+	 * Returns whether the content has unsaved changes.
+	 * @return {@code true} when the editor content is modified
+	 */
+	public boolean isModified() {
+		return tab.isEdit();
+	}
+
+	@Override
+	public void close() {
+		if (closed) {
+			return;
+		}
+		closed = true;
+		tab.close();
+		languageServers.close();
+	}
+
+	private void ensureOpen() {
+		if (closed) {
+			throw new IllegalStateException("The editor has been closed.");
+		}
+	}
+
+	private static String languageIdFor(TypeFile type) {
+		return switch (type) {
+			case JAVA -> "java";
+			case CSHARP -> "csharp";
+			case KOTLIN -> "kotlin";
+			case GROOVY -> "groovy";
+			case JAVASCRIPT -> "javascript";
+			case GO -> "go";
+			case RUST -> "rust";
+			case PYTHON -> "python";
+			case C -> "c";
+			case CPP -> "cpp";
+			default -> "plaintext";
+		};
+	}
+
 }

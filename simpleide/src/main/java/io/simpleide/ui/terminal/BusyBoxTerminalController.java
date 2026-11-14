@@ -1,11 +1,5 @@
 package io.simpleide.ui.terminal;
 
-import io.simpleide.frame.popup.ErrorPopUP;
-import io.simpleide.frame.popup.utils.ErrorTypePopUp;
-import io.simpleide.language.config.LangPlatform;
-import io.simpleide.thread.ManagedThreadPool;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.WatchDead;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -13,398 +7,440 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.language.config.LangPlatform;
+import io.simpleide.thread.ManagedThreadPool;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.WatchDead;
+
+/**
+ * Lifecycle controller for the embedded BusyBox terminal.
+ *
+ * <p>
+ * Creates terminal tabs on demand, launches one session per tab on a dedicated managed
+ * pool, tracks process exit, reports failures and coordinates shutdown when the window
+ * closes. Each session is limited by {@link TerminalPanel#MAX_TABS} and by platform
+ * support.
+ *
+ * <p>
+ * Covered by {@code BusyBoxTerminalControllerTest}.
+ *
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/terminal.md">docs/api/terminal.md</a>
+ */
 public final class BusyBoxTerminalController {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(BusyBoxTerminalController.class);
+	private static final Logger LOGGER = LoggerFactory.getLogger(BusyBoxTerminalController.class);
 
-  private final ThreadMaster threads = ThreadMaster.getInstance();
-  private final TerminalPanel panel;
-  private final LangPlatform platform;
-  private final ManagedThreadPool terminalWorkers;
-  private final Object tabsLock = new Object();
-  private final Map<BigInteger, TerminalTab> tabs = new LinkedHashMap<>();
+	private final ThreadMaster threads = ThreadMaster.getInstance();
 
-  private BigInteger nextSessionId = BigInteger.ZERO;
-  private boolean windowClosing;
-  private Runnable onAllTabsClosed;
+	private final TerminalPanel panel;
 
-  public BusyBoxTerminalController(TerminalPanel panel) {
-    this(panel, LangPlatform.getCurrentPlatform());
-  }
+	private final LangPlatform platform;
 
-  BusyBoxTerminalController(TerminalPanel panel, LangPlatform platform) {
-    this.panel = panel;
-    this.platform = platform;
-    terminalWorkers = threads.createThreadPool("terminal", TerminalPanel.MAX_TABS);
-    panel.setActions(this::addTerminal, this::closeSelectedTerminal);
-    schedulePanelUpdate();
-  }
+	private final ManagedThreadPool terminalWorkers;
 
-  public void onWindowClosing(Runnable onClosed) {
-    List<TerminalTab> openTabs;
-    synchronized (tabsLock) {
-      windowClosing = true;
-      onAllTabsClosed = onClosed;
-      openTabs = new ArrayList<>(tabs.values());
-      openTabs.forEach(tab -> tab.closeRequested = true);
-    }
-    schedulePanelUpdate();
-    if (openTabs.isEmpty()) {
-      runCloseCallback();
-      return;
-    }
-    openTabs.stream().filter(TerminalTab::isLaunchComplete).forEach(this::closeSession);
-  }
+	private final Object tabsLock = new Object();
 
-  private void addTerminal() {
-    TerminalTab tab;
-    synchronized (tabsLock) {
-      if (windowClosing
-          || platform == LangPlatform.UNKNOWN
-          || tabs.size() >= TerminalPanel.MAX_TABS) {
-        return;
-      }
-      nextSessionId = nextSessionId.add(BigInteger.ONE);
-      tab = new TerminalTab(nextSessionId);
-      tabs.put(tab.id, tab);
-    }
+	private final Map<BigInteger, TerminalTab> tabs = new LinkedHashMap<>();
 
-    panel.addTerminalTab(tab.id);
-    updatePanelState();
+	private BigInteger nextSessionId = BigInteger.ZERO;
 
-    executeTerminalTask(
-        "launch session " + tab.id,
-        () -> {
-          try {
-            launch(tab);
-          } finally {
-            onLaunchTaskClosed(tab);
-          }
-        });
-  }
+	private boolean windowClosing;
 
-  @SuppressWarnings("resource")
-  private void launch(TerminalTab tab) {
-    BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform);
-    tab.session = session;
-    try {
-      session.start();
-      if (!session.isAlive()) {
-        tab.launchFailure =
-            new IllegalStateException(
-                "The terminal process exited immediately after startup. "
-                    + session.processDiagnostics());
-        return;
-      }
-      tab.launchSucceeded = true;
-      session
-          .onExit()
-          .whenComplete(
-              (process, failure) ->
-                  scheduleOnClose(tab, processExitFailure(tab, process, failure)));
+	private Runnable onAllTabsClosed;
 
-      if (isClosing(tab)) {
-        return;
-      }
-      schedulePanelUpdate();
-      executeOnEDT("show terminal session " + tab.id, () -> showTerminal(tab));
-    } catch (IOException | RuntimeException | LinkageError exception) {
-      tab.launchFailure = exception;
-    }
-  }
+	/**
+	 * Creates a controller for the current platform.
+	 * @param panel panel whose terminals are managed
+	 */
+	public BusyBoxTerminalController(TerminalPanel panel) {
+		this(panel, LangPlatform.getCurrentPlatform());
+	}
 
-  private Throwable processExitFailure(TerminalTab tab, Process process, Throwable processError) {
-    BusyBoxTerminalSession session = tab.session;
-    boolean terminationRequested =
-        tab.closeRequested || (session != null && session.isTerminationRequested());
-    if (processError != null) {
-      return terminationRequested ? null : processError;
-    }
-    if (process.exitValue() != 0 && !terminationRequested) {
-      String diagnostics = session == null ? "" : " " + session.processDiagnostics();
-      return new IllegalStateException(
-          "Terminal session "
-              + tab.id
-              + " exited with status "
-              + process.exitValue()
-              + "."
-              + diagnostics);
-    }
-    return null;
-  }
+	BusyBoxTerminalController(TerminalPanel panel, LangPlatform platform) {
+		this.panel = panel;
+		this.platform = platform;
+		terminalWorkers = threads.createThreadPool("terminal", TerminalPanel.MAX_TABS);
+		panel.setActions(this::addTerminal, this::closeSelectedTerminal);
+		schedulePanelUpdate();
+	}
 
-  private void onLaunchTaskClosed(TerminalTab tab) {
-    tab.launchComplete = true;
+	/**
+	 * Starts an orderly shutdown of every terminal session.
+	 *
+	 * <p>
+	 * The callback runs after all sessions have closed, immediately when no tab is open.
+	 * Launching a new terminal is disabled from this point on.
+	 * @param onClosed callback invoked when no terminal session remains
+	 */
+	public void onWindowClosing(Runnable onClosed) {
+		List<TerminalTab> openTabs;
+		synchronized (tabsLock) {
+			windowClosing = true;
+			onAllTabsClosed = onClosed;
+			openTabs = new ArrayList<>(tabs.values());
+			openTabs.forEach(tab -> tab.closeRequested = true);
+		}
+		schedulePanelUpdate();
+		if (openTabs.isEmpty()) {
+			runCloseCallback();
+			return;
+		}
+		openTabs.stream().filter(TerminalTab::isLaunchComplete).forEach(this::closeSession);
+	}
 
-    if (tab.launchFailure != null || !tab.launchSucceeded) {
-      Throwable failure =
-          tab.launchFailure != null
-              ? tab.launchFailure
-              : new IllegalStateException("BusyBox terminal session " + tab.id + " did not start.");
-      scheduleOnClose(tab, failure);
-      return;
-    }
+	private void addTerminal() {
+		TerminalTab tab;
+		synchronized (tabsLock) {
+			if (windowClosing || platform == LangPlatform.UNKNOWN || tabs.size() >= TerminalPanel.MAX_TABS) {
+				return;
+			}
+			nextSessionId = nextSessionId.add(BigInteger.ONE);
+			tab = new TerminalTab(nextSessionId);
+			tabs.put(tab.id, tab);
+		}
 
-    if (isClosing(tab)) {
-      closeSession(tab);
-    }
-    schedulePanelUpdate();
-  }
+		panel.addTerminalTab(tab.id);
+		updatePanelState();
 
-  private void showTerminal(TerminalTab tab) {
-    if (isClosing(tab) || !isRegistered(tab) || tab.session == null || !tab.session.isAlive()) {
-      return;
-    }
-    panel.showTerminal(tab.id, tab.session.getConnector());
-    updatePanelState();
-  }
+		executeTerminalTask("launch session " + tab.id, () -> {
+			try {
+				launch(tab);
+			}
+			finally {
+				onLaunchTaskClosed(tab);
+			}
+		});
+	}
 
-  private void closeSelectedTerminal() {
-    BigInteger selectedSession = panel.getSelectedSessionId();
-    if (selectedSession == null || getTab(selectedSession) == null) {
-      return;
-    }
-    requestClose(selectedSession);
-  }
+	@SuppressWarnings("resource")
+	private void launch(TerminalTab tab) {
+		BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform);
+		tab.session = session;
+		try {
+			session.start();
+			if (!session.isAlive()) {
+				tab.launchFailure = new IllegalStateException(
+						"The terminal process exited immediately after startup. " + session.processDiagnostics());
+				return;
+			}
+			tab.launchSucceeded = true;
+			session.onExit()
+				.whenComplete((process, failure) -> scheduleOnClose(tab, processExitFailure(tab, process, failure)));
 
-  private void requestClose(BigInteger sessionId) {
-    TerminalTab tab = getTab(sessionId);
-    if (tab == null) {
-      return;
-    }
-    synchronized (tabsLock) {
-      if (tab.closeRequested) {
-        return;
-      }
-      tab.closeRequested = true;
-    }
-    schedulePanelUpdate();
-    if (tab.isLaunchComplete()) {
-      closeSession(tab);
-    }
-  }
+			if (isClosing(tab)) {
+				return;
+			}
+			schedulePanelUpdate();
+			executeOnEDT("show terminal session " + tab.id, () -> showTerminal(tab));
+		}
+		catch (IOException | RuntimeException | LinkageError exception) {
+			tab.launchFailure = exception;
+		}
+	}
 
-  private void closeSession(TerminalTab tab) {
-    BusyBoxTerminalSession session = tab.session;
-    if (session == null || !session.isAlive()) {
-      if (tab.isLaunchComplete()) {
-        scheduleOnClose(tab, tab.launchFailure);
-      }
-      return;
-    }
+	private Throwable processExitFailure(TerminalTab tab, Process process, Throwable processError) {
+		BusyBoxTerminalSession session = tab.session;
+		boolean terminationRequested = tab.closeRequested || (session != null && session.isTerminationRequested());
+		if (processError != null) {
+			return terminationRequested ? null : processError;
+		}
+		if (process.exitValue() != 0 && !terminationRequested) {
+			String diagnostics = session == null ? "" : " " + session.processDiagnostics();
+			return new IllegalStateException(
+					"Terminal session " + tab.id + " exited with status " + process.exitValue() + "." + diagnostics);
+		}
+		return null;
+	}
 
-    if (tab.cleaned.get() || !tab.closeTaskStarted.compareAndSet(false, true)) {
-      return;
-    }
-    executeTerminalTask(
-        "close session " + tab.id,
-        () -> {
-          try {
-            session.closeGracefullyAndWait();
-          } catch (RuntimeException | LinkageError exception) {
-            LOGGER.error("Terminal session {} failed during graceful close.", tab.id, exception);
-            session.forceTerminate();
-          } finally {
-            if (session.isAlive()) {
-              LOGGER.warn(
-                  "Terminal session {} is still running after graceful close escalation: {}",
-                  tab.id,
-                  session.watchDiagnostics());
-              session.forceTerminate();
-              if (session.isAlive()) {
-                LOGGER.warn(
-                    "Detaching terminal session {} from the UI; it will be monitored until it exits: {}",
-                    tab.id,
-                    session.watchDiagnostics());
-                WatchDead.watch(
-                    "terminal session " + tab.id, session::isAlive, session::watchDiagnostics);
-                session.detach();
-                scheduleOnClose(tab, null);
-              }
-            }
-          }
-        });
-  }
+	private void onLaunchTaskClosed(TerminalTab tab) {
+		tab.launchComplete = true;
 
-  private void scheduleOnClose(TerminalTab tab, Throwable processError) {
-    if (tab.cleaned.get() || !tab.cleanupScheduled.compareAndSet(false, true)) {
-      return;
-    }
-    executeTerminalTask("cleanup session " + tab.id, () -> onClose(tab, processError));
-  }
+		if (tab.launchFailure != null || !tab.launchSucceeded) {
+			Throwable failure = tab.launchFailure != null ? tab.launchFailure
+					: new IllegalStateException("BusyBox terminal session " + tab.id + " did not start.");
+			scheduleOnClose(tab, failure);
+			return;
+		}
 
-  private void onClose(TerminalTab tab, Throwable processError) {
-    if (!tab.cleaned.compareAndSet(false, true)) {
-      return;
-    }
-    if (processError != null) {
-      LOGGER.error("Terminal session {} failed.", tab.id, processError);
-    } else {
-      LOGGER.info("Terminal session {} exited.", tab.id);
-    }
+		if (isClosing(tab)) {
+			closeSession(tab);
+		}
+		schedulePanelUpdate();
+	}
 
-    try {
-      if (tab.session != null) {
-        tab.session.close(false);
-      }
-    } catch (RuntimeException | LinkageError exception) {
-      LOGGER.error("Unable to clean up terminal session {}.", tab.id, exception);
-    } finally {
-      synchronized (tabsLock) {
-        tabs.remove(tab.id);
-      }
-      Runnable closeCallback = getWindowCloseCallbackIfFinished();
-      boolean showStartupError =
-          !tab.launchSucceeded
-              && processError instanceof BusyBoxTerminalSession.FallbackStartupException;
-      Runnable updateUi =
-          () -> {
-            try {
-              panel.closeTerminalWidget(tab.id);
-            } catch (RuntimeException exception) {
-              LOGGER.error("Unable to close the terminal view for session {}.", tab.id, exception);
-            }
-            try {
-              panel.removeTerminal(tab.id);
-              updatePanelState();
-            } catch (RuntimeException exception) {
-              LOGGER.error("Unable to remove the terminal tab for session {}.", tab.id, exception);
-            }
-            if (showStartupError) {
-              try {
-                new ErrorPopUP(
-                        "The terminal could not start. BusyBox and the system shell fallback both failed.\n\n"
-                            + processError.getMessage(),
-                        panel,
-                        ErrorTypePopUp.INTERNAL_ERROR)
-                    .startManaged();
-              } catch (RuntimeException exception) {
-                LOGGER.error("Unable to show the terminal startup error dialog.", exception);
-              }
-            }
-            if (closeCallback != null) {
-              closeCallback.run();
-            }
-          };
-      executeOnEDT("update UI for terminal session " + tab.id, updateUi);
-    }
-  }
+	private void showTerminal(TerminalTab tab) {
+		if (isClosing(tab) || !isRegistered(tab) || tab.session == null || !tab.session.isAlive()) {
+			return;
+		}
+		panel.showTerminal(tab.id, tab.session.getConnector());
+		updatePanelState();
+	}
 
-  private Runnable getWindowCloseCallbackIfFinished() {
-    Runnable callback;
-    synchronized (tabsLock) {
-      if (!windowClosing || !tabs.isEmpty()) {
-        return null;
-      }
-      callback = onAllTabsClosed;
-      onAllTabsClosed = null;
-    }
-    terminalWorkers.close();
-    return callback;
-  }
+	private void closeSelectedTerminal() {
+		BigInteger selectedSession = panel.getSelectedSessionId();
+		if (selectedSession == null || getTab(selectedSession) == null) {
+			return;
+		}
+		requestClose(selectedSession);
+	}
 
-  private void runCloseCallback() {
-    Runnable callback;
-    synchronized (tabsLock) {
-      callback = onAllTabsClosed;
-      onAllTabsClosed = null;
-    }
-    terminalWorkers.close();
-    if (callback != null) {
-      callback.run();
-    }
-  }
+	private void requestClose(BigInteger sessionId) {
+		TerminalTab tab = getTab(sessionId);
+		if (tab == null) {
+			return;
+		}
+		synchronized (tabsLock) {
+			if (tab.closeRequested) {
+				return;
+			}
+			tab.closeRequested = true;
+		}
+		schedulePanelUpdate();
+		if (tab.isLaunchComplete()) {
+			closeSession(tab);
+		}
+	}
 
-  private void schedulePanelUpdate() {
-    executeOnEDT("update terminal panel", this::updatePanelState);
-  }
+	private void closeSession(TerminalTab tab) {
+		BusyBoxTerminalSession session = tab.session;
+		if (session == null || !session.isAlive()) {
+			if (tab.isLaunchComplete()) {
+				scheduleOnClose(tab, tab.launchFailure);
+			}
+			return;
+		}
 
-  private void executeOnEDT(String operation, Runnable action) {
-    Runnable isolatedAction =
-        () -> {
-          try {
-            action.run();
-          } catch (RuntimeException | Error failure) {
-            LOGGER.error("Unable to {}.", operation, failure);
-          }
-        };
-    try {
-      threads.executeOnEDT(isolatedAction);
-    } catch (RuntimeException exception) {
-      LOGGER.error("Unable to schedule {} through ThreadMaster.", operation, exception);
-      throw exception;
-    }
-  }
+		if (tab.cleaned.get() || !tab.closeTaskStarted.compareAndSet(false, true)) {
+			return;
+		}
+		executeTerminalTask("close session " + tab.id, () -> {
+			try {
+				session.closeGracefullyAndWait();
+			}
+			catch (RuntimeException | LinkageError exception) {
+				LOGGER.error("Terminal session {} failed during graceful close.", tab.id, exception);
+				session.forceTerminate();
+			}
+			finally {
+				if (session.isAlive()) {
+					LOGGER.warn("Terminal session {} is still running after graceful close escalation: {}", tab.id,
+							session.watchDiagnostics());
+					session.forceTerminate();
+					if (session.isAlive()) {
+						LOGGER.warn(
+								"Detaching terminal session {} from the UI; it will be monitored until it exits: {}",
+								tab.id, session.watchDiagnostics());
+						WatchDead.watch("terminal session " + tab.id, session::isAlive, session::watchDiagnostics);
+						session.detach();
+						scheduleOnClose(tab, null);
+					}
+				}
+			}
+		});
+	}
 
-  private void executeTerminalTask(String operation, Runnable action) {
-    Runnable isolatedAction =
-        () -> {
-          try {
-            action.run();
-          } catch (RuntimeException | Error failure) {
-            LOGGER.error("Terminal {} task failed.", operation, failure);
-          }
-        };
-    try {
-      terminalWorkers.execute(isolatedAction);
-    } catch (RuntimeException exception) {
-      LOGGER.error(
-          "Unable to schedule terminal {} task through ThreadMaster.", operation, exception);
-      throw exception;
-    }
-  }
+	private void scheduleOnClose(TerminalTab tab, Throwable processError) {
+		if (tab.cleaned.get() || !tab.cleanupScheduled.compareAndSet(false, true)) {
+			return;
+		}
+		executeTerminalTask("cleanup session " + tab.id, () -> onClose(tab, processError));
+	}
 
-  private void updatePanelState() {
-    BigInteger selectedSession = panel.getSelectedSessionId();
-    boolean canAdd;
-    boolean canClose;
-    boolean platformSupported = platform != LangPlatform.UNKNOWN;
-    synchronized (tabsLock) {
-      canAdd = !windowClosing && platformSupported && tabs.size() < TerminalPanel.MAX_TABS;
-      TerminalTab selectedTab = selectedSession == null ? null : tabs.get(selectedSession);
-      canClose = !windowClosing && selectedTab != null && !selectedTab.closeRequested;
-    }
-    panel.setActionsEnabled(canAdd, canClose, platformSupported);
-  }
+	private void onClose(TerminalTab tab, Throwable processError) {
+		if (!tab.cleaned.compareAndSet(false, true)) {
+			return;
+		}
+		if (processError != null) {
+			LOGGER.error("Terminal session {} failed.", tab.id, processError);
+		}
+		else {
+			LOGGER.info("Terminal session {} exited.", tab.id);
+		}
 
-  private boolean isRegistered(TerminalTab tab) {
-    synchronized (tabsLock) {
-      return tabs.get(tab.id) == tab;
-    }
-  }
+		try {
+			if (tab.session != null) {
+				tab.session.close(false);
+			}
+		}
+		catch (RuntimeException | LinkageError exception) {
+			LOGGER.error("Unable to clean up terminal session {}.", tab.id, exception);
+		}
+		finally {
+			synchronized (tabsLock) {
+				tabs.remove(tab.id);
+			}
+			Runnable closeCallback = getWindowCloseCallbackIfFinished();
+			boolean showStartupError = !tab.launchSucceeded
+					&& processError instanceof BusyBoxTerminalSession.FallbackStartupException;
+			Runnable updateUi = () -> {
+				try {
+					panel.closeTerminalWidget(tab.id);
+				}
+				catch (RuntimeException exception) {
+					LOGGER.error("Unable to close the terminal view for session {}.", tab.id, exception);
+				}
+				try {
+					panel.removeTerminal(tab.id);
+					updatePanelState();
+				}
+				catch (RuntimeException exception) {
+					LOGGER.error("Unable to remove the terminal tab for session {}.", tab.id, exception);
+				}
+				if (showStartupError) {
+					try {
+						new ErrorPopUP(
+								"The terminal could not start. BusyBox and the system shell fallback both failed.\n\n"
+										+ processError.getMessage(),
+								panel, ErrorTypePopUp.INTERNAL_ERROR)
+							.startManaged();
+					}
+					catch (RuntimeException exception) {
+						LOGGER.error("Unable to show the terminal startup error dialog.", exception);
+					}
+				}
+				if (closeCallback != null) {
+					closeCallback.run();
+				}
+			};
+			executeOnEDT("update UI for terminal session " + tab.id, updateUi);
+		}
+	}
 
-  private boolean isClosing(TerminalTab tab) {
-    synchronized (tabsLock) {
-      return windowClosing || tab.closeRequested;
-    }
-  }
+	private Runnable getWindowCloseCallbackIfFinished() {
+		Runnable callback;
+		try (terminalWorkers) {
+			synchronized (tabsLock) {
+				if (!windowClosing || !tabs.isEmpty()) {
+					return null;
+				}
+				callback = onAllTabsClosed;
+				onAllTabsClosed = null;
+			}
+		}
+		return callback;
+	}
 
-  private TerminalTab getTab(BigInteger sessionId) {
-    synchronized (tabsLock) {
-      return tabs.get(sessionId);
-    }
-  }
+	private void runCloseCallback() {
+		Runnable callback;
+		try (terminalWorkers) {
+			synchronized (tabsLock) {
+				callback = onAllTabsClosed;
+				onAllTabsClosed = null;
+			}
+		}
+		if (callback != null) {
+			callback.run();
+		}
+	}
 
-  private static final class TerminalTab {
-    private final BigInteger id;
-    private final AtomicBoolean cleaned = new AtomicBoolean();
-    private final AtomicBoolean closeTaskStarted = new AtomicBoolean();
-    private final AtomicBoolean cleanupScheduled = new AtomicBoolean();
-    private volatile BusyBoxTerminalSession session;
-    private volatile Throwable launchFailure;
-    private volatile boolean launchSucceeded;
-    private volatile boolean launchComplete;
-    private volatile boolean closeRequested;
+	private void schedulePanelUpdate() {
+		executeOnEDT("update terminal panel", this::updatePanelState);
+	}
 
-    private TerminalTab(BigInteger id) {
-      this.id = id;
-    }
+	private void executeOnEDT(String operation, Runnable action) {
+		Runnable isolatedAction = () -> {
+			try {
+				action.run();
+			}
+			catch (RuntimeException | Error failure) {
+				LOGGER.error("Unable to {}.", operation, failure);
+			}
+		};
+		try {
+			threads.executeOnEDT(isolatedAction);
+		}
+		catch (RuntimeException exception) {
+			LOGGER.error("Unable to schedule {} through ThreadMaster.", operation, exception);
+			throw exception;
+		}
+	}
 
-    private boolean isLaunchComplete() {
-      return launchComplete;
-    }
-  }
+	private void executeTerminalTask(String operation, Runnable action) {
+		Runnable isolatedAction = () -> {
+			try {
+				action.run();
+			}
+			catch (RuntimeException | Error failure) {
+				LOGGER.error("Terminal {} task failed.", operation, failure);
+			}
+		};
+		try {
+			terminalWorkers.execute(isolatedAction);
+		}
+		catch (RuntimeException exception) {
+			LOGGER.error("Unable to schedule terminal {} task through ThreadMaster.", operation, exception);
+			throw exception;
+		}
+	}
+
+	private void updatePanelState() {
+		BigInteger selectedSession = panel.getSelectedSessionId();
+		boolean canAdd;
+		boolean canClose;
+		boolean platformSupported = platform != LangPlatform.UNKNOWN;
+		synchronized (tabsLock) {
+			canAdd = !windowClosing && platformSupported && tabs.size() < TerminalPanel.MAX_TABS;
+			TerminalTab selectedTab = selectedSession == null ? null : tabs.get(selectedSession);
+			canClose = !windowClosing && selectedTab != null && !selectedTab.closeRequested;
+		}
+		panel.setActionsEnabled(canAdd, canClose, platformSupported);
+	}
+
+	private boolean isRegistered(TerminalTab tab) {
+		synchronized (tabsLock) {
+			return tabs.get(tab.id) == tab;
+		}
+	}
+
+	private boolean isClosing(TerminalTab tab) {
+		synchronized (tabsLock) {
+			return windowClosing || tab.closeRequested;
+		}
+	}
+
+	private TerminalTab getTab(BigInteger sessionId) {
+		synchronized (tabsLock) {
+			return tabs.get(sessionId);
+		}
+	}
+
+	private static final class TerminalTab {
+
+		private final BigInteger id;
+
+		private final AtomicBoolean cleaned = new AtomicBoolean();
+
+		private final AtomicBoolean closeTaskStarted = new AtomicBoolean();
+
+		private final AtomicBoolean cleanupScheduled = new AtomicBoolean();
+
+		private volatile BusyBoxTerminalSession session;
+
+		private volatile Throwable launchFailure;
+
+		private volatile boolean launchSucceeded;
+
+		private volatile boolean launchComplete;
+
+		private volatile boolean closeRequested;
+
+		private TerminalTab(BigInteger id) {
+			this.id = id;
+		}
+
+		private boolean isLaunchComplete() {
+			return launchComplete;
+		}
+
+	}
+
 }

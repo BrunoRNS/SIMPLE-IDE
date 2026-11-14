@@ -6,19 +6,22 @@ import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Tests {@link io.simpleide.api.Terminals}.
+ */
 class TerminalsTest {
 
-  @Test
-  void panelIsCreatedWithoutATerminalSession() throws Exception {
-    SwingUtilities.invokeAndWait(
-        () -> {
-          assertThat(Terminals.panel()).isNotNull();
-          assertThat(Terminals.isSupported()).isTrue();
-        });
-  }
+	@Test
+	void panelIsCreatedWithoutATerminalSession() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			assertThat(Terminals.panel()).isNotNull();
+			assertThat(Terminals.isSupported()).isTrue();
+		});
+	}
 
-  @Test
-  void controllerRequiresAPanel() {
-    assertThatNullPointerException().isThrownBy(() -> Terminals.controller(null));
-  }
+	@Test
+	void controllerRequiresAPanel() {
+		assertThatNullPointerException().isThrownBy(() -> Terminals.controller(null));
+	}
+
 }

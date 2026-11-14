@@ -12,30 +12,32 @@ import org.fife.ui.rsyntaxtextarea.RSyntaxDocument;
 import org.fife.ui.rsyntaxtextarea.parser.ParserNotice;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Tests {@link io.simpleide.lsp.client.LspDiagnosticParser}.
+ */
 class LspDiagnosticParserTest {
 
-  @Test
-  void mapsLspDiagnosticRangeToRsyntaxNotice() throws Exception {
-    SwingUtilities.invokeAndWait(
-        () -> {
-          Editor editor = new Editor();
-          editor.setText("first\nsecond");
-          LspDiagnosticParser parser = new LspDiagnosticParser(editor);
-          Diagnostic diagnostic =
-              new Diagnostic(new Range(new Position(1, 1), new Position(1, 3)), "Unexpected token");
-          diagnostic.setSeverity(DiagnosticSeverity.Error);
-          parser.setDiagnostics(java.util.List.of(diagnostic));
+	@Test
+	void mapsLspDiagnosticRangeToRsyntaxNotice() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			Editor editor = new Editor();
+			editor.setText("first\nsecond");
+			LspDiagnosticParser parser = new LspDiagnosticParser(editor);
+			Diagnostic diagnostic = new Diagnostic(new Range(new Position(1, 1), new Position(1, 3)),
+					"Unexpected token");
+			diagnostic.setSeverity(DiagnosticSeverity.Error);
+			parser.setDiagnostics(java.util.List.of(diagnostic));
 
-          var result =
-              parser.parse((RSyntaxDocument) editor.getDocument(), editor.getSyntaxEditingStyle());
+			var result = parser.parse((RSyntaxDocument) editor.getDocument(), editor.getSyntaxEditingStyle());
 
-          assertThat(result.getNotices()).hasSize(1);
-          ParserNotice notice = result.getNotices().get(0);
-          assertThat(notice.getLine()).isEqualTo(1);
-          assertThat(notice.getOffset()).isEqualTo(7);
-          assertThat(notice.getLength()).isEqualTo(2);
-          assertThat(notice.getLevel()).isEqualTo(ParserNotice.Level.ERROR);
-          assertThat(notice.getMessage()).isEqualTo("Unexpected token");
-        });
-  }
+			assertThat(result.getNotices()).hasSize(1);
+			ParserNotice notice = result.getNotices().get(0);
+			assertThat(notice.getLine()).isEqualTo(1);
+			assertThat(notice.getOffset()).isEqualTo(7);
+			assertThat(notice.getLength()).isEqualTo(2);
+			assertThat(notice.getLevel()).isEqualTo(ParserNotice.Level.ERROR);
+			assertThat(notice.getMessage()).isEqualTo("Unexpected token");
+		});
+	}
+
 }

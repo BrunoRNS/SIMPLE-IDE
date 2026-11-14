@@ -128,28 +128,32 @@ A pull request should contain:
 - Screenshots or screen recordings for visible UI changes.
 - Documentation updates for behavior, API, commands or dependencies.
 - A note about new external toolchains or runtime downloads.
-- Confirmation that `make format-check` and the relevant test command pass.
+- Confirmation that `make check-format` and the relevant test command pass.
 
 Keep pull requests small enough to review. Split refactors and behavior changes
 into separate pull requests.
 
 ## Formatting
 
-The build uses Spotless with Google Java Format:
+The build uses Spring Java Format:
 
 ```sh
 make format        # apply
-make format-check  # verify
+make check-format  # verify
 ```
 
-Do not format unrelated files. Spotless is bound to the `validate` phase, so a
-normal build fails when a changed Java file is not formatted.
+`make format-check` remains available as an alias for `make check-format`.
 
-Configuration lives in the parent `pom.xml`:
+Do not format unrelated files. Spring Java Format is bound to the `validate`
+phase, so a normal build fails when a changed Java file is not formatted.
 
-- Spotless 3.11.0.
-- Google Java Format 1.28.0.
-- AOSP style disabled; default Google style is used.
+Configuration lives in the parent `pom.xml` and `.springjavaformatconfig`:
+
+- Spring Java Format 0.0.48.
+- Java 17 source baseline.
+- Tab indentation with a four-column visual width.
+- 120-column line limit.
+- The formatter does not reorder or remove imports.
 
 See [Code style](CODE_STYLE.md) for naming, package and comment conventions that
 the formatter does not enforce.

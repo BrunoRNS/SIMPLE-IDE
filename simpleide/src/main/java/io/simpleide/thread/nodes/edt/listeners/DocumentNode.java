@@ -8,50 +8,70 @@ import javax.swing.event.DocumentListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * {@link javax.swing.event.DocumentListener} that coalesces changes into an EDT task.
+ *
+ * <p>
+ * Insert, remove and attribute changes all schedule the same callback on the Swing Event
+ * Dispatch Thread through the thread manager. Closing the node makes later changes a
+ * no-op, which avoids scheduling work for an editor that is being discarded.
+ *
+ * <p>
+ * Covered by {@code EDTNodeListenerTest}.
+ *
+ * @author LuisOtavio13
+ * @since v1.0.0beta
+ */
 public final class DocumentNode extends EDTNode implements DocumentListener, AutoCloseable {
-  private static final Logger LOGGER = LoggerFactory.getLogger(DocumentNode.class);
 
-  private final Runnable onChange;
-  private volatile boolean closed;
+	private static final Logger LOGGER = LoggerFactory.getLogger(DocumentNode.class);
 
-  public DocumentNode(Runnable onChange) {
-    this.onChange = Objects.requireNonNull(onChange, "onChange");
-  }
+	private final Runnable onChange;
 
-  @Override
-  public void insertUpdate(DocumentEvent event) {
-    dispatchChange();
-  }
+	private volatile boolean closed;
 
-  @Override
-  public void removeUpdate(DocumentEvent event) {
-    dispatchChange();
-  }
+	/**
+	 * Creates a node that invokes a callback after any document change.
+	 * @param onChange callback scheduled on the EDT, must not be {@code null}
+	 */
+	public DocumentNode(Runnable onChange) {
+		this.onChange = Objects.requireNonNull(onChange, "onChange");
+	}
 
-  @Override
-  public void changedUpdate(DocumentEvent event) {
-    dispatchChange();
-  }
+	@Override
+	public void insertUpdate(DocumentEvent event) {
+		dispatchChange();
+	}
 
-  private void dispatchChange() {
-    if (closed) {
-      return;
-    }
-    try {
-      ThreadMaster.getInstance()
-          .executeOnEDT(
-              () -> {
-                if (!closed) {
-                  onChange.run();
-                }
-              });
-    } catch (RuntimeException error) {
-      LOGGER.error("Unable to schedule editor document change.", error);
-    }
-  }
+	@Override
+	public void removeUpdate(DocumentEvent event) {
+		dispatchChange();
+	}
 
-  @Override
-  public void close() {
-    closed = true;
-  }
+	@Override
+	public void changedUpdate(DocumentEvent event) {
+		dispatchChange();
+	}
+
+	private void dispatchChange() {
+		if (closed) {
+			return;
+		}
+		try {
+			ThreadMaster.getInstance().executeOnEDT(() -> {
+				if (!closed) {
+					onChange.run();
+				}
+			});
+		}
+		catch (RuntimeException error) {
+			LOGGER.error("Unable to schedule editor document change.", error);
+		}
+	}
+
+	@Override
+	public void close() {
+		closed = true;
+	}
+
 }

@@ -35,9 +35,10 @@ make help
 | `make pkg-verify` | `pkg` plus validation of every produced package | Exit status |
 | `make change-version VERSAO` | Validate and change the project version after confirmation | Updated pom and properties files |
 | `make run` | `jar` then launch the fat JAR | A running IDE |
-| `make format` | Apply Spotless | Formatted Java files |
-| `make format-check` | Verify formatting | Exit status |
-| `make verify` | `format-check`, `test`, `jar` | Validated JAR |
+| `make format` | Apply Spring Java Format | Formatted Java files |
+| `make check-format` | Verify formatting | Exit status |
+| `make format-check` | Alias for `check-format` | Exit status |
+| `make verify` | `check-format`, `test`, `jar` | Validated JAR |
 | `make clean` | Maven clean and remove package output | Clean tree |
 | `make help` | Print targets, version and paths | Text |
 
@@ -125,8 +126,8 @@ The Make targets map directly:
 | `make test` | `./mvnw -B test` |
 | `make test-nolang` | `./mvnw -B -DexcludedGroups=language-tools test` |
 | `make jar` | `./mvnw -B -DskipTests package` |
-| `make format` | `./mvnw -B spotless:apply` |
-| `make format-check` | `./mvnw -B spotless:check` |
+| `make format` | `./mvnw -B spring-javaformat:apply` |
+| `make check-format` | `./mvnw -B spring-javaformat:validate` |
 | `make clean` | `./mvnw -B clean` |
 
 `make pkg` additionally runs the packaging script; there is no single Maven
@@ -148,16 +149,20 @@ Build one module:
 
 `-am` builds required reactor modules.
 
-## Spotless
+## Spring Java Format
 
-Spotless runs during `validate`, so `make build` and `make test` fail when Java
-sources are not formatted. Use:
+Spring Java Format runs during `validate`, so `make build` and `make test` fail
+when Java sources are not formatted. Use:
 
 ```sh
 make format
 ```
 
-Do not disable the check. See [Code style](../development/CODE_STYLE.md).
+`make check-format` verifies formatting without changing files, and
+`make format-check` is kept as an alias. The formatter uses the Java 17 baseline
+declared in `.springjavaformatconfig`, tab indentation and a 120-column line
+limit. Do not disable the check. See
+[Code style](../development/CODE_STYLE.md).
 
 ## Native access
 
@@ -190,7 +195,7 @@ language server caches under `~/.cache/simpleide`.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `mvnw: Permission denied` | Wrapper not executable | `chmod +x mvnw` |
-| Spotless failure | Unformatted Java | `make format` |
+| Format validation failure | Unformatted Java | `make format` |
 | `jpackage: command not found` | JDK on `PATH` is a JRE or old JDK | Use JDK 17+ and check `jpackage --version` |
 | `zip: command not found` | `zip` missing on Linux | Install `zip` |
 | Tests fail on a language | Toolchain missing or wrong version | Run `make test-nolang` or install the toolchain |

@@ -7,7 +7,8 @@ itself, but a few are useful when embedding Simple IDE components.
 ## Themes
 
 `io.simpleide.ui.menubar.ThemeManager` applies a FlatLaf look and feel and an
-RSyntaxTextArea theme.
+RSyntaxTextArea theme. See [Menu bar and themes](ui/menubar.md) for the menu
+structure and theme table.
 
 ```java
 import io.simpleide.api.Threads;
@@ -40,7 +41,8 @@ and reads bundled resources. It is not headless-safe because it updates windows.
 
 ## Popups
 
-The popup classes wrap modal dialogs:
+The popup classes wrap modal dialogs. See [Popups](ui/popups.md) for lifecycle,
+threading and callback details:
 
 | Class | Purpose |
 | --- | --- |
@@ -72,7 +74,9 @@ new InputPopUP("Name", "Enter a name", parent, value -> System.out.println(value
 
 ## File tree
 
-The `io.simpleide.ui.treefile` package contains the project tree model:
+The `io.simpleide.ui.treefile` package contains the project tree model. See
+[Project file tree](ui/file-tree.md) for the full model, watcher and context
+actions:
 
 | Class | Purpose |
 | --- | --- |

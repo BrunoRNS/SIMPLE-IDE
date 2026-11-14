@@ -19,6 +19,13 @@ not cover a use case.
 - [Language Server Protocol](lsp.md) — server discovery, installation and use.
 - [Terminal](terminal.md) — embedded BusyBox terminal.
 - [UI helpers](ui.md) — popups, icons, themes and layouts.
+- [Application bootstrap and frame](ui/application.md) — `MainFrame`, layout helpers and startup.
+- [Logging console](ui/logging.md) — Swing log panel and Logback appender.
+- [Popups](ui/popups.md) — info, success, warning, error and input dialogs.
+- [Menu bar and themes](ui/menubar.md) — File, Settings and Help menus, theme manager.
+- [Project file tree](ui/file-tree.md) — tree model, icons, context actions and watcher.
+- [Shared utilities](util/utilities.md) — files, resources, `PATH` lookup, map conversion.
+- [Bytecode compiler](compiler/README.md) — standalone Java, Kotlin and Groovy execution.
 - [Examples](examples.md) — complete copy-paste examples.
 
 ## API at a glance
@@ -49,6 +56,14 @@ not cover a use case.
 | `LspClient` | `io.simpleide.lsp.client` | LSP4J client connected to one server |
 | `TerminalPanel` | `io.simpleide.ui.terminal` | Terminal tabs and controls |
 | `BusyBoxTerminalController` | `io.simpleide.ui.terminal` | Session and terminal lifecycle |
+| `Tree` | `io.simpleide.ui.treefile` | Project file tree component |
+| `TreeFile` | `io.simpleide.ui.treefile` | Base entry of the project tree |
+| `ThemeManager` | `io.simpleide.ui.menubar` | Look and feel and editor theme singleton |
+| `PopUP` | `io.simpleide.frame.popup` | Base class for managed dialogs |
+| `LogPanel` | `io.simpleide.frame.log` | In-window debug console |
+| `FileService` | `io.simpleide.utils.service` | File and directory operations for the tree |
+| `MainFrame` | `io.simpleide.frame` | Desktop window wiring every component |
+| `Runner` | `io.simplebytecode.compiler` | Standalone source dispatcher for JVM languages |
 
 ## Design rules
 

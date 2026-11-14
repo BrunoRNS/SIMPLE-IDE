@@ -131,8 +131,7 @@ Maintainers:
 | Maintainer | GitHub | Contact |
 | --- | --- | --- |
 | Bruno R. N. S. | [@BrunoRNS](https://github.com/BrunoRNS) | <brunorns05@outlook.com> |
-| Luis Otávio | [@LuisOtavio13](https://github.com/LuisOtavio13) | <roberdoogarcia@gmail.com> |
-| Luis Batistel | [@luisotavio15](https://github.com/luisotavio15) | <luis.batistel.leite@escola.pr.gov.br> |
+| Luis Otávio | [@LuisOtavio13](https://github.com/LuisOtavio13) & [@luisotavio15](https://github.com/luisotavio15) | <roberdoogarcia@gmail.com> |
 
 Everyone else is welcome as a **collaborator**: open an issue or a pull
 request and you are in. See [Contributing](docs/development/CONTRIBUTING.md)

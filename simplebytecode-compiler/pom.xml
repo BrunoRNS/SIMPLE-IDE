@@ -5,6 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
+        <?m2e execute onConfiguration,onIncremental?>
         <groupId>io</groupId>
         <artifactId>simpleide-parent</artifactId>
         <version>1.0.0beta</version>

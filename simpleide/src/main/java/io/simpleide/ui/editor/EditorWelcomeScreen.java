@@ -1,59 +1,73 @@
 package io.simpleide.ui.editor;
 
-import io.simpleide.frame.layout.MainLayout;
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import java.awt.BorderLayout;
 import java.awt.Font;
+
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
-final class EditorWelcomeScreen {
+import io.simpleide.frame.layout.MainLayout;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 
-  private EditorWelcomeScreen() {}
+/**
+ * Welcome page shown when no editor tab is open.
+ *
+ * <p>
+ * Offers buttons to open a folder or create a file. Both callbacks are supplied by the
+ * editor manager and run as EDT nodes.
+ *
+ * @author LuisOtavio13
+ * @since v1.0.0beta
+ */
+public final class EditorWelcomeScreen {
 
-  static JPanel create(Runnable openFolder, Runnable createFile) {
-    JPanel welcomePanel = new JPanel(new BorderLayout());
+	private EditorWelcomeScreen() {
+	}
 
-    JPanel content = new JPanel();
-    MainLayout layout = new MainLayout();
-    content.setLayout(layout);
-    content.setOpaque(false);
+	static JPanel create(Runnable openFolder, Runnable createFile) {
+		JPanel welcomePanel = new JPanel(new BorderLayout());
 
-    JLabel title = new JLabel("Welcome to SIMPLE-IDE");
-    title.setFont(new Font("Segoe UI", Font.BOLD, 24));
-    title.setHorizontalAlignment(SwingConstants.CENTER);
-    layout.addComponent(title, 0, 0, 2, 1);
-    content.add(title);
+		JPanel content = new JPanel();
+		MainLayout layout = new MainLayout();
+		content.setLayout(layout);
+		content.setOpaque(false);
 
-    JLabel subtitle = new JLabel("Open a file in the tree to start editing.");
-    subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-    subtitle.setHorizontalAlignment(SwingConstants.CENTER);
-    layout.addComponent(subtitle, 0, 1, 2, 1);
-    content.add(subtitle);
+		JLabel title = new JLabel("Welcome to SIMPLE-IDE");
+		title.setFont(new Font("Segoe UI", Font.BOLD, 24));
+		title.setHorizontalAlignment(SwingConstants.CENTER);
+		layout.addComponent(title, 0, 0, 2, 1);
+		content.add(title);
 
-    JButton openFolderButton = createButton("Open Folder");
-    openFolderButton.addActionListener(new ActionNode(event -> openFolder.run()));
-    layout.addComponent(openFolderButton, 0, 3, 1, 1);
-    content.add(openFolderButton);
+		JLabel subtitle = new JLabel("Open a file in the tree to start editing.");
+		subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+		subtitle.setHorizontalAlignment(SwingConstants.CENTER);
+		layout.addComponent(subtitle, 0, 1, 2, 1);
+		content.add(subtitle);
 
-    JButton newFileButton = createButton("New File");
-    newFileButton.addActionListener(new ActionNode(event -> createFile.run()));
-    layout.addComponent(newFileButton, 0, 4, 1, 1);
-    content.add(newFileButton);
+		JButton openFolderButton = createButton("Open Folder");
+		openFolderButton.addActionListener(new ActionNode(event -> openFolder.run()));
+		layout.addComponent(openFolderButton, 0, 3, 1, 1);
+		content.add(openFolderButton);
 
-    welcomePanel.add(content, BorderLayout.CENTER);
-    return welcomePanel;
-  }
+		JButton newFileButton = createButton("New File");
+		newFileButton.addActionListener(new ActionNode(event -> createFile.run()));
+		layout.addComponent(newFileButton, 0, 4, 1, 1);
+		content.add(newFileButton);
 
-  private static JButton createButton(String text) {
-    JButton button = new JButton(text);
-    button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-    button.setFocusable(false);
-    button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-    button.setContentAreaFilled(false);
-    return button;
-  }
+		welcomePanel.add(content, BorderLayout.CENTER);
+		return welcomePanel;
+	}
+
+	private static JButton createButton(String text) {
+		JButton button = new JButton(text);
+		button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+		button.setFocusable(false);
+		button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+		button.setContentAreaFilled(false);
+		return button;
+	}
+
 }

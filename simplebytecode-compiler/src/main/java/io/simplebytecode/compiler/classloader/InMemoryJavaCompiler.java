@@ -7,6 +7,7 @@ import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
 import javax.tools.FileObject;
@@ -17,129 +18,179 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.StandardJavaFileManager;
 import javax.tools.ToolProvider;
 
-final class InMemoryJavaCompiler {
+/**
+ * Compiles Java source entirely in memory and returns a class loader for the result.
+ *
+ * <p>
+ * The compiler uses the JDK {@link javax.tools.JavaCompiler} API and the current process
+ * class path. Generated class files are captured in memory, so no temporary files are
+ * written. This class is an internal helper for
+ * {@link io.simplebytecode.compiler.classloader.JavaRunner}.
+ *
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/compiler/README.md">docs/api/compiler/README.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ */
+public final class InMemoryJavaCompiler {
 
-  private InMemoryJavaCompiler() {}
+	private InMemoryJavaCompiler() {
+	}
 
-  static ClassLoader compile(String className, String source) {
-    var compiler = ToolProvider.getSystemJavaCompiler();
-    if (compiler == null) {
-      throw new IllegalStateException("A JDK is required to compile Java source.");
-    }
+	/**
+	 * Compiles a single Java source file and returns a class loader over the generated
+	 * bytecode.
+	 * @param className the fully qualified name of the class declared in {@code source}
+	 * @param source the Java source text to compile
+	 * @return a class loader that can load the compiled class and any generated nested
+	 * classes
+	 * @throws IllegalStateException if no system Java compiler is available or the
+	 * compiler cannot be closed
+	 * @throws IllegalArgumentException if compilation fails
+	 */
+	static ClassLoader compile(String className, String source) {
+		var compiler = ToolProvider.getSystemJavaCompiler();
+		if (compiler == null) {
+			throw new IllegalStateException("A JDK is required to compile Java source.");
+		}
 
-    DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
-    Map<String, ByteArrayOutputStream> classBytes = new HashMap<>();
-    try (StandardJavaFileManager standardManager =
-            compiler.getStandardFileManager(diagnostics, null, null);
-        JavaFileManager fileManager = new MemoryFileManager(standardManager, classBytes)) {
-      JavaFileObject sourceFile = new SourceFile(className, source);
-      List<String> options =
-          List.of("-proc:none", "-classpath", System.getProperty("java.class.path", ""));
-      boolean compiled =
-          compiler
-              .getTask(null, fileManager, diagnostics, options, null, List.of(sourceFile))
-              .call();
-      if (!compiled) {
-        String errors =
-            diagnostics.getDiagnostics().stream()
-                .filter(diagnostic -> diagnostic.getKind() == Diagnostic.Kind.ERROR)
-                .map(InMemoryJavaCompiler::formatDiagnostic)
-                .reduce((first, second) -> first + System.lineSeparator() + second)
-                .orElse("Unknown Java compilation error.");
-        throw new IllegalArgumentException(
-            "Could not compile Java source:" + System.lineSeparator() + errors);
-      }
-    } catch (IOException exception) {
-      throw new IllegalStateException("Could not close the Java compiler file manager.", exception);
-    }
+		DiagnosticCollector<JavaFileObject> diagnostics = new DiagnosticCollector<>();
+		Map<String, ByteArrayOutputStream> classBytes = new HashMap<>();
+		try (StandardJavaFileManager standardManager = compiler.getStandardFileManager(diagnostics, null, null);
+				JavaFileManager fileManager = new MemoryFileManager(standardManager, classBytes)) {
+			JavaFileObject sourceFile = new SourceFile(className, source);
+			List<String> options = List.of("-proc:none", "-classpath", System.getProperty("java.class.path", ""));
+			boolean compiled = compiler.getTask(null, fileManager, diagnostics, options, null, List.of(sourceFile))
+				.call();
+			if (!compiled) {
+				String errors = diagnostics.getDiagnostics()
+					.stream()
+					.filter(diagnostic -> diagnostic.getKind() == Diagnostic.Kind.ERROR)
+					.map(InMemoryJavaCompiler::formatDiagnostic)
+					.reduce((first, second) -> first + System.lineSeparator() + second)
+					.orElse("Unknown Java compilation error.");
+				throw new IllegalArgumentException("Could not compile Java source:" + System.lineSeparator() + errors);
+			}
+		}
+		catch (IOException exception) {
+			throw new IllegalStateException("Could not close the Java compiler file manager.", exception);
+		}
 
-    Map<String, byte[]> definitions = new HashMap<>();
-    classBytes.forEach((name, bytes) -> definitions.put(name, bytes.toByteArray()));
-    return new MemoryClassLoader(definitions, JavaRunner.class.getClassLoader());
-  }
+		Map<String, byte[]> definitions = new HashMap<>();
+		classBytes.forEach((name, bytes) -> definitions.put(name, bytes.toByteArray()));
+		return new MemoryClassLoader(definitions, JavaRunner.class.getClassLoader());
+	}
 
-  private static String formatDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic) {
-    return "line " + diagnostic.getLineNumber() + ": " + diagnostic.getMessage(null);
-  }
+	private static String formatDiagnostic(Diagnostic<? extends JavaFileObject> diagnostic) {
+		return "line " + diagnostic.getLineNumber() + ": " + diagnostic.getMessage(null);
+	}
 
-  private static final class SourceFile extends SimpleJavaFileObject {
-    private final String source;
+	/**
+	 * Exposes source text to the compiler without touching the file system.
+	 *
+	 * @author BrunoRNS
+	 * @since v1.0.0beta
+	 */
+	private static final class SourceFile extends SimpleJavaFileObject {
 
-    private SourceFile(String className, String source) {
-      super(
-          URI.create("string:///" + className.replace('.', '/') + Kind.SOURCE.extension),
-          Kind.SOURCE);
-      this.source = source;
-    }
+		private final String source;
 
-    @Override
-    public CharSequence getCharContent(boolean ignoreEncodingErrors) {
-      return source;
-    }
-  }
+		private SourceFile(String className, String source) {
+			super(URI.create("string:///" + className.replace('.', '/') + Kind.SOURCE.extension), Kind.SOURCE);
+			this.source = source;
+		}
 
-  private static final class ClassFile extends SimpleJavaFileObject {
-    private final ByteArrayOutputStream output = new ByteArrayOutputStream();
+		@Override
+		public CharSequence getCharContent(boolean ignoreEncodingErrors) {
+			return source;
+		}
 
-    private ClassFile(String className, Kind kind) {
-      super(URI.create("memory:///" + className.replace('.', '/') + kind.extension), kind);
-    }
+	}
 
-    @Override
-    public OutputStream openOutputStream() {
-      return output;
-    }
-  }
+	/**
+	 * Collects generated class bytes in a byte array instead of writing a file.
+	 *
+	 * @author BrunoRNS
+	 * @since v1.0.0beta
+	 */
+	private static final class ClassFile extends SimpleJavaFileObject {
 
-  private static final class MemoryFileManager
-      extends ForwardingJavaFileManager<StandardJavaFileManager> {
-    private final Map<String, ByteArrayOutputStream> classBytes;
+		private final ByteArrayOutputStream output = new ByteArrayOutputStream();
 
-    private MemoryFileManager(
-        StandardJavaFileManager fileManager, Map<String, ByteArrayOutputStream> classBytes) {
-      super(fileManager);
-      this.classBytes = classBytes;
-    }
+		private ClassFile(String className, Kind kind) {
+			super(URI.create("memory:///" + className.replace('.', '/') + kind.extension), kind);
+		}
 
-    @Override
-    public JavaFileObject getJavaFileForOutput(
-        Location location, String className, JavaFileObject.Kind kind, FileObject sibling) {
-      ClassFile classFile = new ClassFile(className, kind);
-      classBytes.put(className, classFile.output);
-      return classFile;
-    }
-  }
+		@Override
+		public OutputStream openOutputStream() {
+			return output;
+		}
 
-  private static final class MemoryClassLoader extends ClassLoader {
-    private final Map<String, byte[]> definitions;
+	}
 
-    private MemoryClassLoader(Map<String, byte[]> definitions, ClassLoader parent) {
-      super(parent);
-      this.definitions = definitions;
-    }
+	/**
+	 * Redirects compiler output into the in-memory class byte map.
+	 *
+	 * @author BrunoRNS
+	 * @since v1.0.0beta
+	 */
+	private static final class MemoryFileManager extends ForwardingJavaFileManager<StandardJavaFileManager> {
 
-    @Override
-    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-      synchronized (getClassLoadingLock(name)) {
-        Class<?> loadedClass = findLoadedClass(name);
-        if (loadedClass == null) {
-          loadedClass =
-              definitions.containsKey(name) ? findClass(name) : super.loadClass(name, false);
-        }
-        if (resolve) {
-          resolveClass(loadedClass);
-        }
-        return loadedClass;
-      }
-    }
+		private final Map<String, ByteArrayOutputStream> classBytes;
 
-    @Override
-    protected Class<?> findClass(String name) throws ClassNotFoundException {
-      byte[] bytecode = definitions.get(name);
-      if (bytecode == null) {
-        throw new ClassNotFoundException(name);
-      }
-      return defineClass(name, bytecode, 0, bytecode.length);
-    }
-  }
+		private MemoryFileManager(StandardJavaFileManager fileManager, Map<String, ByteArrayOutputStream> classBytes) {
+			super(fileManager);
+			this.classBytes = classBytes;
+		}
+
+		@Override
+		public JavaFileObject getJavaFileForOutput(Location location, String className, JavaFileObject.Kind kind,
+				FileObject sibling) {
+			ClassFile classFile = new ClassFile(className, kind);
+			classBytes.put(className, classFile.output);
+			return classFile;
+		}
+
+	}
+
+	/**
+	 * Defines classes from the bytecode captured during compilation.
+	 *
+	 * @author BrunoRNS
+	 * @since v1.0.0beta
+	 */
+	private static final class MemoryClassLoader extends ClassLoader {
+
+		private final Map<String, byte[]> definitions;
+
+		private MemoryClassLoader(Map<String, byte[]> definitions, ClassLoader parent) {
+			super(parent);
+			this.definitions = definitions;
+		}
+
+		@Override
+		protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+			synchronized (getClassLoadingLock(name)) {
+				Class<?> loadedClass = findLoadedClass(name);
+				if (loadedClass == null) {
+					loadedClass = definitions.containsKey(name) ? findClass(name) : super.loadClass(name, false);
+				}
+				if (resolve) {
+					resolveClass(loadedClass);
+				}
+				return loadedClass;
+			}
+		}
+
+		@Override
+		protected Class<?> findClass(String name) throws ClassNotFoundException {
+			byte[] bytecode = definitions.get(name);
+			if (bytecode == null) {
+				throw new ClassNotFoundException(name);
+			}
+			return defineClass(name, bytecode, 0, bytecode.length);
+		}
+
+	}
+
 }

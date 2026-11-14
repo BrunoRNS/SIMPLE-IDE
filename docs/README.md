@@ -19,6 +19,9 @@ split by audience instead of being kept in one large file.
 | Use only the language runner | [Languages API](api/languages.md) |
 | Use only the LSP client | [LSP API](api/lsp.md) |
 | Use the terminal | [Terminal API](api/terminal.md) |
+| Use the file tree, menus, popups or log console | [UI component guides](api/ui/application.md) |
+| Use the standalone bytecode compiler | [Compiler guide](api/compiler/README.md) |
+| Reuse file, resource and map helpers | [Shared utilities](api/util/utilities.md) |
 | See the IDE in pictures | [Screenshots](screenshots/README.md) |
 | Add or understand a language | [Languages reference](reference/LANGUAGES.md) |
 | Understand language servers | [LSP reference](reference/LSP.md) |
@@ -43,7 +46,17 @@ docs/
 │   ├── lsp.md                    Language Server Protocol client
 │   ├── terminal.md               Embedded BusyBox terminal
 │   ├── ui.md                     Popups, icons, themes and layouts
-│   └── examples.md               Copy-paste examples
+│   ├── examples.md               Copy-paste examples
+│   ├── ui/                       Application UI component guides
+│   │   ├── application.md        Bootstrap, MainFrame and layout helpers
+│   │   ├── logging.md            Debug console and Logback appender
+│   │   ├── popups.md             Managed modal dialogs
+│   │   ├── menubar.md            Menus and theme manager
+│   │   └── file-tree.md          Project tree model and watcher
+│   ├── compiler/                 Standalone bytecode compiler
+│   │   └── README.md             Java, Kotlin and Groovy execution
+│   └── util/
+│       └── utilities.md          Files, resources, PATH lookup, map conversion
 ├── build/                        Build, package and release documentation
 │   ├── MAKEFILE.md               Make targets and CI usage
 │   └── RELEASES.md               Release automation and artifact names
@@ -91,8 +104,8 @@ make pkg           # every release package for this OS/architecture
 make pkg-verify    # build packages and validate the executables
 make change-version 1.0.1  # change the project version (asks y/N)
 make run           # launch the fat JAR
-make format        # apply the standard formatter
-make format-check  # verify formatting
+make format        # apply Spring Java Format
+make check-format  # verify formatting
 make verify        # format check + tests + fat JAR
 make clean         # remove build outputs
 ```
