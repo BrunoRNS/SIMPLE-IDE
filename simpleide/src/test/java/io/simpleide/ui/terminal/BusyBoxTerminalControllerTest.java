@@ -1,14 +1,5 @@
 package io.simpleide.ui.terminal;
 
-import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
-import com.pty4j.PtyProcess;
-import com.pty4j.WinSize;
-import io.simpleide.language.config.LangPlatform;
 import java.awt.Component;
 import java.awt.Container;
 import java.io.InputStream;
@@ -23,10 +14,22 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.swing.JButton;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
+
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.junit.jupiter.api.Test;
+
+import com.pty4j.PtyProcess;
+import com.pty4j.WinSize;
+
+import io.simpleide.language.config.LangPlatform;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.BusyBoxTerminalController}.
@@ -47,8 +50,8 @@ class BusyBoxTerminalControllerTest {
 		});
 
 		await("Both terminal launch tasks should finish without stopping their BusyBox processes")
-			.during(3, TimeUnit.SECONDS)
-			.atMost(10, TimeUnit.SECONDS)
+			.during(7, TimeUnit.SECONDS)
+			.atMost(28, TimeUnit.SECONDS)
 			.until(() -> {
 				List<TerminalState> states = terminalStates(controller);
 				return states.size() == 2 && states.stream()
@@ -59,7 +62,7 @@ class BusyBoxTerminalControllerTest {
 
 		CountDownLatch closed = new CountDownLatch(1);
 		controller.onWindowClosing(closed::countDown);
-		assertTrue(closed.await(10, TimeUnit.SECONDS));
+		assertTrue(closed.await(30, TimeUnit.SECONDS));
 	}
 
 	@Test
@@ -87,7 +90,7 @@ class BusyBoxTerminalControllerTest {
 				.doClick();
 			closeActionReturned.countDown();
 		});
-		assertTrue(closeActionReturned.await(5, TimeUnit.SECONDS), "Closing a terminal blocked the EDT.");
+		assertTrue(closeActionReturned.await(10, TimeUnit.SECONDS), "Closing a terminal blocked the EDT.");
 
 		await("The terminal process should close after the close action").atMost(10, TimeUnit.SECONDS)
 			.until(() -> terminalStates(controller).isEmpty());

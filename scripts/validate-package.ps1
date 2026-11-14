@@ -1,10 +1,16 @@
-# Validates the packages produced by scripts/package.ps1 for the current
-# OS/architecture. Used by CI after `make pkg` so a broken executable never
-# reaches a release unnoticed.
+# Validates packages produced by scripts/package.ps1.
 #
 # Checks:
-#   .zip  the portable app image extracts and contains the launcher .exe
-#   .msi  the Windows Installer database can be opened and lists files
+#   ZIP:
+#     - Archive can be extracted.
+#     - SimpleIDE.exe exists.
+#     - Launcher is a valid PE executable.
+#     - Launcher architecture matches the requested architecture.
+#     - Bundled JVM exists and has the expected architecture.
+#
+#   MSI:
+#     - Windows Installer database can be opened.
+#     - ProductName identifies SimpleIDE.
 #
 # Exits non-zero when a package is missing or invalid.
 
@@ -12,87 +18,351 @@ $ErrorActionPreference = "Stop"
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $rootDir = Split-Path -Parent $scriptDir
+
 $properties = Join-Path $rootDir "simpleide\src\main\resources\simpleide.properties"
 $pkgDir = Join-Path $rootDir "simpleide\target\pkg"
 
-$version = (Get-Content $properties | Where-Object { $_ -match '^version=' } | Select-Object -First 1) -replace '^version=', ''
-$version = $version.Trim()
-if ([string]::IsNullOrWhiteSpace($version)) {
-    throw "Unable to read the application version from $properties"
-}
-
-$os = if ($env:SIMPLEIDE_PKG_OS) { $env:SIMPLEIDE_PKG_OS } else { "windows" }
-$arch = if ($env:SIMPLEIDE_PKG_ARCH) { $env:SIMPLEIDE_PKG_ARCH } else { "x64" }
-$artifactBase = "simpleide-v$version-$os-$arch"
-
-function Fail([string]$message) {
-    Write-Error "PACKAGE VALIDATION FAILED: $message"
-    exit 1
-}
-
-function Ok([string]$message) {
-    Write-Host "VALID: $message"
+if (-not (Test-Path $properties)) {
+    throw "Application properties not found: $properties"
 }
 
 if (-not (Test-Path $pkgDir)) {
-    Fail "The package directory was not found: $pkgDir"
+    throw "Package directory not found: $pkgDir"
 }
 
+$versionLine = Get-Content $properties |
+    Where-Object { $_ -match '^version=' } |
+    Select-Object -First 1
+
+if (-not $versionLine) {
+    throw "Unable to read application version from $properties"
+}
+
+$version = ($versionLine -replace '^version=', '').Trim()
+
+if ([string]::IsNullOrWhiteSpace($version)) {
+    throw "Application version is empty."
+}
+
+$os = if ($env:SIMPLEIDE_PKG_OS) {
+    $env:SIMPLEIDE_PKG_OS
+} else {
+    "windows"
+}
+
+$arch = if ($env:SIMPLEIDE_PKG_ARCH) {
+    $env:SIMPLEIDE_PKG_ARCH
+} else {
+    "x64"
+}
+
+$artifactBase = "simpleide-v$version-$os-$arch"
+
+function Fail([string]$message) {
+    throw "PACKAGE VALIDATION FAILED: $message"
+}
+
+function Ok([string]$message) {
+    Write-Host "VALID: $message" -ForegroundColor Green
+}
+
+# --------------------------------------------------
+# Architecture configuration
+# --------------------------------------------------
+
+$expectedMachine = switch ($arch) {
+    "x86"   { 0x014C }
+    "x64"   { 0x8664 }
+    "arm64" { 0xAA64 }
+    default {
+        Fail "Unsupported architecture: $arch"
+    }
+}
+
+# --------------------------------------------------
+# PE executable architecture detection
+# --------------------------------------------------
+
+function Get-PeMachine([string]$path) {
+
+    if (-not (Test-Path -LiteralPath $path)) {
+        Fail "Executable not found: $path"
+    }
+
+    $stream = [System.IO.File]::OpenRead($path)
+
+    try {
+        if ($stream.Length -lt 64) {
+            Fail "File is too small to be a valid PE executable: $path"
+        }
+
+        $reader = [System.IO.BinaryReader]::new($stream)
+
+        # DOS signature: MZ
+        $dosSignature = $reader.ReadUInt16()
+
+        if ($dosSignature -ne 0x5A4D) {
+            Fail "Invalid DOS signature: $path"
+        }
+
+        # Offset of PE header.
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadUInt32()
+
+        if ($peOffset -gt ($stream.Length - 6)) {
+            Fail "Invalid PE header offset: $path"
+        }
+
+        $stream.Position = $peOffset
+
+        # PE signature.
+        $peSignature = $reader.ReadUInt32()
+
+        if ($peSignature -ne 0x00004550) {
+            Fail "Invalid PE signature: $path"
+        }
+
+        # IMAGE_FILE_HEADER.Machine
+        return [int]$reader.ReadUInt16()
+    }
+    finally {
+        $stream.Dispose()
+    }
+}
+
+function Assert-PeArchitecture(
+    [string]$path,
+    [string]$description
+) {
+
+    $machine = Get-PeMachine $path
+
+    if ($machine -ne $expectedMachine) {
+        $actual = "0x{0:X4}" -f $machine
+        $expected = "0x{0:X4}" -f $expectedMachine
+
+        Fail "$description has architecture $actual; expected $arch ($expected): $path"
+    }
+
+    $size = (Get-Item -LiteralPath $path).Length
+
+    Ok "$description is valid $arch ($size bytes)"
+}
+
+# --------------------------------------------------
+# ZIP validation
+# --------------------------------------------------
+
 $archive = Join-Path $pkgDir "$artifactBase.zip"
+
 if (-not (Test-Path $archive)) {
-    Fail "$archive was not produced."
+    Fail "ZIP package was not produced: $archive"
 }
 
 $extractDir = Join-Path $pkgDir "validate-zip"
+
 if (Test-Path $extractDir) {
     Remove-Item -Recurse -Force $extractDir
 }
-New-Item -ItemType Directory -Path $extractDir -Force | Out-Null
+
+New-Item -ItemType Directory -Path $extractDir -Force |
+    Out-Null
+
 try {
-    Expand-Archive -LiteralPath $archive -DestinationPath $extractDir -Force
-} catch {
-    Fail "The app image zip is not a readable zip: $archive ($($_.Exception.Message))"
+    Expand-Archive `
+        -LiteralPath $archive `
+        -DestinationPath $extractDir `
+        -Force
+}
+catch {
+    Fail "The ZIP archive is invalid: $($_.Exception.Message)"
 }
 
-$launcher = Get-ChildItem -Path $extractDir -Filter "SimpleIDE.exe" -Recurse | Select-Object -First 1
+Ok "ZIP archive extracted successfully"
+
+# --------------------------------------------------
+# Launcher validation
+# --------------------------------------------------
+
+$launcher = Get-ChildItem `
+    -Path $extractDir `
+    -Filter "SimpleIDE.exe" `
+    -File `
+    -Recurse |
+    Select-Object -First 1
+
 if ($null -eq $launcher) {
-    Fail "The app image zip has no SimpleIDE.exe launcher: $archive"
+    Fail "The ZIP archive does not contain SimpleIDE.exe."
 }
-if ($launcher.Length -lt 1MB) {
-    Fail "The launcher looks too small to be a jpackage executable: $($launcher.FullName)"
+
+Assert-PeArchitecture `
+    -path $launcher.FullName `
+    -description "SimpleIDE launcher"
+
+# --------------------------------------------------
+# JVM validation
+# --------------------------------------------------
+
+$appImage = $launcher.Directory.FullName
+
+$jvm = Join-Path `
+    $appImage `
+    "runtime\bin\server\jvm.dll"
+
+if (-not (Test-Path $jvm)) {
+
+    # Fallback for alternative runtime layouts.
+    $jvmFile = Get-ChildItem `
+        -Path $appImage `
+        -Filter "jvm.dll" `
+        -File `
+        -Recurse |
+        Select-Object -First 1
+
+    if ($null -eq $jvmFile) {
+        Fail "Bundled JVM was not found inside the application image."
+    }
+
+    $jvm = $jvmFile.FullName
 }
+
+Assert-PeArchitecture `
+    -path $jvm `
+    -description "Bundled JVM"
+
+# --------------------------------------------------
+# Runtime structure validation
+# --------------------------------------------------
+
+$runtimeBin = Join-Path $appImage "runtime\bin"
+
+if (-not (Test-Path $runtimeBin)) {
+    Fail "Bundled Java runtime directory is missing: $runtimeBin"
+}
+
+$javaExecutable = Join-Path $runtimeBin "java.exe"
+
+if (-not (Test-Path $javaExecutable)) {
+    Fail "Bundled Java executable is missing: $javaExecutable"
+}
+
+Assert-PeArchitecture `
+    -path $javaExecutable `
+    -description "Bundled Java executable"
+
+Ok "Application image validation completed"
+
+# --------------------------------------------------
+# MSI validation
+# --------------------------------------------------
 
 $msi = Join-Path $pkgDir "$artifactBase.msi"
+
 if (-not (Test-Path $msi)) {
-    Fail "$msi was not produced."
+    Fail "MSI package was not produced: $msi"
 }
+
 try {
+
     $windowsInstaller = New-Object -ComObject WindowsInstaller.Installer
+
     $database = $windowsInstaller.GetType().InvokeMember(
         "OpenDatabase",
         "InvokeMethod",
         $null,
         $windowsInstaller,
-        @($msi, 0))
+        @($msi, 0)
+    )
+
     $view = $database.GetType().InvokeMember(
         "OpenView",
         "InvokeMethod",
         $null,
         $database,
-        @("SELECT ``Value`` FROM ``Property`` WHERE ``Property`` = 'ProductName'"))
-    $view.GetType().InvokeMember("Execute", "InvokeMethod", $null, $view, $null) | Out-Null
-    $record = $view.GetType().InvokeMember("Fetch", "InvokeMethod", $null, $view, $null)
-    $productName = $record.GetType().InvokeMember("StringData", "GetProperty", $null, $record, @(1))
-    if ($productName -notmatch "SimpleIDE") {
-        Fail "$msi does not declare the SimpleIDE product name (got '$productName')."
+        @("SELECT `Value` FROM `Property` WHERE `Property` = 'ProductName'")
+    )
+
+    $view.GetType().InvokeMember(
+        "Execute",
+        "InvokeMethod",
+        $null,
+        $view,
+        $null
+    ) | Out-Null
+
+    $record = $view.GetType().InvokeMember(
+        "Fetch",
+        "InvokeMethod",
+        $null,
+        $view,
+        $null
+    )
+
+    if ($null -eq $record) {
+        Fail "MSI does not contain a ProductName property."
     }
-} catch {
-    Fail "Windows Installer cannot read $msi ($($_.Exception.Message))"
+
+    $productName = $record.GetType().InvokeMember(
+        "StringData",
+        "GetProperty",
+        $null,
+        $record,
+        @(1)
+    )
+
+    if ($productName -notmatch "SimpleIDE") {
+        Fail "MSI does not declare SimpleIDE as ProductName. Received: $productName"
+    }
+
+    # Check MSI Summary Information platform.
+    $summary = $database.GetType().InvokeMember(
+        "SummaryInformation",
+        "GetProperty",
+        $null,
+        $database,
+        @(0)
+    )
+
+    $template = $summary.GetType().InvokeMember(
+        "Property",
+        "GetProperty",
+        $null,
+        $summary,
+        @(7)
+    )
+
+    $expectedTemplate = switch ($arch) {
+        "x86"   { "Intel" }
+        "x64"   { "x64" }
+        "arm64" { "Arm64" }
+    }
+
+    if ($template -notmatch [regex]::Escape($expectedTemplate)) {
+        Fail "MSI platform mismatch. Expected $expectedTemplate; received '$template'."
+    }
+
+    Ok "MSI product name: $productName"
+    Ok "MSI platform: $template"
+
 }
+catch {
+    Fail "Windows Installer cannot validate $msi ($($_.Exception.Message))"
+}
+
+# --------------------------------------------------
+# Cleanup
+# --------------------------------------------------
 
 Remove-Item -Recurse -Force $extractDir
 
+# --------------------------------------------------
+# Final result
+# --------------------------------------------------
+
 Ok $archive
 Ok $msi
-Write-Host "All packages for $os-$arch are valid."
+
+Write-Host ""
+Write-Host "All packages for $os-$arch are valid." -ForegroundColor Green
+
 exit 0
