@@ -3,6 +3,7 @@ package io.simpleide.lsp.client;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
+import io.simpleide.thread.ThreadMaster;
 import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,28 +12,31 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-
-import io.simpleide.thread.ThreadMaster;
 
 class LspClientShutdownTest {
 
   @BeforeAll
+  @SuppressWarnings("unused")
   static void initializeThreadManager() {
     ThreadMaster.getInstance().initialize();
   }
 
   @Test
+  @SuppressWarnings("ConvertToTryWithResources")
   void waitsForShutdownToFinishAfterClose() throws Exception {
     Optional<Path> javaExecutable = findJavaExecutable();
     assertThat(javaExecutable).as("Java executable").isPresent();
-    LspClient client = new LspClient(
-        List.of(javaExecutable.get().toString(), "-cp", System.getProperty("java.class.path"),
-            SleepingProcess.class.getName()),
-        null,
-        null);
+    LspClient client =
+        new LspClient(
+            List.of(
+                javaExecutable.get().toString(),
+                "-cp",
+                System.getProperty("java.class.path"),
+                SleepingProcess.class.getName()),
+            null,
+            null);
     try {
       await().atMost(10, TimeUnit.SECONDS).until(client::isProcessAlive);
 

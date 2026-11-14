@@ -1,5 +1,11 @@
 package io.simpleide.ui.menubar;
 
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatPropertiesLaf;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.editor.Editor;
+import io.simpleide.utils.ResourceUtil;
 import java.awt.Color;
 import java.awt.Window;
 import java.io.IOException;
@@ -8,20 +14,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-
-import com.formdev.flatlaf.FlatDarkLaf;
-import com.formdev.flatlaf.FlatLightLaf;
-import com.formdev.flatlaf.FlatPropertiesLaf;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rsyntaxtextarea.TokenTypes;
-
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.editor.Editor;
-import io.simpleide.utils.ResourceUtil;
 
 public final class ThemeManager {
 
@@ -30,8 +27,7 @@ public final class ThemeManager {
   private ThemeType currentTheme = ThemeType.DARK;
   private final List<Editor> editors = new ArrayList<>();
 
-  private ThemeManager() {
-  }
+  private ThemeManager() {}
 
   public static ThemeManager getInstance() {
     return INSTANCE;
@@ -75,42 +71,45 @@ public final class ThemeManager {
 
   private void applyTheme(ThemeType theme) {
     ThreadMaster register = ThreadMaster.getInstance();
-    register.executeOnEDT(() -> {
-      switch (theme) {
-        case LIGHT -> FlatLightLaf.setup();
-        case DARK -> FlatDarkLaf.setup();
-        case DRACULA -> setupPropertiesLookAndFeel("dracula.properties", "Dracula");
-        case BROWN -> setupPropertiesLookAndFeel("brown.properties", "Brown");
-        case BROWN_LIGHT -> setupPropertiesLookAndFeel("brown-light.properties", "Brown Light");
-      }
-      for (Window window : Window.getWindows()) {
-        if (window == null) {
-          continue;
-        }
-        SwingUtilities.updateComponentTreeUI(window);
-        window.validate();
-        window.repaint();
-      }
-      for (Editor registeredEditor : editors) {
-        if (registeredEditor != null) {
-          applyEditorTheme(registeredEditor, theme);
-        }
-      }
-    });
+    register.executeOnEDT(
+        () -> {
+          switch (theme) {
+            case LIGHT -> FlatLightLaf.setup();
+            case DARK -> FlatDarkLaf.setup();
+            case DRACULA -> setupPropertiesLookAndFeel("dracula.properties", "Dracula");
+            case BROWN -> setupPropertiesLookAndFeel("brown.properties", "Brown");
+            case BROWN_LIGHT -> setupPropertiesLookAndFeel("brown-light.properties", "Brown Light");
+          }
+          for (Window window : Window.getWindows()) {
+            if (window == null) {
+              continue;
+            }
+            SwingUtilities.updateComponentTreeUI(window);
+            window.validate();
+            window.repaint();
+          }
+          for (Editor registeredEditor : editors) {
+            if (registeredEditor != null) {
+              applyEditorTheme(registeredEditor, theme);
+            }
+          }
+        });
   }
 
   private void applyEditorTheme(Editor editor, ThemeType theme) {
-    String themeResource = switch (theme) {
-      case LIGHT -> "default.xml";
-      case DARK -> "dark.xml";
-      case DRACULA -> "dracula.xml";
-      case BROWN, BROWN_LIGHT -> "dark.xml";
-    };
+    String themeResource =
+        switch (theme) {
+          case LIGHT -> "default.xml";
+          case DARK -> "dark.xml";
+          case DRACULA -> "dracula.xml";
+          case BROWN, BROWN_LIGHT -> "dark.xml";
+        };
 
     try {
-      Path themePath = theme == ThemeType.DRACULA
-          ? ResourceUtil.getResourcePath(ThemeManager.class, themeResource)
-          : ResourceUtil.getResourcePath("org.fife.ui.rsyntaxtextarea.themes", themeResource);
+      Path themePath =
+          theme == ThemeType.DRACULA
+              ? ResourceUtil.getResourcePath(ThemeManager.class, themeResource)
+              : ResourceUtil.getResourcePath("org.fife.ui.rsyntaxtextarea.themes", themeResource);
       try (InputStream input = Files.newInputStream(themePath)) {
         Theme editorTheme = Theme.load(input);
         if (theme == ThemeType.DRACULA) {
@@ -156,7 +155,8 @@ public final class ThemeManager {
   private void setupPropertiesLookAndFeel(String resourceName, String themeName) {
     try (InputStream input = ThemeManager.class.getResourceAsStream(resourceName)) {
       if (input == null) {
-        throw new IllegalStateException("Unable to load " + themeName + " look and feel properties");
+        throw new IllegalStateException(
+            "Unable to load " + themeName + " look and feel properties");
       }
       UIManager.setLookAndFeel(new FlatPropertiesLaf(themeName, input));
     } catch (IOException | UnsupportedLookAndFeelException exception) {
@@ -262,35 +262,63 @@ public final class ThemeManager {
       markupOther = new Color(0x83C5E8);
     }
 
-    setForeground(editorTheme, comments,
-        TokenTypes.COMMENT_EOL, TokenTypes.COMMENT_MULTILINE, TokenTypes.COMMENT_DOCUMENTATION);
-    setForeground(editorTheme, commentKeywords, TokenTypes.COMMENT_KEYWORD, TokenTypes.COMMENT_MARKUP);
+    setForeground(
+        editorTheme,
+        comments,
+        TokenTypes.COMMENT_EOL,
+        TokenTypes.COMMENT_MULTILINE,
+        TokenTypes.COMMENT_DOCUMENTATION);
+    setForeground(
+        editorTheme, commentKeywords, TokenTypes.COMMENT_KEYWORD, TokenTypes.COMMENT_MARKUP);
     setForeground(editorTheme, keywords, TokenTypes.RESERVED_WORD, TokenTypes.RESERVED_WORD_2);
     setForeground(editorTheme, types, TokenTypes.DATA_TYPE);
     setForeground(editorTheme, functions, TokenTypes.FUNCTION);
     setForeground(editorTheme, identifiers, TokenTypes.IDENTIFIER);
     setForeground(editorTheme, variables, TokenTypes.VARIABLE);
-    setForeground(editorTheme, strings,
-        TokenTypes.LITERAL_STRING_DOUBLE_QUOTE, TokenTypes.LITERAL_CHAR, TokenTypes.LITERAL_BACKQUOTE);
-    setForeground(editorTheme, numbers,
-        TokenTypes.LITERAL_NUMBER_DECIMAL_INT, TokenTypes.LITERAL_NUMBER_FLOAT,
+    setForeground(
+        editorTheme,
+        strings,
+        TokenTypes.LITERAL_STRING_DOUBLE_QUOTE,
+        TokenTypes.LITERAL_CHAR,
+        TokenTypes.LITERAL_BACKQUOTE);
+    setForeground(
+        editorTheme,
+        numbers,
+        TokenTypes.LITERAL_NUMBER_DECIMAL_INT,
+        TokenTypes.LITERAL_NUMBER_FLOAT,
         TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
     setForeground(editorTheme, booleans, TokenTypes.LITERAL_BOOLEAN);
     setForeground(editorTheme, annotations, TokenTypes.ANNOTATION);
     setForeground(editorTheme, regexes, TokenTypes.REGEX);
-    setForeground(editorTheme, errors,
-        TokenTypes.ERROR_IDENTIFIER, TokenTypes.ERROR_NUMBER_FORMAT,
-        TokenTypes.ERROR_STRING_DOUBLE, TokenTypes.ERROR_CHAR);
-    setForeground(editorTheme, markupTags,
-        TokenTypes.MARKUP_TAG_DELIMITER, TokenTypes.MARKUP_TAG_NAME,
-        TokenTypes.MARKUP_PROCESSING_INSTRUCTION, TokenTypes.MARKUP_CDATA_DELIMITER);
+    setForeground(
+        editorTheme,
+        errors,
+        TokenTypes.ERROR_IDENTIFIER,
+        TokenTypes.ERROR_NUMBER_FORMAT,
+        TokenTypes.ERROR_STRING_DOUBLE,
+        TokenTypes.ERROR_CHAR);
+    setForeground(
+        editorTheme,
+        markupTags,
+        TokenTypes.MARKUP_TAG_DELIMITER,
+        TokenTypes.MARKUP_TAG_NAME,
+        TokenTypes.MARKUP_PROCESSING_INSTRUCTION,
+        TokenTypes.MARKUP_CDATA_DELIMITER);
     setForeground(editorTheme, markupAttributes, TokenTypes.MARKUP_TAG_ATTRIBUTE);
     setForeground(editorTheme, markupValues, TokenTypes.MARKUP_TAG_ATTRIBUTE_VALUE);
-    setForeground(editorTheme, markupOther,
-        TokenTypes.MARKUP_DTD, TokenTypes.MARKUP_ENTITY_REFERENCE, TokenTypes.MARKUP_CDATA);
+    setForeground(
+        editorTheme,
+        markupOther,
+        TokenTypes.MARKUP_DTD,
+        TokenTypes.MARKUP_ENTITY_REFERENCE,
+        TokenTypes.MARKUP_CDATA);
     setForeground(editorTheme, comments, TokenTypes.MARKUP_COMMENT);
-    setForeground(editorTheme, punctuation,
-        TokenTypes.OPERATOR, TokenTypes.SEPARATOR, TokenTypes.PREPROCESSOR);
+    setForeground(
+        editorTheme,
+        punctuation,
+        TokenTypes.OPERATOR,
+        TokenTypes.SEPARATOR,
+        TokenTypes.PREPROCESSOR);
     applyDistinctSyntaxColors(editorTheme, theme);
   }
 

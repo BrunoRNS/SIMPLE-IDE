@@ -1,22 +1,5 @@
 package io.simpleide.ui.editor;
 
-import java.awt.FlowLayout;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.concurrent.CompletionException;
-import java.util.function.Consumer;
-
-import javax.swing.JLabel;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
-import javax.swing.SwingConstants;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.core.Document;
@@ -26,6 +9,20 @@ import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
+import java.awt.FlowLayout;
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
+import javax.swing.SwingConstants;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class EditorManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(EditorManager.class);
@@ -37,13 +34,14 @@ public class EditorManager {
   private final EditorActions editorActions;
   private JTabbedPane jTabbedPane;
   private Runnable createFile;
+
   @SuppressWarnings("unused")
   private Runnable createFolder;
+
   private Runnable openFolder;
 
   public EditorManager(Runnable createFile, Runnable createFolder, Runnable openFolder) {
-    this(createFile, createFolder, openFolder, ignored -> {
-    });
+    this(createFile, createFolder, openFolder, ignored -> {});
   }
 
   public EditorManager(
@@ -95,21 +93,15 @@ public class EditorManager {
       return;
     }
 
-    Document document = manager.open(
-        path,
-        getLanguageId(file.getTypeFile()));
+    Document document = manager.open(path, getLanguageId(file.getTypeFile()));
 
     EditorTab editorTab = new EditorTab(file, document);
     editorActions.configure(editorTab);
     removeWelcomeScreen();
 
-    jTabbedPane.addTab(
-        file.getName(),
-        editorTab.getFileIcon(),
-        editorTab);
+    jTabbedPane.addTab(file.getName(), editorTab.getFileIcon(), editorTab);
     jTabbedPane.setTabComponentAt(
-        jTabbedPane.indexOfComponent(editorTab),
-        createTabHeader(editorTab));
+        jTabbedPane.indexOfComponent(editorTab), createTabHeader(editorTab));
 
     openedEditors.put(path, editorTab);
     jTabbedPane.setSelectedComponent(editorTab);
@@ -128,8 +120,10 @@ public class EditorManager {
       LOGGER.error("Unable to apply the editor theme to {}; the file remains open.", path, error);
     }
 
-    languageServers.connect(document, editorTab::publishDiagnostics)
-        .whenComplete((client, error) -> completeLanguageServerConnection(editorTab, client, error));
+    languageServers
+        .connect(document, editorTab::publishDiagnostics)
+        .whenComplete(
+            (client, error) -> completeLanguageServerConnection(editorTab, client, error));
   }
 
   public void addNewTab(EditorTab tab) {
@@ -144,20 +138,21 @@ public class EditorManager {
     }
     ThemeManager.getInstance().register(tab.getEditor());
     jTabbedPane.addTab(tab.getName(), tab.getFileIcon(), tab);
-    jTabbedPane.setTabComponentAt(
-        jTabbedPane.indexOfComponent(tab),
-        createTabHeader(tab));
+    jTabbedPane.setTabComponentAt(jTabbedPane.indexOfComponent(tab), createTabHeader(tab));
     jTabbedPane.setSelectedComponent(tab);
   }
 
   public void closeAll() {
     try (languageServers) {
-      openedEditors.values().forEach(tab -> {
-        tab.close();
-        manager.close(tab.getDocument().getUri());
-        languageServers.disconnect(tab.getDocument());
-        ThemeManager.getInstance().unregister(tab.getEditor());
-      });
+      openedEditors
+          .values()
+          .forEach(
+              tab -> {
+                tab.close();
+                manager.close(tab.getDocument().getUri());
+                languageServers.disconnect(tab.getDocument());
+                ThemeManager.getInstance().unregister(tab.getEditor());
+              });
       openedEditors.clear();
     }
   }
@@ -168,12 +163,13 @@ public class EditorManager {
     }
 
     if (tab.isEdit()) {
-      int choice = JOptionPane.showConfirmDialog(
-          tab,
-          "Save changes to " + tab.getFile().getName() + " before closing?",
-          "Unsaved changes",
-          JOptionPane.YES_NO_CANCEL_OPTION,
-          JOptionPane.WARNING_MESSAGE);
+      int choice =
+          JOptionPane.showConfirmDialog(
+              tab,
+              "Save changes to " + tab.getFile().getName() + " before closing?",
+              "Unsaved changes",
+              JOptionPane.YES_NO_CANCEL_OPTION,
+              JOptionPane.WARNING_MESSAGE);
       if (choice == JOptionPane.CANCEL_OPTION || choice == JOptionPane.CLOSED_OPTION) {
         return;
       }
@@ -264,10 +260,7 @@ public class EditorManager {
         cause = error.getCause();
       }
 
-      LOGGER.error(
-          "LSP connection failed for {}.",
-          tab.getFile().getPath(),
-          cause);
+      LOGGER.error("LSP connection failed for {}.", tab.getFile().getPath(), cause);
 
       if (client != null) {
         try {
@@ -278,13 +271,15 @@ public class EditorManager {
       }
     }
 
-    ThreadMaster.getInstance().executeOnEDT(() -> {
-      if (client == null || error != null) {
-        tab.enableLocalLanguageSupport();
-      } else {
-        tab.connectLanguageServer(client);
-      }
-    });
+    ThreadMaster.getInstance()
+        .executeOnEDT(
+            () -> {
+              if (client == null || error != null) {
+                tab.enableLocalLanguageSupport();
+              } else {
+                tab.connectLanguageServer(client);
+              }
+            });
   }
 
   private void configJTabbedPane() {
@@ -292,8 +287,7 @@ public class EditorManager {
   }
 
   private void removeWelcomeScreen() {
-    if (jTabbedPane.getTabCount() == 1
-        && "Welcome".equals(jTabbedPane.getTitleAt(0))) {
+    if (jTabbedPane.getTabCount() == 1 && "Welcome".equals(jTabbedPane.getTitleAt(0))) {
       jTabbedPane.removeAll();
     }
   }

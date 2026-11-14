@@ -5,10 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-import java.util.Set;
-
-import org.junit.jupiter.api.Test;
-
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.compiler.CLanguage;
 import io.simpleide.language.compiler.CPPLanguage;
@@ -21,79 +17,85 @@ import io.simpleide.language.interpreter.Python3Language;
 import io.simpleide.language.jvmbytecode.GroovyLanguage;
 import io.simpleide.language.jvmbytecode.JavaLanguage;
 import io.simpleide.language.jvmbytecode.KotlinLanguage;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
 
 class LangSetupTest {
 
-    @Test
-    void registersOnlyLanguagesWhoseRequirementsAreAvailable() {
-        LangConfig config = new LangConfig();
+  @Test
+  void registersOnlyLanguagesWhoseRequirementsAreAvailable() {
+    LangConfig config = new LangConfig();
+    new TestLangSetup(
+            config,
+            Set.of("gcc", "node", InterpreterRequiredFile.getInterpreter(Python3Language.class)))
+        .run();
+
+    assertEquals(CLanguage.class, config.getLanguage(".c"));
+    assertNull(config.getLanguage(".cpp"));
+    assertEquals(JSLanguage.class, config.getLanguage(".js"));
+    assertEquals(Python3Language.class, config.getLanguage(".py"));
+    assertEquals(JavaLanguage.class, config.getLanguage(".java"));
+    assertNull(config.getLanguage(".cs"));
+    assertNull(config.getLanguage(".go"));
+    assertNull(config.getLanguage(".rs"));
+  }
+
+  @Test
+  void registersAllLanguageExtensionsWhenRequirementsAreAvailable() {
+    LangConfig config = new LangConfig();
+    TestLangSetup setup =
         new TestLangSetup(
-                config,
-                Set.of("gcc", "node", InterpreterRequiredFile.getInterpreter(Python3Language.class))
-        ).run();
+            config,
+            Set.of(
+                "gcc",
+                "g++",
+                "mcs",
+                "mono",
+                "go",
+                "rustc",
+                "node",
+                InterpreterRequiredFile.getInterpreter(Python3Language.class)));
+    setup.run();
 
-        assertEquals(CLanguage.class, config.getLanguage(".c"));
-        assertNull(config.getLanguage(".cpp"));
-        assertEquals(JSLanguage.class, config.getLanguage(".js"));
-        assertEquals(Python3Language.class, config.getLanguage(".py"));
-        assertEquals(JavaLanguage.class, config.getLanguage(".java"));
-        assertNull(config.getLanguage(".cs"));
-        assertNull(config.getLanguage(".go"));
-        assertNull(config.getLanguage(".rs"));
+    assertEquals(CLanguage.class, config.getLanguage(".h"));
+    assertEquals(CPPLanguage.class, config.getLanguage(".CXX"));
+    assertEquals(MonoCSharpLanguage.class, config.getLanguage(".csx"));
+    assertEquals(GoLanguage.class, config.getLanguage(".go"));
+    assertEquals(RustLanguage.class, config.getLanguage(".rs"));
+    assertEquals(JSLanguage.class, config.getLanguage(".jsx"));
+    assertEquals(JSLanguage.class, config.getLanguage(".mjs"));
+    assertEquals(Python3Language.class, config.getLanguage(".pyw"));
+    assertEquals(GroovyLanguage.class, config.getLanguage(".gsh"));
+    assertEquals(KotlinLanguage.class, config.getLanguage(".kts"));
+    assertEquals(JavaLanguage.class, config.getLanguage(".jav"));
+  }
+
+  @Test
+  void rejectsUnsupportedLanguageClassesAndNullConfiguration() {
+    TestLangSetup setup = new TestLangSetup(new LangConfig(), Set.of());
+
+    assertFalse(setup.validateLanguage(UnsupportedLanguage.class));
+    assertFalse(setup.validateLanguage(null));
+    assertThrows(NullPointerException.class, () -> new LangSetup(null));
+  }
+
+  private static final class TestLangSetup extends LangSetup {
+    private final Set<String> availableCommands;
+
+    private TestLangSetup(LangConfig config, Set<String> availableCommands) {
+      super(config);
+      this.availableCommands = availableCommands;
     }
 
-    @Test
-    void registersAllLanguageExtensionsWhenRequirementsAreAvailable() {
-        LangConfig config = new LangConfig();
-        TestLangSetup setup = new TestLangSetup(
-                config,
-                Set.of(
-                        "gcc", "g++", "mcs", "mono", "go", "rustc", "node",
-                        InterpreterRequiredFile.getInterpreter(Python3Language.class)
-                )
-        );
-        setup.run();
-
-        assertEquals(CLanguage.class, config.getLanguage(".h"));
-        assertEquals(CPPLanguage.class, config.getLanguage(".CXX"));
-        assertEquals(MonoCSharpLanguage.class, config.getLanguage(".csx"));
-        assertEquals(GoLanguage.class, config.getLanguage(".go"));
-        assertEquals(RustLanguage.class, config.getLanguage(".rs"));
-        assertEquals(JSLanguage.class, config.getLanguage(".jsx"));
-        assertEquals(JSLanguage.class, config.getLanguage(".mjs"));
-        assertEquals(Python3Language.class, config.getLanguage(".pyw"));
-        assertEquals(GroovyLanguage.class, config.getLanguage(".gsh"));
-        assertEquals(KotlinLanguage.class, config.getLanguage(".kts"));
-        assertEquals(JavaLanguage.class, config.getLanguage(".jav"));
+    @Override
+    protected boolean isInSystemPATH(String filename) {
+      return availableCommands.contains(filename);
     }
 
-    @Test
-    void rejectsUnsupportedLanguageClassesAndNullConfiguration() {
-        TestLangSetup setup = new TestLangSetup(new LangConfig(), Set.of());
-
-        assertFalse(setup.validateLanguage(UnsupportedLanguage.class));
-        assertFalse(setup.validateLanguage(null));
-        assertThrows(NullPointerException.class, () -> new LangSetup(null));
+    private boolean validateLanguage(Class<? extends AbstractLanguage> languageClass) {
+      return validate(languageClass);
     }
+  }
 
-    private static final class TestLangSetup extends LangSetup {
-        private final Set<String> availableCommands;
-
-        private TestLangSetup(LangConfig config, Set<String> availableCommands) {
-            super(config);
-            this.availableCommands = availableCommands;
-        }
-
-        @Override
-        protected boolean isInSystemPATH(String filename) {
-            return availableCommands.contains(filename);
-        }
-
-        private boolean validateLanguage(Class<? extends AbstractLanguage> languageClass) {
-            return validate(languageClass);
-        }
-    }
-
-    private static final class UnsupportedLanguage extends AbstractLanguage {
-    }
+  private static final class UnsupportedLanguage extends AbstractLanguage {}
 }

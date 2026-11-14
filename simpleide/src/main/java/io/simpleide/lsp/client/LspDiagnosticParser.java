@@ -1,7 +1,7 @@
 package io.simpleide.lsp.client;
 
+import io.simpleide.thread.ThreadMaster;
 import java.util.List;
-
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Position;
@@ -12,8 +12,6 @@ import org.fife.ui.rsyntaxtextarea.parser.DefaultParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.DefaultParserNotice;
 import org.fife.ui.rsyntaxtextarea.parser.ParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.ParserNotice;
-
-import io.simpleide.thread.ThreadMaster;
 
 public final class LspDiagnosticParser extends AbstractParser {
   private final RSyntaxTextArea editor;
@@ -46,9 +44,10 @@ public final class LspDiagnosticParser extends AbstractParser {
       var lineElement = document.getDefaultRootElement().getElement(line);
       int lineStart = lineElement.getStartOffset();
       int lineEnd = lineElement.getEndOffset();
-      int startOffset = Math.min(
-          document.getLength(),
-          Math.min(lineStart + Math.max(0, start.getCharacter()), lineEnd));
+      int startOffset =
+          Math.min(
+              document.getLength(),
+              Math.min(lineStart + Math.max(0, start.getCharacter()), lineEnd));
 
       int length = 1;
       Position end = diagnostic.getRange().getEnd();
@@ -57,8 +56,10 @@ public final class LspDiagnosticParser extends AbstractParser {
       }
       length = Math.min(length, Math.max(1, document.getLength() - startOffset));
 
-      String message = diagnostic.getMessage() == null ? "Language server diagnostic" : diagnostic.getMessage();
-      DefaultParserNotice notice = new DefaultParserNotice(this, message, line, startOffset, length);
+      String message =
+          diagnostic.getMessage() == null ? "Language server diagnostic" : diagnostic.getMessage();
+      DefaultParserNotice notice =
+          new DefaultParserNotice(this, message, line, startOffset, length);
       notice.setLevel(toNoticeLevel(diagnostic.getSeverity()));
       notice.setToolTipText(message);
       notice.setShowInEditor(true);

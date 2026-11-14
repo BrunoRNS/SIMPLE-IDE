@@ -3,21 +3,18 @@ package io.simpleide.utils.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-
 import io.simpleide.ui.treefile.Directory;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TreeFile;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class FileServiceTest {
 
-  @TempDir
-  Path root;
+  @TempDir Path root;
 
   private final FileService fileService = new FileService();
 

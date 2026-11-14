@@ -1,17 +1,15 @@
 package io.simpleide.ui.treefile;
 
+import io.simpleide.utils.ResourceUtil;
 import java.awt.Component;
 import java.io.IOException;
 import java.util.EnumMap;
 import java.util.Map;
-
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
-
-import io.simpleide.utils.ResourceUtil;
 
 final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
   private static final long serialVersionUID = 1L;
@@ -21,9 +19,16 @@ final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 
   @Override
   public Component getTreeCellRendererComponent(
-      JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+      JTree tree,
+      Object value,
+      boolean selected,
+      boolean expanded,
+      boolean leaf,
+      int row,
+      boolean hasFocus) {
     super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
-    if (value instanceof DefaultMutableTreeNode node && node.getUserObject() instanceof TreeFile file) {
+    if (value instanceof DefaultMutableTreeNode node
+        && node.getUserObject() instanceof TreeFile file) {
       if (file instanceof Directory) {
         setIcon(expanded ? OPEN_FOLDER_ICON : CLOSED_FOLDER_ICON);
       } else if (file instanceof File fileEntry) {

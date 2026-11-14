@@ -81,3 +81,21 @@ jobs:
             --env PATH="$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
             --env SIMPLEIDE_EXPECTED_PLATFORM=linux-x86 \
             simpleide-linux-x86:ci make test
+
+      - name: Validate fat JAR and generated packages
+        env:
+          SIMPLEIDE_PKG_OS: linux
+          SIMPLEIDE_PKG_ARCH: x86
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes fakeroot rpm
+          make pkg-verify
+      - name: Upload invalid packages for debugging
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: invalid-packages-linux-x86
+          path: simpleide/target/pkg/
+          if-no-files-found: ignore
+          retention-days: 7

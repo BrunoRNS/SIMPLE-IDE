@@ -1,11 +1,16 @@
 package io.simpleide.ui.treefile;
 
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.InputPopUP;
+import io.simpleide.frame.popup.WarningPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.utils.service.FileService;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Enumeration;
-
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPopupMenu;
@@ -13,16 +18,8 @@ import javax.swing.SwingUtilities;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.simpleide.frame.popup.ErrorPopUP;
-import io.simpleide.frame.popup.InputPopUP;
-import io.simpleide.frame.popup.WarningPopUP;
-import io.simpleide.frame.popup.utils.ErrorTypePopUp;
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.utils.service.FileService;
 
 final class TreeFileActions {
   private static final Logger LOGGER = LoggerFactory.getLogger(TreeFileActions.class);
@@ -44,31 +41,32 @@ final class TreeFileActions {
     JMenuItem rename = addMenuItem(menu, "Rename", this::promptRename);
     JMenuItem delete = addMenuItem(menu, "Delete", this::promptDelete);
 
-    tree.addMouseListener(new MouseAdapter() {
-      @Override
-      public void mousePressed(MouseEvent event) {
-        showPopup(event);
-      }
+    tree.addMouseListener(
+        new MouseAdapter() {
+          @Override
+          public void mousePressed(MouseEvent event) {
+            showPopup(event);
+          }
 
-      @Override
-      public void mouseReleased(MouseEvent event) {
-        showPopup(event);
-      }
+          @Override
+          public void mouseReleased(MouseEvent event) {
+            showPopup(event);
+          }
 
-      private void showPopup(MouseEvent event) {
-        if (!event.isPopupTrigger()) {
-          return;
-        }
+          private void showPopup(MouseEvent event) {
+            if (!event.isPopupTrigger()) {
+              return;
+            }
 
-        TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
-        if (clickedPath != null) {
-          tree.setSelectionPath(clickedPath);
-        }
-        updateMenuActions(rename, delete);
-        SwingUtilities.updateComponentTreeUI(menu);
-        menu.show(event.getComponent(), event.getX(), event.getY());
-      }
-    });
+            TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
+            if (clickedPath != null) {
+              tree.setSelectionPath(clickedPath);
+            }
+            updateMenuActions(rename, delete);
+            SwingUtilities.updateComponentTreeUI(menu);
+            menu.show(event.getComponent(), event.getX(), event.getY());
+          }
+        });
   }
 
   void createNewFile() {
@@ -124,8 +122,8 @@ final class TreeFileActions {
       return;
     }
 
-    new InputPopUP("Rename", "New name for: " + selected.getName(), tree,
-        this::renameSelected).startManaged();
+    new InputPopUP("Rename", "New name for: " + selected.getName(), tree, this::renameSelected)
+        .startManaged();
   }
 
   private void renameSelected(String name) {
@@ -160,12 +158,18 @@ final class TreeFileActions {
       return;
     }
 
-    String message = "Delete \"" + selected.getName() + "\"? Folders and their contents will also be deleted.";
+    String message =
+        "Delete \"" + selected.getName() + "\"? Folders and their contents will also be deleted.";
     if (selectedPath.getParentPath() == null) {
       message += " The tree root will move to its parent directory.";
     }
-    int confirmation = JOptionPane.showConfirmDialog(
-        tree, message, "Confirm deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+    int confirmation =
+        JOptionPane.showConfirmDialog(
+            tree,
+            message,
+            "Confirm deletion",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE);
     if (confirmation != JOptionPane.YES_OPTION) {
       return;
     }
@@ -188,8 +192,12 @@ final class TreeFileActions {
 
   private void promptCreate(boolean directory) {
     String type = directory ? "directory" : "file";
-    new InputPopUP("Create " + type, "Name of the new " + type + ":", tree,
-        name -> create(name, directory, type)).startManaged();
+    new InputPopUP(
+            "Create " + type,
+            "Name of the new " + type + ":",
+            tree,
+            name -> create(name, directory, type))
+        .startManaged();
   }
 
   private void create(String name, boolean directory, String type) {

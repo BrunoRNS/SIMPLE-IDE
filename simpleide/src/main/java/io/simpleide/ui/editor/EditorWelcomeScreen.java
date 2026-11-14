@@ -1,21 +1,18 @@
 package io.simpleide.ui.editor;
 
+import io.simpleide.frame.layout.MainLayout;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import java.awt.BorderLayout;
 import java.awt.Font;
-
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 
-import io.simpleide.frame.layout.MainLayout;
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-
 final class EditorWelcomeScreen {
 
-  private EditorWelcomeScreen() {
-  }
+  private EditorWelcomeScreen() {}
 
   static JPanel create(Runnable openFolder, Runnable createFile) {
     JPanel welcomePanel = new JPanel(new BorderLayout());

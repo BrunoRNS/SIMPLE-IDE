@@ -1,23 +1,23 @@
 package io.simpleide.ui.editor;
 
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.UIManager;
 
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-
 public class ButtonExit extends JButton {
   private static final int ICON_SIZE = 12;
+
   @SuppressWarnings("unused")
   private final EditorTab tab;
+
   private final Icon iconX = new TabIcon(false);
   private final Icon iconDot = new TabIcon(true);
 
@@ -26,12 +26,14 @@ public class ButtonExit extends JButton {
     this.tab = tab;
     setIcon(iconX);
     setToolTipText("Close " + tab.getName());
-    addActionListener(new ActionNode(e -> {
-      EditorManager editorManager = EditorManager.getInstance();
-      if (editorManager != null) {
-        editorManager.closeTab(tab);
-      }
-    }));
+    addActionListener(
+        new ActionNode(
+            e -> {
+              EditorManager editorManager = EditorManager.getInstance();
+              if (editorManager != null) {
+                editorManager.closeTab(tab);
+              }
+            }));
     setBorder(BorderFactory.createEmptyBorder());
     setContentAreaFilled(false);
     setFocusable(false);

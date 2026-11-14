@@ -10,128 +10,133 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 public final class ResourceUtil {
-    private ResourceUtil() {
+  private ResourceUtil() {}
+
+  public static Path getResourcePath(String packageName, String fileName) throws IOException {
+    String resourceName = toResourceName(packageName, fileName);
+    ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
+    if (classLoader == null) {
+      classLoader = ResourceUtil.class.getClassLoader();
+    }
+    URL resource = classLoader.getResource(resourceName);
+    if (resource == null && classLoader != ResourceUtil.class.getClassLoader()) {
+      resource = ResourceUtil.class.getClassLoader().getResource(resourceName);
+    }
+    if (resource == null) {
+      throw new FileNotFoundException("Resource not found: " + resourceName);
+    }
+    return toPath(resource, fileName);
+  }
+
+  public static Path getResourcePath(Class<?> packageClass, String fileName) throws IOException {
+    return getResourcePath(packageClass, new String[] {fileName});
+  }
+
+  public static Path getResourcePath(Class<?> packageClass, String... resourcePath)
+      throws IOException {
+    if (packageClass == null) {
+      throw new IllegalArgumentException("Package class must not be null.");
+    }
+    if (resourcePath == null || resourcePath.length == 0) {
+      throw new IllegalArgumentException("Resource path must not be empty.");
     }
 
-    public static Path getResourcePath(String packageName, String fileName) throws IOException {
-        String resourceName = toResourceName(packageName, fileName);
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        if (classLoader == null) {
-            classLoader = ResourceUtil.class.getClassLoader();
+    StringBuilder resourceName =
+        new StringBuilder(packageClass.getPackageName().replace('.', '/') + "/");
+    for (String segment : resourcePath) {
+      if (segment == null
+          || segment.isBlank()
+          || ".".equals(segment)
+          || "..".equals(segment)
+          || segment.indexOf('/') >= 0
+          || segment.indexOf('\\') >= 0) {
+        throw new IllegalArgumentException("Invalid resource path segment: " + segment);
+      }
+      resourceName.append(segment).append('/');
+    }
+    resourceName.setLength(resourceName.length() - 1);
+    URL resource = packageClass.getResource("/" + resourceName);
+    if (resource == null) {
+      throw new FileNotFoundException("Resource not found: " + resourceName);
+    }
+    return toPath(resource, resourcePath[resourcePath.length - 1]);
+  }
+
+  private static String toResourceName(String packageName, String fileName) {
+    if (packageName == null || packageName.isBlank()) {
+      throw new IllegalArgumentException("Package name must not be blank.");
+    }
+    String[] segments = packageName.split("\\.", -1);
+    for (String segment : segments) {
+      if (!isJavaIdentifier(segment)) {
+        throw new IllegalArgumentException("Invalid package name: " + packageName);
+      }
+    }
+    if (fileName == null
+        || fileName.isBlank()
+        || ".".equals(fileName)
+        || "..".equals(fileName)
+        || fileName.indexOf('/') >= 0
+        || fileName.indexOf('\\') >= 0) {
+      throw new IllegalArgumentException("File name must be a single resource name: " + fileName);
+    }
+    return String.join("/", segments) + "/" + fileName;
+  }
+
+  private static boolean isJavaIdentifier(String value) {
+    if (value.isEmpty()) {
+      return false;
+    }
+    int first = value.codePointAt(0);
+    if (!Character.isJavaIdentifierStart(first)) {
+      return false;
+    }
+    for (int offset = Character.charCount(first); offset < value.length(); ) {
+      int codePoint = value.codePointAt(offset);
+      if (!Character.isJavaIdentifierPart(codePoint)) {
+        return false;
+      }
+      offset += Character.charCount(codePoint);
+    }
+    return true;
+  }
+
+  private static Path toPath(URL resource, String fileName) throws IOException {
+    if ("file".equalsIgnoreCase(resource.getProtocol())) {
+      try {
+        Path path = Path.of(resource.toURI());
+        if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
+          throw new IOException("Resource is not a regular file: " + path);
         }
-        URL resource = classLoader.getResource(resourceName);
-        if (resource == null && classLoader != ResourceUtil.class.getClassLoader()) {
-            resource = ResourceUtil.class.getClassLoader().getResource(resourceName);
-        }
-        if (resource == null) {
-            throw new FileNotFoundException("Resource not found: " + resourceName);
-        }
-        return toPath(resource, fileName);
+        return path;
+      } catch (URISyntaxException exception) {
+        throw new IOException("Invalid resource URL: " + resource, exception);
+      }
     }
 
-    public static Path getResourcePath(Class<?> packageClass, String fileName) throws IOException {
-        return getResourcePath(packageClass, new String[] {fileName});
+    Path extracted = Files.createTempFile("simpleide-resource-", getSuffix(fileName));
+    try {
+      try (var input = resource.openStream()) {
+        Files.copy(input, extracted, StandardCopyOption.REPLACE_EXISTING);
+      }
+      extracted.toFile().deleteOnExit();
+      return extracted;
+    } catch (IOException exception) {
+      try {
+        Files.deleteIfExists(extracted);
+      } catch (IOException cleanupException) {
+        exception.addSuppressed(cleanupException);
+      }
+      throw new IOException("Could not extract resource: " + resource, exception);
     }
+  }
 
-    public static Path getResourcePath(Class<?> packageClass, String... resourcePath) throws IOException {
-        if (packageClass == null) {
-            throw new IllegalArgumentException("Package class must not be null.");
-        }
-        if (resourcePath == null || resourcePath.length == 0) {
-            throw new IllegalArgumentException("Resource path must not be empty.");
-        }
-
-        StringBuilder resourceName = new StringBuilder(
-            packageClass.getPackageName().replace('.', '/') + "/"
-        );
-        for (String segment : resourcePath) {
-            if (segment == null || segment.isBlank()
-                || ".".equals(segment) || "..".equals(segment)
-                || segment.indexOf('/') >= 0 || segment.indexOf('\\') >= 0) {
-                throw new IllegalArgumentException("Invalid resource path segment: " + segment);
-            }
-            resourceName.append(segment).append('/');
-        }
-        resourceName.setLength(resourceName.length() - 1);
-        URL resource = packageClass.getResource("/" + resourceName);
-        if (resource == null) {
-            throw new FileNotFoundException("Resource not found: " + resourceName);
-        }
-        return toPath(resource, resourcePath[resourcePath.length - 1]);
+  private static String getSuffix(String fileName) {
+    int extensionStart = fileName.lastIndexOf('.');
+    if (extensionStart < 0 || extensionStart == fileName.length() - 1) {
+      return ".resource";
     }
-
-    private static String toResourceName(String packageName, String fileName) {
-        if (packageName == null || packageName.isBlank()) {
-            throw new IllegalArgumentException("Package name must not be blank.");
-        }
-        String[] segments = packageName.split("\\.", -1);
-        for (String segment : segments) {
-            if (!isJavaIdentifier(segment)) {
-                throw new IllegalArgumentException("Invalid package name: " + packageName);
-            }
-        }
-        if (fileName == null || fileName.isBlank()
-            || ".".equals(fileName) || "..".equals(fileName)
-            || fileName.indexOf('/') >= 0 || fileName.indexOf('\\') >= 0) {
-            throw new IllegalArgumentException("File name must be a single resource name: " + fileName);
-        }
-        return String.join("/", segments) + "/" + fileName;
-    }
-
-    private static boolean isJavaIdentifier(String value) {
-        if (value.isEmpty()) {
-            return false;
-        }
-        int first = value.codePointAt(0);
-        if (!Character.isJavaIdentifierStart(first)) {
-            return false;
-        }
-        for (int offset = Character.charCount(first); offset < value.length();) {
-            int codePoint = value.codePointAt(offset);
-            if (!Character.isJavaIdentifierPart(codePoint)) {
-                return false;
-            }
-            offset += Character.charCount(codePoint);
-        }
-        return true;
-    }
-
-    private static Path toPath(URL resource, String fileName) throws IOException {
-        if ("file".equalsIgnoreCase(resource.getProtocol())) {
-            try {
-                Path path = Path.of(resource.toURI());
-                if (!Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-                    throw new IOException("Resource is not a regular file: " + path);
-                }
-                return path;
-            } catch (URISyntaxException exception) {
-                throw new IOException("Invalid resource URL: " + resource, exception);
-            }
-        }
-
-        Path extracted = Files.createTempFile("simpleide-resource-", getSuffix(fileName));
-        try {
-            try (var input = resource.openStream()) {
-                Files.copy(input, extracted, StandardCopyOption.REPLACE_EXISTING);
-            }
-            extracted.toFile().deleteOnExit();
-            return extracted;
-        } catch (IOException exception) {
-            try {
-                Files.deleteIfExists(extracted);
-            } catch (IOException cleanupException) {
-                exception.addSuppressed(cleanupException);
-            }
-            throw new IOException("Could not extract resource: " + resource, exception);
-        }
-    }
-
-    private static String getSuffix(String fileName) {
-        int extensionStart = fileName.lastIndexOf('.');
-        if (extensionStart < 0 || extensionStart == fileName.length() - 1) {
-            return ".resource";
-        }
-        String extension = fileName.substring(extensionStart);
-        return extension.length() <= 16 ? extension : ".resource";
-    }
+    String extension = fileName.substring(extensionStart);
+    return extension.length() <= 16 ? extension : ".resource";
+  }
 }

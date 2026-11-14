@@ -1,17 +1,18 @@
 package io.simpleide.ui.treefile;
 
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
-
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.event.TreeExpansionEvent;
@@ -19,18 +20,15 @@ import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 public class Tree extends JTree {
   private static final Logger LOGGER = LoggerFactory.getLogger(Tree.class);
 
   private final TreeState state;
-  private final Set<Directory> loadingDirectories = Collections.newSetFromMap(new IdentityHashMap<>());
+  private final Set<Directory> loadingDirectories =
+      Collections.newSetFromMap(new IdentityHashMap<>());
   private final Set<Path> refreshingDirectories = new HashSet<>();
   private final TreeFileActions fileActions;
   private Consumer<Directory> rootChangeListener = root -> {};
@@ -43,16 +41,16 @@ public class Tree extends JTree {
     addTreeSelectionListener(event -> updateState(getSelectionPath()));
     fileActions.installContextMenu();
     LOGGER.info("Tree state initialized: currentDirectory={}", root.getPath());
-    addTreeWillExpandListener(new TreeWillExpandListener() {
-      @Override
-      public void treeWillExpand(TreeExpansionEvent event) {
-        loadChildren(event.getPath());
-      }
+    addTreeWillExpandListener(
+        new TreeWillExpandListener() {
+          @Override
+          public void treeWillExpand(TreeExpansionEvent event) {
+            loadChildren(event.getPath());
+          }
 
-      @Override
-      public void treeWillCollapse(TreeExpansionEvent event) {
-      }
-    });
+          @Override
+          public void treeWillCollapse(TreeExpansionEvent event) {}
+        });
   }
 
   public TreeState getState() {
@@ -96,58 +94,65 @@ public class Tree extends JTree {
     }
 
     DefaultMutableTreeNode node = findDirectoryNode(normalizedPath);
-    if (node == null || !(node.getUserObject() instanceof Directory directory)
-        || !directory.areChildrenLoaded() || !refreshingDirectories.add(normalizedPath)) {
+    if (node == null
+        || !(node.getUserObject() instanceof Directory directory)
+        || !directory.areChildrenLoaded()
+        || !refreshingDirectories.add(normalizedPath)) {
       return;
     }
 
     ThreadMaster threadMaster = ThreadMaster.getInstance();
     try {
-      threadMaster.register(new RunnableNode(() -> {
-        try {
-          List<TreeFile> children = directory.readChildrenFromDisk();
-          threadMaster.executeOnEDT(() -> {
-            refreshingDirectories.remove(normalizedPath);
-            if (node.getRoot() != getModel().getRoot()) {
-              return;
-            }
-            Path selectedPath = getSelectedPath();
-            Map<Path, DefaultMutableTreeNode> existingNodes = getChildNodes(node);
-            List<TreeFile> updatedChildren = new java.util.ArrayList<>(children.size());
-            List<DefaultMutableTreeNode> updatedNodes = new java.util.ArrayList<>(children.size());
-            for (TreeFile child : children) {
-              Path childPath = child.getPath().toAbsolutePath().normalize();
-              DefaultMutableTreeNode existingNode = existingNodes.get(childPath);
-              if (child instanceof Directory
-                  && existingNode != null
-                  && existingNode.getUserObject() instanceof Directory existingDirectory) {
-                updatedChildren.add(existingDirectory);
-                updatedNodes.add(existingNode);
-              } else {
-                updatedChildren.add(child);
-                updatedNodes.add(createNode(child));
-              }
-            }
+      threadMaster.register(
+          new RunnableNode(
+              () -> {
+                try {
+                  List<TreeFile> children = directory.readChildrenFromDisk();
+                  threadMaster.executeOnEDT(
+                      () -> {
+                        refreshingDirectories.remove(normalizedPath);
+                        if (node.getRoot() != getModel().getRoot()) {
+                          return;
+                        }
+                        Path selectedPath = getSelectedPath();
+                        Map<Path, DefaultMutableTreeNode> existingNodes = getChildNodes(node);
+                        List<TreeFile> updatedChildren = new java.util.ArrayList<>(children.size());
+                        List<DefaultMutableTreeNode> updatedNodes =
+                            new java.util.ArrayList<>(children.size());
+                        for (TreeFile child : children) {
+                          Path childPath = child.getPath().toAbsolutePath().normalize();
+                          DefaultMutableTreeNode existingNode = existingNodes.get(childPath);
+                          if (child instanceof Directory
+                              && existingNode != null
+                              && existingNode.getUserObject()
+                                  instanceof Directory existingDirectory) {
+                            updatedChildren.add(existingDirectory);
+                            updatedNodes.add(existingNode);
+                          } else {
+                            updatedChildren.add(child);
+                            updatedNodes.add(createNode(child));
+                          }
+                        }
 
-            directory.replaceChildren(updatedChildren);
-            node.removeAllChildren();
-            for (DefaultMutableTreeNode childNode : updatedNodes) {
-              node.add(childNode);
-            }
-            ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
-            if (selectedPath != null && selectedPath.startsWith(normalizedPath)) {
-              DefaultMutableTreeNode selectedNode = findTreeFileNode(selectedPath);
-              if (selectedNode == null) {
-                selectedNode = node;
-              }
-              setSelectionPath(new TreePath(selectedNode.getPath()));
-            }
-          });
-        } catch (IOException error) {
-          LOGGER.error("Unable to refresh directory {}.", normalizedPath, error);
-          threadMaster.executeOnEDT(() -> refreshingDirectories.remove(normalizedPath));
-        }
-      }));
+                        directory.replaceChildren(updatedChildren);
+                        node.removeAllChildren();
+                        for (DefaultMutableTreeNode childNode : updatedNodes) {
+                          node.add(childNode);
+                        }
+                        ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
+                        if (selectedPath != null && selectedPath.startsWith(normalizedPath)) {
+                          DefaultMutableTreeNode selectedNode = findTreeFileNode(selectedPath);
+                          if (selectedNode == null) {
+                            selectedNode = node;
+                          }
+                          setSelectionPath(new TreePath(selectedNode.getPath()));
+                        }
+                      });
+                } catch (IOException error) {
+                  LOGGER.error("Unable to refresh directory {}.", normalizedPath, error);
+                  threadMaster.executeOnEDT(() -> refreshingDirectories.remove(normalizedPath));
+                }
+              }));
     } catch (RuntimeException error) {
       refreshingDirectories.remove(normalizedPath);
       LOGGER.error("Unable to schedule directory refresh for {}.", normalizedPath, error);
@@ -183,8 +188,7 @@ public class Tree extends JTree {
     if (selected == null) {
       return null;
     }
-    Object userObject =
-        ((DefaultMutableTreeNode) selected.getLastPathComponent()).getUserObject();
+    Object userObject = ((DefaultMutableTreeNode) selected.getLastPathComponent()).getUserObject();
     return userObject instanceof TreeFile file ? file.getPath().toAbsolutePath().normalize() : null;
   }
 
@@ -212,16 +216,18 @@ public class Tree extends JTree {
     if (!(node.getUserObject() instanceof TreeFile selected)) {
       return;
     }
-    Directory parent = node.getParent() instanceof DefaultMutableTreeNode parentNode
-        ? (Directory) parentNode.getUserObject()
-        : null;
+    Directory parent =
+        node.getParent() instanceof DefaultMutableTreeNode parentNode
+            ? (Directory) parentNode.getUserObject()
+            : null;
     state.select(selected, parent);
     logState();
   }
 
   private void logState() {
     TreeFile selected = state.getSelected();
-    LOGGER.info("Tree state updated: selected={}, currentDirectory={}",
+    LOGGER.info(
+        "Tree state updated: selected={}, currentDirectory={}",
         selected == null ? "none" : selected.getPath(),
         state.getCurrentDirectory().getPath());
   }
@@ -236,22 +242,25 @@ public class Tree extends JTree {
 
     ThreadMaster threadMaster = ThreadMaster.getInstance();
     try {
-      threadMaster.register(new RunnableNode(() -> {
-        try {
-          directory.loadChildren();
-          threadMaster.executeOnEDT(() -> {
-            node.removeAllChildren();
-            for (TreeFile child : directory.getChildren()) {
-              node.add(createNode(child));
-            }
-            ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
-            loadingDirectories.remove(directory);
-          });
-        } catch (IOException exception) {
-          LOGGER.error("Unable to load directory {}.", directory.getPath(), exception);
-          threadMaster.executeOnEDT(() -> loadingDirectories.remove(directory));
-        }
-      }));
+      threadMaster.register(
+          new RunnableNode(
+              () -> {
+                try {
+                  directory.loadChildren();
+                  threadMaster.executeOnEDT(
+                      () -> {
+                        node.removeAllChildren();
+                        for (TreeFile child : directory.getChildren()) {
+                          node.add(createNode(child));
+                        }
+                        ((DefaultTreeModel) getModel()).nodeStructureChanged(node);
+                        loadingDirectories.remove(directory);
+                      });
+                } catch (IOException exception) {
+                  LOGGER.error("Unable to load directory {}.", directory.getPath(), exception);
+                  threadMaster.executeOnEDT(() -> loadingDirectories.remove(directory));
+                }
+              }));
     } catch (RuntimeException exception) {
       loadingDirectories.remove(directory);
       LOGGER.error("Unable to schedule loading directory {}.", directory.getPath(), exception);
@@ -271,6 +280,7 @@ public class Tree extends JTree {
     }
     return node;
   }
+
   public void createNewFile() {
     fileActions.createNewFile();
   }

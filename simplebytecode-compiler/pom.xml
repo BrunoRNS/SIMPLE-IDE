@@ -94,7 +94,7 @@
                 <version>3.6.0</version>
                 <executions>
                     <execution>
-                      <?m2e ignore?>
+                        <?m2e ignore?>
                         <id>make-executable-assembly</id>
                         <phase>process-classes</phase>
                         <goals>

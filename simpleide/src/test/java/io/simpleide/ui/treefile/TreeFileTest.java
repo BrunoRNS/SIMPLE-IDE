@@ -3,6 +3,10 @@ package io.simpleide.ui.treefile;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import io.simpleide.thread.ThreadMaster;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -10,7 +14,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
 import javax.swing.Icon;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
@@ -18,15 +21,8 @@ import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
-
 import org.junit.jupiter.api.Test;
-
 import org.slf4j.LoggerFactory;
-
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
-import io.simpleide.thread.ThreadMaster;
 
 class TreeFileTest {
 
@@ -42,14 +38,18 @@ class TreeFileTest {
       Directory directory = new Directory(source);
 
       assertThat(directory.getChildren()).hasSize(2);
-      File file = (File) directory.getChildren().stream()
-          .filter(child -> child.getName().equals("Main.java"))
-          .findFirst()
-          .orElseThrow();
-      Directory nestedDirectory = (Directory) directory.getChildren().stream()
-          .filter(child -> child.getName().equals("nested"))
-          .findFirst()
-          .orElseThrow();
+      File file =
+          (File)
+              directory.getChildren().stream()
+                  .filter(child -> child.getName().equals("Main.java"))
+                  .findFirst()
+                  .orElseThrow();
+      Directory nestedDirectory =
+          (Directory)
+              directory.getChildren().stream()
+                  .filter(child -> child.getName().equals("nested"))
+                  .findFirst()
+                  .orElseThrow();
 
       assertThat(file.getTypeFile()).isEqualTo(TypeFile.JAVA);
       assertThat(file.getCode()).hasToString("class Main {}");
@@ -81,7 +81,9 @@ class TreeFileTest {
 
       directory.refreshChildren();
 
-      assertThat(directory.getChildren()).extracting(TreeFile::getName).containsExactly("created.txt");
+      assertThat(directory.getChildren())
+          .extracting(TreeFile::getName)
+          .containsExactly("created.txt");
       assertThat(directory.areChildrenLoaded()).isTrue();
     } finally {
       Files.deleteIfExists(root.resolve("original.txt"));
@@ -102,7 +104,9 @@ class TreeFileTest {
 
       assertThatThrownBy(directory::refreshChildren).isInstanceOf(IOException.class);
 
-      assertThat(directory.getChildren()).extracting(TreeFile::getName).containsExactly("original.txt");
+      assertThat(directory.getChildren())
+          .extracting(TreeFile::getName)
+          .containsExactly("original.txt");
       assertThat(directory.areChildrenLoaded()).isTrue();
     } finally {
       Files.deleteIfExists(directoryPath.resolve("original.txt"));
@@ -125,56 +129,57 @@ class TreeFileTest {
       AtomicReference<Tree> treeReference = new AtomicReference<>();
       ThreadMaster.getInstance().initialize();
 
-      SwingUtilities.invokeAndWait(() -> {
-        Tree tree = new Tree(rootDirectory);
-        treeReference.set(tree);
-        tree.getModel().addTreeModelListener(new TreeModelListener() {
-          @Override
-          public void treeNodesChanged(TreeModelEvent event) {
-          }
+      SwingUtilities.invokeAndWait(
+          () -> {
+            Tree tree = new Tree(rootDirectory);
+            treeReference.set(tree);
+            tree.getModel()
+                .addTreeModelListener(
+                    new TreeModelListener() {
+                      @Override
+                      public void treeNodesChanged(TreeModelEvent event) {}
 
-          @Override
-          public void treeNodesInserted(TreeModelEvent event) {
-          }
+                      @Override
+                      public void treeNodesInserted(TreeModelEvent event) {}
 
-          @Override
-          public void treeNodesRemoved(TreeModelEvent event) {
-          }
+                      @Override
+                      public void treeNodesRemoved(TreeModelEvent event) {}
 
-          @Override
-          public void treeStructureChanged(TreeModelEvent event) {
-            modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
-            childrenLoaded.countDown();
-          }
-        });
-        DefaultMutableTreeNode rootNode =
-            (DefaultMutableTreeNode) tree.getModel().getRoot();
-        DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
-        Directory nestedDirectory = (Directory) nestedNode.getUserObject();
+                      @Override
+                      public void treeStructureChanged(TreeModelEvent event) {
+                        modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
+                        childrenLoaded.countDown();
+                      }
+                    });
+            DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+            DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+            Directory nestedDirectory = (Directory) nestedNode.getUserObject();
 
-        assertThat(nestedDirectory.areChildrenLoaded()).isFalse();
-        assertThat(nestedNode.getChildCount()).isEqualTo(1);
+            assertThat(nestedDirectory.areChildrenLoaded()).isFalse();
+            assertThat(nestedNode.getChildCount()).isEqualTo(1);
 
-        tree.expandPath(new TreePath(nestedNode.getPath()));
-      });
+            tree.expandPath(new TreePath(nestedNode.getPath()));
+          });
 
       assertThat(childrenLoaded.await(20, TimeUnit.SECONDS)).isTrue();
       assertThat(modelUpdatedOnEdt).isTrue();
-      SwingUtilities.invokeAndWait(() -> {
-        Tree tree = treeReference.get();
-        DefaultMutableTreeNode rootNode =
-            (DefaultMutableTreeNode) tree.getModel().getRoot();
-        DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
-        Directory nestedDirectory = (Directory) nestedNode.getUserObject();
-        assertThat(nestedDirectory.areChildrenLoaded()).isTrue();
-        assertThat(nestedNode.getChildCount()).isEqualTo(2);
-        Directory deeperDirectory = (Directory) nestedDirectory.getChildren().stream()
-            .filter(child -> child.getName().equals("deeper"))
-            .findFirst()
-            .orElseThrow();
-        assertThat(deeperDirectory.areChildrenLoaded()).isFalse();
-        assertThat(deeperDirectory.getChildren()).isEmpty();
-      });
+      SwingUtilities.invokeAndWait(
+          () -> {
+            Tree tree = treeReference.get();
+            DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+            DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+            Directory nestedDirectory = (Directory) nestedNode.getUserObject();
+            assertThat(nestedDirectory.areChildrenLoaded()).isTrue();
+            assertThat(nestedNode.getChildCount()).isEqualTo(2);
+            Directory deeperDirectory =
+                (Directory)
+                    nestedDirectory.getChildren().stream()
+                        .filter(child -> child.getName().equals("deeper"))
+                        .findFirst()
+                        .orElseThrow();
+            assertThat(deeperDirectory.areChildrenLoaded()).isFalse();
+            assertThat(deeperDirectory.getChildren()).isEmpty();
+          });
     } finally {
       Files.deleteIfExists(root.resolve("nested/deeper/Deep.java"));
       Files.deleteIfExists(root.resolve("nested/deeper"));
@@ -198,28 +203,30 @@ class TreeFileTest {
       Files.writeString(nested.resolve("Helper.java"), "class Helper {}");
       Directory rootDirectory = new Directory(root);
 
-      SwingUtilities.invokeAndWait(() -> {
-        Tree tree = new Tree(rootDirectory);
-        DefaultMutableTreeNode rootNode =
-            (DefaultMutableTreeNode) tree.getModel().getRoot();
-        DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
-        DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
+      SwingUtilities.invokeAndWait(
+          () -> {
+            Tree tree = new Tree(rootDirectory);
+            DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+            DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+            DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
 
-        tree.setSelectionPath(new TreePath(nestedNode.getPath()));
-        assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
-        assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
-        assertThat(appender.list)
-            .anySatisfy(event -> assertThat(event.getFormattedMessage())
-                .contains("selected=" + nested, "currentDirectory=" + nested));
+            tree.setSelectionPath(new TreePath(nestedNode.getPath()));
+            assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
+            assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
+            assertThat(appender.list)
+                .anySatisfy(
+                    event ->
+                        assertThat(event.getFormattedMessage())
+                            .contains("selected=" + nested, "currentDirectory=" + nested));
 
-        tree.setSelectionPath(new TreePath(fileNode.getPath()));
-        assertThat(tree.getState().getSelected()).isInstanceOf(File.class);
-        assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
+            tree.setSelectionPath(new TreePath(fileNode.getPath()));
+            assertThat(tree.getState().getSelected()).isInstanceOf(File.class);
+            assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 
-        tree.clearSelection();
-        assertThat(tree.getState().getSelected()).isNull();
-        assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
-      });
+            tree.clearSelection();
+            assertThat(tree.getState().getSelected()).isNull();
+            assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
+          });
     } finally {
       Files.deleteIfExists(root.resolve("nested/Helper.java"));
       Files.deleteIfExists(root.resolve("nested"));
@@ -238,12 +245,13 @@ class TreeFileTest {
 
       Tree tree = TreeFileFactory.createDirectory(root);
 
-      DefaultMutableTreeNode rootNode =
-          (DefaultMutableTreeNode) tree.getModel().getRoot();
+      DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
       assertThat(((TreeFile) rootNode.getUserObject()).getPath()).isEqualTo(root);
       assertThat(rootNode.getChildCount()).isEqualTo(1);
-      assertThat(((TreeFile) ((DefaultMutableTreeNode) rootNode.getChildAt(0))
-          .getUserObject()).getName()).isEqualTo("Main.java");
+      assertThat(
+              ((TreeFile) ((DefaultMutableTreeNode) rootNode.getChildAt(0)).getUserObject())
+                  .getName())
+          .isEqualTo("Main.java");
     } finally {
       Files.deleteIfExists(root.resolve("Main.java"));
       Files.deleteIfExists(root);
@@ -262,27 +270,31 @@ class TreeFileTest {
       AtomicBoolean modelUpdatedOnEdt = new AtomicBoolean();
       AtomicReference<Tree> treeReference = new AtomicReference<>();
 
-      SwingUtilities.invokeAndWait(() -> {
-        Tree tree = new Tree(currentDirectory);
-        treeReference.set(tree);
-        tree.addPropertyChangeListener("model", event -> {
-          modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
-          rootUpdated.countDown();
-        });
-      });
+      SwingUtilities.invokeAndWait(
+          () -> {
+            Tree tree = new Tree(currentDirectory);
+            treeReference.set(tree);
+            tree.addPropertyChangeListener(
+                "model",
+                event -> {
+                  modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
+                  rootUpdated.countDown();
+                });
+          });
 
       treeReference.get().setRoot(newRoot);
 
       assertThat(rootUpdated.await(20, TimeUnit.SECONDS)).isTrue();
       assertThat(modelUpdatedOnEdt).isTrue();
-      SwingUtilities.invokeAndWait(() -> {
-        Tree tree = treeReference.get();
-        DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
-        assertThat(((TreeFile) rootNode.getUserObject()).getPath()).isEqualTo(newRootPath);
-        assertThat(tree.getState().getSelected()).isSameAs(newRoot);
-        assertThat(tree.getState().getCurrentDirectory()).isSameAs(newRoot);
-        assertThat(rootNode.getChildCount()).isEqualTo(1);
-      });
+      SwingUtilities.invokeAndWait(
+          () -> {
+            Tree tree = treeReference.get();
+            DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+            assertThat(((TreeFile) rootNode.getUserObject()).getPath()).isEqualTo(newRootPath);
+            assertThat(tree.getState().getSelected()).isSameAs(newRoot);
+            assertThat(tree.getState().getCurrentDirectory()).isSameAs(newRoot);
+            assertThat(rootNode.getChildCount()).isEqualTo(1);
+          });
     } finally {
       Files.deleteIfExists(newRootPath.resolve("Main.java"));
       Files.deleteIfExists(newRootPath);
@@ -315,13 +327,15 @@ class TreeFileTest {
       DefaultMutableTreeNode fileNode = childNamed(rootNode, "remove.txt");
       TreeFileActions actions = new TreeFileActions(tree, tree.getState());
 
-      SwingUtilities.invokeAndWait(() -> {
-        try {
-          actions.deleteSelected(new TreePath(fileNode.getPath()), (TreeFile) fileNode.getUserObject());
-        } catch (IOException exception) {
-          throw new AssertionError(exception);
-        }
-      });
+      SwingUtilities.invokeAndWait(
+          () -> {
+            try {
+              actions.deleteSelected(
+                  new TreePath(fileNode.getPath()), (TreeFile) fileNode.getUserObject());
+            } catch (IOException exception) {
+              throw new AssertionError(exception);
+            }
+          });
 
       assertThat(Files.exists(filePath)).isFalse();
       assertThat(rootDirectory.getChildren()).isEmpty();
@@ -340,16 +354,18 @@ class TreeFileTest {
     try {
       Directory rootDirectory = new Directory(rootPath);
       Tree tree = new Tree(rootDirectory);
-      TreePath rootTreePath = new TreePath(((DefaultMutableTreeNode) tree.getModel().getRoot()).getPath());
+      TreePath rootTreePath =
+          new TreePath(((DefaultMutableTreeNode) tree.getModel().getRoot()).getPath());
       TreeFileActions actions = new TreeFileActions(tree, tree.getState());
 
-      SwingUtilities.invokeAndWait(() -> {
-        try {
-          actions.deleteSelected(rootTreePath, rootDirectory);
-        } catch (IOException exception) {
-          throw new AssertionError(exception);
-        }
-      });
+      SwingUtilities.invokeAndWait(
+          () -> {
+            try {
+              actions.deleteSelected(rootTreePath, rootDirectory);
+            } catch (IOException exception) {
+              throw new AssertionError(exception);
+            }
+          });
 
       DefaultMutableTreeNode updatedRoot = (DefaultMutableTreeNode) tree.getModel().getRoot();
       assertThat(Files.exists(rootPath)).isFalse();
@@ -435,10 +451,12 @@ class TreeFileTest {
       TreeFileCellRenderer renderer = new TreeFileCellRenderer();
       JTree tree = new JTree();
       DefaultMutableTreeNode directoryNode = new DefaultMutableTreeNode(directory);
-      DefaultMutableTreeNode javaNode = new DefaultMutableTreeNode(
-          new File(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
-      DefaultMutableTreeNode pythonNode = new DefaultMutableTreeNode(
-          new File(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
+      DefaultMutableTreeNode javaNode =
+          new DefaultMutableTreeNode(
+              new File(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
+      DefaultMutableTreeNode pythonNode =
+          new DefaultMutableTreeNode(
+              new File(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
 
       renderer.getTreeCellRendererComponent(tree, directoryNode, false, false, false, 0, false);
       Icon closedFolderIcon = renderer.getIcon();

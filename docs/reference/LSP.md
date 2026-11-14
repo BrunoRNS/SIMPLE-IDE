@@ -4,7 +4,7 @@ Simple IDE provides syntax highlighting independently of LSP. Language servers
 add editor features such as diagnostics, completion, go-to-definition, document
 formatting, and document synchronization. The supported server definitions and
 their launch/install metadata live in
-[`simpleide/src/main/resources/io/simpleide/lsp/dowload/registry.json`](../simpleide/src/main/resources/io/simpleide/lsp/dowload/registry.json).
+[`simpleide/src/main/resources/io/simpleide/lsp/dowload/registry.json`](../../simpleide/src/main/resources/io/simpleide/lsp/dowload/registry.json).
 
 ## Lifecycle
 

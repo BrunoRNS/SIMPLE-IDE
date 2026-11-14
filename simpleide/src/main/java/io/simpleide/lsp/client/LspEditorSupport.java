@@ -1,11 +1,12 @@
 package io.simpleide.lsp.client;
 
+import io.simpleide.lsp.core.Document;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.editor.Editor;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-
 import javax.swing.Timer;
 import javax.swing.text.BadLocationException;
-
 import org.eclipse.lsp4j.CompletionContext;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionList;
@@ -26,10 +27,6 @@ import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.simpleide.lsp.core.Document;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.editor.Editor;
 
 public final class LspEditorSupport implements AutoCloseable {
   private static final Logger LOGGER = LoggerFactory.getLogger(LspEditorSupport.class);
@@ -59,17 +56,15 @@ public final class LspEditorSupport implements AutoCloseable {
     autoCompletion.setAutoCompleteSingleChoices(false);
     autoCompletion.setShowDescWindow(true);
     autoCompletion.install(editor);
-    completionTimer = new Timer(
-        180,
-        ignored -> ThreadMaster.getInstance().executeOnEDT(this::requestCompletions));
+    completionTimer =
+        new Timer(
+            180, ignored -> ThreadMaster.getInstance().executeOnEDT(this::requestCompletions));
     completionTimer.setRepeats(false);
 
     lastSentText = editor.getText();
-    client.didOpen(new TextDocumentItem(
-        document.getUri(),
-        document.getLanguageId(),
-        document.getVersion(),
-        lastSentText));
+    client.didOpen(
+        new TextDocumentItem(
+            document.getUri(), document.getLanguageId(), document.getVersion(), lastSentText));
   }
 
   public void documentChanged() {
@@ -94,18 +89,21 @@ public final class LspEditorSupport implements AutoCloseable {
     if (closed || params == null || !document.getUri().equals(params.getUri())) {
       return;
     }
-    List<Diagnostic> diagnostics = params.getDiagnostics() == null ? List.of() : params.getDiagnostics();
+    List<Diagnostic> diagnostics =
+        params.getDiagnostics() == null ? List.of() : params.getDiagnostics();
     diagnosticParser.setDiagnostics(diagnostics);
   }
 
-  public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definitionAtCaret() {
+  public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>>
+      definitionAtCaret() {
     if (closed) {
       return CompletableFuture.failedFuture(new IllegalStateException("Editor support is closed."));
     }
 
     try {
       Position position = getCaretPosition();
-      return client.definition(new DefinitionParams(new TextDocumentIdentifier(document.getUri()), position));
+      return client.definition(
+          new DefinitionParams(new TextDocumentIdentifier(document.getUri()), position));
     } catch (BadLocationException error) {
       return CompletableFuture.failedFuture(error);
     }
@@ -121,74 +119,86 @@ public final class LspEditorSupport implements AutoCloseable {
     try {
       position = getCaretPosition();
     } catch (BadLocationException error) {
-      LOGGER.warn("Unable to map editor caret to an LSP position for {}.", document.getUri(), error);
+      LOGGER.warn(
+          "Unable to map editor caret to an LSP position for {}.", document.getUri(), error);
       return;
     }
 
-    CompletionParams params = new CompletionParams(
-        new TextDocumentIdentifier(document.getUri()),
-        position,
-        new CompletionContext(CompletionTriggerKind.Invoked));
-    client.completion(params).whenComplete((completionResult, error) -> {
-      if (error != null) {
-        LOGGER.debug("LSP completion request failed for {}.", document.getUri(), error);
-        return;
-      }
-      if (closed) {
-        return;
-      }
+    CompletionParams params =
+        new CompletionParams(
+            new TextDocumentIdentifier(document.getUri()),
+            position,
+            new CompletionContext(CompletionTriggerKind.Invoked));
+    client
+        .completion(params)
+        .whenComplete(
+            (completionResult, error) -> {
+              if (error != null) {
+                LOGGER.debug("LSP completion request failed for {}.", document.getUri(), error);
+                return;
+              }
+              if (closed) {
+                return;
+              }
 
-      List<CompletionItem> resolvedItems = getCompletionItems(completionResult);
-      ThreadMaster.getInstance().executeOnEDT(() -> {
-        if (closed || document.getVersion() != version
-            || editor.getCaretPosition() != positionToOffset(position)) {
-          return;
-        }
-        completionProvider.setItems(resolvedItems);
-        int caret = editor.getCaretPosition();
-        if(caret > 0 && editor.hasFocus() && ! resolvedItems.isEmpty()){
-        	try{
-        		char lastChar = editor.getText(caret-1,1).charAt(0);
-        		if(Character.isLetterOrDigit(lastChar) || lastChar == '.'){
-        			autoCompletion.doCompletion();
-        		}
-        	}catch(BadLocationException i){}
-        }
-      });
-    });
+              List<CompletionItem> resolvedItems = getCompletionItems(completionResult);
+              ThreadMaster.getInstance()
+                  .executeOnEDT(
+                      () -> {
+                        if (closed
+                            || document.getVersion() != version
+                            || editor.getCaretPosition() != positionToOffset(position)) {
+                          return;
+                        }
+                        completionProvider.setItems(resolvedItems);
+                        int caret = editor.getCaretPosition();
+                        if (caret > 0 && editor.hasFocus() && !resolvedItems.isEmpty()) {
+                          try {
+                            char lastChar = editor.getText(caret - 1, 1).charAt(0);
+                            if (Character.isLetterOrDigit(lastChar) || lastChar == '.') {
+                              autoCompletion.doCompletion();
+                            }
+                          } catch (BadLocationException i) {
+                          }
+                        }
+                      });
+            });
   }
 
   public CompletableFuture<Void> formatDocument() {
-	  if (closed) {
-	    return CompletableFuture.completedFuture(null);
-	  }
-	
-	  DocumentFormattingParams params = new DocumentFormattingParams(
-	      new TextDocumentIdentifier(document.getUri()),
-	      new FormattingOptions(4, true) 
-	  );
-	
-	  return client.formatting(params).thenAcceptAsync(edits -> {
-	    if (edits == null || edits.isEmpty() || closed) {
-	      return;
-	    }
-	    
-	    ThreadMaster.getInstance().executeOnEDT(() -> applyFormattingEdits(edits));
-	  }, ThreadMaster.getInstance()::executeOnEDT);
-	}
+    if (closed) {
+      return CompletableFuture.completedFuture(null);
+    }
 
-	private void applyFormattingEdits(List<? extends TextEdit> edits) {
-	  for (int i = edits.size() - 1; i >= 0; i--) {
-	    TextEdit edit = edits.get(i);
-	    try {
-	      int start = positionToOffset(edit.getRange().getStart());
-	      int end = positionToOffset(edit.getRange().getEnd());
-	      editor.replaceRange(edit.getNewText(), start, end);
-	    } catch (Exception error) {
-	      LOGGER.warn("Erro ao aplicar formatação do LSP em {}.", document.getUri(), error);
-	    }
-	  }
-	}
+    DocumentFormattingParams params =
+        new DocumentFormattingParams(
+            new TextDocumentIdentifier(document.getUri()), new FormattingOptions(4, true));
+
+    return client
+        .formatting(params)
+        .thenAcceptAsync(
+            edits -> {
+              if (edits == null || edits.isEmpty() || closed) {
+                return;
+              }
+
+              ThreadMaster.getInstance().executeOnEDT(() -> applyFormattingEdits(edits));
+            },
+            ThreadMaster.getInstance()::executeOnEDT);
+  }
+
+  private void applyFormattingEdits(List<? extends TextEdit> edits) {
+    for (int i = edits.size() - 1; i >= 0; i--) {
+      TextEdit edit = edits.get(i);
+      try {
+        int start = positionToOffset(edit.getRange().getStart());
+        int end = positionToOffset(edit.getRange().getEnd());
+        editor.replaceRange(edit.getNewText(), start, end);
+      } catch (Exception error) {
+        LOGGER.warn("Erro ao aplicar formatação do LSP em {}.", document.getUri(), error);
+      }
+    }
+  }
 
   private Position getCaretPosition() throws BadLocationException {
     int caret = editor.getCaretPosition();
@@ -200,7 +210,8 @@ public final class LspEditorSupport implements AutoCloseable {
     try {
       return editor.getLineStartOffset(position.getLine()) + position.getCharacter();
     } catch (BadLocationException error) {
-      LOGGER.debug("Unable to map LSP position back to editor offset for {}.", document.getUri(), error);
+      LOGGER.debug(
+          "Unable to map LSP position back to editor offset for {}.", document.getUri(), error);
       return -1;
     }
   }

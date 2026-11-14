@@ -1,14 +1,12 @@
 package io.simpleide.ui.menubar.menus;
 
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.ui.menubar.ThemeManager;
 import javax.swing.ButtonGroup;
 import javax.swing.JMenu;
 import javax.swing.JRadioButtonMenuItem;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.ui.menubar.ThemeManager;
 
 public final class ThemeMenu extends JMenu {
 
@@ -54,29 +52,39 @@ public final class ThemeMenu extends JMenu {
   }
 
   protected void configureActions() {
-    light.addActionListener(new ActionNode(e -> {
-      LOGGER.info("Set light theme");
-      ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.LIGHT);
-    }));
+    light.addActionListener(
+        new ActionNode(
+            e -> {
+              LOGGER.info("Set light theme");
+              ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.LIGHT);
+            }));
 
-    dark.addActionListener(new ActionNode(e -> {
-      LOGGER.info("Set dark theme");
-      ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DARK);
-    }));
+    dark.addActionListener(
+        new ActionNode(
+            e -> {
+              LOGGER.info("Set dark theme");
+              ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DARK);
+            }));
 
-    darcula.addActionListener(new ActionNode(e -> {
-      LOGGER.info("Set Darcula theme");
-      ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DRACULA);
-    }));
+    darcula.addActionListener(
+        new ActionNode(
+            e -> {
+              LOGGER.info("Set Darcula theme");
+              ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DRACULA);
+            }));
 
-    brown.addActionListener(new ActionNode(e -> {
-      LOGGER.info("Set Brown theme");
-      ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.BROWN);
-    }));
+    brown.addActionListener(
+        new ActionNode(
+            e -> {
+              LOGGER.info("Set Brown theme");
+              ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.BROWN);
+            }));
 
-    brownLight.addActionListener(new ActionNode(e -> {
-      LOGGER.info("Set Brown Light theme");
-      ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.BROWN_LIGHT);
-    }));
+    brownLight.addActionListener(
+        new ActionNode(
+            e -> {
+              LOGGER.info("Set Brown Light theme");
+              ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.BROWN_LIGHT);
+            }));
   }
 }

@@ -72,8 +72,9 @@ public final class Directory extends TreeFile {
           try {
             loadedChildren.add(new File(entry));
           } catch (MalformedInputException exception) {
-            loadedChildren.add(new File(entry, entry.getFileName().toString(),
-                TypeFile.BINARY, new StringBuffer()));
+            loadedChildren.add(
+                new File(
+                    entry, entry.getFileName().toString(), TypeFile.BINARY, new StringBuffer()));
           }
         }
       }

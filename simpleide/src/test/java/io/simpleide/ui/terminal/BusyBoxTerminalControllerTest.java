@@ -1,10 +1,20 @@
 package io.simpleide.ui.terminal;
 
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import com.pty4j.PtyProcess;
+import com.pty4j.WinSize;
+import io.simpleide.language.config.LangPlatform;
 import java.awt.Component;
 import java.awt.Container;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,339 +23,347 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
 import javax.swing.JButton;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
-
-import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.junit.jupiter.api.Test;
-
-import com.pty4j.PtyProcess;
-import com.pty4j.WinSize;
-
-import io.simpleide.language.config.LangPlatform;
 
 class BusyBoxTerminalControllerTest {
 
-    @Test
-    void keepsMultipleSessionsAliveAfterTheirLaunchTasksComplete() throws Exception {
-        LangPlatform platform = LangPlatform.getCurrentPlatform();
-        assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+  @Test
+  void keepsMultipleSessionsAliveAfterTheirLaunchTasksComplete() throws Exception {
+    LangPlatform platform = LangPlatform.getCurrentPlatform();
+    assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
 
-        TerminalPanel panel = new TerminalPanel();
-        BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
-        SwingUtilities.invokeAndWait(() -> {
-            JButton addButton = findButtons(panel).get(0);
-            addButton.doClick();
-            addButton.doClick();
+    TerminalPanel panel = new TerminalPanel();
+    BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
+    SwingUtilities.invokeAndWait(
+        () -> {
+          JButton addButton = findButtons(panel).get(0);
+          addButton.doClick();
+          addButton.doClick();
         });
 
-        await("Both terminal launch tasks should finish without stopping their BusyBox processes")
-            .during(3, TimeUnit.SECONDS)
-            .atMost(10, TimeUnit.SECONDS)
-            .until(() -> {
-                List<TerminalState> states = terminalStates(controller);
-                return states.size() == 2
-                    && states.stream().allMatch(state -> state.launchComplete && state.session != null
-                        && state.session.isAlive());
+    await("Both terminal launch tasks should finish without stopping their BusyBox processes")
+        .during(3, TimeUnit.SECONDS)
+        .atMost(10, TimeUnit.SECONDS)
+        .until(
+            () -> {
+              List<TerminalState> states = terminalStates(controller);
+              return states.size() == 2
+                  && states.stream()
+                      .allMatch(
+                          state ->
+                              state.launchComplete
+                                  && state.session != null
+                                  && state.session.isAlive());
             });
 
-        assertEquals(2, terminalStates(controller).size());
+    assertEquals(2, terminalStates(controller).size());
 
-        CountDownLatch closed = new CountDownLatch(1);
-        controller.onWindowClosing(closed::countDown);
-        assertTrue(closed.await(10, TimeUnit.SECONDS));
-    }
+    CountDownLatch closed = new CountDownLatch(1);
+    controller.onWindowClosing(closed::countDown);
+    assertTrue(closed.await(10, TimeUnit.SECONDS));
+  }
 
-    @Test
-    void closesTheSelectedTerminalWithoutBlockingTheEdt() throws Exception {
-        LangPlatform platform = LangPlatform.getCurrentPlatform();
-        assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+  @Test
+  void closesTheSelectedTerminalWithoutBlockingTheEdt() throws Exception {
+    LangPlatform platform = LangPlatform.getCurrentPlatform();
+    assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
 
-        TerminalPanel panel = new TerminalPanel();
-        BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
-        SwingUtilities.invokeAndWait(() -> findButtons(panel).get(0).doClick());
+    TerminalPanel panel = new TerminalPanel();
+    BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
+    SwingUtilities.invokeAndWait(() -> findButtons(panel).get(0).doClick());
 
-        await("The terminal should finish launching")
-            .atMost(10, TimeUnit.SECONDS)
-            .until(() -> terminalStates(controller).stream()
-                .anyMatch(state -> state.launchComplete && state.session != null && state.session.isAlive()));
-        await("The close button should become enabled")
-            .atMost(5, TimeUnit.SECONDS)
-            .until(() -> isCloseButtonEnabled(panel));
-        awaitEdtIdle();
+    await("The terminal should finish launching")
+        .atMost(10, TimeUnit.SECONDS)
+        .until(
+            () ->
+                terminalStates(controller).stream()
+                    .anyMatch(
+                        state ->
+                            state.launchComplete
+                                && state.session != null
+                                && state.session.isAlive()));
+    await("The close button should become enabled")
+        .atMost(5, TimeUnit.SECONDS)
+        .until(() -> isCloseButtonEnabled(panel));
+    awaitEdtIdle();
 
-        CountDownLatch closeActionReturned = new CountDownLatch(1);
-        SwingUtilities.invokeLater(() -> {
-            findButtons(panel).stream()
-                .filter(BusyBoxTerminalControllerTest::isCloseButton)
-                .findFirst()
-                .orElseThrow()
-                .doClick();
-            closeActionReturned.countDown();
+    CountDownLatch closeActionReturned = new CountDownLatch(1);
+    SwingUtilities.invokeLater(
+        () -> {
+          findButtons(panel).stream()
+              .filter(BusyBoxTerminalControllerTest::isCloseButton)
+              .findFirst()
+              .orElseThrow()
+              .doClick();
+          closeActionReturned.countDown();
         });
-        assertTrue(
-            closeActionReturned.await(5, TimeUnit.SECONDS),
-            "Closing a terminal blocked the EDT."
-        );
+    assertTrue(
+        closeActionReturned.await(5, TimeUnit.SECONDS), "Closing a terminal blocked the EDT.");
 
-        await("The terminal process should close after the close action")
-            .atMost(10, TimeUnit.SECONDS)
-            .until(() -> terminalStates(controller).isEmpty());
-        await("The terminal tab should be removed on the EDT")
-            .atMost(5, TimeUnit.SECONDS)
-            .until(() -> terminalTabCount(panel) == 0);
+    await("The terminal process should close after the close action")
+        .atMost(10, TimeUnit.SECONDS)
+        .until(() -> terminalStates(controller).isEmpty());
+    await("The terminal tab should be removed on the EDT")
+        .atMost(5, TimeUnit.SECONDS)
+        .until(() -> terminalTabCount(panel) == 0);
 
-        CountDownLatch closed = new CountDownLatch(1);
-        controller.onWindowClosing(closed::countDown);
-        assertTrue(closed.await(5, TimeUnit.SECONDS));
-    }
+    CountDownLatch closed = new CountDownLatch(1);
+    controller.onWindowClosing(closed::countDown);
+    assertTrue(closed.await(5, TimeUnit.SECONDS));
+  }
 
-    @Test
-    void detachesAndRemovesTabWhenTerminalProcessCannotBeStopped() throws Exception {
-        LangPlatform platform = LangPlatform.getCurrentPlatform();
-        assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+  @Test
+  void detachesAndRemovesTabWhenTerminalProcessCannotBeStopped() throws Exception {
+    LangPlatform platform = LangPlatform.getCurrentPlatform();
+    assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
 
-        TerminalPanel panel = new TerminalPanel();
-        BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
-        SwingUtilities.invokeAndWait(() -> findButtons(panel).get(0).doClick());
+    TerminalPanel panel = new TerminalPanel();
+    BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, platform);
+    SwingUtilities.invokeAndWait(() -> findButtons(panel).get(0).doClick());
 
-        await("The terminal should finish launching")
-            .atMost(10, TimeUnit.SECONDS)
-            .until(() -> terminalStates(controller).stream()
-                .anyMatch(state -> state.launchComplete && state.session != null && state.session.isAlive()));
+    await("The terminal should finish launching")
+        .atMost(10, TimeUnit.SECONDS)
+        .until(
+            () ->
+                terminalStates(controller).stream()
+                    .anyMatch(
+                        state ->
+                            state.launchComplete
+                                && state.session != null
+                                && state.session.isAlive()));
 
-        await("The close button should become enabled")
-            .atMost(5, TimeUnit.SECONDS)
-            .until(() -> isCloseButtonEnabled(panel));
-        awaitEdtIdle();
+    await("The close button should become enabled")
+        .atMost(5, TimeUnit.SECONDS)
+        .until(() -> isCloseButtonEnabled(panel));
+    awaitEdtIdle();
 
-        BusyBoxTerminalSession session = terminalStates(controller).get(0).session;
-        NeverEndingPtyProcess stuckProcess = new NeverEndingPtyProcess();
-        setField(session, "process", stuckProcess);
+    BusyBoxTerminalSession session = terminalStates(controller).get(0).session;
+    NeverEndingPtyProcess stuckProcess = new NeverEndingPtyProcess();
+    setField(session, "process", stuckProcess);
 
-        CountDownLatch closeActionReturned = new CountDownLatch(1);
-        SwingUtilities.invokeLater(() -> {
-            findButtons(panel).stream()
-                .filter(BusyBoxTerminalControllerTest::isCloseButton)
-                .findFirst()
-                .orElseThrow()
-                .doClick();
-            closeActionReturned.countDown();
+    CountDownLatch closeActionReturned = new CountDownLatch(1);
+    SwingUtilities.invokeLater(
+        () -> {
+          findButtons(panel).stream()
+              .filter(BusyBoxTerminalControllerTest::isCloseButton)
+              .findFirst()
+              .orElseThrow()
+              .doClick();
+          closeActionReturned.countDown();
         });
-        assertTrue(
-            closeActionReturned.await(5, TimeUnit.SECONDS),
-            "Closing a stuck terminal blocked the EDT."
-        );
+    assertTrue(
+        closeActionReturned.await(5, TimeUnit.SECONDS),
+        "Closing a stuck terminal blocked the EDT.");
 
-        await("A terminal whose process cannot be stopped should still be removed from the UI")
-            .atMost(15, TimeUnit.SECONDS)
-            .until(() -> terminalStates(controller).isEmpty() && terminalTabCount(panel) == 0);
+    await("A terminal whose process cannot be stopped should still be removed from the UI")
+        .atMost(15, TimeUnit.SECONDS)
+        .until(() -> terminalStates(controller).isEmpty() && terminalTabCount(panel) == 0);
 
-        assertTrue(stuckProcess.isAlive(), "The fake unstoppable process should still be alive after detach.");
-        stuckProcess.markExited();
+    assertTrue(
+        stuckProcess.isAlive(), "The fake unstoppable process should still be alive after detach.");
+    stuckProcess.markExited();
 
-        CountDownLatch closed = new CountDownLatch(1);
-        controller.onWindowClosing(closed::countDown);
-        assertTrue(closed.await(5, TimeUnit.SECONDS));
+    CountDownLatch closed = new CountDownLatch(1);
+    controller.onWindowClosing(closed::countDown);
+    assertTrue(closed.await(5, TimeUnit.SECONDS));
+  }
+
+  private static void setField(Object target, String name, Object value) throws Exception {
+    Field field = target.getClass().getDeclaredField(name);
+    field.setAccessible(true);
+    field.set(target, value);
+  }
+
+  private static void awaitEdtIdle() throws Exception {
+    // Drain pending UI work before measuring how long the close action takes; terminal panels can
+    // still be laying themselves out after the launch task has completed.
+    SwingUtilities.invokeAndWait(() -> {});
+  }
+
+  private static boolean isCloseButtonEnabled(TerminalPanel panel) {
+    AtomicInteger enabled = new AtomicInteger();
+    try {
+      SwingUtilities.invokeAndWait(
+          () ->
+              enabled.set(
+                  findButtons(panel).stream()
+                          .filter(BusyBoxTerminalControllerTest::isCloseButton)
+                          .findFirst()
+                          .map(JButton::isEnabled)
+                          .orElse(false)
+                      ? 1
+                      : 0));
+    } catch (InterruptedException | InvocationTargetException exception) {
+      throw new AssertionError("Unable to read terminal button state.", exception);
     }
+    return enabled.get() == 1;
+  }
 
-    private static void setField(Object target, String name, Object value) throws Exception {
-        Field field = target.getClass().getDeclaredField(name);
-        field.setAccessible(true);
-        field.set(target, value);
-    }
+  private static boolean isCloseButton(JButton button) {
+    return "Close selected terminal".equals(button.getAccessibleContext().getAccessibleName());
+  }
 
-    private static void awaitEdtIdle() throws Exception {
-        // Drain pending UI work before measuring how long the close action takes; terminal panels can
-        // still be laying themselves out after the launch task has completed.
-        SwingUtilities.invokeAndWait(() -> {
+  @Test
+  void disablesTerminalCreationWhenPlatformIsUnsupported() throws Exception {
+    TerminalPanel panel = new TerminalPanel();
+    BusyBoxTerminalController controller =
+        new BusyBoxTerminalController(panel, LangPlatform.UNKNOWN);
+
+    SwingUtilities.invokeAndWait(
+        () -> {
+          JButton addButton = findButtons(panel).get(0);
+          assertFalse(addButton.isEnabled());
+          assertEquals("Terminal is not supported on this platform", addButton.getToolTipText());
+          addButton.doClick();
         });
+
+    assertTrue(terminalStates(controller).isEmpty());
+    assertEquals(0, terminalTabCount(panel));
+
+    CountDownLatch closed = new CountDownLatch(1);
+    controller.onWindowClosing(closed::countDown);
+    assertTrue(closed.await(1, TimeUnit.SECONDS));
+  }
+
+  private static List<JButton> findButtons(Component component) {
+    List<JButton> buttons = new ArrayList<>();
+    collectButtons(component, buttons);
+    return buttons;
+  }
+
+  private static void collectButtons(Component component, List<JButton> buttons) {
+    if (component instanceof JButton button) {
+      buttons.add(button);
+    }
+    if (component instanceof Container container) {
+      for (Component child : container.getComponents()) {
+        collectButtons(child, buttons);
+      }
+    }
+  }
+
+  private static int terminalTabCount(TerminalPanel panel) {
+    AtomicInteger tabCount = new AtomicInteger();
+    try {
+      SwingUtilities.invokeAndWait(() -> tabCount.set(findTabbedPane(panel).getTabCount()));
+    } catch (InterruptedException | InvocationTargetException exception) {
+      throw new AssertionError("Unable to read terminal tab count.", exception);
+    }
+    return tabCount.get();
+  }
+
+  private static JTabbedPane findTabbedPane(Component component) {
+    if (component instanceof JTabbedPane tabbedPane) {
+      return tabbedPane;
+    }
+    if (component instanceof Container container) {
+      for (Component child : container.getComponents()) {
+        JTabbedPane result = findTabbedPane(child);
+        if (result != null) {
+          return result;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static List<TerminalState> terminalStates(BusyBoxTerminalController controller) {
+    try {
+      Field tabsField = BusyBoxTerminalController.class.getDeclaredField("tabs");
+      tabsField.setAccessible(true);
+      Map<?, ?> tabs = (Map<?, ?>) tabsField.get(controller);
+      List<TerminalState> states = new ArrayList<>();
+      for (Object tab : tabs.values()) {
+        Field sessionField = tab.getClass().getDeclaredField("session");
+        Field launchCompleteField = tab.getClass().getDeclaredField("launchComplete");
+        sessionField.setAccessible(true);
+        launchCompleteField.setAccessible(true);
+        states.add(
+            new TerminalState(
+                (BusyBoxTerminalSession) sessionField.get(tab),
+                launchCompleteField.getBoolean(tab)));
+      }
+      return states;
+    } catch (ReflectiveOperationException exception) {
+      throw new AssertionError("Unable to inspect terminal session state.", exception);
+    }
+  }
+
+  private record TerminalState(BusyBoxTerminalSession session, boolean launchComplete) {}
+
+  private static final class NeverEndingPtyProcess extends PtyProcess {
+
+    private final AtomicBoolean alive = new AtomicBoolean(true);
+
+    @Override
+    public void setWinSize(WinSize winSize) {}
+
+    @Override
+    public WinSize getWinSize() {
+      return new WinSize(80, 24);
     }
 
-    private static boolean isCloseButtonEnabled(TerminalPanel panel) {
-        AtomicInteger enabled = new AtomicInteger();
-        try {
-            SwingUtilities.invokeAndWait(() -> enabled.set(
-                findButtons(panel).stream()
-                    .filter(BusyBoxTerminalControllerTest::isCloseButton)
-                    .findFirst()
-                    .map(JButton::isEnabled)
-                    .orElse(false) ? 1 : 0
-            ));
-        } catch (Exception exception) {
-            throw new AssertionError("Unable to read terminal button state.", exception);
-        }
-        return enabled.get() == 1;
+    @Override
+    public OutputStream getOutputStream() {
+      return OutputStream.nullOutputStream();
     }
 
-    private static boolean isCloseButton(JButton button) {
-        return "Close selected terminal".equals(button.getAccessibleContext().getAccessibleName());
+    @Override
+    public InputStream getInputStream() {
+      return InputStream.nullInputStream();
     }
 
-    @Test
-    void disablesTerminalCreationWhenPlatformIsUnsupported() throws Exception {
-        TerminalPanel panel = new TerminalPanel();
-        BusyBoxTerminalController controller = new BusyBoxTerminalController(panel, LangPlatform.UNKNOWN);
-
-        SwingUtilities.invokeAndWait(() -> {
-            JButton addButton = findButtons(panel).get(0);
-            assertFalse(addButton.isEnabled());
-            assertEquals("Terminal is not supported on this platform", addButton.getToolTipText());
-            addButton.doClick();
-        });
-
-        assertTrue(terminalStates(controller).isEmpty());
-        assertEquals(0, terminalTabCount(panel));
-
-        CountDownLatch closed = new CountDownLatch(1);
-        controller.onWindowClosing(closed::countDown);
-        assertTrue(closed.await(1, TimeUnit.SECONDS));
+    @Override
+    public InputStream getErrorStream() {
+      return InputStream.nullInputStream();
     }
 
-    private static List<JButton> findButtons(Component component) {
-        List<JButton> buttons = new ArrayList<>();
-        collectButtons(component, buttons);
-        return buttons;
+    @Override
+    public int waitFor() {
+      return isAlive() ? -1 : 0;
     }
 
-    private static void collectButtons(Component component, List<JButton> buttons) {
-        if (component instanceof JButton button) {
-            buttons.add(button);
-        }
-        if (component instanceof Container container) {
-            for (Component child : container.getComponents()) {
-                collectButtons(child, buttons);
-            }
-        }
+    @Override
+    public boolean waitFor(long timeout, TimeUnit unit) {
+      return !isAlive();
     }
 
-    private static int terminalTabCount(TerminalPanel panel) {
-        AtomicInteger tabCount = new AtomicInteger();
-        try {
-            SwingUtilities.invokeAndWait(() -> tabCount.set(findTabbedPane(panel).getTabCount()));
-        } catch (Exception exception) {
-            throw new AssertionError("Unable to read terminal tab count.", exception);
-        }
-        return tabCount.get();
+    @Override
+    public int exitValue() {
+      if (isAlive()) {
+        throw new IllegalThreadStateException("Process has not exited.");
+      }
+      return 0;
     }
 
-    private static JTabbedPane findTabbedPane(Component component) {
-        if (component instanceof JTabbedPane tabbedPane) {
-            return tabbedPane;
-        }
-        if (component instanceof Container container) {
-            for (Component child : container.getComponents()) {
-                JTabbedPane result = findTabbedPane(child);
-                if (result != null) {
-                    return result;
-                }
-            }
-        }
-        return null;
+    @Override
+    public void destroy() {}
+
+    @Override
+    public Process destroyForcibly() {
+      return this;
     }
 
-    private static List<TerminalState> terminalStates(BusyBoxTerminalController controller) {
-        try {
-            Field tabsField = BusyBoxTerminalController.class.getDeclaredField("tabs");
-            tabsField.setAccessible(true);
-            Map<?, ?> tabs = (Map<?, ?>) tabsField.get(controller);
-            List<TerminalState> states = new ArrayList<>();
-            for (Object tab : tabs.values()) {
-                Field sessionField = tab.getClass().getDeclaredField("session");
-                Field launchCompleteField = tab.getClass().getDeclaredField("launchComplete");
-                sessionField.setAccessible(true);
-                launchCompleteField.setAccessible(true);
-                states.add(new TerminalState(
-                    (BusyBoxTerminalSession) sessionField.get(tab),
-                    launchCompleteField.getBoolean(tab)
-                ));
-            }
-            return states;
-        } catch (ReflectiveOperationException exception) {
-            throw new AssertionError("Unable to inspect terminal session state.", exception);
-        }
+    @Override
+    public boolean isAlive() {
+      return alive.get();
     }
 
-    private record TerminalState(BusyBoxTerminalSession session, boolean launchComplete) {}
-
-    private static final class NeverEndingPtyProcess extends PtyProcess {
-
-        private final AtomicBoolean alive = new AtomicBoolean(true);
-
-        @Override
-        public void setWinSize(WinSize winSize) {
-        }
-
-        @Override
-        public WinSize getWinSize() {
-            return new WinSize(80, 24);
-        }
-
-        @Override
-        public OutputStream getOutputStream() {
-            return OutputStream.nullOutputStream();
-        }
-
-        @Override
-        public InputStream getInputStream() {
-            return InputStream.nullInputStream();
-        }
-
-        @Override
-        public InputStream getErrorStream() {
-            return InputStream.nullInputStream();
-        }
-
-        @Override
-        public int waitFor() {
-            return isAlive() ? -1 : 0;
-        }
-
-        @Override
-        public boolean waitFor(long timeout, TimeUnit unit) {
-            return !isAlive();
-        }
-
-        @Override
-        public int exitValue() {
-            if (isAlive()) {
-                throw new IllegalThreadStateException("Process has not exited.");
-            }
-            return 0;
-        }
-
-        @Override
-        public void destroy() {
-        }
-
-        @Override
-        public Process destroyForcibly() {
-            return this;
-        }
-
-        @Override
-        public boolean isAlive() {
-            return alive.get();
-        }
-
-        @Override
-        public long pid() {
-            return 999_999_999L;
-        }
-
-        @Override
-        public CompletableFuture<Process> onExit() {
-            return new CompletableFuture<>();
-        }
-
-        private void markExited() {
-            alive.set(false);
-        }
+    @Override
+    public long pid() {
+      return 999_999_999L;
     }
+
+    @Override
+    public CompletableFuture<Process> onExit() {
+      return new CompletableFuture<>();
+    }
+
+    private void markExited() {
+      alive.set(false);
+    }
+  }
 }

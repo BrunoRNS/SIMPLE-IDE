@@ -6,41 +6,39 @@ import io.simpleide.thread.nodes.NodePattern;
 
 public class EDTNode extends Node {
 
-    public EDTNode() {
-        super(ThreadMaster.getInstance().getROOT());
-    }
+  public EDTNode() {
+    super(ThreadMaster.getInstance().getROOT());
+  }
 
-    public EDTNode(NodePattern actual) {
-        super(ThreadMaster.getInstance().getROOT(), actual);
-    }
+  public EDTNode(NodePattern actual) {
+    super(ThreadMaster.getInstance().getROOT(), actual);
+  }
 
-    public EDTNode(Runnable onStart) {
-        super(ThreadMaster.getInstance().getROOT(), onStart);
-    }
+  public EDTNode(Runnable onStart) {
+    super(ThreadMaster.getInstance().getROOT(), onStart);
+  }
 
-    public EDTNode(Runnable onStart, Runnable onClose) {
-        super(ThreadMaster.getInstance().getROOT(), onStart, onClose);
-    }
+  public EDTNode(Runnable onStart, Runnable onClose) {
+    super(ThreadMaster.getInstance().getROOT(), onStart, onClose);
+  }
 
+  @Override
+  public Runnable onStart() {
+    return this.start;
+  }
 
-    @Override
-    public Runnable onStart() {
-        return this.start;
-    }
+  @Override
+  public Runnable onClose() {
+    return this.close;
+  }
 
-    @Override
-    public Runnable onClose() {
-        return this.close;
-    }
+  @Override
+  public Integer level() {
+    return 1;
+  }
 
-    @Override
-    public Integer level() {
-        return 1;
-    }
-
-    @Override
-    public boolean isEDT() {
-        return true;
-    }
-    
+  @Override
+  public boolean isEDT() {
+    return true;
+  }
 }

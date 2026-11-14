@@ -1,8 +1,9 @@
 package io.simpleide.ui.menubar.menus;
 
+import io.simpleide.SimpleIDEVersion;
+import io.simpleide.frame.popup.InfoPopUP;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
-
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -11,9 +12,6 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.table.DefaultTableModel;
-
-import io.simpleide.SimpleIDEVersion;
-import io.simpleide.frame.popup.InfoPopUP;
 
 public class HelpMenu extends JMenu {
 
@@ -26,22 +24,24 @@ public class HelpMenu extends JMenu {
   }
 
   private JMenuItem createMenuItem(String label, Runnable action) {
-    return new JMenuItem(new AbstractAction(label) {
-      @Override
-      public void actionPerformed(ActionEvent event) {
-        action.run();
-      }
-    });
+    return new JMenuItem(
+        new AbstractAction(label) {
+          @Override
+          public void actionPerformed(ActionEvent event) {
+            action.run();
+          }
+        });
   }
 
   private void showKeyboardShortcuts() {
     String[] columns = {"Shortcut", "Action"};
-    DefaultTableModel model_ = new DefaultTableModel(columns, 0) {
-      @Override
-      public boolean isCellEditable(int row, int column) {
-        return false;
-      }
-    };
+    DefaultTableModel model_ =
+        new DefaultTableModel(columns, 0) {
+          @Override
+          public boolean isCellEditable(int row, int column) {
+            return false;
+          }
+        };
     JTable shortcutsTable = new JTable(model_);
     shortcutsTable.setFillsViewportHeight(true);
     model_.addRow(new Object[] {"Ctrl+S", "Save the current file"});
@@ -56,18 +56,19 @@ public class HelpMenu extends JMenu {
 
   private void showMachineInformation() {
     Runtime runtime = Runtime.getRuntime();
-    String information = String.format(
-        "Operating system: %s %s (%s)%n"
-            + "Java: %s (%s)%n"
-            + "Available processors: %d%n"
-            + "Maximum JVM memory: %s",
-        System.getProperty("os.name"),
-        System.getProperty("os.version"),
-        System.getProperty("os.arch"),
-        System.getProperty("java.version"),
-        System.getProperty("java.vendor"),
-        runtime.availableProcessors(),
-        formatBytes(runtime.maxMemory()));
+    String information =
+        String.format(
+            "Operating system: %s %s (%s)%n"
+                + "Java: %s (%s)%n"
+                + "Available processors: %d%n"
+                + "Maximum JVM memory: %s",
+            System.getProperty("os.name"),
+            System.getProperty("os.version"),
+            System.getProperty("os.arch"),
+            System.getProperty("java.version"),
+            System.getProperty("java.vendor"),
+            runtime.availableProcessors(),
+            formatBytes(runtime.maxMemory()));
 
     JTextArea textArea = new JTextArea(information);
     textArea.setEditable(false);
@@ -78,10 +79,12 @@ public class HelpMenu extends JMenu {
 
   private void showAbout() {
     new InfoPopUP(
-        "About Simple IDE",
-        "Simple IDE " + SimpleIDEVersion.VERSION
-            + "\nA lightweight, extensible development environment.",
-        this).startManaged();
+            "About Simple IDE",
+            "Simple IDE "
+                + SimpleIDEVersion.VERSION
+                + "\nA lightweight, extensible development environment.",
+            this)
+        .startManaged();
   }
 
   private String formatBytes(long bytes) {

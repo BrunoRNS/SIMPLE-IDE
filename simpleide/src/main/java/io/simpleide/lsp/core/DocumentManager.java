@@ -11,14 +11,9 @@ public class DocumentManager {
 
   public Document open(Path path, String languageId) {
 
-    String uri = path.toAbsolutePath()
-        .normalize()
-        .toUri()
-        .toString();
+    String uri = path.toAbsolutePath().normalize().toUri().toString();
 
-    return documents.computeIfAbsent(
-        uri,
-        key -> new Document(path, languageId));
+    return documents.computeIfAbsent(uri, key -> new Document(path, languageId));
   }
 
   public Document getDocument(String uri) {
@@ -30,7 +25,6 @@ public class DocumentManager {
   }
 
   public Collection<Document> getOpenDocuments() {
-    return Collections.unmodifiableCollection(
-        documents.values());
+    return Collections.unmodifiableCollection(documents.values());
   }
 }

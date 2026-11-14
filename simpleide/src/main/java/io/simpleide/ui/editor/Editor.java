@@ -1,15 +1,12 @@
 package io.simpleide.ui.editor;
 
-import java.awt.Font;
-import java.util.Objects;
-
-import javax.swing.UIManager;
-
-import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
-import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
-
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
+import java.awt.Font;
+import java.util.Objects;
+import javax.swing.UIManager;
+import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 
 public class Editor extends RSyntaxTextArea {
 
@@ -34,9 +31,18 @@ public class Editor extends RSyntaxTextArea {
 
   public void loadFile(File file) {
     Objects.requireNonNull(file, "file");
-    setSyntaxEditingStyle(getSyntaxStyle(file.getTypeFile()));
+    setSyntaxStyle(file.getTypeFile());
     setText(file.getCode().toString());
     setCaretPosition(0);
+  }
+
+  /**
+   * Applies the editor syntax style that corresponds to a file type.
+   *
+   * @param type file type to apply
+   */
+  public void setSyntaxStyle(TypeFile type) {
+    setSyntaxEditingStyle(syntaxStyleFor(type));
   }
 
   private void config() {
@@ -47,7 +53,14 @@ public class Editor extends RSyntaxTextArea {
     setSyntaxEditingStyle(SyntaxConstants.SYNTAX_STYLE_NONE);
   }
 
-  private String getSyntaxStyle(TypeFile type) {
+  /**
+   * Returns the RSyntaxTextArea syntax style constant for a file type.
+   *
+   * @param type file type to translate
+   * @return an RSyntaxTextArea syntax style constant
+   */
+  public static String syntaxStyleFor(TypeFile type) {
+    Objects.requireNonNull(type, "type");
     return switch (type) {
       case JAVA -> SyntaxConstants.SYNTAX_STYLE_JAVA;
       case CSHARP -> SyntaxConstants.SYNTAX_STYLE_CSHARP;

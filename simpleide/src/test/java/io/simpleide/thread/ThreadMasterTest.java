@@ -1,17 +1,5 @@
 package io.simpleide.thread;
 
-import java.math.BigInteger;
-import java.util.LinkedList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-
-import javax.swing.SwingUtilities;
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
@@ -21,637 +9,695 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.edt.EDTNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
+import java.math.BigInteger;
+import java.util.LinkedList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import javax.swing.SwingUtilities;
+import org.junit.jupiter.api.Test;
 
 class ThreadMasterTest {
 
-    private static final int TEST_TIMEOUT_SECONDS = 10;
-    private static final int STABILITY_WINDOW_MILLISECONDS = 500;
+  private static final int TEST_TIMEOUT_SECONDS = 10;
+  private static final int STABILITY_WINDOW_MILLISECONDS = 500;
 
-    @Test
-    void exposesOneThreadMasterInstance() {
-        assertSame(ThreadMaster.getInstance(), ThreadMasterHolder.INSTANCE);
-    }
+  @Test
+  void exposesOneThreadMasterInstance() {
+    assertSame(ThreadMaster.getInstance(), ThreadMasterHolder.INSTANCE);
+  }
 
-    @Test
-    void retainsTheRootProvidedToItsConstructor() {
-        NodePattern root = new NodePattern() {
-            @Override
-            public Runnable onStart() {
-                return () -> {};
-            }
+  @Test
+  void retainsTheRootProvidedToItsConstructor() {
+    NodePattern root =
+        new NodePattern() {
+          @Override
+          public Runnable onStart() {
+            return () -> {};
+          }
 
-            @Override
-            public Runnable onClose() {
-                return null;
-            }
+          @Override
+          public Runnable onClose() {
+            return null;
+          }
 
-            @Override
-            public Integer level() {
-                return 0;
-            }
+          @Override
+          public Integer level() {
+            return 0;
+          }
 
-            @Override
-            public boolean isEDT() {
-                return false;
-            }
+          @Override
+          public boolean isEDT() {
+            return false;
+          }
         };
-        ThreadMaster master = new ThreadMaster(root);
-        try {
-            assertSame(root, master.getROOT());
-            assertSame(root, master.getRoot().getNode());
-        } finally {
-            master.shutdown();
-        }
+    ThreadMaster master = new ThreadMaster(root);
+    try {
+      assertSame(root, master.getROOT());
+      assertSame(root, master.getRoot().getNode());
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void registersAndSchedulesNodesWithIdsBeyondThe32BitRange() throws Exception {
-        BigInteger largeId = BigInteger.ONE.shiftLeft(32).add(BigInteger.valueOf(17));
-        CountDownLatch taskStarted = new CountDownLatch(1);
-        NodePattern root = new NodePattern() {
-            @Override
-            public Runnable onStart() {
-                return () -> {};
-            }
+  @Test
+  void registersAndSchedulesNodesWithIdsBeyondThe32BitRange() throws Exception {
+    BigInteger largeId = BigInteger.ONE.shiftLeft(32).add(BigInteger.valueOf(17));
+    CountDownLatch taskStarted = new CountDownLatch(1);
+    NodePattern root =
+        new NodePattern() {
+          @Override
+          public Runnable onStart() {
+            return () -> {};
+          }
 
-            @Override
-            public Runnable onClose() {
-                return null;
-            }
+          @Override
+          public Runnable onClose() {
+            return null;
+          }
 
-            @Override
-            public Integer level() {
-                return 0;
-            }
+          @Override
+          public Integer level() {
+            return 0;
+          }
 
-            @Override
-            public boolean isEDT() {
-                return false;
-            }
+          @Override
+          public boolean isEDT() {
+            return false;
+          }
         };
-        NodePattern node = new NodePattern() {
-            @Override
-            public BigInteger getId() {
-                return largeId;
-            }
+    NodePattern node =
+        new NodePattern() {
+          @Override
+          public BigInteger getId() {
+            return largeId;
+          }
 
-            @Override
-            public Runnable onStart() {
-                return taskStarted::countDown;
-            }
+          @Override
+          public Runnable onStart() {
+            return taskStarted::countDown;
+          }
 
-            @Override
-            public Runnable onClose() {
-                return null;
-            }
+          @Override
+          public Runnable onClose() {
+            return null;
+          }
 
-            @Override
-            public Integer level() {
-                return 1;
-            }
+          @Override
+          public Integer level() {
+            return 1;
+          }
 
-            @Override
-            public boolean isEDT() {
-                return false;
-            }
+          @Override
+          public boolean isEDT() {
+            return false;
+          }
         };
-        ThreadMaster master = new ThreadMaster(root);
-        try {
-            master.register(node);
-            assertTrue(master.showTree().containsKey(largeId));
+    ThreadMaster master = new ThreadMaster(root);
+    try {
+      master.register(node);
+      assertTrue(master.showTree().containsKey(largeId));
 
-            master.initialize();
+      master.initialize();
 
-            assertTrue(taskStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        } finally {
-            master.shutdown();
-        }
+      assertTrue(taskStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void constructingNodeDoesNotInvokeParentActions() {
-        AtomicInteger parentActions = new AtomicInteger();
-        NodePattern root = new NodePattern() {
-            @Override
-            public Runnable onStart() {
-                parentActions.incrementAndGet();
-                return () -> {};
-            }
+  @Test
+  void constructingNodeDoesNotInvokeParentActions() {
+    AtomicInteger parentActions = new AtomicInteger();
+    NodePattern root =
+        new NodePattern() {
+          @Override
+          public Runnable onStart() {
+            parentActions.incrementAndGet();
+            return () -> {};
+          }
 
-            @Override
-            public Runnable onClose() {
-                parentActions.incrementAndGet();
-                return () -> {};
-            }
+          @Override
+          public Runnable onClose() {
+            parentActions.incrementAndGet();
+            return () -> {};
+          }
 
-            @Override
-            public Integer level() {
-                return 0;
-            }
+          @Override
+          public Integer level() {
+            return 0;
+          }
 
-            @Override
-            public boolean isEDT() {
-                return false;
-            }
+          @Override
+          public boolean isEDT() {
+            return false;
+          }
         };
 
-        RunnableNode node = new RunnableNode(root, () -> {});
+    RunnableNode node = new RunnableNode(root, () -> {});
 
-        assertNotNull(node);
-        assertEquals(0, parentActions.get());
+    assertNotNull(node);
+    assertEquals(0, parentActions.get());
+  }
+
+  @Test
+  void registersNodesInParentLevelOrderAndRemovesSubtrees() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    try {
+      RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+      RunnableNode child = new RunnableNode(parent, () -> {});
+
+      master.addNode(parent);
+      master.addNode(child);
+
+      assertEquals(
+          new LinkedList<>(
+              java.util.List.of(master.getRoot().getId(), parent.getId(), child.getId())),
+          master.bfs(master.getRoot(), new LinkedList<>()));
+      assertEquals(3, master.showTree().size());
+
+      master.removeNodeCascade(parent);
+
+      assertEquals(1, master.showTree().size());
+      assertFalse(master.showTree().containsKey(parent.getId()));
+      assertFalse(master.showTree().containsKey(child.getId()));
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void registersNodesInParentLevelOrderAndRemovesSubtrees() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        try {
-            RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
-            RunnableNode child = new RunnableNode(parent, () -> {});
+  @Test
+  void initializesRegisteredWorkOnceAndCapsConcurrencyForTwentyTasks() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    int workerCount = ThreadTaskScheduler.WORKER_COUNT;
+    int taskCount = 20;
+    CountDownLatch firstWorkersStarted = new CountDownLatch(workerCount);
+    CountDownLatch releaseWorkers = new CountDownLatch(1);
+    CountDownLatch allTasksFinished = new CountDownLatch(taskCount);
+    AtomicInteger active = new AtomicInteger();
+    AtomicInteger maximumActive = new AtomicInteger();
+    AtomicInteger starts = new AtomicInteger();
+    AtomicInteger closes = new AtomicInteger();
 
-            master.addNode(parent);
-            master.addNode(child);
+    try {
+      for (int i = 0; i < taskCount; i++) {
+        master.addNode(
+            new RunnableNode(
+                ThreadMaster.getInstance().getROOT(),
+                () -> {
+                  starts.incrementAndGet();
+                  assertFalse(SwingUtilities.isEventDispatchThread());
+                  int current = active.incrementAndGet();
+                  maximumActive.accumulateAndGet(current, Math::max);
+                  firstWorkersStarted.countDown();
+                  try {
+                    assertTrue(releaseWorkers.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                  } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                  } finally {
+                    active.decrementAndGet();
+                    allTasksFinished.countDown();
+                  }
+                },
+                closes::incrementAndGet));
+      }
 
-            assertEquals(
-                new LinkedList<>(java.util.List.of(
-                    master.getRoot().getId(),
-                    parent.getId(),
-                    child.getId()
-                )),
-                master.bfs(master.getRoot(), new LinkedList<>())
-            );
-            assertEquals(3, master.showTree().size());
+      master.initialize();
+      master.initialize();
 
-            master.removeNodeCascade(parent);
-
-            assertEquals(1, master.showTree().size());
-            assertFalse(master.showTree().containsKey(parent.getId()));
-            assertFalse(master.showTree().containsKey(child.getId()));
-        } finally {
-            master.shutdown();
-        }
+      assertTrue(firstWorkersStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertEquals(workerCount, maximumActive.get());
+      releaseWorkers.countDown();
+      assertTrue(allTasksFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      awaitValue(closes, taskCount);
+      assertEquals(taskCount, starts.get());
+      assertEquals(taskCount, closes.get());
+      assertTrue(maximumActive.get() <= workerCount);
+      await()
+          .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
+          .atMost(5, TimeUnit.SECONDS)
+          .untilAsserted(() -> assertEquals(taskCount, starts.get()));
+    } finally {
+      releaseWorkers.countDown();
+      master.shutdown();
     }
+  }
 
-    @Test
-    void initializesRegisteredWorkOnceAndCapsConcurrencyForTwentyTasks() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        int workerCount = ThreadTaskScheduler.WORKER_COUNT;
-        int taskCount = 20;
-        CountDownLatch firstWorkersStarted = new CountDownLatch(workerCount);
-        CountDownLatch releaseWorkers = new CountDownLatch(1);
-        CountDownLatch allTasksFinished = new CountDownLatch(taskCount);
-        AtomicInteger active = new AtomicInteger();
-        AtomicInteger maximumActive = new AtomicInteger();
-        AtomicInteger starts = new AtomicInteger();
-        AtomicInteger closes = new AtomicInteger();
+  @Test
+  void runsDedicatedPoolTasksAsManagedTreeChildren() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    ManagedThreadPool pool = master.createThreadPool("test-pool", 1);
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    CountDownLatch closed = new CountDownLatch(1);
+    AtomicReference<String> workerName = new AtomicReference<>();
 
-        try {
-            for (int i = 0; i < taskCount; i++) {
-                master.addNode(new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {
-                    starts.incrementAndGet();
-                    assertFalse(SwingUtilities.isEventDispatchThread());
-                    int current = active.incrementAndGet();
-                    maximumActive.accumulateAndGet(current, Math::max);
-                    firstWorkersStarted.countDown();
-                    try {
-                        assertTrue(releaseWorkers.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-                    } catch (InterruptedException exception) {
-                        Thread.currentThread().interrupt();
-                    } finally {
-                        active.decrementAndGet();
-                        allTasksFinished.countDown();
-                    }
-                }, closes::incrementAndGet));
-            }
-
-            master.initialize();
-            master.initialize();
-
-            assertTrue(firstWorkersStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertEquals(workerCount, maximumActive.get());
-            releaseWorkers.countDown();
-            assertTrue(allTasksFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            awaitValue(closes, taskCount);
-            assertEquals(taskCount, starts.get());
-            assertEquals(taskCount, closes.get());
-            assertTrue(maximumActive.get() <= workerCount);
-            await()
-                .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
-                .atMost(5, TimeUnit.SECONDS)
-                .untilAsserted(() -> assertEquals(taskCount, starts.get()));
-        } finally {
-            releaseWorkers.countDown();
-            master.shutdown();
-        }
-    }
-
-    @Test
-    void runsDedicatedPoolTasksAsManagedTreeChildren() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        ManagedThreadPool pool = master.createThreadPool("test-pool", 1);
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(1);
-        AtomicReference<String> workerName = new AtomicReference<>();
-
-        try {
-            NodePattern task = pool.execute(() -> {
+    try {
+      NodePattern task =
+          pool.execute(
+              () -> {
                 workerName.set(Thread.currentThread().getName());
                 started.countDown();
                 try {
-                    assertTrue(release.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+                  assertTrue(release.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
                 } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
+                  Thread.currentThread().interrupt();
                 }
-            }, closed::countDown);
+              },
+              closed::countDown);
 
-            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertTrue(master.showTree().containsKey(pool.node().getId()));
-            assertTrue(master.showTree().containsKey(task.getId()));
-            assertEquals(Boolean.TRUE, master.isNodeRunning(task));
-            assertTrue(workerName.get().startsWith("simpleide-test-pool-"));
+      assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertTrue(master.showTree().containsKey(pool.node().getId()));
+      assertTrue(master.showTree().containsKey(task.getId()));
+      assertEquals(Boolean.TRUE, master.isNodeRunning(task));
+      assertTrue(workerName.get().startsWith("simpleide-test-pool-"));
 
-            release.countDown();
-            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .until(() -> !master.showTree().containsKey(task.getId()));
-            assertEquals(2, master.showTree().size());
-        } finally {
-            release.countDown();
-            pool.close();
-            master.shutdown();
-        }
+      release.countDown();
+      assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      await()
+          .atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+          .until(() -> !master.showTree().containsKey(task.getId()));
+      assertEquals(2, master.showTree().size());
+    } finally {
+      release.countDown();
+      pool.close();
+      master.shutdown();
     }
+  }
 
-    @Test
-    void closingDedicatedPoolCancelsRunningAndQueuedTasks() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        ManagedThreadPool pool = master.createThreadPool("cancel-pool", 1);
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch interrupted = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(2);
-        AtomicInteger queuedTaskStarts = new AtomicInteger();
+  @Test
+  void closingDedicatedPoolCancelsRunningAndQueuedTasks() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    ManagedThreadPool pool = master.createThreadPool("cancel-pool", 1);
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch interrupted = new CountDownLatch(1);
+    CountDownLatch closed = new CountDownLatch(2);
+    AtomicInteger queuedTaskStarts = new AtomicInteger();
 
-        try {
-            pool.execute(() -> {
-                started.countDown();
-                try {
-                    new CountDownLatch(1).await();
-                } catch (InterruptedException exception) {
-                    interrupted.countDown();
-                    Thread.currentThread().interrupt();
-                }
-            }, closed::countDown);
-            pool.execute(queuedTaskStarts::incrementAndGet, closed::countDown);
-            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-
-            pool.close();
-
-            assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertEquals(0, queuedTaskStarts.get());
-            assertEquals(1, master.showTree().size());
-        } finally {
-            pool.close();
-            master.shutdown();
-        }
-    }
-
-    @Test
-    void shuttingDownThreadMasterStopsDedicatedPoolTasks() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        ManagedThreadPool pool = master.createThreadPool("shutdown-pool", 1);
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch interrupted = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(1);
-
-        pool.execute(() -> {
+    try {
+      pool.execute(
+          () -> {
             started.countDown();
             try {
-                new CountDownLatch(1).await();
+              new CountDownLatch(1).await();
             } catch (InterruptedException exception) {
-                interrupted.countDown();
-                Thread.currentThread().interrupt();
+              interrupted.countDown();
+              Thread.currentThread().interrupt();
             }
-        }, closed::countDown);
-        assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+          },
+          closed::countDown);
+      pool.execute(queuedTaskStarts::incrementAndGet, closed::countDown);
+      assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
-        master.shutdown();
+      pool.close();
 
-        assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        assertThatThrownBy(() -> pool.execute(() -> {}))
-            .isExactlyInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("shut down");
-        pool.close();
+      assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertEquals(0, queuedTaskStarts.get());
+      assertEquals(1, master.showTree().size());
+    } finally {
+      pool.close();
+      master.shutdown();
     }
+  }
 
-    @Test
-    void registeringCompletedNodeDoesNotScheduleItAgain() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(1);
-        AtomicInteger startCount = new AtomicInteger();
-        RunnableNode node = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {
-            startCount.incrementAndGet();
-            started.countDown();
-        }, closed::countDown);
+  @Test
+  @SuppressWarnings("ConvertToTryWithResources")
+  void shuttingDownThreadMasterStopsDedicatedPoolTasks() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    ManagedThreadPool pool = master.createThreadPool("shutdown-pool", 1);
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch interrupted = new CountDownLatch(1);
+    CountDownLatch closed = new CountDownLatch(1);
 
-        try {
-            master.register(node);
-            master.initialize();
-            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    pool.execute(
+        () -> {
+          started.countDown();
+          try {
+            new CountDownLatch(1).await();
+          } catch (InterruptedException exception) {
+            interrupted.countDown();
+            Thread.currentThread().interrupt();
+          }
+        },
+        closed::countDown);
+    assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
-            master.register(node);
+    master.shutdown();
 
-            await()
-                .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
-                .atMost(5, TimeUnit.SECONDS)
-                .untilAsserted(() -> assertEquals(1, startCount.get()));
-        } finally {
-            master.shutdown();
-        }
+    assertTrue(interrupted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    assertThatThrownBy(() -> pool.execute(() -> {}))
+        .isExactlyInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("shut down");
+    pool.close();
+  }
+
+  @Test
+  void registeringCompletedNodeDoesNotScheduleItAgain() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch closed = new CountDownLatch(1);
+    AtomicInteger startCount = new AtomicInteger();
+    RunnableNode node =
+        new RunnableNode(
+            ThreadMaster.getInstance().getROOT(),
+            () -> {
+              startCount.incrementAndGet();
+              started.countDown();
+            },
+            closed::countDown);
+
+    try {
+      master.register(node);
+      master.initialize();
+      assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+
+      master.register(node);
+
+      await()
+          .during(STABILITY_WINDOW_MILLISECONDS, TimeUnit.MILLISECONDS)
+          .atMost(5, TimeUnit.SECONDS)
+          .untilAsserted(() -> assertEquals(1, startCount.get()));
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void reportsWhetherNodeIsRunningOrRegistered() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch release = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(1);
-        RunnableNode node = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {
-            started.countDown();
-            try {
+  @Test
+  void reportsWhetherNodeIsRunningOrRegistered() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    CountDownLatch closed = new CountDownLatch(1);
+    RunnableNode node =
+        new RunnableNode(
+            ThreadMaster.getInstance().getROOT(),
+            () -> {
+              started.countDown();
+              try {
                 assertTrue(release.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            } catch (InterruptedException exception) {
+              } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
-            }
-        }, closed::countDown);
+              }
+            },
+            closed::countDown);
 
-        try {
-            assertNull(master.isNodeRunning(node));
+    try {
+      assertNull(master.isNodeRunning(node));
 
-            master.register(node);
-            assertEquals(Boolean.FALSE, master.isNodeRunning(node));
+      master.register(node);
+      assertEquals(Boolean.FALSE, master.isNodeRunning(node));
 
-            master.initialize();
-            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertEquals(Boolean.TRUE, master.isNodeRunning(node));
+      master.initialize();
+      assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertEquals(Boolean.TRUE, master.isNodeRunning(node));
 
-            release.countDown();
-            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .until(() -> Boolean.FALSE.equals(master.isNodeRunning(node)));
+      release.countDown();
+      assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      await()
+          .atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+          .until(() -> Boolean.FALSE.equals(master.isNodeRunning(node)));
 
-            master.removeNodeCascade(node);
-            assertNull(master.isNodeRunning(node));
-        } finally {
-            release.countDown();
-            master.shutdown();
-        }
+      master.removeNodeCascade(node);
+      assertNull(master.isNodeRunning(node));
+    } finally {
+      release.countDown();
+      master.shutdown();
     }
+  }
 
-    @Test
-    void shutdownInterruptsRunningWorkAndRunsCloseExactlyOnce() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(1);
-        AtomicInteger closeCount = new AtomicInteger();
-        RunnableNode node = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {
-            started.countDown();
-            try {
+  @Test
+  void shutdownInterruptsRunningWorkAndRunsCloseExactlyOnce() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch closed = new CountDownLatch(1);
+    AtomicInteger closeCount = new AtomicInteger();
+    RunnableNode node =
+        new RunnableNode(
+            ThreadMaster.getInstance().getROOT(),
+            () -> {
+              started.countDown();
+              try {
                 new CountDownLatch(1).await();
-            } catch (InterruptedException exception) {
+              } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
-            }
-        }, () -> {
-            closeCount.incrementAndGet();
-            closed.countDown();
-        });
+              }
+            },
+            () -> {
+              closeCount.incrementAndGet();
+              closed.countDown();
+            });
 
-        master.register(node);
-        master.initialize();
-        assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    master.register(node);
+    master.initialize();
+    assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
 
-        master.shutdown();
+    master.shutdown();
 
-        assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        assertEquals(1, closeCount.get());
-        assertThatThrownBy(master::initialize).isExactlyInstanceOf(IllegalStateException.class);
-    }
+    assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    assertEquals(1, closeCount.get());
+    assertThatThrownBy(master::initialize).isExactlyInstanceOf(IllegalStateException.class);
+  }
 
-    @Test
-    void dispatchesEdtNodesOnSwingEventDispatchThread() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        CountDownLatch finished = new CountDownLatch(1);
-        try {
-            master.register(new EDTNode(() -> {
+  @Test
+  void dispatchesEdtNodesOnSwingEventDispatchThread() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    CountDownLatch finished = new CountDownLatch(1);
+    try {
+      master.register(
+          new EDTNode(
+              () -> {
                 assertTrue(SwingUtilities.isEventDispatchThread());
                 finished.countDown();
-            }));
-            master.initialize();
+              }));
+      master.initialize();
 
-            assertTrue(finished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-        } finally {
-            master.shutdown();
-        }
+      assertTrue(finished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void runnableNodeDoesNotRunOnOrBlockTheEdtNode() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        CountDownLatch runnableStarted = new CountDownLatch(1);
-        CountDownLatch releaseRunnable = new CountDownLatch(1);
-        CountDownLatch edtFinished = new CountDownLatch(1);
-        AtomicBoolean runnableUsedEdt = new AtomicBoolean(true);
-        AtomicBoolean edtUsedEdt = new AtomicBoolean();
-        try {
-            master.addNode(new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {
+  @Test
+  void runnableNodeDoesNotRunOnOrBlockTheEdtNode() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    CountDownLatch runnableStarted = new CountDownLatch(1);
+    CountDownLatch releaseRunnable = new CountDownLatch(1);
+    CountDownLatch edtFinished = new CountDownLatch(1);
+    AtomicBoolean runnableUsedEdt = new AtomicBoolean(true);
+    AtomicBoolean edtUsedEdt = new AtomicBoolean();
+    try {
+      master.addNode(
+          new RunnableNode(
+              ThreadMaster.getInstance().getROOT(),
+              () -> {
                 runnableUsedEdt.set(SwingUtilities.isEventDispatchThread());
                 runnableStarted.countDown();
                 try {
-                    releaseRunnable.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                  releaseRunnable.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
                 } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
+                  Thread.currentThread().interrupt();
                 }
-            }));
-            master.addNode(new EDTNode(() -> {
+              }));
+      master.addNode(
+          new EDTNode(
+              () -> {
                 edtUsedEdt.set(SwingUtilities.isEventDispatchThread());
                 edtFinished.countDown();
-            }));
-            master.initialize();
+              }));
+      master.initialize();
 
-            assertTrue(runnableStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertTrue(edtFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertFalse(runnableUsedEdt.get());
-            assertTrue(edtUsedEdt.get());
-        } finally {
-            releaseRunnable.countDown();
-            master.shutdown();
-        }
+      assertTrue(runnableStarted.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertTrue(edtFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertFalse(runnableUsedEdt.get());
+      assertTrue(edtUsedEdt.get());
+    } finally {
+      releaseRunnable.countDown();
+      master.shutdown();
     }
+  }
 
-    @Test
-    void executeOnEdtRegistersRunsClosesAndRemovesTransientNode() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        CountDownLatch started = new CountDownLatch(1);
-        CountDownLatch closed = new CountDownLatch(1);
-        AtomicBoolean closeRanOnEdt = new AtomicBoolean();
-        try {
-            master.executeOnEDT(
-                () -> {
-                    assertTrue(SwingUtilities.isEventDispatchThread());
-                    assertEquals(2, master.showTree().size());
-                    started.countDown();
-                },
-                () -> {
-                    closeRanOnEdt.set(SwingUtilities.isEventDispatchThread());
-                    closed.countDown();
-                }
-            );
+  @Test
+  void executeOnEdtRegistersRunsClosesAndRemovesTransientNode() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch closed = new CountDownLatch(1);
+    AtomicBoolean closeRanOnEdt = new AtomicBoolean();
+    try {
+      master.executeOnEDT(
+          () -> {
+            assertTrue(SwingUtilities.isEventDispatchThread());
+            assertEquals(2, master.showTree().size());
+            started.countDown();
+          },
+          () -> {
+            closeRanOnEdt.set(SwingUtilities.isEventDispatchThread());
+            closed.countDown();
+          });
 
-            assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertTrue(closeRanOnEdt.get());
-            assertEquals(1, master.showTree().size());
+      assertTrue(started.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertTrue(closed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertTrue(closeRanOnEdt.get());
+      assertEquals(1, master.showTree().size());
 
-            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .until(() -> master.showTree().size() == 1);
+      await()
+          .atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+          .until(() -> master.showTree().size() == 1);
 
-        } finally {
-            master.shutdown();
-        }
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void executorServiceRunsSubpoolTasksAsManagedChildNodes() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
-        CountDownLatch taskFinished = new CountDownLatch(1);
-        master.register(parent);
-        ExecutorService executor = master.createExecutorService(parent);
-        try {
-            master.initialize();
-            executor.execute(() -> {
-                assertFalse(SwingUtilities.isEventDispatchThread());
-                assertThat(master.showTree()).hasSize(3);
-                taskFinished.countDown();
-            });
+  @Test
+  void executorServiceRunsSubpoolTasksAsManagedChildNodes() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+    CountDownLatch taskFinished = new CountDownLatch(1);
+    master.register(parent);
+    ExecutorService executor = master.createExecutorService(parent);
+    try {
+      master.initialize();
+      executor.execute(
+          () -> {
+            assertFalse(SwingUtilities.isEventDispatchThread());
+            assertThat(master.showTree()).hasSize(3);
+            taskFinished.countDown();
+          });
 
-            assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            executor.shutdown();
-            assertTrue(executor.awaitTermination(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            assertThat(master.showTree()).hasSize(2);
-        } finally {
-            executor.shutdownNow();
-            master.shutdown();
-        }
+      assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      executor.shutdown();
+      assertTrue(executor.awaitTermination(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      assertThat(master.showTree()).hasSize(2);
+    } finally {
+      executor.shutdownNow();
+      master.shutdown();
     }
+  }
 
-    @Test
-    void schedulesDelayedTasksThroughManagedWorkers() throws Exception {
-        TestThreadMaster master = new TestThreadMaster();
-        RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
-        CountDownLatch taskFinished = new CountDownLatch(1);
-        AtomicReference<String> taskThread = new AtomicReference<>();
-        master.register(parent);
-        try {
-            master.initialize();
-            ScheduledFuture<?> scheduled = master.schedule(parent, () -> {
+  @Test
+  void schedulesDelayedTasksThroughManagedWorkers() throws Exception {
+    TestThreadMaster master = new TestThreadMaster();
+    RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+    CountDownLatch taskFinished = new CountDownLatch(1);
+    AtomicReference<String> taskThread = new AtomicReference<>();
+    master.register(parent);
+    try {
+      master.initialize();
+      ScheduledFuture<?> scheduled =
+          master.schedule(
+              parent,
+              () -> {
                 taskThread.set(Thread.currentThread().getName());
                 taskFinished.countDown();
-            }, 10, TimeUnit.MILLISECONDS);
+              },
+              10,
+              TimeUnit.MILLISECONDS);
 
-            assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
-            scheduled.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            assertThat(taskThread.get()).startsWith("simpleide-thread-");
-            await().atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                .untilAsserted(() -> assertThat(master.showTree()).hasSize(2));
-        } finally {
-            master.shutdown();
-        }
+      assertTrue(taskFinished.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+      scheduled.get(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+      assertThat(taskThread.get()).startsWith("simpleide-thread-");
+      await()
+          .atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+          .untilAsserted(() -> assertThat(master.showTree()).hasSize(2));
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void rejectsInvalidLevelsAndRemovalOfRoot() {
-        TestThreadMaster master = new TestThreadMaster();
-        try {
-            RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
-            master.addNode(parent);
-        
-            assertThatThrownBy(() -> master.addNode(new NodePattern() {
-                @Override
-                public Runnable onStart() { return null; }
+  @Test
+  void rejectsInvalidLevelsAndRemovalOfRoot() {
+    TestThreadMaster master = new TestThreadMaster();
+    try {
+      RunnableNode parent = new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {});
+      master.addNode(parent);
 
-                @Override
-                public Runnable onClose() { return null; }
+      assertThatThrownBy(
+              () ->
+                  master.addNode(
+                      new NodePattern() {
+                        @Override
+                        public Runnable onStart() {
+                          return null;
+                        }
 
-                @Override
-                public Integer level() { return 0; }
+                        @Override
+                        public Runnable onClose() {
+                          return null;
+                        }
 
-                @Override
-                public boolean isEDT() { return false; }
-            }))
-            .isInstanceOf(IllegalArgumentException.class)
-            .hasMessageContaining("positive level");
+                        @Override
+                        public Integer level() {
+                          return 0;
+                        }
 
-            assertThatThrownBy(() -> master.removeNodeCascade(ThreadMaster.getInstance().getROOT()))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("cannot be removed");
+                        @Override
+                        public boolean isEDT() {
+                          return false;
+                        }
+                      }))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("positive level");
 
-        } finally {
-            master.shutdown();
-        }
+      assertThatThrownBy(() -> master.removeNodeCascade(ThreadMaster.getInstance().getROOT()))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("cannot be removed");
+
+    } finally {
+      master.shutdown();
     }
+  }
 
-    @Test
-    void rejectsBuiltInNodesWithInconsistentExecutionModes() {
-        TestThreadMaster master = new TestThreadMaster();
-        try {
-            RunnableNode runnableOnEdt = new RunnableNode(
-                ThreadMaster.getInstance().getROOT(),
-                () -> {}
-            ) {
-                @Override
-                public boolean isEDT() {
-                    return true;
-                }
-            };
-            EDTNode edtOffEdt = new EDTNode(() -> {}) {
-                @Override
-                public boolean isEDT() {
-                    return false;
-                }
-            };
+  @Test
+  void rejectsBuiltInNodesWithInconsistentExecutionModes() {
+    TestThreadMaster master = new TestThreadMaster();
+    try {
+      RunnableNode runnableOnEdt =
+          new RunnableNode(ThreadMaster.getInstance().getROOT(), () -> {}) {
+            @Override
+            public boolean isEDT() {
+              return true;
+            }
+          };
+      EDTNode edtOffEdt =
+          new EDTNode(() -> {}) {
+            @Override
+            public boolean isEDT() {
+              return false;
+            }
+          };
 
-            assertThatThrownBy(() -> master.register(runnableOnEdt))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("RunnableNode");
-            assertThatThrownBy(() -> master.register(edtOffEdt))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("EDTNode");
-        } finally {
-            master.shutdown();
-        }
+      assertThatThrownBy(() -> master.register(runnableOnEdt))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("RunnableNode");
+      assertThatThrownBy(() -> master.register(edtOffEdt))
+          .isInstanceOf(IllegalArgumentException.class)
+          .hasMessageContaining("EDTNode");
+    } finally {
+      master.shutdown();
     }
+  }
 
+  private static void awaitValue(AtomicInteger value, int expected) {
+    await("Expected AtomicInteger value to become " + expected)
+        .atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .pollInterval(5, TimeUnit.MILLISECONDS)
+        .until(() -> value.get() == expected);
+  }
 
-    private static void awaitValue(AtomicInteger value, int expected) {
-        await("Expected AtomicInteger value to become " + expected)
-            .atMost(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .pollInterval(5, TimeUnit.MILLISECONDS)
-            .until(() -> value.get() == expected);
+  private static final class TestThreadMaster extends AbstractThreadMaster {
+    private TestThreadMaster() {
+      super(ThreadMaster.getInstance().getROOT());
     }
-
-
-    private static final class TestThreadMaster extends AbstractThreadMaster {
-        private TestThreadMaster() {
-            super(ThreadMaster.getInstance().getROOT());
-        }
-    }
+  }
 }

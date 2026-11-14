@@ -1,17 +1,14 @@
 package io.simpleide.lsp.client;
 
+import io.simpleide.ui.editor.Editor;
 import java.awt.Color;
 import java.awt.Component;
 import java.beans.PropertyChangeListener;
 import java.util.List;
-
 import javax.swing.JList;
-
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.fife.ui.autocomplete.Completion;
 import org.fife.ui.autocomplete.CompletionCellRenderer;
-
-import io.simpleide.ui.editor.Editor;
 
 public class LspAutoCompletion extends AutoCompletion {
   private final Editor editor;
@@ -20,11 +17,12 @@ public class LspAutoCompletion extends AutoCompletion {
   public LspAutoCompletion(Editor editor, LspCompletionProvider provider) {
     super(provider);
     this.editor = editor;
-    this.editorThemeListener = event -> {
-      if (event.getNewValue() instanceof Color background) {
-        setDescriptionWindowColor(background);
-      }
-    };
+    this.editorThemeListener =
+        event -> {
+          if (event.getNewValue() instanceof Color background) {
+            setDescriptionWindowColor(background);
+          }
+        };
     setListCellRenderer(new EditorThemeCompletionRenderer(editor));
     setDescriptionWindowColor(editor.getBackground());
     editor.addPropertyChangeListener("background", editorThemeListener);
@@ -68,6 +66,7 @@ public class LspAutoCompletion extends AutoCompletion {
       this.editor = editor;
     }
 
+    @SuppressWarnings("rawtypes")
     @Override
     public Component getListCellRendererComponent(
         JList list, Object value, int index, boolean selected, boolean cellHasFocus) {
@@ -80,8 +79,8 @@ public class LspAutoCompletion extends AutoCompletion {
       list.setSelectionBackground(selectionBackground);
       list.setSelectionForeground(selectionForeground);
 
-      Component component = super.getListCellRendererComponent(
-          list, value, index, selected, cellHasFocus);
+      Component component =
+          super.getListCellRendererComponent(list, value, index, selected, cellHasFocus);
       component.setBackground(selected ? selectionBackground : background);
       component.setForeground(selected ? selectionForeground : foreground);
       return component;

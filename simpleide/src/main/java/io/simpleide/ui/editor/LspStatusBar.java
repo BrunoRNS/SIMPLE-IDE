@@ -1,20 +1,18 @@
 package io.simpleide.ui.editor;
 
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.thread.ThreadMaster;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
-
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.UIManager;
-
-import io.simpleide.lsp.LspStatus;
-import io.simpleide.thread.ThreadMaster;
 
 public final class LspStatusBar extends JPanel {
   private final Map<String, LspStatus> statuses = new HashMap<>();
@@ -27,9 +25,10 @@ public final class LspStatusBar extends JPanel {
     if (separator == null) {
       separator = Color.GRAY;
     }
-    setBorder(BorderFactory.createCompoundBorder(
-        BorderFactory.createMatteBorder(1, 0, 0, 0, separator),
-        BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+    setBorder(
+        BorderFactory.createCompoundBorder(
+            BorderFactory.createMatteBorder(1, 0, 0, 0, separator),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)));
     setMinimumSize(new Dimension(0, 26));
 
     progress.setIndeterminate(true);
@@ -41,22 +40,24 @@ public final class LspStatusBar extends JPanel {
   }
 
   public void updateStatus(LspStatus status) {
-    Runnable update = () -> {
-      if (status.state() == LspStatus.State.IDLE) {
-        statuses.remove(status.id());
-      } else {
-        statuses.put(status.id(), status);
-      }
-      refreshStatus();
-    };
+    Runnable update =
+        () -> {
+          if (status.state() == LspStatus.State.IDLE) {
+            statuses.remove(status.id());
+          } else {
+            statuses.put(status.id(), status);
+          }
+          refreshStatus();
+        };
     ThreadMaster.getInstance().executeOnEDT(update);
   }
 
   private void refreshStatus() {
-    LspStatus active = statuses.values().stream()
-        .filter(status -> isInProgress(status.state()))
-        .max(Comparator.comparingInt(status -> priority(status.state())))
-        .orElse(null);
+    LspStatus active =
+        statuses.values().stream()
+            .filter(status -> isInProgress(status.state()))
+            .max(Comparator.comparingInt(status -> priority(status.state())))
+            .orElse(null);
     if (active != null) {
       label.setText("LSP: " + statusText(active.state()) + " " + active.serverName() + "...");
       progress.setVisible(true);
@@ -64,18 +65,20 @@ public final class LspStatusBar extends JPanel {
     }
 
     progress.setVisible(false);
-    LspStatus failed = statuses.values().stream()
-        .filter(status -> status.state() == LspStatus.State.FAILED)
-        .findFirst()
-        .orElse(null);
+    LspStatus failed =
+        statuses.values().stream()
+            .filter(status -> status.state() == LspStatus.State.FAILED)
+            .findFirst()
+            .orElse(null);
     if (failed != null) {
       label.setText("LSP: Failed to start " + failed.serverName());
       return;
     }
 
-    long running = statuses.values().stream()
-        .filter(status -> status.state() == LspStatus.State.RUNNING)
-        .count();
+    long running =
+        statuses.values().stream()
+            .filter(status -> status.state() == LspStatus.State.RUNNING)
+            .count();
     label.setText(running == 0 ? "LSP: Idle" : "LSP: Running (" + running + ")");
   }
 
