@@ -9,59 +9,209 @@ permissions:
 
 jobs:
   test:
+    name: Linux x64 (Alpine)
+
     runs-on: ubuntu-latest
+
+    container:
+      image: alpine:latest
+      options: --platform linux/amd64 --hostname alpine
+
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x64
+
     strategy:
       fail-fast: false
       matrix:
         java: ["17", "21", "25", "27"]
+
     steps:
+      - name: Prepare Alpine environment
+        run: |
+          set -eu
+
+          apk update
+
+          apk add --no-cache \
+            bash \
+            git \
+            curl \
+            ca-certificates \
+            nodejs \
+            gcompat \
+            tar \
+            unzip \
+            zip
+
+          update-ca-certificates
+
+      - name: Verify Alpine architecture
+        run: |
+          set -eu
+
+          test "$(apk --print-arch)" = x86_64
+          test "$(hostname)" = alpine
+          grep -q Alpine /etc/os-release
+
+          echo "=== Alpine ==="
+          cat /etc/alpine-release
+
+          echo "=== Architecture ==="
+          uname -m
+
       - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: ${{ matrix.java }}
+          architecture: x64
           cache: maven
 
       - name: Install language toolchains
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes build-essential golang-go mono-devel nodejs python3 rustc
+          set -eu
 
-      - name: Verify language toolchains
+          apk add --no-cache \
+            file \
+            build-base \
+            go \
+            mono \
+            rust \
+            python3 \
+            fakeroot \
+            rpm \
+            dpkg \
+            libstdc++
+
+      - name: Verify Java and language toolchains
         run: |
+          set -eu
+
+          echo "=== Alpine ==="
+
+          test "$(apk --print-arch)" = x86_64
+          test "$(hostname)" = alpine
+
+          echo "=== Java ==="
+
+          java -XshowSettings:properties -version 2>&1 \
+            | grep -q "sun.arch.data.model = 64"
+
+          java -version
+
+          echo "=== GCC / G++ ==="
+
           command -v gcc
           command -v g++
+
+          gcc -dumpmachine \
+            | grep -q x86_64
+
+          g++ -dumpmachine \
+            | grep -q x86_64
+
+          gcc --version
+          g++ --version
+
+          echo "=== GNU Make ==="
+
+          command -v make
+          make --version | head -n 1
+          make --version | grep -q "GNU Make"
+
+          echo "=== Mono ==="
+
           command -v mcs
           command -v mono
+
+          mono --version
+          mcs --version
+
+          file -L "$(command -v mono)" \
+            | grep -Eq "ELF 64-bit.*(x86-64|x86_64)"
+
+          echo "=== Go ==="
+
           command -v go
-          command -v rustc
-          command -v node
-          command -v python3
+
           test "$(go env GOOS)" = linux
           test "$(go env GOARCH)" = amd64
-          rustc -vV | grep -Eq '^host: x86_64-unknown-linux-gnu$'
+
+          go version
+
+          echo "=== Rust ==="
+
+          command -v rustc
+
+          rustc -vV \
+            | grep -q "^host: x86_64-alpine-linux-musl$"
+
+          rustc --version
+
+          echo "=== Node.js ==="
+
+          command -v node
+
           test "$(node -p 'process.arch')" = x64
-          python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
-          file -L "$(command -v mono)" | grep -Eq 'ELF 64-bit.*(x86-64|x86_64)'
 
-      - name: Run tests
-        run: make test
+          node --version
 
-      - name: Validate fat JAR and generated packages
+          echo "=== Python ==="
+
+          command -v python3
+
+          test "$(python3 -c 'import struct; print(struct.calcsize("P") * 8)')" = 64
+
+          python3 --version
+
+          echo "=== Package tools ==="
+
+          command -v fakeroot
+          command -v rpmbuild
+          command -v dpkg-deb
+
+          fakeroot --version
+          rpmbuild --version
+          dpkg-deb --version
+
+          echo "=== All toolchains verified ==="
+
+      - name: Run tests with GNU Make
+        run: |
+          set -eu
+
+          make --version | grep -q "GNU Make"
+
+          make test
+
+      - name: Build and validate packages
         if: matrix.java == '17'
         env:
           SIMPLEIDE_PKG_OS: linux
           SIMPLEIDE_PKG_ARCH: x64
-        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes fakeroot rpm
+          set -eu
+
+          echo "=== Package tools ==="
+
+          command -v fakeroot
+          command -v rpmbuild
+          command -v dpkg-deb
+
+          fakeroot --version
+          rpmbuild --version
+
+          echo "=== GNU Make ==="
+
+          make --version | grep -q "GNU Make"
+
+          echo "=== Package validation ==="
+
           make pkg-verify
+
       - name: Upload invalid packages for debugging
         if: failure() && matrix.java == '17'
         uses: actions/upload-artifact@v4

@@ -31,12 +31,15 @@ jobs:
         run: |
           VERSION="$(sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties | tr -d '\r' | head -n 1)"
           test -n "$VERSION"
+
           TAG="v$VERSION"
+
           if printf '%s' "$VERSION" | grep -qi 'beta'; then
             PRERELEASE=true
           else
             PRERELEASE=false
           fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
@@ -52,7 +55,7 @@ jobs:
       - name: Set up Java
         uses: actions/setup-java@v5
         with:
-          distribution: temurin
+          distribution: zulu
           java-version: "17"
           cache: maven
 
@@ -75,41 +78,148 @@ jobs:
           path: dist/simpleide-v*-any-with-deps.jar
           if-no-files-found: error
 
-  packages:
+  linux-packages:
+    name: Package Linux ${{ matrix.pkg_arch }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: alpine:latest
+      options: --hostname alpine --platform ${{ matrix.container_platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            container_platform: linux/amd64
+            pkg_arch: x64
+            java_arch: x64
+            alpine_arch: x86_64
+
+          - runner: ubuntu-24.04-arm
+            container_platform: linux/arm64
+            pkg_arch: arm64
+            java_arch: aarch64
+            alpine_arch: aarch64
+
+          - runner: ubuntu-latest
+            container_platform: linux/386
+            pkg_arch: x86
+            java_arch: x86
+            alpine_arch: x86
+    steps:
+      - name: Prepare Alpine environment
+        shell: sh
+        run: |
+          apk update
+          apk add --no-cache \
+            bash \
+            ca-certificates \
+            coreutils \
+            curl \
+            dpkg \
+            fakeroot \
+            file \
+            findutils \
+            gcompat \
+            git \
+            grep \
+            make \
+            rpm \
+            sed \
+            tar \
+            unzip \
+            zip \
+            xz \
+            libstdc++
+
+      - name: Verify Alpine environment
+        shell: sh
+        env:
+          EXPECTED_ARCH: ${{ matrix.alpine_arch }}
+        run: |
+          set -eu
+
+          echo "Alpine release:"
+          cat /etc/alpine-release
+
+          echo "Container architecture:"
+          apk --print-arch
+
+          test "$(apk --print-arch)" = "$EXPECTED_ARCH"
+          test "$(hostname)" = "alpine"
+
+          echo "GNU Make:"
+          make --version
+
+          echo "Package tools:"
+          command -v fakeroot
+          command -v dpkg-deb
+          command -v rpmbuild
+
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: zulu
+          java-version: "17"
+          architecture: ${{ matrix.java_arch }}
+          cache: maven
+
+      - name: Verify Java architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          java -version
+          java -XshowSettings:properties -version 2>&1 |
+            grep -E 'sun.arch.data.model = 64|sun.arch.data.model = 32'
+
+          test "$(java -XshowSettings:properties -version 2>&1 |
+            awk -F'= ' '/sun.arch.data.model/ {print $2; exit}')" = \
+            "$([ "${{ matrix.pkg_arch }}" = "x86" ] && echo 32 || echo 64)"
+
+      - name: Build Linux packages
+        env:
+          SIMPLEIDE_PKG_OS: linux
+          SIMPLEIDE_PKG_ARCH: ${{ matrix.pkg_arch }}
+        run: make pkg
+
+      - name: Upload Linux package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-linux-${{ matrix.pkg_arch }}
+          path: simpleide/target/pkg/simpleide-v*-linux-${{ matrix.pkg_arch }}.*
+          if-no-files-found: error
+
+  native-packages:
     name: Package ${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}
     needs: metadata
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            pkg_os: linux
-            pkg_arch: x64
-            java_arch: x64
-          - os: ubuntu-24.04-arm
-            pkg_os: linux
-            pkg_arch: arm64
-            java_arch: aarch64
-          - os: ubuntu-latest
-            pkg_os: linux
-            pkg_arch: x86
-            java_arch: x86
           - os: macos-13
             pkg_os: macos
             pkg_arch: x64
             java_arch: x64
+
           - os: macos-latest
             pkg_os: macos
             pkg_arch: arm64
             java_arch: aarch64
+
           - os: windows-latest
             pkg_os: windows
             pkg_arch: x64
             java_arch: x64
+
           - os: windows-latest
             pkg_os: windows
             pkg_arch: x86
             java_arch: x86
+
           - os: windows-11-arm
             pkg_os: windows
             pkg_arch: arm64
@@ -137,24 +247,24 @@ jobs:
           $downloadUrl = "https://github.com/BrunoRNS/homebrew-jdk-holder-windows-arm/releases/download/v1.0.0/$env:JDK_ARCHIVE"
           $archivePath = Join-Path $env:RUNNER_TEMP $env:JDK_ARCHIVE
           $extractPath = Join-Path $env:RUNNER_TEMP "zulu-jdk-17"
+
           Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
           Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath
+
           $javaExecutable = Get-ChildItem -LiteralPath $extractPath -Filter java.exe -Recurse |
             Where-Object { $_.Directory.Name -eq "bin" } |
             Select-Object -First 1
+
           if ($null -eq $javaExecutable) {
             throw "Could not find java.exe in the downloaded JDK archive."
           }
+
           $jdkHome = $javaExecutable.Directory.Parent.FullName
+
           Add-Content -Path $env:GITHUB_ENV -Value "JAVA_HOME=$jdkHome"
           Add-Content -Path $env:GITHUB_PATH -Value "$jdkHome\bin"
-          & $javaExecutable.FullName -version
 
-      - name: Install Linux packaging dependencies
-        if: matrix.os == 'ubuntu-latest' || matrix.os == 'ubuntu-24.04-arm'
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes fakeroot rpm
+          & $javaExecutable.FullName -version
 
       - name: Ensure WiX toolset for the .msi build
         if: matrix.os == 'windows-latest' || matrix.os == 'windows-11-arm'
@@ -164,13 +274,13 @@ jobs:
             choco install wixtoolset -y --no-progress
           }
 
-      - name: Build packages
+      - name: Build native packages
         env:
           SIMPLEIDE_PKG_OS: ${{ matrix.pkg_os }}
           SIMPLEIDE_PKG_ARCH: ${{ matrix.pkg_arch }}
         run: make pkg
 
-      - name: Upload package artifact
+      - name: Upload native package artifact
         uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}
@@ -182,7 +292,8 @@ jobs:
     needs:
       - metadata
       - fat-jar
-      - packages
+      - linux-packages
+      - native-packages
     runs-on: ubuntu-latest
     steps:
       - name: Download all release artifacts
@@ -200,12 +311,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
           if [ ! -d dist ] || [ -z "$(find dist -type f -print -quit)" ]; then
             echo "No release artifacts were downloaded." >&2
             exit 1
           fi
 
           PRERELEASE_FLAG=()
+
           if [ "$PRERELEASE" = "true" ]; then
             PRERELEASE_FLAG=(--prerelease)
           fi
@@ -214,7 +327,10 @@ jobs:
           NOTES="Simple IDE $VERSION release."
 
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES" "${PRERELEASE_FLAG[@]}"
+            gh release edit "$TAG" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              "${PRERELEASE_FLAG[@]}"
           else
             gh release create "$TAG" \
               --target "$GITHUB_SHA" \
@@ -224,4 +340,5 @@ jobs:
           fi
 
           mapfile -d '' RELEASE_FILES < <(find dist -maxdepth 1 -type f -print0)
+
           gh release upload "$TAG" "${RELEASE_FILES[@]}" --clobber

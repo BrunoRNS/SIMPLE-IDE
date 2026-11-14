@@ -9,10 +9,51 @@ permissions:
 
 jobs:
   test:
+    name: Linux x86 (Alpine 32-bit)
+
     runs-on: ubuntu-latest
+
+    container:
+      image: alpine:latest
+      options: --platform linux/386 --hostname alpine
+
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x86
+
     steps:
+      - name: Prepare Alpine environment
+        run: |
+          set -eu
+
+          apk update
+
+          apk add --no-cache \
+            bash \
+            git \
+            curl \
+            ca-certificates \
+            nodejs \
+            gcompat \
+            tar \
+            unzip \
+            zip
+
+          update-ca-certificates
+
+      - name: Verify Alpine architecture
+        run: |
+          set -eu
+
+          test "$(apk --print-arch)" = x86
+          test "$(hostname)" = alpine
+          grep -q Alpine /etc/os-release
+
+          echo "=== Alpine ==="
+          cat /etc/alpine-release
+
+          echo "=== Architecture ==="
+          uname -m
+
       - name: Check out repository
         uses: actions/checkout@v4
 
@@ -24,134 +65,164 @@ jobs:
           architecture: x86
           cache: maven
 
-      - name: Configure Docker DNS
+      - name: Install language toolchains
         run: |
-          sudo python3 - <<'PY'
-          import json
-          from pathlib import Path
+          set -eu
 
-          path = Path("/etc/docker/daemon.json")
+          apk add --no-cache \
+            file \
+            build-base \
+            go \
+            mono \
+            rust \
+            python3 \
+            xz \
+            fakeroot \
+            rpm \
+            dpkg \
+            libstdc++
 
-          config = {}
-          if path.exists() and path.read_text().strip():
-              config = json.loads(path.read_text())
+          echo "=== Downloading Node.js 8.17.0 ==="
 
-          config["dns"] = ["1.1.1.1", "8.8.8.8"]
+          curl --retry 5 \
+            --retry-all-errors \
+            --fail \
+            --location \
+            --silent \
+            --show-error \
+            https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x86.tar.xz \
+            -o /tmp/node.tar.xz
 
-          path.write_text(json.dumps(config, indent=2) + "\n")
-          PY
+          tar -xJf /tmp/node.tar.xz -C /opt
 
-          sudo systemctl restart docker
-          docker info >/dev/null
+          ln -s \
+            /opt/node-v8.17.0-linux-x86/bin/node \
+            /usr/local/bin/node
 
-      - name: Build 32-bit language toolchain image
+          rm /tmp/node.tar.xz
+
+      - name: Verify Java and language toolchains
         run: |
-          mkdir -p "$RUNNER_TEMP/linux-x86-image"
-          cat > "$RUNNER_TEMP/linux-x86-image/Dockerfile" <<'DOCKERFILE'
-          FROM debian:bookworm-slim
+          set -eu
 
-          ENV DEBIAN_FRONTEND=noninteractive
+          echo "=== Alpine ==="
 
-          RUN set -eux; \
-              test "$(dpkg --print-architecture)" = "i386"; \
-              printf '%s\n' \
-                'Acquire::Retries "5";' \
-                'Acquire::http::Timeout "30";' \
-                'Acquire::https::Timeout "30";' \
-                > /etc/apt/apt.conf.d/80-retries; \
-              apt-get update; \
-              apt-get install -y --no-install-recommends \
-                  ca-certificates \
-                  curl \
-                  file \
-                  g++ \
-                  gcc \
-                  binutils \
-                  golang-go \
-                  make \
-                  mono-complete \
-                  rustc \
-                  python3 \
-                  xz-utils; \
-              curl --retry 5 \
-                  --retry-all-errors \
-                  --fail \
-                  --location \
-                  --silent \
-                  --show-error \
-                  https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x86.tar.xz \
-                  -o /tmp/node.tar.xz; \
-              tar -xJf /tmp/node.tar.xz -C /opt; \
-              ln -s /opt/node-v8.17.0-linux-x86/bin/node /usr/local/bin/node; \
-              rm /tmp/node.tar.xz; \
-              rm -rf /var/lib/apt/lists/*
-          DOCKERFILE
+          test "$(apk --print-arch)" = x86
+          test "$(hostname)" = alpine
 
-          docker build \
-            --pull \
-            --platform linux/386 \
-            --tag simpleide-linux-x86:ci \
-            "$RUNNER_TEMP/linux-x86-image"
+          echo "=== Java ==="
 
-      - name: Verify 32-bit language toolchains
+          java -XshowSettings:properties -version 2>&1 \
+            | grep -q "sun.arch.data.model = 32"
+
+          java -version
+
+          echo "=== GCC / G++ ==="
+
+          command -v gcc
+          command -v g++
+
+          gcc -dumpmachine \
+            | grep -Eq "^i[3-6]86-alpine-linux-musl$"
+
+          g++ -dumpmachine \
+            | grep -Eq "^i[3-6]86-alpine-linux-musl$"
+
+          gcc --version
+          g++ --version
+
+          echo "=== GNU Make ==="
+
+          command -v make
+          make --version | head -n 1
+          make --version | grep -q "GNU Make"
+
+          echo "=== Mono ==="
+
+          command -v mcs
+          command -v mono
+
+          mono --version
+          mcs --version
+
+          echo "=== Go ==="
+
+          command -v go
+
+          test "$(go env GOOS)" = linux
+          test "$(go env GOARCH)" = 386
+
+          go version
+
+          echo "=== Rust ==="
+
+          command -v rustc
+
+          rustc -vV \
+            | grep -Eq "^host: i[3-6]86-alpine-linux-musl$"
+
+          rustc --version
+
+          echo "=== Node.js ==="
+
+          command -v node
+
+          test "$(node --version)" = v8.17.0
+          test "$(node -p 'process.arch')" = ia32
+
+          file -L "$(command -v node)" \
+            | grep -q "ELF 32-bit"
+
+          echo "=== Python ==="
+
+          command -v python3
+
+          test "$(python3 -c 'import struct; print(struct.calcsize("P") * 8)')" = 32
+
+          python3 --version
+
+          echo "=== Package tools ==="
+
+          command -v fakeroot
+          command -v rpmbuild
+          command -v dpkg-deb
+
+          fakeroot --version
+          rpmbuild --version
+          dpkg-deb --version
+
+          echo "=== All toolchains verified ==="
+
+      - name: Run tests with GNU Make
         run: |
-          docker run --rm --platform linux/386 \
-            --volume "$JAVA_HOME:$JAVA_HOME:ro" \
-            --env JAVA_HOME="$JAVA_HOME" \
-            --env PATH="$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-            simpleide-linux-x86:ci sh -eu -c '
-              test "$(dpkg --print-architecture)" = "i386"
+          set -eu
 
-              java -XshowSettings:properties -version 2>&1 \
-                | grep -q "sun.arch.data.model = 32"
+          make --version | grep -q "GNU Make"
 
-              test "$(node --version)" = v8.17.0
-              test "$(node -p "process.arch")" = ia32
+          make test
 
-              test "$(python3 -c "import struct; print(struct.calcsize(\"P\") * 8)")" = 32
-
-              command -v gcc
-              command -v g++
-              command -v mcs
-              command -v mono
-              command -v go
-              command -v rustc
-
-              test "$(go env GOOS)" = linux
-              test "$(go env GOARCH)" = 386
-
-              rustc -vV | grep -Eq "^host: i[3-6]86-unknown-linux-gnu$"
-
-              g++ -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
-              gcc -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
-
-              file -L "$(command -v mono)" \
-                | grep -Eq "ELF 32-bit.*Intel (i386|80386)"
-
-              file -L "$(command -v node)" \
-                | grep -q "ELF 32-bit"
-            '
-
-      - name: Run tests
-        run: |
-          docker run --rm --platform linux/386 \
-            --volume "$GITHUB_WORKSPACE:/workspace" \
-            --volume "$JAVA_HOME:$JAVA_HOME:ro" \
-            --volume "$HOME/.m2:/root/.m2" \
-            --workdir /workspace \
-            --env JAVA_HOME="$JAVA_HOME" \
-            --env PATH="$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-            --env SIMPLEIDE_EXPECTED_PLATFORM=linux-x86 \
-            simpleide-linux-x86:ci make test
-
-      - name: Validate fat JAR and generated packages
+      - name: Build and validate packages
         env:
           SIMPLEIDE_PKG_OS: linux
           SIMPLEIDE_PKG_ARCH: x86
-        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes fakeroot rpm
+          set -eu
+
+          echo "=== Package tools ==="
+
+          command -v fakeroot
+          command -v rpmbuild
+          command -v dpkg-deb
+
+          fakeroot --version
+          rpmbuild --version
+
+          echo "=== GNU Make ==="
+
+          make --version | grep -q "GNU Make"
+
+          echo "=== Package validation ==="
+
           make pkg-verify
 
       - name: Upload invalid packages for debugging
