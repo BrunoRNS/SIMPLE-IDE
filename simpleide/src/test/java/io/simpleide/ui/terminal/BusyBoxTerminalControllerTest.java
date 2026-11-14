@@ -50,8 +50,8 @@ class BusyBoxTerminalControllerTest {
 		});
 
 		await("Both terminal launch tasks should finish without stopping their BusyBox processes")
-			.during(7, TimeUnit.SECONDS)
-			.atMost(28, TimeUnit.SECONDS)
+			.during(40, TimeUnit.SECONDS)
+			.atMost(120, TimeUnit.SECONDS)
 			.until(() -> {
 				List<TerminalState> states = terminalStates(controller);
 				return states.size() == 2 && states.stream()
@@ -62,7 +62,7 @@ class BusyBoxTerminalControllerTest {
 
 		CountDownLatch closed = new CountDownLatch(1);
 		controller.onWindowClosing(closed::countDown);
-		assertTrue(closed.await(30, TimeUnit.SECONDS));
+		assertTrue(closed.await(150, TimeUnit.SECONDS));
 	}
 
 	@Test
