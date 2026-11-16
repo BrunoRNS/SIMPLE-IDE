@@ -19,6 +19,10 @@ The terminal is a Swing panel backed by JediTerm and a bundled BusyBox process.
 On 64-bit Windows versions older than Windows 10, Simple IDE falls back to the
 x86 binary. `Terminals.isSupported()` returns `false` on unknown platforms.
 
+All Linux binaries are linked against GNU glibc and require glibc 2.28 or newer.
+Alpine Linux and other musl-based distributions are not supported. See
+[Linux compatibility](../reference/LINUX.md) for the full distribution list.
+
 ## Create a terminal
 
 ```java

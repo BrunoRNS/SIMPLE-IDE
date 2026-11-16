@@ -6,6 +6,9 @@ target names and keeps the fat JAR and package paths in one place.
 ## Prerequisites
 
 - JDK 17 or newer. CI covers 17, 21, 25 and 27.
+- On Linux, GNU glibc 2.28 or newer (Debian 10+, Ubuntu 18.10+, Fedora 29+,
+  RHEL 8+). Alpine and other musl-based distributions cannot run the bundled
+  JDK and native libraries. See [Linux compatibility](../reference/LINUX.md).
 - GNU Make on Linux and macOS. On Windows, use Git Bash, MSYS2 or the
   `mvnw.cmd` commands directly.
 - `jpackage` from the JDK for `make pkg`.
@@ -205,6 +208,21 @@ language server caches under `~/.cache/simpleide`.
 
 ## Continuous integration
 
-CI workflows run `make test` and, on JDK 17, `make pkg` with the expected OS and
-architecture. See [Releases](RELEASES.md) and the workflow files under
+CI workflows run `make test` and, on JDK 17, `make pkg-verify` with the expected
+OS and architecture. See [Releases](RELEASES.md) and the workflow files under
 `.github/workflows/`.
+
+The Linux workflows check out the repository on the runner and run the build
+inside an explicit Debian 10 container, so the oldest supported glibc is tested
+on every pull request:
+
+| Workflow | Docker platform | `SIMPLEIDE_PKG_ARCH` |
+| --- | --- | --- |
+| `linux64.yml` | `linux/amd64` | `x64` |
+| `linux32.yml` | `linux/386` | `x86` |
+| `linuxarm.yml` | `linux/arm64` | `arm64` |
+
+`scripts/ci/linux-debian.sh` configures the archived Debian 10 repositories and
+installs the JDK, Go, Node.js, GCC, Mono, Rust and Python toolchains inside the
+container. The job does not rely on the runner image for any language
+toolchain. See [Linux compatibility](../reference/LINUX.md).

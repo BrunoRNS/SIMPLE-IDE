@@ -317,15 +317,16 @@ public final class BusyBoxTerminalController {
 
 	private Runnable getWindowCloseCallbackIfFinished() {
 		Runnable callback;
-		try (terminalWorkers) {
-			synchronized (tabsLock) {
-				if (!windowClosing || !tabs.isEmpty()) {
-					return null;
-				}
-				callback = onAllTabsClosed;
-				onAllTabsClosed = null;
+		synchronized (tabsLock) {
+			if (!windowClosing || !tabs.isEmpty()) {
+				return null;
 			}
+			callback = onAllTabsClosed;
+			onAllTabsClosed = null;
 		}
+		// Keep the pool alive while the window is still open: closing it here on
+		// every tab close would reject the cleanup tasks of the remaining tabs.
+		terminalWorkers.close();
 		return callback;
 	}
 

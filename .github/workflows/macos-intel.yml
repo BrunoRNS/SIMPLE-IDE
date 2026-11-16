@@ -70,11 +70,11 @@ jobs:
           SIMPLEIDE_PKG_ARCH: x64
         run: make pkg-verify
 
-      - name: Upload invalid packages for debugging
-        if: failure() && matrix.java == '17'
+      - name: Upload generated packages
+        if: matrix.java == '17'
         uses: actions/upload-artifact@v4
         with:
-          name: invalid-packages-macos-x64
+          name: packages-macos-x64
           path: simpleide/target/pkg/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1

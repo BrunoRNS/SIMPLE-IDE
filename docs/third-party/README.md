@@ -42,3 +42,9 @@ license applies.
    them or replaces them.
 4. If you redistribute an LSP server installation, follow the license of that
    server, not this document.
+
+## Platform requirements
+
+The bundled Linux BusyBox binaries and the bundled JDK require GNU glibc 2.28
+or newer. Alpine Linux and other musl-based distributions are not supported.
+See [Linux compatibility](../reference/LINUX.md).

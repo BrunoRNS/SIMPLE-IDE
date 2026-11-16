@@ -9,13 +9,9 @@ permissions:
 
 jobs:
   test:
-    name: Linux x64 (Alpine)
+    name: Linux x64 (Debian 10)
 
     runs-on: ubuntu-latest
-
-    container:
-      image: alpine:latest
-      options: --platform linux/amd64 --hostname alpine
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x64
@@ -26,197 +22,50 @@ jobs:
         java: ["17", "21", "25", "27"]
 
     steps:
-      - name: Prepare Alpine environment
-        run: |
-          set -eu
-
-          apk update
-
-          apk add --no-cache \
-            bash \
-            git \
-            curl \
-            ca-certificates \
-            nodejs \
-            gcompat \
-            tar \
-            unzip \
-            zip
-
-          update-ca-certificates
-
-      - name: Verify Alpine architecture
-        run: |
-          set -eu
-
-          test "$(apk --print-arch)" = x86_64
-          test "$(hostname)" = alpine
-          grep -q Alpine /etc/os-release
-
-          echo "=== Alpine ==="
-          cat /etc/alpine-release
-
-          echo "=== Architecture ==="
-          uname -m
-
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v5
+      - name: Cache Maven packages
+        uses: actions/cache@v4
         with:
-          distribution: zulu
-          java-version: ${{ matrix.java }}
-          architecture: x64
-          cache: maven
+          path: ~/.m2
+          key: linux-x64-debian10-maven-${{ matrix.java }}-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: linux-x64-debian10-maven-${{ matrix.java }}-
 
-      - name: Install language toolchains
-        run: |
-          set -eu
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
 
-          apk add --no-cache \
-            file \
-            build-base \
-            go \
-            mono \
-            rust \
-            python3 \
-            fakeroot \
-            rpm \
-            dpkg \
-            libstdc++
-
-      - name: Verify Java and language toolchains
-        run: |
-          set -eu
-
-          echo "=== Alpine ==="
-
-          test "$(apk --print-arch)" = x86_64
-          test "$(hostname)" = alpine
-
-          echo "=== Java ==="
-
-          java -XshowSettings:properties -version 2>&1 \
-            | grep -q "sun.arch.data.model = 64"
-
-          java -version
-
-          echo "=== GCC / G++ ==="
-
-          command -v gcc
-          command -v g++
-
-          gcc -dumpmachine \
-            | grep -q x86_64
-
-          g++ -dumpmachine \
-            | grep -q x86_64
-
-          gcc --version
-          g++ --version
-
-          echo "=== GNU Make ==="
-
-          command -v make
-          make --version | head -n 1
-          make --version | grep -q "GNU Make"
-
-          echo "=== Mono ==="
-
-          command -v mcs
-          command -v mono
-
-          mono --version
-          mcs --version
-
-          file -L "$(command -v mono)" \
-            | grep -Eq "ELF 64-bit.*(x86-64|x86_64)"
-
-          echo "=== Go ==="
-
-          command -v go
-
-          test "$(go env GOOS)" = linux
-          test "$(go env GOARCH)" = amd64
-
-          go version
-
-          echo "=== Rust ==="
-
-          command -v rustc
-
-          rustc -vV \
-            | grep -q "^host: x86_64-alpine-linux-musl$"
-
-          rustc --version
-
-          echo "=== Node.js ==="
-
-          command -v node
-
-          test "$(node -p 'process.arch')" = x64
-
-          node --version
-
-          echo "=== Python ==="
-
-          command -v python3
-
-          test "$(python3 -c 'import struct; print(struct.calcsize("P") * 8)')" = 64
-
-          python3 --version
-
-          echo "=== Package tools ==="
-
-          command -v fakeroot
-          command -v rpmbuild
-          command -v dpkg-deb
-
-          fakeroot --version
-          rpmbuild --version
-          dpkg-deb --version
-
-          echo "=== All toolchains verified ==="
-
-      - name: Run tests with GNU Make
-        run: |
-          set -eu
-
-          make --version | grep -q "GNU Make"
-
-          make test
-
-      - name: Build and validate packages
-        if: matrix.java == '17'
+      - name: Run tests and build packages in Debian 10
         env:
-          SIMPLEIDE_PKG_OS: linux
-          SIMPLEIDE_PKG_ARCH: x64
+          SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
+          SIMPLEIDE_CI_ARCH: x64
+          BUILD_PACKAGES: ${{ matrix.java == '17' }}
         run: |
           set -eu
 
-          echo "=== Package tools ==="
+          tasks="test"
+          if [ "$BUILD_PACKAGES" = "true" ]; then
+            tasks="test pkg"
+          fi
 
-          command -v fakeroot
-          command -v rpmbuild
-          command -v dpkg-deb
+          docker run --rm \
+            --platform linux/amd64 \
+            --hostname debian10 \
+            --shm-size=1g \
+            -e SIMPLEIDE_EXPECTED_PLATFORM \
+            -e SIMPLEIDE_CI_JAVA \
+            -e SIMPLEIDE_CI_ARCH \
+            -v "$PWD:/workspace" \
+            -v "$HOME/.m2:/root/.m2" \
+            -w /workspace \
+            debian:10 \
+            bash scripts/ci/linux-debian.sh $tasks
 
-          fakeroot --version
-          rpmbuild --version
-
-          echo "=== GNU Make ==="
-
-          make --version | grep -q "GNU Make"
-
-          echo "=== Package validation ==="
-
-          make pkg-verify
-
-      - name: Upload invalid packages for debugging
-        if: failure() && matrix.java == '17'
+      - name: Upload generated packages
+        if: matrix.java == '17'
         uses: actions/upload-artifact@v4
         with:
-          name: invalid-packages-linux-x64
+          name: packages-linux-x64
           path: simpleide/target/pkg/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1

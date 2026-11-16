@@ -28,6 +28,10 @@ access.
 Every platform directory also contains a `README.txt` (provenance notes) and a
 complete `LICENSE.txt`.
 
+The Linux binaries require GNU glibc 2.28 or newer. They do not run on Alpine
+Linux or other musl-based distributions. See
+[Linux compatibility](../reference/LINUX.md).
+
 ## License
 
 All BusyBox binaries and their sources are licensed under the
@@ -64,4 +68,5 @@ See also:
 
 - [Third-party overview](README.md)
 - [Runtime downloads](RUNTIME.md)
+- [Linux compatibility](../reference/LINUX.md)
 - [License inventory](LICENSES.md)

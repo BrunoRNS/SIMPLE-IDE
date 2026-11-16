@@ -51,6 +51,7 @@ class CompilerLanguagesTest {
 
 	@Test
 	void compilerMetadataAndPathConstructorsAreConfigured() {
+		requireLanguageTool("mono");
 		CLanguage c = new CLanguage(tempDirectory.resolve("main.c"));
 		CPPLanguage cpp = new CPPLanguage(tempDirectory.resolve("main.cpp"));
 		MonoCSharpLanguage csharp = new MonoCSharpLanguage(tempDirectory.resolve("main.cs"));

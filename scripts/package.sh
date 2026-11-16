@@ -21,6 +21,9 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
+# shellcheck source=scripts/macos-min-version.sh
+. "$SCRIPT_DIR/macos-min-version.sh"
 PROPERTIES="$ROOT_DIR/simpleide/src/main/resources/simpleide.properties"
 FAT_JAR="$ROOT_DIR/simpleide/target/simpleide.jar"
 PKG_DIR="$ROOT_DIR/simpleide/target/pkg"
@@ -107,6 +110,41 @@ cp "$FAT_JAR" "$INPUT_DIR/simpleide.jar"
 
 jpackage_args="--name SimpleIDE --app-version $APP_VERSION --input $INPUT_DIR --main-jar simpleide.jar --main-class io.simpleide.App --vendor SimpleIDE --description SimpleIDE --copyright BSD-3-Clause --java-options -Dfile.encoding=UTF-8"
 
+# Prints the minimum macOS version declared in the generated app bundle. The
+# JDK 17 release build targets Big Sur (11.0); newer JDKs require newer macOS
+# releases. Set SIMPLEIDE_MACOS_MIN_VERSION to override the mapping.
+macos_min_version() {
+    if [ -n "${SIMPLEIDE_MACOS_MIN_VERSION:-}" ]; then
+        echo "$SIMPLEIDE_MACOS_MIN_VERSION"
+        return 0
+    fi
+    JPACKAGE_BIN=$(command -v jpackage 2>/dev/null || true)
+    JAVA_BIN=java
+    if [ -n "$JPACKAGE_BIN" ] && [ -x "${JPACKAGE_BIN%/*}/java" ]; then
+        JAVA_BIN="${JPACKAGE_BIN%/*}/java"
+    fi
+    simpleide_macos_min_version "$(simpleide_jdk_major "$JAVA_BIN")"
+}
+
+set_macos_min_version() {
+    MIN_VERSION=$(macos_min_version) || {
+        echo "warning: unknown JDK version; leaving LSMinimumSystemVersion unchanged." >&2
+        return 0
+    }
+    PLIST="$APP_IMAGE/Contents/Info.plist"
+    if [ ! -f "$PLIST" ]; then
+        echo "error: the application image has no Info.plist: $PLIST" >&2
+        exit 1
+    fi
+    if ! /usr/libexec/PlistBuddy -c "Set :LSMinimumSystemVersion $MIN_VERSION" "$PLIST" 2>/dev/null; then
+        if ! /usr/libexec/PlistBuddy -c "Add :LSMinimumSystemVersion string $MIN_VERSION" "$PLIST" 2>/dev/null; then
+            echo "error: unable to set LSMinimumSystemVersion in $PLIST" >&2
+            exit 1
+        fi
+    fi
+    echo "macOS minimum system version: $MIN_VERSION"
+}
+
 build_app_image() {
     IMAGE_DIR="$PKG_DIR/image"
     rm -rf "$IMAGE_DIR"
@@ -129,6 +167,9 @@ build_app_image() {
         echo "error: the application image has no launcher: $LAUNCHER" >&2
         exit 1
     fi
+    if [ "$OS" = "macos" ]; then
+        set_macos_min_version
+    fi
 }
 
 build_app_image_archive() {
@@ -144,13 +185,7 @@ build_app_image_archive() {
     echo "Package: $ARCHIVE"
 }
 
-build_installer() {
-    INSTALLER_DIR="$PKG_DIR/installer-$1"
-    rm -rf "$INSTALLER_DIR"
-    mkdir -p "$INSTALLER_DIR"
-    # shellcheck disable=SC2086
-    jpackage --type "$1" $jpackage_args --dest "$INSTALLER_DIR"
-
+stage_installer() {
     INSTALLER=$(find "$INSTALLER_DIR" -maxdepth 1 -type f | head -n 1)
     if [ -z "$INSTALLER" ]; then
         echo "error: jpackage did not create a $1 installer." >&2
@@ -160,6 +195,29 @@ build_installer() {
     ARTIFACT="$PKG_DIR/$ARTIFACT_BASE.$EXTENSION"
     cp "$INSTALLER" "$ARTIFACT"
     echo "Package: $ARTIFACT"
+}
+
+build_installer() {
+    INSTALLER_DIR="$PKG_DIR/installer-$1"
+    rm -rf "$INSTALLER_DIR"
+    mkdir -p "$INSTALLER_DIR"
+    # shellcheck disable=SC2086
+    jpackage --type "$1" $jpackage_args --dest "$INSTALLER_DIR"
+    stage_installer "$1"
+}
+
+# Builds the .dmg from an app image whose Info.plist already declares the
+# correct LSMinimumSystemVersion. jpackage cannot set that key directly.
+build_dmg_installer() {
+    if [ ! -e "${LAUNCHER:-}" ]; then
+        build_app_image
+    fi
+    INSTALLER_DIR="$PKG_DIR/installer-dmg"
+    rm -rf "$INSTALLER_DIR"
+    mkdir -p "$INSTALLER_DIR"
+    jpackage --type dmg --name SimpleIDE --app-version "$APP_VERSION" \
+        --app-image "$APP_IMAGE" --dest "$INSTALLER_DIR"
+    stage_installer dmg
 }
 
 SKIPPED=""
@@ -199,7 +257,7 @@ for PKG in $PACKAGES; do
                 SKIPPED="$SKIPPED dmg"
                 continue
             fi
-            build_installer dmg
+            build_dmg_installer
             ;;
         msi)
             echo "warning: .msi packages are built by scripts/package.ps1 on Windows; skipping." >&2

@@ -19,6 +19,9 @@ ROOT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 PROPERTIES="$ROOT_DIR/simpleide/src/main/resources/simpleide.properties"
 PKG_DIR="$ROOT_DIR/simpleide/target/pkg"
 
+# shellcheck source=scripts/macos-min-version.sh
+. "$SCRIPT_DIR/macos-min-version.sh"
+
 VERSION=$(sed -n 's/^version=//p' "$PROPERTIES" | tr -d '\r' | head -n 1)
 if [ -z "$VERSION" ]; then
     echo "error: unable to read the application version from $PROPERTIES" >&2
@@ -56,6 +59,31 @@ ok() {
 }
 
 [ -d "$PKG_DIR" ] || fail "the package directory was not found: $PKG_DIR"
+
+# Prints the LSMinimumSystemVersion expected for the JDK used to build the
+# package, or nothing when the JDK is not in the known table.
+expected_macos_min_version() {
+    if [ -n "${SIMPLEIDE_MACOS_MIN_VERSION:-}" ]; then
+        echo "$SIMPLEIDE_MACOS_MIN_VERSION"
+        return 0
+    fi
+    JPACKAGE_BIN=$(command -v jpackage 2>/dev/null || true)
+    JAVA_BIN=java
+    if [ -n "$JPACKAGE_BIN" ] && [ -x "${JPACKAGE_BIN%/*}/java" ]; then
+        JAVA_BIN="${JPACKAGE_BIN%/*}/java"
+    fi
+    simpleide_macos_min_version "$(simpleide_jdk_major "$JAVA_BIN")"
+}
+
+versions_equal() {
+    awk -v a="$1" -v b="$2" 'BEGIN {
+        na = split(a, x, ".");
+        nb = split(b, y, ".");
+        xa = (na > 1 ? x[2] + 0 : 0);
+        yb = (nb > 1 ? y[2] + 0 : 0);
+        exit !(x[1] + 0 == y[1] + 0 && xa == yb);
+    }'
+}
 
 validate_zip() {
     PACKAGE="$PKG_DIR/$ARTIFACT_BASE.zip"
@@ -103,7 +131,30 @@ validate_dmg() {
     [ -f "$PACKAGE" ] || fail "$PACKAGE was not produced."
     command -v hdiutil >/dev/null 2>&1 || fail "hdiutil is not available to validate $PACKAGE"
     hdiutil imageinfo "$PACKAGE" >/dev/null 2>&1 || fail "hdiutil cannot read $PACKAGE"
-    ok "$PACKAGE"
+
+    MOUNT_DIR="$PKG_DIR/validate-dmg"
+    rm -rf "$MOUNT_DIR"
+    mkdir -p "$MOUNT_DIR"
+    hdiutil attach -nobrowse -readonly -mountpoint "$MOUNT_DIR" "$PACKAGE" >/dev/null 2>&1 \
+        || fail "hdiutil cannot mount $PACKAGE"
+
+    PLIST="$MOUNT_DIR/SimpleIDE.app/Contents/Info.plist"
+    DECLARED=""
+    if [ -f "$PLIST" ]; then
+        DECLARED=$(plutil -extract LSMinimumSystemVersion raw "$PLIST" 2>/dev/null || true)
+    fi
+    hdiutil detach "$MOUNT_DIR" >/dev/null 2>&1 || true
+    rm -rf "$MOUNT_DIR"
+
+    [ -n "$DECLARED" ] || fail "$PACKAGE does not declare LSMinimumSystemVersion in SimpleIDE.app/Contents/Info.plist."
+    EXPECTED=$(expected_macos_min_version || true)
+    if [ -n "$EXPECTED" ]; then
+        versions_equal "$DECLARED" "$EXPECTED" \
+            || fail "$PACKAGE declares macOS $DECLARED, but JDK 17/21/25/27 packaging expects macOS $EXPECTED."
+        ok "$PACKAGE (macOS $DECLARED+)"
+    else
+        ok "$PACKAGE (macOS $DECLARED+)"
+    fi
 }
 
 case "$OS" in

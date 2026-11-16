@@ -9,9 +9,10 @@ permissions:
 
 jobs:
   test:
+    name: Linux ARM64 (Debian 10)
+
     runs-on: ubuntu-24.04-arm
-    container:
-      image: alpine:3.22
+
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-arm64
 
@@ -21,113 +22,53 @@ jobs:
         java: ["17", "21", "25", "27"]
 
     steps:
-      - name: Prepare Alpine environment
-        shell: sh
-        run: |
-          set -eu
-
-          apk update
-          apk add --no-cache \
-            bash \
-            ca-certificates \
-            curl \
-            file \
-            git \
-            gcompat \
-            nodejs \
-            python3 \
-            build-base \
-            go \
-            mono \
-            rust \
-            cargo \
-            fakeroot \
-            rpm \
-            dpkg \
-            tar \
-            unzip \
-            zip
-
-          update-ca-certificates
-
-          echo "Alpine version:"
-          cat /etc/alpine-release
-
-          echo "Architecture:"
-          apk --print-arch
-          test "$(apk --print-arch)" = "aarch64"
-
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v5
+      - name: Cache Maven packages
+        uses: actions/cache@v4
         with:
-          distribution: zulu
-          java-version: ${{ matrix.java }}
-          cache: maven
+          path: ~/.m2
+          key: linux-arm64-debian10-maven-${{ matrix.java }}-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: linux-arm64-debian10-maven-${{ matrix.java }}-
 
-      - name: Verify language toolchains
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
 
-          command -v gcc
-          command -v g++
-          command -v make
-          command -v mcs
-          command -v mono
-          command -v go
-          command -v rustc
-          command -v cargo
-          command -v node
-          command -v python3
-
-          test "$(uname -m)" = "aarch64"
-          test "$(go env GOOS)" = "linux"
-          test "$(go env GOARCH)" = "arm64"
-
-          rustc -vV | grep -Eq '^host: aarch64-.*-linux-musl$'
-
-          test "$(node -p 'process.arch')" = "arm64"
-
-          python3 -c \
-            'import platform; assert platform.machine().lower() in ("aarch64", "arm64")'
-
-          mono --version
-          mcs --version
-
-          file -L "$(command -v mono-sgen)" |
-            grep -Eq 'ELF 64-bit.*(ARM aarch64|AArch64)'
-
-          java -version 2>&1
-          java -XshowSettings:properties -version 2>&1 |
-            grep -Eq 'os.arch = aarch64'
-
-          make --version | grep -q "GNU Make"
-
-      - name: Run tests
-        shell: bash
-        run: make test
-
-      - name: Validate fat JAR and generated packages
-        if: matrix.java == '17'
+      - name: Run tests and build packages in Debian 10
         env:
-          SIMPLEIDE_PKG_OS: linux
-          SIMPLEIDE_PKG_ARCH: arm64
-        shell: bash
+          SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
+          SIMPLEIDE_CI_ARCH: arm64
+          BUILD_PACKAGES: ${{ matrix.java == '17' }}
         run: |
-          set -euo pipefail
-          make pkg-verify
+          set -eu
 
-      - name: Upload invalid packages for debugging
-        if: failure() && matrix.java == '17'
+          tasks="test"
+          if [ "$BUILD_PACKAGES" = "true" ]; then
+            tasks="test pkg"
+          fi
+
+          docker run --rm \
+            --platform linux/arm64 \
+            --hostname debian10 \
+            --shm-size=1g \
+            -e SIMPLEIDE_EXPECTED_PLATFORM \
+            -e SIMPLEIDE_CI_JAVA \
+            -e SIMPLEIDE_CI_ARCH \
+            -v "$PWD:/workspace" \
+            -v "$HOME/.m2:/root/.m2" \
+            -w /workspace \
+            debian:10 \
+            bash scripts/ci/linux-debian.sh $tasks
+
+      - name: Upload generated packages
+        if: matrix.java == '17'
         uses: actions/upload-artifact@v4
         with:
-          name: invalid-packages-linux-arm64
+          name: packages-linux-arm64
           path: simpleide/target/pkg/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1
 
       - name: Report failed tests
         if: failure()

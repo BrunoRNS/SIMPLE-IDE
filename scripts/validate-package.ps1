@@ -165,14 +165,15 @@ if (Test-Path $extractDir) {
     Remove-Item -Recurse -Force $extractDir
 }
 
-New-Item -ItemType Directory -Path $extractDir -Force |
-    Out-Null
+# Windows PowerShell 5.1 runs on .NET Framework, whose ZipFile type has no
+# three-argument ExtractToDirectory overload. Expand-Archive -Force uses that
+# overload, so call the two-argument API on a fresh directory instead.
+if (-not ("System.IO.Compression.ZipFile" -as [type])) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+}
 
 try {
-    Expand-Archive `
-        -LiteralPath $archive `
-        -DestinationPath $extractDir `
-        -Force
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($archive, $extractDir)
 }
 catch {
     Fail "The ZIP archive is invalid: $($_.Exception.Message)"
@@ -240,15 +241,18 @@ if (-not (Test-Path $runtimeBin)) {
     Fail "Bundled Java runtime directory is missing: $runtimeBin"
 }
 
-$javaExecutable = Join-Path $runtimeBin "java.exe"
+# jpackage strips the runtime's native commands (java.exe) by default. The
+# runtime library and the server VM are the architecture-specific pieces that
+# remain in the bundled image.
+$javaLibrary = Join-Path $runtimeBin "java.dll"
 
-if (-not (Test-Path $javaExecutable)) {
-    Fail "Bundled Java executable is missing: $javaExecutable"
+if (-not (Test-Path $javaLibrary)) {
+    Fail "Bundled Java runtime library is missing: $javaLibrary"
 }
 
 Assert-PeArchitecture `
-    -path $javaExecutable `
-    -description "Bundled Java executable"
+    -path $javaLibrary `
+    -description "Bundled Java runtime library"
 
 Ok "Application image validation completed"
 

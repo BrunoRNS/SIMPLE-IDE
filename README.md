@@ -98,6 +98,18 @@ Download from [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/releases):
 
 Beta versions (e.g. `1.0.0beta`) are published as pre-releases.
 
+Linux builds require a GNU/Linux distribution with **glibc 2.28 or newer**
+(Debian 10+, Ubuntu 18.10+, Fedora 29+, RHEL 8+). Alpine Linux and other
+musl-based distributions are not supported. See
+[Linux compatibility](docs/reference/LINUX.md).
+
+Windows builds require **Windows 10** on `x86` and `x64`, and **Windows 11** on
+`arm64`. macOS builds require **Big Sur (11.0)** on `x64` and `arm64`; the
+release `.dmg` is built with JDK 17. Packages built with JDK 21, 25 and 27
+require macOS 12, 14 and 15 respectively. See
+[Windows compatibility](docs/reference/WINDOWS.md) and
+[macOS compatibility](docs/reference/MACOS.md).
+
 ### From source (super advanced users / developers)
 
 Requirements: JDK 17+, GNU Make (optional). Build, test and run:
@@ -144,6 +156,8 @@ for the process.
 - [Languages](docs/reference/LANGUAGES.md) ·
   [LSP](docs/reference/LSP.md) ·
   [Threading](docs/reference/THREADMASTER.md)
+- [Linux](docs/reference/LINUX.md) · [Windows](docs/reference/WINDOWS.md) ·
+  [macOS](docs/reference/MACOS.md)
 - [Build, test and packaging](docs/build/MAKEFILE.md) ·
   [Releases](docs/build/RELEASES.md)
 - [Third-party dependencies and licenses](docs/third-party/README.md)

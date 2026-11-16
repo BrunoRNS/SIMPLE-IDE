@@ -26,6 +26,9 @@ split by audience instead of being kept in one large file.
 | Add or understand a language | [Languages reference](reference/LANGUAGES.md) |
 | Understand language servers | [LSP reference](reference/LSP.md) |
 | Understand thread management | [Thread reference](reference/THREADMASTER.md) |
+| Check whether a Linux distribution is supported | [Linux compatibility](reference/LINUX.md) |
+| Check whether a Windows version is supported | [Windows compatibility](reference/WINDOWS.md) |
+| Check whether a macOS version is supported | [macOS compatibility](reference/MACOS.md) |
 | Know what is bundled or downloaded | [Third-party overview](third-party/README.md) |
 | Read the license inventory | [Third-party licenses](third-party/LICENSES.md) |
 
@@ -67,8 +70,11 @@ docs/
 │   └── TESTING.md                Test layout and tags
 ├── reference/                    Subsystem references
 │   ├── LANGUAGES.md              Language support reference
+│   ├── LINUX.md                  Linux distributions, glibc and architecture support
 │   ├── LSP.md                    Language Server Protocol reference
-│   └── THREADMASTER.md           Thread manager reference
+│   ├── MACOS.md                  macOS versions and JDK-dependent minimums
+│   ├── THREADMASTER.md           Thread manager reference
+│   └── WINDOWS.md                Windows versions and architecture support
 ├── third-party/                  Dependencies, downloads and licenses
 │   ├── README.md                 Overview of every category
 │   ├── MAVEN.md                  pom.xml dependencies and licenses

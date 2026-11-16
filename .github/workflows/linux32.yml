@@ -9,227 +9,51 @@ permissions:
 
 jobs:
   test:
-    name: Linux x86 (Alpine 32-bit)
+    name: Linux x86 (Debian 10 32-bit)
 
     runs-on: ubuntu-latest
-
-    container:
-      image: alpine:latest
-      options: --platform linux/386 --hostname alpine
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x86
 
     steps:
-      - name: Prepare Alpine environment
-        run: |
-          set -eu
-
-          apk update
-
-          apk add --no-cache \
-            bash \
-            git \
-            curl \
-            ca-certificates \
-            nodejs \
-            gcompat \
-            tar \
-            unzip \
-            zip
-
-          update-ca-certificates
-
-      - name: Verify Alpine architecture
-        run: |
-          set -eu
-
-          test "$(apk --print-arch)" = x86
-          test "$(hostname)" = alpine
-          grep -q Alpine /etc/os-release
-
-          echo "=== Alpine ==="
-          cat /etc/alpine-release
-
-          echo "=== Architecture ==="
-          uname -m
-
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up 32-bit Java
-        uses: actions/setup-java@v5
+      - name: Cache Maven packages
+        uses: actions/cache@v4
         with:
-          distribution: zulu
-          java-version: "17"
-          architecture: x86
-          cache: maven
+          path: ~/.m2
+          key: linux-x86-debian10-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: linux-x86-debian10-maven-
 
-      - name: Install language toolchains
-        run: |
-          set -eu
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
 
-          apk add --no-cache \
-            file \
-            build-base \
-            go \
-            mono \
-            rust \
-            python3 \
-            xz \
-            fakeroot \
-            rpm \
-            dpkg \
-            libstdc++
-
-          echo "=== Downloading Node.js 8.17.0 ==="
-
-          curl --retry 5 \
-            --retry-all-errors \
-            --fail \
-            --location \
-            --silent \
-            --show-error \
-            https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x86.tar.xz \
-            -o /tmp/node.tar.xz
-
-          tar -xJf /tmp/node.tar.xz -C /opt
-
-          ln -s \
-            /opt/node-v8.17.0-linux-x86/bin/node \
-            /usr/local/bin/node
-
-          rm /tmp/node.tar.xz
-
-      - name: Verify Java and language toolchains
-        run: |
-          set -eu
-
-          echo "=== Alpine ==="
-
-          test "$(apk --print-arch)" = x86
-          test "$(hostname)" = alpine
-
-          echo "=== Java ==="
-
-          java -XshowSettings:properties -version 2>&1 \
-            | grep -q "sun.arch.data.model = 32"
-
-          java -version
-
-          echo "=== GCC / G++ ==="
-
-          command -v gcc
-          command -v g++
-
-          gcc -dumpmachine \
-            | grep -Eq "^i[3-6]86-alpine-linux-musl$"
-
-          g++ -dumpmachine \
-            | grep -Eq "^i[3-6]86-alpine-linux-musl$"
-
-          gcc --version
-          g++ --version
-
-          echo "=== GNU Make ==="
-
-          command -v make
-          make --version | head -n 1
-          make --version | grep -q "GNU Make"
-
-          echo "=== Mono ==="
-
-          command -v mcs
-          command -v mono
-
-          mono --version
-          mcs --version
-
-          echo "=== Go ==="
-
-          command -v go
-
-          test "$(go env GOOS)" = linux
-          test "$(go env GOARCH)" = 386
-
-          go version
-
-          echo "=== Rust ==="
-
-          command -v rustc
-
-          rustc -vV \
-            | grep -Eq "^host: i[3-6]86-alpine-linux-musl$"
-
-          rustc --version
-
-          echo "=== Node.js ==="
-
-          command -v node
-
-          test "$(node --version)" = v8.17.0
-          test "$(node -p 'process.arch')" = ia32
-
-          file -L "$(command -v node)" \
-            | grep -q "ELF 32-bit"
-
-          echo "=== Python ==="
-
-          command -v python3
-
-          test "$(python3 -c 'import struct; print(struct.calcsize("P") * 8)')" = 32
-
-          python3 --version
-
-          echo "=== Package tools ==="
-
-          command -v fakeroot
-          command -v rpmbuild
-          command -v dpkg-deb
-
-          fakeroot --version
-          rpmbuild --version
-          dpkg-deb --version
-
-          echo "=== All toolchains verified ==="
-
-      - name: Run tests with GNU Make
-        run: |
-          set -eu
-
-          make --version | grep -q "GNU Make"
-
-          make test
-
-      - name: Build and validate packages
+      - name: Run tests and build packages in Debian 10
         env:
-          SIMPLEIDE_PKG_OS: linux
-          SIMPLEIDE_PKG_ARCH: x86
+          SIMPLEIDE_CI_JAVA: "17"
+          SIMPLEIDE_CI_ARCH: x86
         run: |
           set -eu
 
-          echo "=== Package tools ==="
+          docker run --rm \
+            --platform linux/386 \
+            --hostname debian10 \
+            --shm-size=1g \
+            -e SIMPLEIDE_EXPECTED_PLATFORM \
+            -e SIMPLEIDE_CI_JAVA \
+            -e SIMPLEIDE_CI_ARCH \
+            -v "$PWD:/workspace" \
+            -v "$HOME/.m2:/root/.m2" \
+            -w /workspace \
+            debian:10 \
+            bash scripts/ci/linux-debian.sh test pkg
 
-          command -v fakeroot
-          command -v rpmbuild
-          command -v dpkg-deb
-
-          fakeroot --version
-          rpmbuild --version
-
-          echo "=== GNU Make ==="
-
-          make --version | grep -q "GNU Make"
-
-          echo "=== Package validation ==="
-
-          make pkg-verify
-
-      - name: Upload invalid packages for debugging
-        if: failure()
+      - name: Upload generated packages
         uses: actions/upload-artifact@v4
         with:
-          name: invalid-packages-linux-x86
+          name: packages-linux-x86
           path: simpleide/target/pkg/
           if-no-files-found: ignore
-          retention-days: 7
+          retention-days: 1

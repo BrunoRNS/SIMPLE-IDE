@@ -24,9 +24,16 @@ image) and the `.msi` installer.
 Before a release, every CI platform validates what it produces with
 `make pkg-verify`. The validation extracts the static zip and checks its
 launcher, and asks `dpkg-deb`, `rpm`, `hdiutil` or the Windows Installer
-database to read the installer metadata. When a package is invalid, the CI job
-fails and uploads the whole package directory as a debugging artifact
-(`invalid-packages-<os>-<arch>`).
+database to read the installer metadata. A failed job stops at the failing
+step; the generated package directory is uploaded as
+`packages-<os>-<arch>` only after every previous step succeeds and is kept for
+one day.
+
+Linux packages are built and validated inside an explicit Debian 10
+(`buster`) container. Debian 10 provides the minimum supported glibc (2.28),
+so a package that passes CI is known to run on every supported Linux
+distribution. Alpine is not used. See
+[Linux compatibility](../reference/LINUX.md).
 
 ## Version types
 
@@ -56,4 +63,5 @@ platform.
 See also:
 
 - [Build, test and packaging](MAKEFILE.md)
+- [Linux compatibility](../reference/LINUX.md)
 - [Third-party overview](../third-party/README.md)
