@@ -88,7 +88,16 @@ if (-not (Get-Command $jpackage -ErrorAction SilentlyContinue)) {
 }
 Write-Host "Using jpackage: $jpackage"
 
-$jpackageArgs = @(
+# jpackage derives the WiX target from os.arch, which reports the host
+# architecture rather than the JVM data model. A 32-bit JVM on 64-bit Windows
+# therefore reports amd64 and jpackage emits an x64 MSI for an x86 build.
+# Forcing os.arch=x86 makes jpackage produce Intel components and an Intel
+# Summary Information template.
+$jpackageArgs = @()
+if ($arch -eq "x86") {
+    $jpackageArgs += "-J-Dos.arch=x86"
+}
+$jpackageArgs += @(
     "--name", "SimpleIDE",
     "--app-version", $appVersion,
     "--input", $inputDir,
@@ -133,6 +142,60 @@ function Build-AppImage {
     Write-Host "Package: $archive"
 }
 
+# jpackage has no ARM64 WiX target: WixFragmentBuilder.is64Bit() is true for
+# every non-x86 JVM and WixPipeline always passes -arch x64 when it is true, so
+# ARM64 builds also get an x64 Summary Information template. The payload and
+# all 64-bit MSI component metadata are already compatible with ARM64; only the
+# package platform and required installer version need correction.
+function Set-Arm64MsiPlatform([string]$path) {
+    if (-not (Test-Path -LiteralPath $path)) {
+        throw "MSI not found: $path"
+    }
+
+    $installer = New-Object -ComObject WindowsInstaller.Installer
+    $database = $null
+    $summary = $null
+    $view = $null
+
+    try {
+        $database = $installer.OpenDatabase($path, 1)
+        $summary = $database.SummaryInformation(4)
+
+        $template = [string]$summary.Property(7)
+        $pageCount = [int]$summary.Property(14)
+
+        if ($template -notmatch '^Arm64;' -or $pageCount -lt 500) {
+            $language = "1033"
+            if ($template -match ';\s*(.+)$') {
+                $language = $Matches[1]
+            }
+
+            $summary.Property(7) = "Arm64;$language"
+            $summary.Property(14) = [int]500
+            $summary.Persist()
+
+            $view = $database.OpenView('UPDATE `Package` SET `InstallerVersion` = 500')
+            $view.Execute()
+            $view.Close()
+            $view = $null
+
+            $database.Commit()
+
+            Write-Host "Patched MSI to Arm64 (was '$template', Page Count $pageCount)"
+        }
+    }
+    catch {
+        throw "Could not set the ARM64 MSI platform in $path ($($_.Exception.Message))"
+    }
+    finally {
+        foreach ($comObject in @($view, $summary, $database, $installer)) {
+            if ($null -ne $comObject) {
+                [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($comObject)
+            }
+        }
+    }
+}
+
 function Build-Installer([string]$type) {
     $installerDir = Join-Path $pkgDir "installer-$type"
     if (Test-Path $installerDir) {
@@ -150,6 +213,9 @@ function Build-Installer([string]$type) {
     }
     $artifact = Join-Path $pkgDir "$artifactBase$($installer.Extension)"
     Copy-Item $installer.FullName $artifact -Force
+    if ($type -eq "msi" -and $arch -eq "arm64") {
+        Set-Arm64MsiPlatform $artifact
+    }
     Write-Host "Package: $artifact"
 }
 

@@ -96,7 +96,10 @@ make pkg-verify
 Packaging overrides jpackage's default `--strip-native-commands` jlink option so
 the bundled runtime keeps `java`, `javac` and `jdk.compiler`; the embedded
 bytecode compiler and the Java language server then work without an external
-JDK.
+JDK. Windows x86 builds also pass `-J-Dos.arch=x86` because jpackage otherwise
+uses the host `os.arch` and emits an x64 MSI. Windows ARM64 MSIs are built with
+jpackage's hard-coded x64 WiX target and then have their platform metadata
+rewritten to `Arm64` by `scripts/package.ps1`.
 
 Build only one package type:
 

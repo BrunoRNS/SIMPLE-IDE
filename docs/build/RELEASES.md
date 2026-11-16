@@ -30,7 +30,10 @@ native commands so the bundled JDK can run the embedded compiler and the Java
 language server without an external JDK.
 The Windows check also confirms that the `.msi` declares `SimpleIDE` as its
 `ProductName` and that its Summary Information platform matches the requested
-architecture. A failed job stops at the failing step.
+architecture; ARM64 MSIs must also report a Page Count of at least 500. The
+x86 and ARM64 metadata quirks come from jpackage's host-based architecture
+detection and are corrected in `scripts/package.ps1` before validation. A
+failed job stops at the failing step.
 
 CI jobs do not upload the generated packages as workflow artifacts. The
 release workflow rebuilds every platform, passes the packages between its jobs

@@ -337,6 +337,14 @@ try {
         Fail "MSI platform mismatch. Expected $expectedTemplate; received '$template'."
     }
 
+    if ($arch -eq "arm64") {
+        $pageCount = [int]$summary.Property(14)
+        if ($pageCount -lt 500) {
+            Fail "ARM64 MSI Page Count is $pageCount; expected at least 500."
+        }
+        Ok "MSI page count: $pageCount"
+    }
+
     Ok "MSI product name: $productName"
     Ok "MSI platform: $template"
 }
