@@ -315,6 +315,7 @@ public final class BusyBoxTerminalController {
 		}
 	}
 
+	@SuppressWarnings("ConvertToTryWithResources")
 	private Runnable getWindowCloseCallbackIfFinished() {
 		Runnable callback;
 		synchronized (tabsLock) {

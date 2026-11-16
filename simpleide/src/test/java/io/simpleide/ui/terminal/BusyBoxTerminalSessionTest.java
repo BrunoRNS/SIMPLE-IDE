@@ -1,16 +1,5 @@
 package io.simpleide.ui.terminal;
 
-import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
-import com.jediterm.core.util.TermSize;
-import com.jediterm.terminal.ProcessTtyConnector;
-import com.jediterm.terminal.TtyConnector;
-import com.pty4j.PtyProcess;
-import io.simpleide.language.config.LangPlatform;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
@@ -25,11 +14,24 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.awaitility.Awaitility.await;
 import org.awaitility.core.ConditionTimeoutException;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.jediterm.core.util.TermSize;
+import com.jediterm.terminal.ProcessTtyConnector;
+import com.jediterm.terminal.TtyConnector;
+import com.pty4j.PtyProcess;
+
+import io.simpleide.language.config.LangPlatform;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.BusyBoxTerminalSession}.
@@ -145,8 +147,10 @@ class BusyBoxTerminalSessionTest {
 					"Fallback shell command did not resolve to /sh: pid=" + fallback.pid() + ", command="
 							+ fallbackShellCommand + ", diagnostics=" + session.processDiagnostics());
 			Future<String> output = outputReader.submit(() -> readUntil(connector, "PTY_OK"));
-			connector.write("if test -t 0 && test -t 1; then " + "printf '\\120\\124\\131\\137\\117\\113\\n'; "
-					+ "else printf '\\120\\124\\131\\137\\116\\117\\n'; fi\n");
+			connector
+				.write("""
+						if test -t 0 && test -t 1; then printf '\\120\\124\\131\\137\\117\\113\\n'; else printf '\\120\\124\\131\\137\\116\\117\\n'; fi
+						""");
 			assertTrue(output.get(10, TimeUnit.SECONDS).contains("PTY_OK"),
 					"The /bin/sh fallback did not execute a command through the PTY.");
 		}
@@ -446,7 +450,8 @@ class BusyBoxTerminalSessionTest {
 				return "PTY reader did not reach EOF within " + timeoutSeconds + " seconds; captured=" + snapshot();
 			}
 			catch (ExecutionException exception) {
-				return "PTY reader failed: " + exception.getCause() + "; captured=" + snapshot();
+				Throwable cause = exception.getCause();
+				return "PTY reader failed: " + cause.getMessage() + "; captured=" + snapshot();
 			}
 			return snapshot();
 		}
