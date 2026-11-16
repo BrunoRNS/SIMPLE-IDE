@@ -230,11 +230,9 @@ on every pull request:
 `scripts/ci/linux-debian.sh` configures the archived Debian 10 repositories and
 installs the JDK, Go, Node.js, GCC, Mono, Rust and Python toolchains inside the
 container. The job does not rely on the runner image for any language
-toolchain. Because `archive.debian.org` must be reachable from the container,
-`scripts/ci/run-linux-debian.sh` detects the runner's upstream nameservers and
-passes them with `--dns`; the systemd-resolved stub on `127.0.0.53` is not
-reachable from inside the container. When no upstream nameserver can be
-detected it falls back to `--network host`. Relying on host networking alone
-was not enough: the 32-bit container still failed to resolve
-archive.debian.org while the 64-bit containers worked. See
+toolchain. The 32-bit job adds `--security-opt seccomp=unconfined` because the
+default seccomp profile on newer runner images blocks `socketcall(2)`; Debian's
+i386 glibc still uses that syscall to create sockets, so without the override
+the container has no network and apt fails to reach `archive.debian.org`. The
+64-bit and ARM64 containers use the default profile and `--network host`. See
 [Linux compatibility](../reference/LINUX.md).

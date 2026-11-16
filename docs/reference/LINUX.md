@@ -97,12 +97,13 @@ the minimum glibc is exercised on real hardware or emulation:
 The repository is checked out on the runner and mounted into the container.
 Every language toolchain (JDK, Go, Node.js, GCC, Mono, Rust and Python) is
 installed inside that container by `scripts/ci/linux-debian.sh`, so the tests do
-not depend on the runner image. Docker receives the runner's upstream
-nameservers via `--dns` so the container can resolve `archive.debian.org`; the
-systemd-resolved stub on `127.0.0.53` is not reachable from inside the
-container. When detection fails it falls back to `--network host`. Using host
-networking alone did not fix resolution in the 32-bit container. Alpine is not used because GitHub JavaScript actions cannot run in a
-32-bit container and the JDK cannot run on musl.
+not depend on the runner image. All containers use host networking. The 32-bit
+job additionally passes `--security-opt seccomp=unconfined`: newer runner
+images ship a Docker default seccomp profile that denies `socketcall(2)`, and
+Debian's i386 glibc still creates sockets through that syscall. Without the
+override the 32-bit container has no network and apt reports a misleading DNS
+failure for `archive.debian.org`. Alpine is not used because GitHub JavaScript
+actions cannot run in a 32-bit container and the JDK cannot run on musl.
 
 ## References
 

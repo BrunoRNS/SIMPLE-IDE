@@ -105,16 +105,6 @@ Acquire::Check-Valid-Until "false";
 Acquire::Retries "5";
 EOF
 
-echo "=== DNS diagnostics ==="
-cat /etc/resolv.conf || true
-for host in archive.debian.org go.dev nodejs.org; do
-	if getent ahostsv4 "$host" >/dev/null 2>&1; then
-		echo "resolve $host: ok"
-	else
-		echo "resolve $host: FAILED" >&2
-	fi
-done
-
 echo "=== Installing Debian packages ==="
 
 apt-get update

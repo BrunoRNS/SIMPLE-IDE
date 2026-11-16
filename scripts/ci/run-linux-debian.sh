@@ -2,11 +2,12 @@
 #
 # Runs scripts/ci/linux-debian.sh inside a Debian 10 container.
 #
-# GitHub-hosted runners use a local stub resolver (systemd-resolved on
-# 127.0.0.53) that Docker cannot reach from inside the container. Docker then
-# falls back to public resolvers, which the CI network may block, so apt fails
-# to resolve archive.debian.org. Detect the runner's real upstream nameservers
-# and pass them to the container explicitly.
+# The linux/386 container needs --security-opt seccomp=unconfined: newer
+# GitHub runner images ship Docker versions whose default seccomp profile
+# denies socketcall(2). Debian's i386 glibc still creates sockets through
+# socketcall, so without this option the 32-bit container has no network and
+# apt reports a bogus "Temporary failure resolving archive.debian.org".
+# See actions/runner-images#14790.
 #
 # Usage:
 #
@@ -33,11 +34,20 @@ if [ ${#TASKS[@]} -eq 0 ]; then
 	TASKS=(test)
 fi
 
+# The i386 glibc uses the legacy socketcall syscall, which Docker's default
+# seccomp profile blocks on affected runner images.
+SECURITY_ARGS=()
+if [ "$PLATFORM" = "linux/386" ]; then
+	SECURITY_ARGS=(--security-opt seccomp=unconfined)
+fi
+
 mkdir -p "$HOME/.m2"
 
 docker run --rm \
 	--platform "$PLATFORM" \
 	--network host \
+	"${SECURITY_ARGS[@]}" \
+	--shm-size=1g \
 	-e SIMPLEIDE_EXPECTED_PLATFORM \
 	-e SIMPLEIDE_CI_JAVA \
 	-e SIMPLEIDE_CI_ARCH \
