@@ -1,0 +1,71 @@
+name: macOS Intel CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: macos-15-intel
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: macos-x64
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["17", "21", "25", "27"]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: ${{ matrix.java }}
+          architecture: x64
+          cache: maven
+
+      - name: Install Mono
+        run: brew install go mono rust
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          architecture: x64
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+          architecture: x64
+
+      - name: Verify language toolchains
+        run: |
+          command -v gcc
+          command -v g++
+          command -v mcs
+          command -v mono
+          command -v go
+          command -v rustc
+          command -v node
+          command -v python3
+          test "$(go env GOOS)" = darwin
+          test "$(go env GOARCH)" = amd64
+          rustc -vV | grep -Eq '^host: x86_64-apple-darwin$'
+          test "$(node -p 'process.arch')" = x64
+          python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
+          file -L "$(command -v mono)" | grep -Eq 'Mach-O 64-bit.*(x86_64|x86_64h)'
+
+      - name: Run tests
+        run: make test
+
+      - name: Validate fat JAR and generated packages
+        if: matrix.java == '17'
+        env:
+          SIMPLEIDE_PKG_OS: macos
+          SIMPLEIDE_PKG_ARCH: x64
+        run: make pkg-verify

@@ -1,0 +1,26 @@
+Simple IDE embedded BusyBox versions
+====================================
+
+Platform                         Binary version                              Source archive
+-------------------------------- ------------------------------------------- --------------------------------------------------------------
+linux-x86                        BusyBox 1.20.0                              busybox-1.20.0-modified-simpleide-nommu-monotonicsyscall-oldkernel-src.tar.bz2
+linux-x64                        BusyBox 1.20.0                              busybox-1.20.0-modified-simpleide-src.tar.bz2
+linux-arm64                      BusyBox 1.20.0                              busybox-1.20.0-arm64-simpleide-src.tar.bz2
+macos-intel                      BusyBox 1.20.0.git (2026-11-06)             busybox-macos-intel-simpleide-src.tar.bz2
+macos-arm64                      BusyBox 1.20.0.git (2023-11-29)             busybox-macos-arm64-src.tar.bz2
+windows-x86                      BusyBox v1.39.0-FRP-6354-g5f09fb446         busybox-w32-src.tar.bz2
+windows-x64-unicode              BusyBox v1.39.0-FRP-6354-g5f09fb446         busybox-w32-src.tar.bz2
+windows-arm64                    BusyBox v1.39.0-FRP-6354-g5f09fb446         busybox-w32-src.tar.bz2
+
+Notes
+-----
+
+- The Linux binaries are BusyBox 1.20.0 builds. The source archive names record
+  the Simple IDE-specific build options.
+- The macOS binaries report BusyBox 1.20.0.git. The build date distinguishes the
+  Intel and Apple Silicon source trees.
+- The Windows binaries are busybox-w32 builds. The FRP marker and Git revision
+  come from the busybox-w32 project.
+- The same Windows source archive is used for the x86, x64 Unicode and ARM64
+  executables.
+- Update this file whenever a binary or its source archive changes.

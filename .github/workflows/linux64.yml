@@ -1,0 +1,51 @@
+name: Linux x64 CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Linux x64 (Debian 10)
+
+    runs-on: ubuntu-latest
+
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: linux-x64
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["17", "21", "25", "27"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Cache Maven packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2
+          key: linux-x64-debian10-maven-${{ matrix.java }}-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: linux-x64-debian10-maven-${{ matrix.java }}-
+
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
+
+      - name: Run tests and build packages in Debian 10
+        env:
+          SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
+          SIMPLEIDE_CI_ARCH: x64
+          BUILD_PACKAGES: ${{ matrix.java == '17' }}
+        run: |
+          set -eu
+
+          tasks="test"
+          if [ "$BUILD_PACKAGES" = "true" ]; then
+            tasks="test pkg"
+          fi
+
+          bash scripts/ci/run-linux-debian.sh linux/amd64 $tasks

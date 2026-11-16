@@ -1,0 +1,79 @@
+name: Linux ARM64 CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Linux ARM64 (Debian 10)
+
+    runs-on: ubuntu-24.04-arm
+
+    env:
+      SIMPLEIDE_EXPECTED_PLATFORM: linux-arm64
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ["17", "21", "25", "27"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Cache Maven packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.m2
+          key: linux-arm64-debian10-maven-${{ matrix.java }}-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: linux-arm64-debian10-maven-${{ matrix.java }}-
+
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
+
+      - name: Run tests and build packages in Debian 10
+        env:
+          SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
+          SIMPLEIDE_CI_ARCH: arm64
+          BUILD_PACKAGES: ${{ matrix.java == '17' }}
+        run: |
+          set -eu
+
+          tasks="test"
+          if [ "$BUILD_PACKAGES" = "true" ]; then
+            tasks="test pkg"
+          fi
+
+          bash scripts/ci/run-linux-debian.sh linux/arm64 $tasks
+
+      - name: Report failed tests
+        if: failure()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import glob
+          import xml.etree.ElementTree as ET
+
+          failures = 0
+          for report in sorted(glob.glob('*/target/surefire-reports/TEST-*.xml')):
+              try:
+                  root = ET.parse(report).getroot()
+              except Exception as error:
+                  print(f"::warning::Unable to parse {report}: {error}")
+                  continue
+              for case in root.iter('testcase'):
+                  for kind in ('failure', 'error'):
+                      node = case.find(kind)
+                      if node is None:
+                          continue
+                      failures += 1
+                      name = f"{case.get('classname')}.{case.get('name')}"
+                      message = (node.get('message') or node.text or kind).strip()
+                      message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                      print(f"::error title={name}::{message[:1500]}")
+          print(f"Surefire reported {failures} failed or errored test(s).")
+          PY
