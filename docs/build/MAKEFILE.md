@@ -225,4 +225,7 @@ on every pull request:
 `scripts/ci/linux-debian.sh` configures the archived Debian 10 repositories and
 installs the JDK, Go, Node.js, GCC, Mono, Rust and Python toolchains inside the
 container. The job does not rely on the runner image for any language
-toolchain. See [Linux compatibility](../reference/LINUX.md).
+toolchain. Because `archive.debian.org` must be reachable from the container,
+the Docker command pins public DNS resolvers with `--dns`; the runner's
+systemd-resolved stub is not reachable from inside the container. See
+[Linux compatibility](../reference/LINUX.md).

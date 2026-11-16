@@ -18,10 +18,10 @@ jobs:
         java: ["17", "21", "25", "27"]
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Java
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: zulu
           java-version: ${{ matrix.java }}
@@ -32,12 +32,12 @@ jobs:
         run: brew install go mono rust
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.x"
           architecture: arm64
@@ -68,15 +68,6 @@ jobs:
           SIMPLEIDE_PKG_OS: macos
           SIMPLEIDE_PKG_ARCH: arm64
         run: make pkg-verify
-      - name: Upload generated packages
-        if: matrix.java == '17'
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages-macos-arm64
-          path: simpleide/target/pkg/
-          if-no-files-found: ignore
-          retention-days: 1
-
       - name: Report failed tests
         if: failure()
         shell: bash

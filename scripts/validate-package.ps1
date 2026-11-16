@@ -11,6 +11,7 @@
 #   MSI:
 #     - Windows Installer database can be opened.
 #     - ProductName identifies SimpleIDE.
+#     - Summary Information platform matches the requested architecture.
 #
 # Exits non-zero when a package is missing or invalid.
 
@@ -266,74 +267,45 @@ if (-not (Test-Path $msi)) {
     Fail "MSI package was not produced: $msi"
 }
 
+# Windows Installer automation is an out-of-process COM server. Calling its
+# members directly lets PowerShell perform the IDispatch conversion; routing
+# the same calls through GetType().InvokeMember() makes the binder reject some
+# of the arguments (DISP_E_TYPEMISMATCH) even for valid packages.
 try {
-
     $windowsInstaller = New-Object -ComObject WindowsInstaller.Installer
+}
+catch {
+    Fail "Could not create the Windows Installer COM object ($($_.Exception.Message))"
+}
 
-    $database = $windowsInstaller.GetType().InvokeMember(
-        "OpenDatabase",
-        "InvokeMethod",
-        $null,
-        $windowsInstaller,
-        @($msi, 0)
-    )
+try {
+    $database = $windowsInstaller.OpenDatabase($msi, 0)
+}
+catch {
+    Fail "Windows Installer cannot open $msi ($($_.Exception.Message))"
+}
 
-    $view = $database.GetType().InvokeMember(
-        "OpenView",
-        "InvokeMethod",
-        $null,
-        $database,
-        @("SELECT `Value` FROM `Property` WHERE `Property` = 'ProductName'")
-    )
+try {
+    $query = 'SELECT `Value` FROM `Property` WHERE `Property` = ''ProductName'''
+    $view = $database.OpenView($query)
+    $view.Execute()
 
-    $view.GetType().InvokeMember(
-        "Execute",
-        "InvokeMethod",
-        $null,
-        $view,
-        $null
-    ) | Out-Null
-
-    $record = $view.GetType().InvokeMember(
-        "Fetch",
-        "InvokeMethod",
-        $null,
-        $view,
-        $null
-    )
+    $record = $view.Fetch()
 
     if ($null -eq $record) {
         Fail "MSI does not contain a ProductName property."
     }
 
-    $productName = $record.GetType().InvokeMember(
-        "StringData",
-        "GetProperty",
-        $null,
-        $record,
-        @(1)
-    )
+    $productName = $record.StringData(1)
+    $view.Close()
 
     if ($productName -notmatch "SimpleIDE") {
         Fail "MSI does not declare SimpleIDE as ProductName. Received: $productName"
     }
 
     # Check MSI Summary Information platform.
-    $summary = $database.GetType().InvokeMember(
-        "SummaryInformation",
-        "GetProperty",
-        $null,
-        $database,
-        @(0)
-    )
-
-    $template = $summary.GetType().InvokeMember(
-        "Property",
-        "GetProperty",
-        $null,
-        $summary,
-        @(7)
-    )
+    $summary = $database.SummaryInformation(0)
+    $template = $summary.Property(7)
 
     $expectedTemplate = switch ($arch) {
         "x86"   { "Intel" }
@@ -347,7 +319,6 @@ try {
 
     Ok "MSI product name: $productName"
     Ok "MSI platform: $template"
-
 }
 catch {
     Fail "Windows Installer cannot validate $msi ($($_.Exception.Message))"

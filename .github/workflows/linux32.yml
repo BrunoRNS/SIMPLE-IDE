@@ -18,10 +18,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Cache Maven packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.m2
           key: linux-x86-debian10-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
@@ -41,6 +41,8 @@ jobs:
             --platform linux/386 \
             --hostname debian10 \
             --shm-size=1g \
+            --dns 8.8.8.8 \
+            --dns 1.1.1.1 \
             -e SIMPLEIDE_EXPECTED_PLATFORM \
             -e SIMPLEIDE_CI_JAVA \
             -e SIMPLEIDE_CI_ARCH \
@@ -49,11 +51,3 @@ jobs:
             -w /workspace \
             debian:10 \
             bash scripts/ci/linux-debian.sh test pkg
-
-      - name: Upload generated packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: packages-linux-x86
-          path: simpleide/target/pkg/
-          if-no-files-found: ignore
-          retention-days: 1

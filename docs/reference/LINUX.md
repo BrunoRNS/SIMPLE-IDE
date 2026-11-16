@@ -94,8 +94,11 @@ the minimum glibc is exercised on real hardware or emulation:
 The repository is checked out on the runner and mounted into the container.
 Every language toolchain (JDK, Go, Node.js, GCC, Mono, Rust and Python) is
 installed inside that container by `scripts/ci/linux-debian.sh`, so the tests do
-not depend on the runner image. Alpine is not used because GitHub JavaScript
-actions cannot run in a 32-bit container and the JDK cannot run on musl.
+not depend on the runner image. The Docker command passes `--dns 8.8.8.8` and
+`--dns 1.1.1.1` so the container can resolve `archive.debian.org`; the runner's
+systemd-resolved stub is not reachable from inside the container. Alpine is not
+used because GitHub JavaScript actions cannot run in a 32-bit container and the
+JDK cannot run on musl.
 
 ## References
 

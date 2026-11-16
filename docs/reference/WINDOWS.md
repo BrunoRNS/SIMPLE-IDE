@@ -58,14 +58,16 @@ newer, so the 32-bit packages are validated with JDK 17.
 
 The `x64` and `arm64` workflows run the test suite on JDK 17, 21, 25 and 27;
 the 32-bit workflow runs it on JDK 17. Every workflow builds its packages with
-JDK 17 and validates them with `scripts/validate-package.ps1`. The MSI
-check reads the installer database, and the zip check extracts the archive and
-confirms that the launcher and runtime are present. `candle.exe` from the WiX
-toolset is required to build the MSI and is installed by
-`scripts/ci/ensure-wix.ps1`.
+JDK 17 and validates them with `scripts/validate-package.ps1`. The zip check
+extracts the archive and confirms that the launcher, bundled JVM and runtime
+library are valid PE files for the requested architecture. The MSI check reads
+the installer database, confirms that `ProductName` identifies SimpleIDE, and
+checks the Summary Information platform (`Intel`, `x64` or `Arm64`).
+`candle.exe` from the WiX toolset is required to build the MSI and is installed
+by `scripts/ci/ensure-wix.ps1`.
 
-The generated packages are uploaded as `packages-windows-<arch>` only after
-every previous step succeeds and are kept for one day.
+CI does not upload the generated packages. The release workflow rebuilds them
+and attaches the resulting files to the GitHub release tag.
 
 ## See also
 

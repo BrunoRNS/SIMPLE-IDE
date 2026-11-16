@@ -23,11 +23,16 @@ image) and the `.msi` installer.
 
 Before a release, every CI platform validates what it produces with
 `make pkg-verify`. The validation extracts the static zip and checks its
-launcher, and asks `dpkg-deb`, `rpm`, `hdiutil` or the Windows Installer
-database to read the installer metadata. A failed job stops at the failing
-step; the generated package directory is uploaded as
-`packages-<os>-<arch>` only after every previous step succeeds and is kept for
-one day.
+launcher and bundled runtime architecture, and asks `dpkg-deb`, `rpm`,
+`hdiutil` or the Windows Installer database to read the installer metadata.
+The Windows check also confirms that the `.msi` declares `SimpleIDE` as its
+`ProductName` and that its Summary Information platform matches the requested
+architecture. A failed job stops at the failing step.
+
+CI jobs do not upload the generated packages as workflow artifacts. The
+release workflow rebuilds every platform, passes the packages between its jobs
+with `actions/upload-artifact`/`actions/download-artifact`, and attaches them
+to the GitHub release tag with `gh release upload`.
 
 Linux packages are built and validated inside an explicit Debian 10
 (`buster`) container. Debian 10 provides the minimum supported glibc (2.28),
