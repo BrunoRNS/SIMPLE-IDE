@@ -344,10 +344,6 @@ jobs:
       - name: Run tests
         run: make test
 
-      - name: Ensure WiX toolset
-        shell: pwsh
-        run: ./scripts/ci/ensure-wix.ps1
-
       - name: Validate fat JAR and generated packages
         env:
           SIMPLEIDE_PKG_OS: windows

@@ -34,6 +34,7 @@ jar:
 
 # Build a self-contained jpackage application image for the current OS/arch.
 # Override with SIMPLEIDE_PKG_TYPE=deb|rpm|dmg|exe|msi|app-image.
+# The Windows .msi is built for x64 only.
 pkg: jar
 	$(PKG_RUNNER)
 

@@ -177,11 +177,6 @@ jobs:
       - name: Run tests
         run: make test
 
-      - name: Ensure WiX toolset
-        if: matrix.java == '17'
-        shell: pwsh
-        run: ./scripts/ci/ensure-wix.ps1
-
       - name: Validate fat JAR and generated packages
         if: matrix.java == '17'
         env:

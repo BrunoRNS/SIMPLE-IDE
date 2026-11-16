@@ -94,7 +94,8 @@ Download from [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/releases):
   Linux and Windows, no installation step.
 - `simpleide-v<version>-linux-<arch>.deb` / `.rpm`,
   `simpleide-v<version>-macos-<arch>.dmg` and
-  `simpleide-v<version>-windows-<arch>.msi` — native installers per platform.
+  `simpleide-v<version>-windows-x64.msi` — native installers per platform. The
+  Windows `.msi` is published for `x64` only; `x86` and `arm64` ship the zip.
 
 Beta versions (e.g. `1.0.0beta`) are published as pre-releases.
 

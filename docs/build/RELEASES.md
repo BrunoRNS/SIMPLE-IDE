@@ -13,13 +13,14 @@ publishes a GitHub release from the version in
 | Linux `.deb` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>.deb` |
 | Linux `.rpm` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>.rpm` |
 | macOS `.dmg` installer | `make pkg` on macOS CI | `simpleide-v<version>-macos-<arch>.dmg` |
-| Windows `.msi` installer | `make pkg` on Windows CI | `simpleide-v<version>-windows-<arch>.msi` |
+| Windows `.msi` installer (x64 only) | `make pkg` on Windows CI | `simpleide-v<version>-windows-x64.msi` |
 
 `<os>` is `linux`, `macos` or `windows`; `<arch>` is `x64`, `x86` or `arm64`.
 `make pkg` builds the full set for the current OS: Linux produces the static
 zip, the `.deb` and the `.rpm`; macOS produces only the `.dmg`; Windows
 produces the static zip (whose launcher is the `SimpleIDE.exe` inside the app
-image) and the `.msi` installer.
+image) and, on `x64` only, the `.msi` installer. Windows `x86` and `arm64`
+release the static zip alone.
 
 Before a release, every CI platform validates what it produces with
 `make pkg-verify`. The validation extracts the static zip and checks its
@@ -28,12 +29,10 @@ launcher, bundled runtime architecture, bundled Java launcher and the
 Installer database to read the installer metadata. Packages keep jpackage's
 native commands so the bundled JDK can run the embedded compiler and the Java
 language server without an external JDK.
-The Windows check also confirms that the `.msi` declares `SimpleIDE` as its
-`ProductName` and that its Summary Information platform matches the requested
-architecture; ARM64 MSIs must also report a Page Count of at least 500. The
-x86 and ARM64 metadata quirks come from jpackage's host-based architecture
-detection and its x64-hard-coded Windows WiX template; both are corrected in
-`scripts/package.ps1` before validation. A failed job stops at the failing step.
+On `x64` the Windows check also confirms that the `.msi` declares `SimpleIDE`
+as its `ProductName` and that its Summary Information platform is `x64`. No
+MSI is built or validated for `x86` or `arm64`, which release the static zip
+only. A failed job stops at the failing step.
 
 CI jobs do not upload the generated packages as workflow artifacts. The
 release workflow rebuilds every platform, passes the packages between its jobs
@@ -64,12 +63,12 @@ SIMPLEIDE_PKG_TYPE=deb make pkg    # Linux .deb
 SIMPLEIDE_PKG_TYPE=rpm make pkg    # Linux .rpm
 SIMPLEIDE_PKG_TYPE=dmg make pkg    # macOS .dmg
 SIMPLEIDE_PKG_TYPE=exe make pkg    # Windows .exe
-SIMPLEIDE_PKG_TYPE=msi make pkg    # Windows .msi
+SIMPLEIDE_PKG_TYPE=msi make pkg    # Windows .msi (x64 only)
 ```
 
 The release job uploads every artifact produced on each CI platform, so a
-release contains the fat JAR plus one static zip and installer per supported
-platform.
+release contains the fat JAR plus one static zip per supported platform, plus
+the Linux, macOS and `windows-x64` installers.
 
 See also:
 

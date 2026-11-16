@@ -24,12 +24,13 @@ available on Windows 10 and newer.
 | Architecture | Static zip | `.msi` installer | JDK versions validated in CI |
 | --- | --- | --- | --- |
 | `x64` | Yes | Yes | 17, 21, 25, 27 |
-| `x86` (32-bit) | Yes | Yes | 17 |
-| `arm64` | Yes | Yes | 17, 21, 25, 27 |
+| `x86` (32-bit) | Yes | No | 17 |
+| `arm64` | Yes | No | 17, 21, 25, 27 |
 
-The static zip contains the same application image as the installer. Unzip it
-and run `SimpleIDE.exe`; no installation step is required. The `.msi` installer
-registers the application and adds it to the Start menu.
+The static zip contains the full application image. Unzip it and run
+`SimpleIDE.exe`; no installation step is required. The `.msi` installer is only
+built and published for `x64`: it registers the application and adds it to the
+Start menu. The `x86` and `arm64` releases ship the static zip only.
 
 Current JDK vendors no longer publish 32-bit Windows builds for Java 21 and
 newer, so the 32-bit packages are validated with JDK 17.
@@ -63,26 +64,14 @@ extracts the archive and confirms that the launcher, bundled JVM, runtime
 library and bundled `java.exe` are valid PE files for the requested
 architecture, and that the runtime provides the `jdk.compiler` module. Packaging
 overrides jpackage's default `--strip-native-commands` jlink option so the
-embedded compiler and Java language server work without an external JDK. The
-MSI check reads the installer database, confirms that `ProductName` identifies
-SimpleIDE, and checks the Summary Information platform (`Intel`, `x64` or
-`Arm64`).
-`candle.exe` from the WiX toolset is required to build the MSI and is installed
-by `scripts/ci/ensure-wix.ps1`.
-
-jpackage chooses the WiX component target from `os.arch`, which reports the
-host OS architecture rather than the JVM data model. A 32-bit JDK on 64-bit
-Windows would therefore produce 64-bit WiX components; `scripts/package.ps1`
-passes `-J-Dos.arch=x86` for x86 builds so candle emits Intel components.
-The JDK 17 Windows WiX template also hard-codes `Platform="x64"` in the
-`Package` element, so the Summary Information template stays x64 even with
-`-J-Dos.arch=x86`. jpackage has no ARM64 WiX target at all: every non-x86 JVM
-takes the hard-coded `-arch x64` path. ARM64 packages are still correct because
-x64 and ARM64 MSI component metadata are both 64-bit. After building an MSI,
-`scripts/package.ps1` rewrites the Summary Information platform to `Intel`
-(Page Count 200) or `Arm64` (Page Count 500). The Page Count is the Windows
-Installer schema/minimum-version value, and 500 is required for ARM64. An ARM64
-MSI refuses to install on x64 Windows.
+embedded compiler and Java language server work without an external JDK.
+Only the `x64` workflow also validates the `.msi`: that check reads the
+installer database, confirms that `ProductName` identifies SimpleIDE, and
+checks that the Summary Information platform is `x64`. The `x86` and `arm64`
+workflows validate the zip only, because no MSI is built for those
+architectures. `candle.exe` from the WiX toolset is required to build the `x64`
+MSI and is installed by `scripts/ci/ensure-wix.ps1`; the `x86` and `arm64`
+workflows do not install WiX.
 
 CI does not upload the generated packages. The release workflow rebuilds them
 and attaches the resulting files to the GitHub release tag.

@@ -1,10 +1,11 @@
 # Builds the release packages for Windows with the naming convention:
 #
 #   simpleide-v<version>-windows-<arch>.zip     static, portable app image
-#   simpleide-v<version>-windows-<arch>.msi     installer
+#   simpleide-v<version>-windows-x64.msi         installer (x64 only)
 #
-# Default behavior: build both. Set SIMPLEIDE_PKG_TYPE to app-image or msi to
-# build only that package.
+# Default behavior: x64 builds the zip and the .msi installer; x86 and arm64
+# build only the zip. The .msi is not produced for x86 or arm64. Set
+# SIMPLEIDE_PKG_TYPE to app-image or msi to build only that package.
 
 $ErrorActionPreference = "Stop"
 
@@ -57,9 +58,14 @@ if ($pkgType) {
     if (@("app-image", "msi") -notcontains $pkgType) {
         throw "Unsupported package type: $pkgType"
     }
+    if ($pkgType -eq "msi" -and $arch -ne "x64") {
+        throw "The .msi installer is only built for x64; $arch produces the static zip only."
+    }
     $packages = @($pkgType)
-} else {
+} elseif ($arch -eq "x64") {
     $packages = @("app-image", "msi")
+} else {
+    $packages = @("app-image")
 }
 
 if (Test-Path $pkgDir) {
@@ -74,8 +80,8 @@ Copy-Item $fatJar (Join-Path $inputDir "simpleide.jar")
 
 # Use the jpackage that belongs to the JDK that built the jar. The Windows
 # runner image ships several JDKs on PATH, so resolving the bare "jpackage"
-# command can pick a x64 JDK for an x86/ARM64 build and produce an installer
-# with the wrong MSI platform template.
+# command can pick a x64 JDK for an x86/ARM64 build and produce a package built
+# for the wrong architecture.
 $jpackage = "jpackage"
 if ($env:JAVA_HOME) {
     $candidate = Join-Path $env:JAVA_HOME "bin\jpackage.exe"
@@ -88,12 +94,10 @@ if (-not (Get-Command $jpackage -ErrorAction SilentlyContinue)) {
 }
 Write-Host "Using jpackage: $jpackage"
 
-# jpackage derives the WiX target from os.arch, which reports the host
+# jpackage derives the target platform from os.arch, which reports the host
 # architecture rather than the JVM data model. A 32-bit JVM on 64-bit Windows
-# therefore reports amd64 and jpackage emits 64-bit WiX components for an x86
-# build. Forcing os.arch=x86 makes jpackage pass -arch x86 to candle so the
-# components are Intel; the Summary Information template is still corrected
-# after the build because the JDK template hard-codes Platform="x64".
+# therefore reports amd64. Forcing os.arch=x86 keeps the x86 package metadata
+# consistent with the bundled 32-bit runtime. No .msi is built for x86.
 $jpackageArgs = @()
 if ($arch -eq "x86") {
     $jpackageArgs += "-J-Dos.arch=x86"
@@ -143,53 +147,6 @@ function Build-AppImage {
     Write-Host "Package: $archive"
 }
 
-# jpackage 17.0.21's Windows WiX template hard-codes Platform="x64" in the
-# Package element, so even -J-Dos.arch=x86 leaves the Summary Information
-# template at x64. WixPipeline also has no ARM64 target, so every ARM64 build
-# gets an x64 template. The component metadata is already correct for the
-# requested architecture (-arch x86 for x86, -arch x64 for ARM64), so only the
-# Summary Information platform and page count need correction.
-function Set-MsiPlatform([string]$path, [string]$platform, [int]$pageCount) {
-    if (-not (Test-Path -LiteralPath $path)) {
-        throw "MSI not found: $path"
-    }
-
-    $installer = New-Object -ComObject WindowsInstaller.Installer
-    $database = $null
-    $summary = $null
-
-    try {
-        $database = $installer.OpenDatabase($path, 1)
-        $summary = $database.SummaryInformation(4)
-
-        $template = [string]$summary.Property(7)
-        $currentPageCount = [int]$summary.Property(14)
-
-        if ($template -notmatch "^$([regex]::Escape($platform));" -or $currentPageCount -ne $pageCount) {
-            $language = "1033"
-            if ($template -match ';\s*(.+)$') {
-                $language = $Matches[1]
-            }
-
-            $summary.Property(7) = "$platform;$language"
-            $summary.Property(14) = [int]$pageCount
-            $summary.Persist()
-
-            Write-Host "Patched MSI platform to $platform (was '$template', Page Count $currentPageCount)"
-        }
-    }
-    catch {
-        throw "Could not set the MSI platform to $platform in $path ($($_.Exception.Message))"
-    }
-    finally {
-        foreach ($comObject in @($summary, $database, $installer)) {
-            if ($null -ne $comObject) {
-                [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($comObject)
-            }
-        }
-    }
-}
-
 function Build-Installer([string]$type) {
     $installerDir = Join-Path $pkgDir "installer-$type"
     if (Test-Path $installerDir) {
@@ -207,14 +164,6 @@ function Build-Installer([string]$type) {
     }
     $artifact = Join-Path $pkgDir "$artifactBase$($installer.Extension)"
     Copy-Item $installer.FullName $artifact -Force
-    if ($type -eq "msi") {
-        if ($arch -eq "x86") {
-            Set-MsiPlatform $artifact "Intel" 200
-        }
-        elseif ($arch -eq "arm64") {
-            Set-MsiPlatform $artifact "Arm64" 500
-        }
-    }
     Write-Host "Package: $artifact"
 }
 

@@ -8,10 +8,13 @@
 #     - Launcher architecture matches the requested architecture.
 #     - Bundled JVM exists and has the expected architecture.
 #
-#   MSI:
+#   MSI (x64 only):
 #     - Windows Installer database can be opened.
 #     - ProductName identifies SimpleIDE.
-#     - Summary Information platform matches the requested architecture.
+#     - Summary Information platform is x64.
+#
+# The .msi installer is only published for x64, so it is neither required nor
+# validated for x86 or arm64, which ship the static zip only.
 #
 # Exits non-zero when a package is missing or invalid.
 
@@ -278,8 +281,10 @@ if (-not (Select-String -Path $releaseFile -Pattern 'jdk\.compiler' -Quiet)) {
 Ok "Application image validation completed"
 
 # --------------------------------------------------
-# MSI validation
+# MSI validation (x64 only)
 # --------------------------------------------------
+
+function Validate-Msi {
 
 $msi = Join-Path $pkgDir "$artifactBase.msi"
 
@@ -327,22 +332,8 @@ try {
     $summary = $database.SummaryInformation(0)
     $template = $summary.Property(7)
 
-    $expectedTemplate = switch ($arch) {
-        "x86"   { "Intel" }
-        "x64"   { "x64" }
-        "arm64" { "Arm64" }
-    }
-
-    if ($template -notmatch [regex]::Escape($expectedTemplate)) {
-        Fail "MSI platform mismatch. Expected $expectedTemplate; received '$template'."
-    }
-
-    if ($arch -eq "arm64") {
-        $pageCount = [int]$summary.Property(14)
-        if ($pageCount -lt 500) {
-            Fail "ARM64 MSI Page Count is $pageCount; expected at least 500."
-        }
-        Ok "MSI page count: $pageCount"
+    if ($template -notmatch [regex]::Escape("x64")) {
+        Fail "MSI platform mismatch. Expected x64; received '$template'."
     }
 
     Ok "MSI product name: $productName"
@@ -350,6 +341,8 @@ try {
 }
 catch {
     Fail "Windows Installer cannot validate $msi ($($_.Exception.Message))"
+}
+
 }
 
 # --------------------------------------------------
@@ -362,8 +355,11 @@ Remove-Item -Recurse -Force $extractDir
 # Final result
 # --------------------------------------------------
 
+if ($arch -eq "x64") {
+    Validate-Msi
+}
+
 Ok $archive
-Ok $msi
 
 Write-Host ""
 Write-Host "All packages for $os-$arch are valid." -ForegroundColor Green

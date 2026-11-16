@@ -196,8 +196,9 @@ jobs:
 
           & $javaExecutable.FullName -version
 
-      - name: Ensure WiX toolset for the .msi build
-        if: matrix.os == 'windows-latest' || matrix.os == 'windows-11-arm'
+      # Windows packages are zip + .msi on x64 and zip only on x86/ARM64.
+      - name: Ensure WiX toolset for the x64 .msi build
+        if: matrix.pkg_os == 'windows' && matrix.pkg_arch == 'x64'
         shell: pwsh
         run: ./scripts/ci/ensure-wix.ps1
 

@@ -34,7 +34,7 @@ make help
 | `make test` | Full test suite | Surefire reports |
 | `make test-nolang` | Tests without the `language-tools` tag | Surefire reports |
 | `make jar` | Package the executable fat JAR, skip tests | `simpleide/target/simpleide.jar` |
-| `make pkg` | `jar` plus every package type for the current OS/arch (Linux: zip + deb + rpm; macOS: dmg; Windows: zip + msi) | `simpleide/target/pkg/` |
+| `make pkg` | `jar` plus every package type for the current OS/arch (Linux: zip + deb + rpm; macOS: dmg; Windows: zip, plus msi on x64 only) | `simpleide/target/pkg/` |
 | `make pkg-verify` | `pkg` plus validation of every produced package | Exit status |
 | `make change-version VERSAO` | Validate and change the project version after confirmation | Updated pom and properties files |
 | `make run` | `jar` then launch the fat JAR | A running IDE |
@@ -63,7 +63,7 @@ Packaging environment variables:
 | --- | --- | --- |
 | `SIMPLEIDE_PKG_OS` | `linux`, `macos`, `windows` | Override OS detection |
 | `SIMPLEIDE_PKG_ARCH` | `x86`, `x64`, `arm64` | Override architecture detection |
-| `SIMPLEIDE_PKG_TYPE` | `app-image`, `deb`, `rpm`, `dmg`, `msi` | Build only one package type instead of the OS default set |
+| `SIMPLEIDE_PKG_TYPE` | `app-image`, `deb`, `rpm`, `dmg`, `msi` (x64 only) | Build only one package type instead of the OS default set |
 
 ## Examples
 
@@ -87,7 +87,7 @@ java -jar simpleide/target/simpleide.jar
 ```
 
 Build every package for this OS (Linux: zip + deb + rpm; macOS: dmg;
-Windows: zip + msi) and validate them:
+Windows: zip, plus the msi on x64) and validate them:
 
 ```sh
 make pkg-verify
@@ -96,12 +96,10 @@ make pkg-verify
 Packaging overrides jpackage's default `--strip-native-commands` jlink option so
 the bundled runtime keeps `java`, `javac` and `jdk.compiler`; the embedded
 bytecode compiler and the Java language server then work without an external
-JDK. Windows x86 builds also pass `-J-Dos.arch=x86` because jpackage otherwise
-uses the host `os.arch` and emits 64-bit WiX components. The JDK 17 WiX template
-still hard-codes the x64 Summary Information platform, so `scripts/package.ps1`
-rewrites it to `Intel` for x86. Windows ARM64 MSIs use jpackage's hard-coded x64
-WiX target and likewise have their Summary Information platform and Page Count
-rewritten to `Arm64`/500 by `scripts/package.ps1`.
+JDK. The `.msi` installer is only built on `windows-x64`; `windows-x86` and
+`windows-arm64` produce the static zip only. Windows x86 builds still pass
+`-J-Dos.arch=x86` so jpackage derives its metadata from the 32-bit runtime
+rather than the host `os.arch`.
 
 Build only one package type:
 

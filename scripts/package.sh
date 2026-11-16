@@ -12,7 +12,7 @@
 #
 #   linux:   zip + deb + rpm
 #   macos:   dmg only
-#   windows: zip + msi (see scripts/package.ps1)
+#   windows: zip + msi on x64, zip only on x86 and arm64 (see package.ps1)
 #
 # Set SIMPLEIDE_PKG_TYPE to a single type (app-image, deb, rpm or dmg) to
 # build only that package instead of the OS default set.
@@ -100,7 +100,13 @@ else
     case "$OS" in
         linux) PACKAGES="app-image deb rpm" ;;
         macos) PACKAGES="dmg" ;;
-        windows) PACKAGES="app-image msi" ;;
+        windows)
+            if [ "$ARCH" = "x64" ]; then
+                PACKAGES="app-image msi"
+            else
+                PACKAGES="app-image"
+            fi
+            ;;
     esac
 fi
 
