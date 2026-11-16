@@ -48,17 +48,4 @@ jobs:
             tasks="test pkg"
           fi
 
-          docker run --rm \
-            --platform linux/amd64 \
-            --hostname debian10 \
-            --shm-size=1g \
-            --dns 8.8.8.8 \
-            --dns 1.1.1.1 \
-            -e SIMPLEIDE_EXPECTED_PLATFORM \
-            -e SIMPLEIDE_CI_JAVA \
-            -e SIMPLEIDE_CI_ARCH \
-            -v "$PWD:/workspace" \
-            -v "$HOME/.m2:/root/.m2" \
-            -w /workspace \
-            debian:10 \
-            bash scripts/ci/linux-debian.sh $tasks
+          bash scripts/ci/run-linux-debian.sh linux/amd64 $tasks

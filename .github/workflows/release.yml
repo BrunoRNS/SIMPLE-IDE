@@ -112,19 +112,8 @@ jobs:
         run: |
           set -eu
 
-          docker run --rm \
-            --platform ${{ matrix.container_platform }} \
-            --hostname debian10 \
-            --shm-size=1g \
-            --dns 8.8.8.8 \
-            --dns 1.1.1.1 \
-            -e SIMPLEIDE_CI_JAVA \
-            -e SIMPLEIDE_CI_ARCH \
-            -v "$PWD:/workspace" \
-            -v "$HOME/.m2:/root/.m2" \
-            -w /workspace \
-            debian:10 \
-            bash scripts/ci/linux-debian.sh pkg
+          bash scripts/ci/run-linux-debian.sh \
+            ${{ matrix.container_platform }} pkg
 
       - name: Upload Linux package artifact
         uses: actions/upload-artifact@v7

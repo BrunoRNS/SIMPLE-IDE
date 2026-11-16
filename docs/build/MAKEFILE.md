@@ -226,6 +226,7 @@ on every pull request:
 installs the JDK, Go, Node.js, GCC, Mono, Rust and Python toolchains inside the
 container. The job does not rely on the runner image for any language
 toolchain. Because `archive.debian.org` must be reachable from the container,
-the Docker command pins public DNS resolvers with `--dns`; the runner's
-systemd-resolved stub is not reachable from inside the container. See
+`scripts/ci/run-linux-debian.sh` starts Docker with `--network host` so the
+container reuses the runner's DNS resolver; the systemd-resolved stub on
+`127.0.0.53` is not reachable over the default bridge network. See
 [Linux compatibility](../reference/LINUX.md).
