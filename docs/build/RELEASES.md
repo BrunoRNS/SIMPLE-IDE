@@ -32,8 +32,8 @@ The Windows check also confirms that the `.msi` declares `SimpleIDE` as its
 `ProductName` and that its Summary Information platform matches the requested
 architecture; ARM64 MSIs must also report a Page Count of at least 500. The
 x86 and ARM64 metadata quirks come from jpackage's host-based architecture
-detection and are corrected in `scripts/package.ps1` before validation. A
-failed job stops at the failing step.
+detection and its x64-hard-coded Windows WiX template; both are corrected in
+`scripts/package.ps1` before validation. A failed job stops at the failing step.
 
 CI jobs do not upload the generated packages as workflow artifacts. The
 release workflow rebuilds every platform, passes the packages between its jobs

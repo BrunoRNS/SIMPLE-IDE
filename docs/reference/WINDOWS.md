@@ -70,16 +70,19 @@ SimpleIDE, and checks the Summary Information platform (`Intel`, `x64` or
 `candle.exe` from the WiX toolset is required to build the MSI and is installed
 by `scripts/ci/ensure-wix.ps1`.
 
-jpackage chooses the WiX target from `os.arch`, which reports the host OS
-architecture rather than the JVM data model. A 32-bit JDK on 64-bit Windows
-would therefore produce an x64 MSI; `scripts/package.ps1` passes
-`-J-Dos.arch=x86` for x86 builds so WiX emits Intel components and an Intel
-template. jpackage has no ARM64 WiX target at all: every non-x86 JVM takes the
-hard-coded `-arch x64` path. ARM64 packages are still correct because x64 and
-ARM64 MSI component metadata are both 64-bit, so after building the installer
-`scripts/package.ps1` rewrites the Summary Information platform to `Arm64` and
-sets Page Count and `Package.InstallerVersion` to 500. The patched MSI refuses
-to install on x64 Windows.
+jpackage chooses the WiX component target from `os.arch`, which reports the
+host OS architecture rather than the JVM data model. A 32-bit JDK on 64-bit
+Windows would therefore produce 64-bit WiX components; `scripts/package.ps1`
+passes `-J-Dos.arch=x86` for x86 builds so candle emits Intel components.
+The JDK 17 Windows WiX template also hard-codes `Platform="x64"` in the
+`Package` element, so the Summary Information template stays x64 even with
+`-J-Dos.arch=x86`. jpackage has no ARM64 WiX target at all: every non-x86 JVM
+takes the hard-coded `-arch x64` path. ARM64 packages are still correct because
+x64 and ARM64 MSI component metadata are both 64-bit. After building an MSI,
+`scripts/package.ps1` rewrites the Summary Information platform to `Intel`
+(Page Count 200) or `Arm64` (Page Count 500). The Page Count is the Windows
+Installer schema/minimum-version value, and 500 is required for ARM64. An ARM64
+MSI refuses to install on x64 Windows.
 
 CI does not upload the generated packages. The release workflow rebuilds them
 and attaches the resulting files to the GitHub release tag.

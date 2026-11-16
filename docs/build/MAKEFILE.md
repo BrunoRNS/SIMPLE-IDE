@@ -97,9 +97,11 @@ Packaging overrides jpackage's default `--strip-native-commands` jlink option so
 the bundled runtime keeps `java`, `javac` and `jdk.compiler`; the embedded
 bytecode compiler and the Java language server then work without an external
 JDK. Windows x86 builds also pass `-J-Dos.arch=x86` because jpackage otherwise
-uses the host `os.arch` and emits an x64 MSI. Windows ARM64 MSIs are built with
-jpackage's hard-coded x64 WiX target and then have their platform metadata
-rewritten to `Arm64` by `scripts/package.ps1`.
+uses the host `os.arch` and emits 64-bit WiX components. The JDK 17 WiX template
+still hard-codes the x64 Summary Information platform, so `scripts/package.ps1`
+rewrites it to `Intel` for x86. Windows ARM64 MSIs use jpackage's hard-coded x64
+WiX target and likewise have their Summary Information platform and Page Count
+rewritten to `Arm64`/500 by `scripts/package.ps1`.
 
 Build only one package type:
 

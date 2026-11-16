@@ -90,9 +90,10 @@ Write-Host "Using jpackage: $jpackage"
 
 # jpackage derives the WiX target from os.arch, which reports the host
 # architecture rather than the JVM data model. A 32-bit JVM on 64-bit Windows
-# therefore reports amd64 and jpackage emits an x64 MSI for an x86 build.
-# Forcing os.arch=x86 makes jpackage produce Intel components and an Intel
-# Summary Information template.
+# therefore reports amd64 and jpackage emits 64-bit WiX components for an x86
+# build. Forcing os.arch=x86 makes jpackage pass -arch x86 to candle so the
+# components are Intel; the Summary Information template is still corrected
+# after the build because the JDK template hard-codes Platform="x64".
 $jpackageArgs = @()
 if ($arch -eq "x86") {
     $jpackageArgs += "-J-Dos.arch=x86"
@@ -142,12 +143,13 @@ function Build-AppImage {
     Write-Host "Package: $archive"
 }
 
-# jpackage has no ARM64 WiX target: WixFragmentBuilder.is64Bit() is true for
-# every non-x86 JVM and WixPipeline always passes -arch x64 when it is true, so
-# ARM64 builds also get an x64 Summary Information template. The payload and
-# all 64-bit MSI component metadata are already compatible with ARM64; only the
-# package platform and required installer version need correction.
-function Set-Arm64MsiPlatform([string]$path) {
+# jpackage 17.0.21's Windows WiX template hard-codes Platform="x64" in the
+# Package element, so even -J-Dos.arch=x86 leaves the Summary Information
+# template at x64. WixPipeline also has no ARM64 target, so every ARM64 build
+# gets an x64 template. The component metadata is already correct for the
+# requested architecture (-arch x86 for x86, -arch x64 for ARM64), so only the
+# Summary Information platform and page count need correction.
+function Set-MsiPlatform([string]$path, [string]$platform, [int]$pageCount) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "MSI not found: $path"
     }
@@ -155,40 +157,32 @@ function Set-Arm64MsiPlatform([string]$path) {
     $installer = New-Object -ComObject WindowsInstaller.Installer
     $database = $null
     $summary = $null
-    $view = $null
 
     try {
         $database = $installer.OpenDatabase($path, 1)
         $summary = $database.SummaryInformation(4)
 
         $template = [string]$summary.Property(7)
-        $pageCount = [int]$summary.Property(14)
+        $currentPageCount = [int]$summary.Property(14)
 
-        if ($template -notmatch '^Arm64;' -or $pageCount -lt 500) {
+        if ($template -notmatch "^$([regex]::Escape($platform));" -or $currentPageCount -ne $pageCount) {
             $language = "1033"
             if ($template -match ';\s*(.+)$') {
                 $language = $Matches[1]
             }
 
-            $summary.Property(7) = "Arm64;$language"
-            $summary.Property(14) = [int]500
+            $summary.Property(7) = "$platform;$language"
+            $summary.Property(14) = [int]$pageCount
             $summary.Persist()
 
-            $view = $database.OpenView('UPDATE `Package` SET `InstallerVersion` = 500')
-            $view.Execute()
-            $view.Close()
-            $view = $null
-
-            $database.Commit()
-
-            Write-Host "Patched MSI to Arm64 (was '$template', Page Count $pageCount)"
+            Write-Host "Patched MSI platform to $platform (was '$template', Page Count $currentPageCount)"
         }
     }
     catch {
-        throw "Could not set the ARM64 MSI platform in $path ($($_.Exception.Message))"
+        throw "Could not set the MSI platform to $platform in $path ($($_.Exception.Message))"
     }
     finally {
-        foreach ($comObject in @($view, $summary, $database, $installer)) {
+        foreach ($comObject in @($summary, $database, $installer)) {
             if ($null -ne $comObject) {
                 [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($comObject)
             }
@@ -213,8 +207,13 @@ function Build-Installer([string]$type) {
     }
     $artifact = Join-Path $pkgDir "$artifactBase$($installer.Extension)"
     Copy-Item $installer.FullName $artifact -Force
-    if ($type -eq "msi" -and $arch -eq "arm64") {
-        Set-Arm64MsiPlatform $artifact
+    if ($type -eq "msi") {
+        if ($arch -eq "x86") {
+            Set-MsiPlatform $artifact "Intel" 200
+        }
+        elseif ($arch -eq "arm64") {
+            Set-MsiPlatform $artifact "Arm64" 500
+        }
     }
     Write-Host "Package: $artifact"
 }
