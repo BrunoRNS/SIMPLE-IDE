@@ -233,6 +233,13 @@ jobs:
       - native-packages
     runs-on: ubuntu-latest
     steps:
+      # gh resolves the repository and --target through git; without a checkout
+      # it fails with "fatal: not a git repository".
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
       - name: Download all release artifacts
         uses: actions/download-artifact@v8
         with:
