@@ -72,6 +72,22 @@ New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
 New-Item -ItemType Directory -Path $inputDir -Force | Out-Null
 Copy-Item $fatJar (Join-Path $inputDir "simpleide.jar")
 
+# Use the jpackage that belongs to the JDK that built the jar. The Windows
+# runner image ships several JDKs on PATH, so resolving the bare "jpackage"
+# command can pick a x64 JDK for an x86/ARM64 build and produce an installer
+# with the wrong MSI platform template.
+$jpackage = "jpackage"
+if ($env:JAVA_HOME) {
+    $candidate = Join-Path $env:JAVA_HOME "bin\jpackage.exe"
+    if (Test-Path $candidate) {
+        $jpackage = $candidate
+    }
+}
+if (-not (Get-Command $jpackage -ErrorAction SilentlyContinue)) {
+    throw "jpackage was not found (JAVA_HOME=$env:JAVA_HOME)."
+}
+Write-Host "Using jpackage: $jpackage"
+
 $jpackageArgs = @(
     "--name", "SimpleIDE",
     "--app-version", $appVersion,
@@ -81,7 +97,8 @@ $jpackageArgs = @(
     "--vendor", "SimpleIDE",
     "--description", "SimpleIDE",
     "--copyright", "BSD-3-Clause",
-    "--java-options", "-Dfile.encoding=UTF-8"
+    "--java-options", "-Dfile.encoding=UTF-8",
+    "--jlink-options", "--strip-debug --no-man-pages --no-header-files"
 )
 
 function Build-AppImage {
@@ -90,7 +107,7 @@ function Build-AppImage {
         Remove-Item -Recurse -Force $imageDir
     }
     New-Item -ItemType Directory -Path $imageDir -Force | Out-Null
-    & jpackage @jpackageArgs --type app-image --dest $imageDir
+    & $jpackage @jpackageArgs --type app-image --dest $imageDir
     if ($LASTEXITCODE -ne 0) {
         throw "jpackage failed with exit code $LASTEXITCODE"
     }
@@ -122,7 +139,7 @@ function Build-Installer([string]$type) {
         Remove-Item -Recurse -Force $installerDir
     }
     New-Item -ItemType Directory -Path $installerDir -Force | Out-Null
-    & jpackage @jpackageArgs --type $type --dest $installerDir
+    & $jpackage @jpackageArgs --type $type --dest $installerDir
     if ($LASTEXITCODE -ne 0) {
         throw "jpackage failed with exit code $LASTEXITCODE"
     }

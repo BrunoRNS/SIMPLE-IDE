@@ -2,6 +2,7 @@ package io.simpleide.language.config;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -127,11 +128,10 @@ public enum LangPlatform {
 	/**
 	 * Detects the platform of the running JVM.
 	 * @return the matching platform, or {@link #UNKNOWN} when it cannot be determined
-	 * @throws IllegalStateException if the JDK executable cannot be inspected on macOS
 	 */
 	public static LangPlatform getCurrentPlatform() {
 		String osName = System.getProperty("os.name").toLowerCase(Locale.ROOT);
-		String jdkArch = getJdkArchitecture(osName);
+		String jdkArch = getJdkArchitecture(osName, System.getProperty("java.home"), System.getProperty("os.arch"));
 
 		if (osName.contains("win")) {
 			if (jdkArch.contains("aarch64") || jdkArch.contains("arm64")) {
@@ -167,12 +167,33 @@ public enum LangPlatform {
 		return UNKNOWN;
 	}
 
-	private static String getJdkArchitecture(String osName) {
+	/**
+	 * Resolves the architecture of the JDK backing this JVM.
+	 *
+	 * <p>
+	 * macOS is the only platform where the executable is inspected: a universal JDK
+	 * reports the architecture of the selected slice through {@code os.arch}. When the
+	 * runtime has no {@code bin/java} (for example an older jpackage image, which
+	 * stripped the native commands), the inspection is skipped and the running JVM
+	 * architecture is used.
+	 * @param osName the operating system name
+	 * @param javaHome the JDK home directory
+	 * @param osArch the architecture reported by the JVM
+	 * @return the architecture label
+	 * @throws IllegalStateException if an existing JDK executable has an unsupported
+	 * architecture
+	 */
+	static String getJdkArchitecture(String osName, String javaHome, String osArch) {
+		String fallback = osArch.toLowerCase(Locale.ROOT);
 		if (!osName.contains("mac") && !osName.contains("darwin")) {
-			return System.getProperty("os.arch").toLowerCase(Locale.ROOT);
+			return fallback;
 		}
 
-		Path javaExecutable = Paths.get(System.getProperty("java.home"), "bin", "java");
+		Path javaExecutable = Paths.get(javaHome, "bin", "java");
+		if (!Files.isRegularFile(javaExecutable)) {
+			return fallback;
+		}
+
 		Process process;
 		try {
 			process = new ProcessBuilder("/usr/bin/file", "-L", "-b", javaExecutable.toString())
@@ -184,8 +205,7 @@ public enum LangPlatform {
 			if (exitCode != 0) {
 				throw new IllegalStateException("Could not inspect JDK executable: " + description);
 			}
-			return architectureFromExecutableDescription(description,
-					System.getProperty("os.arch").toLowerCase(Locale.ROOT));
+			return architectureFromExecutableDescription(description, fallback);
 		}
 		catch (IOException e) {
 			throw new IllegalStateException("Could not inspect JDK executable at " + javaExecutable, e);

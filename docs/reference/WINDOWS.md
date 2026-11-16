@@ -59,8 +59,12 @@ newer, so the 32-bit packages are validated with JDK 17.
 The `x64` and `arm64` workflows run the test suite on JDK 17, 21, 25 and 27;
 the 32-bit workflow runs it on JDK 17. Every workflow builds its packages with
 JDK 17 and validates them with `scripts/validate-package.ps1`. The zip check
-extracts the archive and confirms that the launcher, bundled JVM and runtime
-library are valid PE files for the requested architecture. The MSI check reads
+extracts the archive and confirms that the launcher, bundled JVM, runtime
+library and bundled `java.exe` are valid PE files for the requested
+architecture, and that the runtime provides the `jdk.compiler` module. Packaging
+overrides jpackage's default `--strip-native-commands` jlink option so the
+embedded compiler and Java language server work without an external JDK. The
+MSI check reads
 the installer database, confirms that `ProductName` identifies SimpleIDE, and
 checks the Summary Information platform (`Intel`, `x64` or `Arm64`).
 `candle.exe` from the WiX toolset is required to build the MSI and is installed

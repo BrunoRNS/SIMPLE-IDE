@@ -242,9 +242,6 @@ if (-not (Test-Path $runtimeBin)) {
     Fail "Bundled Java runtime directory is missing: $runtimeBin"
 }
 
-# jpackage strips the runtime's native commands (java.exe) by default. The
-# runtime library and the server VM are the architecture-specific pieces that
-# remain in the bundled image.
 $javaLibrary = Join-Path $runtimeBin "java.dll"
 
 if (-not (Test-Path $javaLibrary)) {
@@ -254,6 +251,29 @@ if (-not (Test-Path $javaLibrary)) {
 Assert-PeArchitecture `
     -path $javaLibrary `
     -description "Bundled Java runtime library"
+
+# The embedded compiler and the Java language server need a launcher and the
+# jdk.compiler module. The packaging scripts keep both by overriding jpackage's
+# default --strip-native-commands jlink option.
+$javaLauncher = Join-Path $runtimeBin "java.exe"
+
+if (-not (Test-Path $javaLauncher)) {
+    Fail "Bundled Java launcher is missing: $javaLauncher (jpackage stripped native commands)."
+}
+
+Assert-PeArchitecture `
+    -path $javaLauncher `
+    -description "Bundled Java launcher"
+
+$releaseFile = Join-Path $appImage "runtime\release"
+
+if (-not (Test-Path $releaseFile)) {
+    Fail "Bundled Java runtime release file is missing: $releaseFile"
+}
+
+if (-not (Select-String -Path $releaseFile -Pattern 'jdk\.compiler' -Quiet)) {
+    Fail "Bundled Java runtime does not provide the jdk.compiler module: $releaseFile"
+}
 
 Ok "Application image validation completed"
 

@@ -23,8 +23,11 @@ image) and the `.msi` installer.
 
 Before a release, every CI platform validates what it produces with
 `make pkg-verify`. The validation extracts the static zip and checks its
-launcher and bundled runtime architecture, and asks `dpkg-deb`, `rpm`,
-`hdiutil` or the Windows Installer database to read the installer metadata.
+launcher, bundled runtime architecture, bundled Java launcher and the
+`jdk.compiler` module, and asks `dpkg-deb`, `rpm`, `hdiutil` or the Windows
+Installer database to read the installer metadata. Packages keep jpackage's
+native commands so the bundled JDK can run the embedded compiler and the Java
+language server without an external JDK.
 The Windows check also confirms that the `.msi` declares `SimpleIDE` as its
 `ProductName` and that its Summary Information platform matches the requested
 architecture. A failed job stops at the failing step.

@@ -72,7 +72,10 @@ before running Simple IDE.
 | `x86` (32-bit) | Yes | Yes | 17 |
 
 Current JDK vendors no longer publish 32-bit Linux builds for Java 21 and
-newer, so the 32-bit packages are validated with JDK 17.
+newer, so the 32-bit packages are validated with JDK 17. Package validation
+also checks that the bundled runtime keeps its Java launcher and the
+`jdk.compiler` module, which the embedded compiler and Java language server
+need.
 
 ## Wayland
 
@@ -94,11 +97,12 @@ the minimum glibc is exercised on real hardware or emulation:
 The repository is checked out on the runner and mounted into the container.
 Every language toolchain (JDK, Go, Node.js, GCC, Mono, Rust and Python) is
 installed inside that container by `scripts/ci/linux-debian.sh`, so the tests do
-not depend on the runner image. Docker runs with `--network host` so the
-container reuses the runner's resolver and can resolve `archive.debian.org`;
-the systemd-resolved stub on `127.0.0.53` is not reachable over the default
-bridge network. Alpine is not used because GitHub JavaScript actions cannot run
-in a 32-bit container and the JDK cannot run on musl.
+not depend on the runner image. Docker receives the runner's upstream
+nameservers via `--dns` so the container can resolve `archive.debian.org`; the
+systemd-resolved stub on `127.0.0.53` is not reachable from inside the
+container. When detection fails it falls back to `--network host`. Using host
+networking alone did not fix resolution in the 32-bit container. Alpine is not used because GitHub JavaScript actions cannot run in a
+32-bit container and the JDK cannot run on musl.
 
 ## References
 

@@ -93,6 +93,11 @@ Windows: zip + msi) and validate them:
 make pkg-verify
 ```
 
+Packaging overrides jpackage's default `--strip-native-commands` jlink option so
+the bundled runtime keeps `java`, `javac` and `jdk.compiler`; the embedded
+bytecode compiler and the Java language server then work without an external
+JDK.
+
 Build only one package type:
 
 ```sh
@@ -226,7 +231,10 @@ on every pull request:
 installs the JDK, Go, Node.js, GCC, Mono, Rust and Python toolchains inside the
 container. The job does not rely on the runner image for any language
 toolchain. Because `archive.debian.org` must be reachable from the container,
-`scripts/ci/run-linux-debian.sh` starts Docker with `--network host` so the
-container reuses the runner's DNS resolver; the systemd-resolved stub on
-`127.0.0.53` is not reachable over the default bridge network. See
+`scripts/ci/run-linux-debian.sh` detects the runner's upstream nameservers and
+passes them with `--dns`; the systemd-resolved stub on `127.0.0.53` is not
+reachable from inside the container. When no upstream nameserver can be
+detected it falls back to `--network host`. Relying on host networking alone
+was not enough: the 32-bit container still failed to resolve
+archive.debian.org while the 64-bit containers worked. See
 [Linux compatibility](../reference/LINUX.md).

@@ -6,6 +6,7 @@ import io.simpleide.lsp.client.LspServerStartupException;
 import io.simpleide.lsp.dowload.LspManager;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.utils.JavaRuntime;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -217,20 +218,16 @@ public final class LanguageServerManager implements AutoCloseable {
 	}
 
 	private Map<String, String> getEnvironment(String languageId) {
-		if (!"java".equals(languageId)) {
-			return Map.of();
+		if ("java".equals(languageId)) {
+			String configuredHome = System.getProperty(JavaRuntime.LSP_JAVA_HOME_PROPERTY);
+			if (configuredHome != null && !configuredHome.isBlank()) {
+				Path path = Path.of(configuredHome).toAbsolutePath().normalize();
+				if (!Files.isDirectory(path)) {
+					throw new IllegalArgumentException("Configured LSP Java home is not a directory: " + path);
+				}
+			}
 		}
-
-		String javaHome = System.getProperty("simpleide.lsp.javaHome");
-		if (javaHome == null || javaHome.isBlank()) {
-			return Map.of();
-		}
-
-		Path path = Path.of(javaHome).toAbsolutePath().normalize();
-		if (!Files.isDirectory(path)) {
-			throw new IllegalArgumentException("Configured LSP Java home is not a directory: " + path);
-		}
-		return Map.of("JAVA_HOME", path.toString());
+		return JavaRuntime.environment();
 	}
 
 	private Path findWorkspaceRoot(Path documentPath) {

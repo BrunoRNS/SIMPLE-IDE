@@ -1,6 +1,7 @@
 package io.simpleide.lsp.dowload;
 
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.utils.JavaRuntime;
 import io.simpleide.lsp.LspStatus;
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
@@ -249,8 +250,8 @@ public class LspManager {
 		};
 
 		List<String> command = new ArrayList<>();
-		command.addAll(resolveArgument(server.getCommand(), installDirectory, workspaceData, server.getVersion(),
-				platformConfiguration));
+		command.addAll(resolveArgument(resolveJavaCommand(server.getCommand()), installDirectory, workspaceData,
+				server.getVersion(), platformConfiguration));
 		if (server.getArguments() != null) {
 			for (String argument : server.getArguments()) {
 				command.addAll(resolveArgument(argument, installDirectory, workspaceData, server.getVersion(),
@@ -258,6 +259,13 @@ public class LspManager {
 			}
 		}
 		return command;
+	}
+
+	private static String resolveJavaCommand(String command) {
+		if (!JavaRuntime.isJavaCommand(command)) {
+			return command;
+		}
+		return JavaRuntime.javaExecutable().map(Path::toString).orElse(command);
 	}
 
 	private static List<String> resolveArgument(String argument, Path installDirectory, Path workspaceData,
@@ -371,7 +379,7 @@ public class LspManager {
 
 	private static String runVersionCommand(LspServer server) {
 		List<String> command = new ArrayList<>();
-		command.add(server.getVersionCommand());
+		command.add(resolveJavaCommand(server.getVersionCommand()));
 		if (server.getVersionArguments() != null) {
 			command.addAll(server.getVersionArguments());
 		}

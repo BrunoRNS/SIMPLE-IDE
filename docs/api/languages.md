@@ -3,13 +3,15 @@
 `io.simpleide.api.Languages` provides language discovery and managed process
 execution. A language is available only when its external toolchain is on the
 system `PATH`, except for the JVM languages that run through the bundled
-bytecode compiler.
+bytecode compiler. The JVM languages need a JDK with the `jdk.compiler` module:
+packaged builds bundle one, while development launches use the JDK running the
+IDE, `JAVA_HOME`, `simpleide.javaHome` or a JDK on `PATH`.
 
 ## Supported languages
 
 | Language | Extensions | Requirement |
 | --- | --- | --- |
-| Java | `.java`, `.jav` | JDK on `PATH` or `JAVA_HOME` |
+| Java | `.java`, `.jav` | Bundled JDK, `JAVA_HOME`, `simpleide.javaHome` or a JDK on `PATH` |
 | Kotlin | `.kt`, `.kts` | Kotlin compiler on `PATH` |
 | Groovy | `.groovy`, `.gvy`, `.gy`, `.gsh` | Groovy on `PATH` |
 | JavaScript | `.js`, `.jsx`, `.mjs`, `.cjs`, `.jscript` | Node.js on `PATH` |

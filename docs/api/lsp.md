@@ -279,6 +279,12 @@ editing `registry.json`.
 - A closed manager rejects new `connect` calls.
 - `SimpleEditor.close()` closes its manager.
 
+Java-based servers use the bundled JDK in packaged builds. On a development
+launch, the manager resolves the JDK from `simpleide.lsp.javaHome`,
+`simpleide.javaHome`, `JAVA_HOME` or `PATH`; it never assumes that
+`java.home/bin/java` exists, because older jpackage images stripped that
+launcher.
+
 ## Troubleshooting
 
 | Symptom | Likely cause | Action |
@@ -287,5 +293,5 @@ editing `registry.json`.
 | Server starts but no diagnostics | `didOpen` not sent | Send `didOpen` after connecting |
 | Server re-downloads every start | Registry version changed | Expected; the `.installed` marker stores the version |
 | Server does not stop | Server ignores shutdown | `manager.close()` waits ten seconds, then logs |
-| Java server picks the wrong build | Running JDK version differs from project | Use a matching JDK or set `-Dsimpleide.lsp.javaHome` |
+| Java server picks the wrong build | Running JDK version differs from project | Use a matching JDK or set `-Dsimpleide.lsp.javaHome` (or `-Dsimpleide.javaHome`) |
 | Windows C/C++ has no server | Registry supports Windows x64 only | Use x64 or add a registry entry |

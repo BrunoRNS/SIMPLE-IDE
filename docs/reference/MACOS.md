@@ -34,11 +34,12 @@ macOS Catalina (10.15) and older are not supported.
 from the table into `SimpleIDE.app/Contents/Info.plist`. The `.dmg` is then
 created from that prepared image with `jpackage --app-image`.
 
-`scripts/validate-package.sh` mounts the `.dmg`, reads
-`LSMinimumSystemVersion` with `plutil` and fails when it does not match the
-value expected for the packaging JDK. This is how CI guarantees that the JDK 17
-release image stays compatible with Big Sur even though the runner itself uses
-a newer macOS.
+`scripts/validate-package.sh` mounts the `.dmg`, checks the launcher, bundled
+JVM and bundled Java launcher architectures, verifies that the runtime provides
+the `jdk.compiler` module, reads `LSMinimumSystemVersion` with `plutil` and
+fails when it does not match the value expected for the packaging JDK. This is
+how CI guarantees that the JDK 17 release image stays compatible with Big Sur
+even though the runner itself uses a newer macOS.
 
 Set `SIMPLEIDE_MACOS_MIN_VERSION` to override the computed value when building
 a custom package, for example:

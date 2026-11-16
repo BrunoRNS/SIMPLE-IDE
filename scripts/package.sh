@@ -108,7 +108,30 @@ rm -rf "$PKG_DIR" "$INPUT_DIR"
 mkdir -p "$PKG_DIR" "$INPUT_DIR"
 cp "$FAT_JAR" "$INPUT_DIR/simpleide.jar"
 
+# jpackage defaults to --strip-native-commands, which removes bin/java from the
+# bundled runtime. Keep the JDK launchers so the embedded bytecode compiler and
+# the Java language server can run from the packaged application without an
+# external JDK.
+jlink_options="--strip-debug --no-man-pages --no-header-files"
+
+if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/jpackage" ]; then
+    JPACKAGE="$JAVA_HOME/bin/jpackage"
+else
+    JPACKAGE=$(command -v jpackage 2>/dev/null || true)
+fi
+if [ -z "$JPACKAGE" ]; then
+    echo "error: jpackage was not found. Install a JDK or set JAVA_HOME." >&2
+    exit 1
+fi
+
 jpackage_args="--name SimpleIDE --app-version $APP_VERSION --input $INPUT_DIR --main-jar simpleide.jar --main-class io.simpleide.App --vendor SimpleIDE --description SimpleIDE --copyright BSD-3-Clause --java-options -Dfile.encoding=UTF-8"
+
+# Creates an app image or installer from the staged input directory while
+# retaining the runtime launchers.
+jpackage_app() {
+    # shellcheck disable=SC2086
+    "$JPACKAGE" $jpackage_args --jlink-options "$jlink_options" "$@"
+}
 
 # Prints the minimum macOS version declared in the generated app bundle. The
 # JDK 17 release build targets Big Sur (11.0); newer JDKs require newer macOS
@@ -118,10 +141,9 @@ macos_min_version() {
         echo "$SIMPLEIDE_MACOS_MIN_VERSION"
         return 0
     fi
-    JPACKAGE_BIN=$(command -v jpackage 2>/dev/null || true)
     JAVA_BIN=java
-    if [ -n "$JPACKAGE_BIN" ] && [ -x "${JPACKAGE_BIN%/*}/java" ]; then
-        JAVA_BIN="${JPACKAGE_BIN%/*}/java"
+    if [ -x "${JPACKAGE%/*}/java" ]; then
+        JAVA_BIN="${JPACKAGE%/*}/java"
     fi
     simpleide_macos_min_version "$(simpleide_jdk_major "$JAVA_BIN")"
 }
@@ -149,8 +171,7 @@ build_app_image() {
     IMAGE_DIR="$PKG_DIR/image"
     rm -rf "$IMAGE_DIR"
     mkdir -p "$IMAGE_DIR"
-    # shellcheck disable=SC2086
-    jpackage --type app-image $jpackage_args --dest "$IMAGE_DIR"
+    jpackage_app --type app-image --dest "$IMAGE_DIR"
 
     if [ "$OS" = "macos" ]; then
         APP_IMAGE="$IMAGE_DIR/SimpleIDE.app"
@@ -201,8 +222,7 @@ build_installer() {
     INSTALLER_DIR="$PKG_DIR/installer-$1"
     rm -rf "$INSTALLER_DIR"
     mkdir -p "$INSTALLER_DIR"
-    # shellcheck disable=SC2086
-    jpackage --type "$1" $jpackage_args --dest "$INSTALLER_DIR"
+    jpackage_app --type "$1" --dest "$INSTALLER_DIR"
     stage_installer "$1"
 }
 
@@ -215,7 +235,7 @@ build_dmg_installer() {
     INSTALLER_DIR="$PKG_DIR/installer-dmg"
     rm -rf "$INSTALLER_DIR"
     mkdir -p "$INSTALLER_DIR"
-    jpackage --type dmg --name SimpleIDE --app-version "$APP_VERSION" \
+    "$JPACKAGE" --type dmg --name SimpleIDE --app-version "$APP_VERSION" \
         --app-image "$APP_IMAGE" --dest "$INSTALLER_DIR"
     stage_installer dmg
 }

@@ -3,8 +3,10 @@ package io.simpleide.language.config;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import java.nio.file.Path;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Tests {@link io.simpleide.language.config.LangPlatform}.
@@ -38,6 +40,12 @@ class LangPlatformTest {
 	void detectsArm64FromMacJdkExecutable() {
 		assertEquals("arm64",
 				LangPlatform.architectureFromExecutableDescription("Mach-O 64-bit executable arm64", "x86_64"));
+	}
+
+	@Test
+	void usesRuntimeArchitectureWhenBundledJdkHasNoJavaExecutable(@TempDir Path javaHome) {
+		assertEquals("aarch64", LangPlatform.getJdkArchitecture("Mac OS X", javaHome.toString(), "aarch64"));
+		assertEquals("x86_64", LangPlatform.getJdkArchitecture("Mac OS X", javaHome.toString(), "x86_64"));
 	}
 
 	@Test
