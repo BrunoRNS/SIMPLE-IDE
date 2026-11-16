@@ -1,7 +1,5 @@
 package io.simpleide.frame.popup;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.awt.Component;
 import java.awt.Container;
 import java.util.Collections;
@@ -13,84 +11,86 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
-public class InfoPopUPTest {
+/**
+ * Tests {@link io.simpleide.frame.popup.InfoPopUP}.
+ */
+class InfoPopUPTest {
 
-  @Test
-  public void createsPopupWithInfoMessageTypeAndIcon() {
-    InfoPopUP popup = new InfoPopUP("information", "File saved successfully", "Ok");
+	@Test
+	void createsPopupWithInfoMessageTypeAndIcon() {
+		InfoPopUP popup = new InfoPopUP("information", "File saved successfully", "Ok");
 
-    assertThat(popup.getTitle()).isEqualTo("information");
-    assertThat(popup.jp.getMessage()).isEqualTo("File saved successfully");
-    assertThat(popup.jp.getMessageType()).isEqualTo(JOptionPane.INFORMATION_MESSAGE);
-    assertThat(popup.jp.getOptionType()).isEqualTo(JOptionPane.DEFAULT_OPTION);
-    assertThat(popup.jp.getOptions()).containsExactly("Ok");
-    assertThat(popup.jp.getInitialValue()).isEqualTo("Ok");
-    assertThat(popup.jp.getIcon())
-        .isInstanceOfSatisfying(ImageIcon.class, icon -> {
-          assertThat(icon.getIconWidth()).isPositive();
-          assertThat(icon.getIconHeight()).isPositive();
-        });
-  }
+		assertThat(popup.getTitle()).isEqualTo("information");
+		assertThat(popup.jp.getMessage()).isEqualTo("File saved successfully");
+		assertThat(popup.jp.getMessageType()).isEqualTo(JOptionPane.INFORMATION_MESSAGE);
+		assertThat(popup.jp.getOptionType()).isEqualTo(JOptionPane.DEFAULT_OPTION);
+		assertThat(popup.jp.getOptions()).containsExactly("Ok");
+		assertThat(popup.jp.getInitialValue()).isEqualTo("Ok");
+		assertThat(popup.jp.getIcon()).isInstanceOfSatisfying(ImageIcon.class, icon -> {
+			assertThat(icon.getIconWidth()).isPositive();
+			assertThat(icon.getIconHeight()).isPositive();
+		});
+	}
 
-  @Test
-  public void acceptsParentComponentInConstructor() {
-    JComponent parent = new JPanel();
+	@Test
+	void acceptsParentComponentInConstructor() {
+		JComponent parent = new JPanel();
 
-    InfoPopUP popup = new InfoPopUP("information", "Process details", parent, "Ok");
+		InfoPopUP popup = new InfoPopUP("information", "Process details", parent, "Ok");
 
-    assertThat(popup.parent).isSameAs(parent);
-    assertThat(popup.getTitle()).isEqualTo("information");
-  }
+		assertThat(popup.parent).isSameAs(parent);
+		assertThat(popup.getTitle()).isEqualTo("information");
+	}
 
-  @Test
-  public void acceptsSwingComponentAsMessage() {
-    JPanel message = new JPanel();
+	@Test
+	void acceptsSwingComponentAsMessage() {
+		JPanel message = new JPanel();
 
-    InfoPopUP popup = new InfoPopUP("information", message);
+		InfoPopUP popup = new InfoPopUP("information", message);
 
-    assertThat(popup.jp.getMessage()).isSameAs(message);
-  }
+		assertThat(popup.jp.getMessage()).isSameAs(message);
+	}
 
-  @Test
-  public void supportsConvenienceConstructors() {
-    InfoPopUP defaultPopup = new InfoPopUP("information", "Details");
-    InfoPopUP customOptionPopup = new InfoPopUP("information", "Details", "Continue");
+	@Test
+	void supportsConvenienceConstructors() {
+		InfoPopUP defaultPopup = new InfoPopUP("information", "Details");
+		InfoPopUP customOptionPopup = new InfoPopUP("information", "Details", "Continue");
 
-    assertThat(defaultPopup.jp.getInitialValue()).isEqualTo("Ok");
-    assertThat(customOptionPopup.jp.getInitialValue()).isEqualTo("Continue");
-  }
+		assertThat(defaultPopup.jp.getInitialValue()).isEqualTo("Ok");
+		assertThat(customOptionPopup.jp.getInitialValue()).isEqualTo("Continue");
+	}
 
-  @Test
-  public void mapsAndUpdatesTitle() {
-    InfoPopUP popup = new InfoPopUP("Info", "Informational message", "Ok");
+	@Test
+	void mapsAndUpdatesTitle() {
+		InfoPopUP popup = new InfoPopUP("Info", "Informational message", "Ok");
 
-    assertThat(popup.getMap()).containsEntry("title", "Info");
+		assertThat(popup.getMap()).containsEntry("title", "Info");
 
-    popup.setMap(Collections.<String, Object>singletonMap("title", "Updated"));
+		popup.setMap(Collections.<String, Object>singletonMap("title", "Updated"));
 
-    assertThat(popup.getTitle()).isEqualTo("Updated");
-  }
+		assertThat(popup.getTitle()).isEqualTo("Updated");
+	}
 
-  @Test
-  public void addsInfoIconToOptionPaneForRendering() {
-    InfoPopUP popup = new InfoPopUP("information", "Information message", "Ok");
+	@Test
+	void addsInfoIconToOptionPaneForRendering() {
+		InfoPopUP popup = new InfoPopUP("information", "Information message", "Ok");
 
-    assertThat(containsIcon(popup.jp, popup.jp.getIcon())).isTrue();
-  }
+		assertThat(containsIcon(popup.jp, popup.jp.getIcon())).isTrue();
+	}
 
-  private static boolean containsIcon(Container container, Icon expectedIcon) {
-    for (Component component : container.getComponents()) {
-      if (component instanceof JLabel
-          && ((JLabel) component).getIcon() == expectedIcon) {
-        return true;
-      }
-      if (component instanceof Container
-          && containsIcon((Container) component, expectedIcon)) {
-        return true;
-      }
-    }
-    return false;
-  }
+	private static boolean containsIcon(Container container, Icon expectedIcon) {
+		for (Component component : container.getComponents()) {
+			if (component instanceof JLabel && ((JLabel) component).getIcon() == expectedIcon) {
+				return true;
+			}
+			if (component instanceof Container && containsIcon((Container) component, expectedIcon)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 }

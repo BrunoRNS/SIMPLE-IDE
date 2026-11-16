@@ -1,113 +1,122 @@
 package io.simpleide.ui.terminal;
 
-import java.awt.BorderLayout;
-import java.math.BigInteger;
-
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.jediterm.terminal.TtyConnector;
 import com.jediterm.terminal.model.StyleState;
 import com.jediterm.terminal.model.TerminalTextBuffer;
 import com.jediterm.terminal.ui.JediTermWidget;
 import com.jediterm.terminal.ui.settings.SettingsProvider;
+import java.awt.BorderLayout;
+import java.math.BigInteger;
+import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * One terminal tab: a JediTerm widget bound to a PTY connector.
+ *
+ * <p>
+ * The view creates its widget on the Swing Event Dispatch Thread and refreshes the
+ * terminal font when the look and feel changes. Closing the widget stops the terminal;
+ * removing it detaches the component from the panel.
+ *
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ */
 public final class TerminalView extends JPanel {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(TerminalView.class);
-    private static final int COLUMNS = 80;
-    private static final int ROWS = 24;
+	private static final Logger LOGGER = LoggerFactory.getLogger(TerminalView.class);
 
-    private final BigInteger sessionId;
-    private volatile ThemedTerminalWidget terminalWidget;
+	private static final int COLUMNS = 80;
 
-    TerminalView(BigInteger sessionId) {
-        super(new BorderLayout());
-        this.sessionId = sessionId;
-    }
+	private static final int ROWS = 24;
 
-    @SuppressWarnings("unused")
-    BigInteger getSessionId() {
-        return sessionId;
-    }
+	private final BigInteger sessionId;
 
-    void show(TtyConnector connector) {
-        if (!SwingUtilities.isEventDispatchThread()) {
-            throw new IllegalStateException("Terminal views must be updated on the EDT.");
-        }
-        terminalWidget = new ThemedTerminalWidget(connector);
-        add(terminalWidget, BorderLayout.CENTER);
-        terminalWidget.start();
-        revalidate();
-        repaint();
-        terminalWidget.requestFocusInWindow();
-    }
+	private volatile ThemedTerminalWidget terminalWidget;
 
-    void closeWidget() {
-        ThemedTerminalWidget widget = terminalWidget;
-        if (widget != null) {
-            try {
-                widget.close();
-            } catch (RuntimeException exception) {
-                LOGGER.error("Unable to close terminal tab {}.", sessionId, exception);
-            }
-        }
-    }
+	TerminalView(BigInteger sessionId) {
+		super(new BorderLayout());
+		this.sessionId = sessionId;
+	}
 
-    void removeWidget() {
-        if (!SwingUtilities.isEventDispatchThread()) {
-            throw new IllegalStateException("Terminal views must be updated on the EDT.");
-        }
-        removeAll();
-        terminalWidget = null;
-        revalidate();
-        repaint();
-    }
+	@SuppressWarnings("unused")
+	BigInteger getSessionId() {
+		return sessionId;
+	}
 
-    private static final class ThemedTerminalWidget extends JediTermWidget {
+	void show(TtyConnector connector) {
+		if (!SwingUtilities.isEventDispatchThread()) {
+			throw new IllegalStateException("Terminal views must be updated on the EDT.");
+		}
+		terminalWidget = new ThemedTerminalWidget(connector);
+		add(terminalWidget, BorderLayout.CENTER);
+		terminalWidget.start();
+		revalidate();
+		repaint();
+		terminalWidget.requestFocusInWindow();
+	}
 
-        private ThemedTerminalPanel terminalPanel;
+	void closeWidget() {
+		ThemedTerminalWidget widget = terminalWidget;
+		if (widget != null) {
+			try {
+				widget.close();
+			}
+			catch (RuntimeException exception) {
+				LOGGER.error("Unable to close terminal tab {}.", sessionId, exception);
+			}
+		}
+	}
 
-        private ThemedTerminalWidget(TtyConnector connector) {
-            super(COLUMNS, ROWS, new TerminalSettingsProvider());
-            setTtyConnector(connector);
-        }
+	void removeWidget() {
+		if (!SwingUtilities.isEventDispatchThread()) {
+			throw new IllegalStateException("Terminal views must be updated on the EDT.");
+		}
+		removeAll();
+		terminalWidget = null;
+		revalidate();
+		repaint();
+	}
 
-        @Override
-        protected com.jediterm.terminal.ui.TerminalPanel createTerminalPanel(
-            SettingsProvider settingsProvider,
-            StyleState styleState,
-            TerminalTextBuffer textBuffer
-        ) {
-            terminalPanel = new ThemedTerminalPanel(settingsProvider, textBuffer, styleState);
-            return terminalPanel;
-        }
+	private static final class ThemedTerminalWidget extends JediTermWidget {
 
-        @Override
-        public void updateUI() {
-            super.updateUI();
-            if (terminalPanel != null) {
-                terminalPanel.refreshFont();
-            }
-        }
-    }
+		private ThemedTerminalPanel terminalPanel;
 
-    private static final class ThemedTerminalPanel extends com.jediterm.terminal.ui.TerminalPanel {
+		private ThemedTerminalWidget(TtyConnector connector) {
+			super(COLUMNS, ROWS, new TerminalSettingsProvider());
+			setTtyConnector(connector);
+		}
 
-        private ThemedTerminalPanel(
-            SettingsProvider settingsProvider,
-            TerminalTextBuffer textBuffer,
-            StyleState styleState
-        ) {
-            super(settingsProvider, textBuffer, styleState);
-        }
+		@Override
+		protected com.jediterm.terminal.ui.TerminalPanel createTerminalPanel(SettingsProvider settingsProvider,
+				StyleState styleState, TerminalTextBuffer textBuffer) {
+			terminalPanel = new ThemedTerminalPanel(settingsProvider, textBuffer, styleState);
+			return terminalPanel;
+		}
 
-        private void refreshFont() {
-            reinitFontAndResize();
-            repaint();
-        }
-    }
+		@Override
+		public void updateUI() {
+			super.updateUI();
+			if (terminalPanel != null) {
+				terminalPanel.refreshFont();
+			}
+		}
+
+	}
+
+	private static final class ThemedTerminalPanel extends com.jediterm.terminal.ui.TerminalPanel {
+
+		private ThemedTerminalPanel(SettingsProvider settingsProvider, TerminalTextBuffer textBuffer,
+				StyleState styleState) {
+			super(settingsProvider, textBuffer, styleState);
+		}
+
+		private void refreshFont() {
+			reinitFontAndResize();
+			repaint();
+		}
+
+	}
+
 }

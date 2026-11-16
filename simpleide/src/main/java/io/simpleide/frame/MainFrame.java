@@ -1,20 +1,5 @@
 package io.simpleide.frame;
 
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.io.IOException;
-import java.nio.file.Path;
-
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
-import javax.swing.JTabbedPane;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.TreePath;
-
-import org.slf4j.LoggerFactory;
-
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.simpleide.frame.layout.MainLayout;
@@ -37,199 +22,240 @@ import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.Tree;
 import io.simpleide.ui.treefile.TreeFileFactory;
 import io.simpleide.ui.treefile.Watcher;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.IOException;
+import java.nio.file.Path;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreePath;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Main desktop window of Simple IDE.
+ *
+ * <p>
+ * The frame wires the project tree, editor manager, terminal, log console, status bar and
+ * menu bar together. It implements {@link Runnable} so it can be created on the Swing
+ * Event Dispatch Thread by an {@code EDTNode}.
+ *
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
+ */
 public class MainFrame extends JFrame implements Runnable {
 
-  private static final org.slf4j.Logger logger = LoggerFactory.getLogger(MainFrame.class);
-  private Tree tree;
-  private Watcher watcher;
-  private EditorManager editorManager;
-  private BusyBoxTerminalController terminalController;
+	private static final org.slf4j.Logger logger = LoggerFactory.getLogger(MainFrame.class);
 
-  @Override
-  public void run() {
+	private Tree tree;
 
-    setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-    setLocationRelativeTo(null);
-    addWindowListener(new WindowAdapter() {
-      @Override
-      public void windowClosing(WindowEvent event) {
-        if (terminalController == null) {
-          dispose();
-          return;
-        }
-        try {
-          terminalController.onWindowClosing(MainFrame.this::dispose);
-        } catch (RuntimeException exception) {
-          logger.error("Unable to close the terminal sessions cleanly.", exception);
-          dispose();
-        }
-      }
+	private Watcher watcher;
 
-      @Override
-      public void windowClosed(WindowEvent event) {
-        if (watcher != null) {
-          watcher.close();
-        }
-        if (editorManager != null) {
-          editorManager.closeAll();
-        }
-        ThreadMaster.getInstance().shutdown();
-      }
-    });
+	private EditorManager editorManager;
 
-    LogPanel logPanel = new LogPanel();
-    JScrollPane treePane = new JScrollPane();
-    JScrollPane logPane = new JScrollPane(logPanel);
-    LspStatusBar lspStatusBar = new LspStatusBar();
+	private BusyBoxTerminalController terminalController;
 
-    TerminalPanel terminalPanel = new TerminalPanel();
-    terminalController = new BusyBoxTerminalController(terminalPanel);
-    JTabbedPane outputTabs = new JTabbedPane();
-    outputTabs.addTab("Debug Console", logPane);
-    outputTabs.addTab("Terminal", terminalPanel);
+	/**
+	 * Builds and displays the application window, including its tree, editors, terminal
+	 * and log console.
+	 */
+	@Override
+	public void run() {
 
-    editorManager = new EditorManager(
-        this::createNewFile,
-        this::createNewDirectory,
-        this::setDirectory,
-        lspStatusBar::updateStatus);
+		setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+		setLocationRelativeTo(null);
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent event) {
+				if (terminalController == null) {
+					dispose();
+					return;
+				}
+				try {
+					terminalController.onWindowClosing(MainFrame.this::dispose);
+				}
+				catch (RuntimeException exception) {
+					logger.error("Unable to close the terminal sessions cleanly.", exception);
+					dispose();
+				}
+			}
 
-    JSplitPane editorTreePane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treePane, editorManager.getJTabbedPane());
-    editorTreePane.setResizeWeight(0.2);
-    editorTreePane.setContinuousLayout(true);
+			@Override
+			public void windowClosed(WindowEvent event) {
+				if (watcher != null) {
+					watcher.close();
+				}
+				if (editorManager != null) {
+					editorManager.closeAll();
+				}
+				ThreadMaster.getInstance().shutdown();
+			}
+		});
 
-    JSplitPane mainVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorTreePane, outputTabs);
-    mainVerticalSplit.setResizeWeight(0.8);
-    mainVerticalSplit.setContinuousLayout(true);
+		LogPanel logPanel = new LogPanel();
+		JScrollPane treePane = new JScrollPane();
+		JScrollPane logPane = new JScrollPane(logPanel);
+		LspStatusBar lspStatusBar = new LspStatusBar();
 
-    MainLayout mainLayout = new MainLayout();
-    mainLayout.addComponent(mainVerticalSplit, 0, 0, 1, 1, 1.0, 1.0);
-    mainLayout.addComponent(lspStatusBar, 0, 1, 1, 1, 1.0, 0.0);
-    setLayout(mainLayout);
-    add(mainVerticalSplit);
-    add(lspStatusBar);
+		TerminalPanel terminalPanel = new TerminalPanel();
+		terminalController = new BusyBoxTerminalController(terminalPanel);
+		JTabbedPane outputTabs = new JTabbedPane();
+		outputTabs.addTab("Debug Console", logPane);
+		outputTabs.addTab("Terminal", terminalPanel);
 
-    attachLogAppender(logPanel);
+		editorManager = new EditorManager(this::createNewFile, this::createNewDirectory, this::setDirectory,
+				lspStatusBar::updateStatus);
 
-    ThemeManager.getInstance().register(this);
-    MenuBarFactory.createMenuBar(
-        this, this::createNewFile, this::createNewDirectory, this::setDirectory, editorManager::saveSelectedFile);
-    logger.info("start IDE");
+		JSplitPane editorTreePane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, treePane,
+				editorManager.getJTabbedPane());
+		editorTreePane.setResizeWeight(0.2);
+		editorTreePane.setContinuousLayout(true);
 
-    pack();
-    setLocationRelativeTo(null);
-    setVisible(true);
+		JSplitPane mainVerticalSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, editorTreePane, outputTabs);
+		mainVerticalSplit.setResizeWeight(0.8);
+		mainVerticalSplit.setContinuousLayout(true);
 
-    editorTreePane.setDividerLocation(0.2);
-    mainVerticalSplit.setDividerLocation(0.8);
+		MainLayout mainLayout = new MainLayout();
+		mainLayout.addComponent(mainVerticalSplit, 0, 0, 1, 1, 1.0, 1.0);
+		mainLayout.addComponent(lspStatusBar, 0, 1, 1, 1, 1.0, 0.0);
+		setLayout(mainLayout);
+		add(mainVerticalSplit);
+		add(lspStatusBar);
 
-    loadTree(treePane);
-  }
+		attachLogAppender(logPanel);
 
-  private void loadTree(JScrollPane treePane) {
-    ThreadMaster threadMaster = ThreadMaster.getInstance();
-    threadMaster.register(new RunnableNode(() -> {
-      try {
-        Directory root = TreeFileFactory.loadRootDirectory();
-        threadMaster.executeOnEDT(() -> {
-          tree = new Tree(root);
-          tree.setRootChangeListener(this::updateWatcherRoot);
-          updateWatcherRoot(root);
-          tree.addTreeSelectionListener(event -> {
-            TreePath selectedPath = event.getNewLeadSelectionPath();
-            if (selectedPath == null) {
-              return;
-            }
-            Object selectedNode = selectedPath.getLastPathComponent();
-            if (selectedNode instanceof DefaultMutableTreeNode node
-                && node.getUserObject() instanceof File selectedFile) {
-              editorManager.openFile(selectedFile);
-            }
-          });
-          treePane.setViewportView(tree);
-          treePane.revalidate();
-          treePane.repaint();
-        });
-      } catch (IOException exception) {
-        logger.error("Unable to load the project tree.", exception);
-      }
-    }));
-  }
+		ThemeManager.getInstance().register(this);
+		MenuBarFactory.createMenuBar(this, this::createNewFile, this::createNewDirectory, this::setDirectory,
+				editorManager::saveSelectedFile);
+		logger.info("start IDE");
 
-  private void updateWatcherRoot(Directory root) {
-    if (watcher != null) {
-      watcher.setRoot(root.getPath());
-      return;
-    }
+		pack();
+		setLocationRelativeTo(null);
+		setVisible(true);
 
-    try {
-      watcher = new Watcher(tree);
-      watcher.start(root.getPath());
-    } catch (IOException | IllegalArgumentException error) {
-      logger.error("Unable to start file watcher for {}.", root.getPath(), error);
-    }
-  }
+		editorTreePane.setDividerLocation(0.2);
+		mainVerticalSplit.setDividerLocation(0.8);
 
-  public static Editor getEditor() {
-    EditorManager manager = EditorManager.getInstance();
-    return manager == null ? null : manager.getSelectedEditor();
-  }
+		loadTree(treePane);
+	}
 
-  private void createNewFile() {
-    if (tree == null) {
-      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
-      return;
-    }
-    tree.createNewFile();
-  }
+	private void loadTree(JScrollPane treePane) {
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				Directory root = TreeFileFactory.loadRootDirectory();
+				threadMaster.executeOnEDT(() -> {
+					tree = new Tree(root);
+					tree.setRootChangeListener(this::updateWatcherRoot);
+					updateWatcherRoot(root);
+					tree.addTreeSelectionListener(event -> {
+						TreePath selectedPath = event.getNewLeadSelectionPath();
+						if (selectedPath == null) {
+							return;
+						}
+						Object selectedNode = selectedPath.getLastPathComponent();
+						if (selectedNode instanceof DefaultMutableTreeNode node
+								&& node.getUserObject() instanceof File selectedFile) {
+							editorManager.openFile(selectedFile);
+						}
+					});
+					treePane.setViewportView(tree);
+					treePane.revalidate();
+					treePane.repaint();
+				});
+			}
+			catch (IOException exception) {
+				logger.error("Unable to load the project tree.", exception);
+			}
+		}));
+	}
 
-  private void createNewDirectory() {
-    if (tree == null) {
-      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
-      return;
-    }
-    tree.createNewDirectory();
-  }
+	private void updateWatcherRoot(Directory root) {
+		if (watcher != null) {
+			watcher.setRoot(root.getPath());
+			return;
+		}
 
-  private void setDirectory() {
-    if (tree == null) {
-      new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
-      return;
-    }
+		try {
+			watcher = new Watcher(tree);
+			watcher.start(root.getPath());
+		}
+		catch (IOException | IllegalArgumentException error) {
+			logger.error("Unable to start file watcher for {}.", root.getPath(), error);
+		}
+	}
 
-    JFileChooser chooser = new JFileChooser(tree.getState().getCurrentDirectory().getPath().toFile());
-    chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-    if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
-      return;
-    }
+	/**
+	 * Returns the editor selected in the application editor manager.
+	 * @return the selected editor, or {@code null} when no editor manager exists or no
+	 * tab is selected
+	 */
+	public static Editor getEditor() {
+		EditorManager manager = EditorManager.getInstance();
+		return manager == null ? null : manager.getSelectedEditor();
+	}
 
-    Path path = chooser.getSelectedFile().toPath();
-    ThreadMaster threadMaster = ThreadMaster.getInstance();
-    threadMaster.register(new RunnableNode(() -> {
-      try {
-        Directory root = new Directory(path);
-        threadMaster.executeOnEDT(() -> tree.setRoot(root));
-      } catch (IOException exception) {
-        logger.error("Unable to load project directory {}.", path, exception);
-        threadMaster.executeOnEDT(() -> new ErrorPopUP(
-            exception.getMessage(), getRootPane(), ErrorTypePopUp.INTERNAL_ERROR).startManaged());
-      }
-    }));
-  }
+	private void createNewFile() {
+		if (tree == null) {
+			new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
+			return;
+		}
+		tree.createNewFile();
+	}
 
-  private void attachLogAppender(LogPanel logPanel) {
-    configureTerminalLoggers();
-    Logger rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
-    SwingLogAppender appender = new SwingLogAppender(logPanel);
-    appender.setContext(rootLogger.getLoggerContext());
-    appender.start();
-    rootLogger.addAppender(appender);
-  }
+	private void createNewDirectory() {
+		if (tree == null) {
+			new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
+			return;
+		}
+		tree.createNewDirectory();
+	}
 
-  private void configureTerminalLoggers() {
-    ((Logger) LoggerFactory.getLogger("com.jediterm")).setLevel(Level.INFO);
-    ((Logger) LoggerFactory.getLogger("com.pty4j")).setLevel(Level.INFO);
-  }
+	private void setDirectory() {
+		if (tree == null) {
+			new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
+			return;
+		}
+
+		JFileChooser chooser = new JFileChooser(tree.getState().getCurrentDirectory().getPath().toFile());
+		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+			return;
+		}
+
+		Path path = chooser.getSelectedFile().toPath();
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				Directory root = new Directory(path);
+				threadMaster.executeOnEDT(() -> tree.setRoot(root));
+			}
+			catch (IOException exception) {
+				logger.error("Unable to load project directory {}.", path, exception);
+				threadMaster.executeOnEDT(
+						() -> new ErrorPopUP(exception.getMessage(), getRootPane(), ErrorTypePopUp.INTERNAL_ERROR)
+							.startManaged());
+			}
+		}));
+	}
+
+	private void attachLogAppender(LogPanel logPanel) {
+		configureTerminalLoggers();
+		Logger rootLogger = (Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
+		SwingLogAppender appender = new SwingLogAppender(logPanel);
+		appender.setContext(rootLogger.getLoggerContext());
+		appender.start();
+		rootLogger.addAppender(appender);
+	}
+
+	private void configureTerminalLoggers() {
+		((Logger) LoggerFactory.getLogger("com.jediterm")).setLevel(Level.INFO);
+		((Logger) LoggerFactory.getLogger("com.pty4j")).setLevel(Level.INFO);
+	}
 
 }

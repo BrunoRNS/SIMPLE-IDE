@@ -1,5 +1,8 @@
 package io.simpleide.lsp.client;
 
+import io.simpleide.SimpleIDEVersion;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -20,9 +23,6 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
-
-import io.simpleide.SimpleIDEVersion;
-
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.ClientInfo;
 import org.eclipse.lsp4j.CompletionCapabilities;
@@ -58,8 +58,8 @@ import org.eclipse.lsp4j.TextDocumentItem;
 import org.eclipse.lsp4j.TextDocumentSyncKind;
 import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
-import org.eclipse.lsp4j.WorkspaceFolder;
 import org.eclipse.lsp4j.WorkspaceClientCapabilities;
+import org.eclipse.lsp4j.WorkspaceFolder;
 import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.eclipse.lsp4j.launch.LSPLauncher;
@@ -68,630 +68,746 @@ import org.eclipse.lsp4j.services.LanguageServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
-
+/**
+ * LSP4J client that manages one language server subprocess.
+ *
+ * <p>
+ * The client starts the server command with stdio transport, sends the initialize
+ * request, records the capabilities reported by the server and forwards document
+ * notifications and requests only when the capability is supported. Startup, exit
+ * handling and initialization timeout are coordinated through
+ * {@link io.simpleide.thread.ThreadMaster}. Closing the client shuts down the server,
+ * stops its executor and waits for the process to exit.
+ *
+ * <p>
+ * Covered by {@code LspClientShutdownTest}.
+ *
+ * @author LuisOtavio13
+ * @since v1.0.0beta
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ */
 public final class LspClient implements LanguageClient, AutoCloseable {
-  private static final Logger LOGGER = LoggerFactory.getLogger(LspClient.class);
-  private static final long INITIALIZATION_TIMEOUT_SECONDS = 60;
-  private static final int MAX_RECENT_ERROR_LINES = 20;
 
-  static {
-    java.util.logging.Logger.getLogger("org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer")
-        .setLevel(java.util.logging.Level.WARNING);
-  }
+	private static final Logger LOGGER = LoggerFactory.getLogger(LspClient.class);
 
-  private final Consumer<PublishDiagnosticsParams> diagnosticsHandler;
-  private final CompletableFuture<Void> initialized = new CompletableFuture<>();
-  private final CompletableFuture<Void> shutdownComplete = new CompletableFuture<>();
-  private final Deque<String> recentErrorLines = new ConcurrentLinkedDeque<>();
-  private final RunnableNode runtimeNode = new RunnableNode(() -> {
-  });
-  private final RunnableNode startupNode;
-  private volatile Thread errorReaderThread;
-  private volatile ExecutorService lspExecutor;
-  private volatile ScheduledFuture<?> initializationTimeoutTask;
-  private volatile Process process;
-  private volatile LanguageServer server;
-  private volatile boolean initializationSubmitted;
-  private volatile boolean closed;
-  private volatile TextDocumentSyncKind synchronizationKind = TextDocumentSyncKind.None;
-  private volatile boolean openCloseSupported;
-  private volatile boolean completionSupported;
-  private volatile boolean definitionSupported;
-  private volatile boolean saveSupported;
-  private volatile boolean saveIncludeText;
-  private volatile boolean formattingSupported;
+	private static final long INITIALIZATION_TIMEOUT_SECONDS = 60;
 
-  public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler)
-      throws IOException {
-    this(command, workspaceRoot, diagnosticsHandler, Map.of());
-  }
+	private static final int MAX_RECENT_ERROR_LINES = 20;
 
-  public LspClient(
-      List<String> command,
-      Path workspaceRoot,
-      Consumer<PublishDiagnosticsParams> diagnosticsHandler,
-      Map<String, String> environment)
-      throws IOException {
-    if (command == null || command.isEmpty()) {
-      throw new IllegalArgumentException("Language server command must not be empty.");
-    }
-    if (environment == null) {
-      throw new IllegalArgumentException("Language server environment must not be null.");
-    }
+	static {
+		java.util.logging.Logger.getLogger("org.eclipse.lsp4j.jsonrpc.json.StreamMessageProducer")
+			.setLevel(java.util.logging.Level.WARNING);
+	}
 
-    this.diagnosticsHandler = diagnosticsHandler == null ? ignored -> {
-    } : diagnosticsHandler;
-    this.startupNode = new RunnableNode(
-        runtimeNode,
-        () -> startServer(command, workspaceRoot, environment),
-        () -> {
-          if (!closed && !initializationSubmitted) {
-            LOGGER.warn("Language server startup node closed before initialization was submitted.");
-          }
-        });
-    ThreadMaster threadMaster = ThreadMaster.getInstance();
-    try {
-      threadMaster.register(runtimeNode);
-      threadMaster.register(startupNode);
-    } catch (RuntimeException error) {
-      threadMaster.removeNodeCascade(runtimeNode);
-      throw error;
-    }
-  }
+	private final Consumer<PublishDiagnosticsParams> diagnosticsHandler;
 
-  private void startServer(List<String> command, Path workspaceRoot, Map<String, String> environment) {
-    if (closed) {
-      return;
-    }
+	private final CompletableFuture<Void> initialized = new CompletableFuture<>();
 
-    try {
-      ProcessBuilder processBuilder = new ProcessBuilder(command);
-      processBuilder.environment().putAll(environment);
-      if (workspaceRoot != null && Files.isDirectory(workspaceRoot)) {
-        processBuilder.directory(workspaceRoot.toFile());
-      }
+	private final CompletableFuture<Void> shutdownComplete = new CompletableFuture<>();
 
-      Process startedProcess = processBuilder.start();
-      process = startedProcess;
-      if (closed) {
-        closeProcess();
-        return;
-      }
+	private final Deque<String> recentErrorLines = new ConcurrentLinkedDeque<>();
 
-      startErrorStreamReader(startedProcess);
-      lspExecutor = createLspExecutor();
-      Launcher<LanguageServer> launcher = LSPLauncher.createClientLauncher(
-          this,
-          startedProcess.getInputStream(),
-          startedProcess.getOutputStream(),
-          lspExecutor,
-          Function.identity());
-      server = launcher.getRemoteProxy();
-      launcher.startListening();
+	private final RunnableNode runtimeNode = new RunnableNode(() -> {
+	});
 
-      startedProcess.onExit().thenAccept(exited -> {
-        if (closed) {
-          return;
-        }
-        try {
-          ThreadMaster.getInstance().register(new RunnableNode(runtimeNode, () -> {
-            if (!closed && !initialized.isDone()) {
-              LspServerStartupException error = new LspServerStartupException(exited.exitValue());
-              String output = recentErrorOutput();
-              if (!output.isBlank()) {
-                LOGGER.error("Language server output before exit:{}{}", System.lineSeparator(), output);
-              }
-              if (error.isJvmCompatibilityFailure()) {
-                LOGGER.warn(
-                    "Language server exited with code 13 before initialization. This usually means "
-                        + "the Java runtime used to launch it is older than the server requires. "
-                        + "On institutional machines with a fixed Java runtime this is a known issue; "
-                        + "Simple IDE will try a compatible language server version when available.");
-              }
-              if (initialized.completeExceptionally(error)) {
-                LOGGER.error("Language server exited before initialization.", error);
-                close();
-              }
-            } else if (!closed) {
-              LOGGER.warn("Language server process exited with code {}.", exited.exitValue());
-              close();
-            }
-          }));
-        } catch (RuntimeException error) {
-          LOGGER.error("Unable to schedule language server exit handling.", error);
-        }
-      });
+	private final RunnableNode startupNode;
 
-      if (closed) {
-        closeProcess();
-        return;
-      }
-      initializationSubmitted = true;
-      initialize(workspaceRoot);
-    } catch (IOException | RuntimeException error) {
-      initialized.completeExceptionally(error);
-      LOGGER.error("Unable to start language server.", error);
-      close();
-    }
-  }
+	private volatile Thread errorReaderThread;
 
-  public CompletableFuture<Void> getInitialized() {
-    return initialized;
-  }
+	private volatile ExecutorService lspExecutor;
 
-  public void didOpen(TextDocumentItem document) {
-    sendNotification("didOpen", () -> {
-      if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
-        server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(document));
-      }
-    });
-  }
+	private volatile ScheduledFuture<?> initializationTimeoutTask;
 
-  public void didChange(String uri, int version, String previousText, String text) {
-    sendNotification("didChange", () -> {
-      if (synchronizationKind == TextDocumentSyncKind.None || previousText.equals(text)) {
-        return;
-      }
-      TextDocumentContentChangeEvent change = synchronizationKind == TextDocumentSyncKind.Incremental
-          ? new TextDocumentContentChangeEvent(
-              new Range(
-                  new Position(0, 0),
-                  getEndPosition(previousText)),
-              text)
-          : new TextDocumentContentChangeEvent(text);
-      server.getTextDocumentService().didChange(
-          new DidChangeTextDocumentParams(
-              new VersionedTextDocumentIdentifier(uri, version),
-              List.of(change)));
-    });
-  }
+	private volatile Process process;
 
-  public CompletableFuture<List<? extends TextEdit>> formatting(DocumentFormattingParams params) {
-    return initialized.thenCompose(ignored -> formattingSupported
-        ? server.getTextDocumentService().formatting(params)
-        : CompletableFuture.completedFuture(List.of()));
-  }
+	private volatile LanguageServer server;
 
-  public void didClose(String uri) {
-    sendNotification("didClose", () -> {
-      if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
-        server.getTextDocumentService().didClose(
-            new DidCloseTextDocumentParams(new TextDocumentIdentifier(uri)));
-      }
-    });
-  }
+	private volatile boolean initializationSubmitted;
 
-  public void didSave(String uri, String text) {
-    sendNotification("didSave", () -> {
-      if (saveSupported) {
-        server.getTextDocumentService().didSave(
-            new DidSaveTextDocumentParams(
-                new TextDocumentIdentifier(uri),
-                saveIncludeText ? text : null));
-      }
-    });
-  }
+	private volatile boolean closed;
 
-  private void sendNotification(String method, Runnable notification) {
-    initialized.thenRun(notification).whenComplete((ignored, error) -> {
-      if (error != null) {
-        LOGGER.error("Unable to send LSP {} notification.", method, error);
-      }
-    });
-  }
+	private volatile TextDocumentSyncKind synchronizationKind = TextDocumentSyncKind.None;
 
-  public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(CompletionParams params) {
-    return initialized.thenCompose(ignored -> completionSupported
-        ? server.getTextDocumentService().completion(params)
-        : CompletableFuture.completedFuture(Either.forLeft(List.of())));
-  }
+	private volatile boolean openCloseSupported;
 
-  public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definition(
-      DefinitionParams params) {
-    return initialized.thenCompose(ignored -> definitionSupported
-        ? server.getTextDocumentService().definition(params)
-        : CompletableFuture.completedFuture(Either.forLeft(List.of())));
-  }
+	private volatile boolean completionSupported;
 
-  @SuppressWarnings("deprecation")
-  private void initialize(Path workspaceRoot) {
-    InitializeParams params = new InitializeParams();
+	private volatile boolean definitionSupported;
 
-    params.setProcessId(Math.toIntExact(ProcessHandle.current().pid()));
-    params.setClientInfo(new ClientInfo("SIMPLE-IDE", SimpleIDEVersion.VERSION));
-    params.setCapabilities(createClientCapabilities());
+	private volatile boolean saveSupported;
 
-    if (workspaceRoot != null) {
-      String rootUri = workspaceRoot.toUri().toString();
-      params.setRootUri(rootUri);
-      params.setRootPath(workspaceRoot.toAbsolutePath().toString());
-      params.setWorkspaceFolders(List.of(
-          new WorkspaceFolder(
-              rootUri,
-              workspaceRoot.getFileName().toString())));
-    }
+	private volatile boolean saveIncludeText;
 
-    initializationTimeoutTask = ThreadMaster.getInstance().schedule(
-        runtimeNode,
-        () -> {
-          TimeoutException error = new TimeoutException("Language server initialization timed out.");
-          if (initialized.completeExceptionally(error)) {
-            LOGGER.error("Unable to initialize language server.", error);
-            close();
-          }
-        },
-        INITIALIZATION_TIMEOUT_SECONDS,
-        TimeUnit.SECONDS);
-    server.initialize(params).whenComplete((result, error) -> {
-      ScheduledFuture<?> timeoutTask = initializationTimeoutTask;
-      if (timeoutTask != null) {
-        timeoutTask.cancel(false);
-      }
-      if (closed || initialized.isDone()) {
-        return;
-      }
-      if (error != null) {
-        initialized.completeExceptionally(error);
-        LOGGER.error("Unable to initialize language server.", error);
-        close();
-        return;
-      }
-      try {
-        if (result == null || result.getCapabilities() == null) {
-          throw new IllegalStateException("Language server returned no capabilities.");
-        }
-        synchronizationKind = getSynchronizationKind(result);
-        openCloseSupported = hasOpenCloseSupport(result);
-        completionSupported = result.getCapabilities().getCompletionProvider() != null;
-        definitionSupported = hasDefinitionSupport(result);
-        saveSupported = hasSaveSupport(result);
-        formattingSupported = hasFormattingSupport(result);
-        saveIncludeText = shouldIncludeTextOnSave(result);
-        server.initialized(new InitializedParams());
-        initialized.complete(null);
-        LOGGER.info("Language server initialized for workspace {}.",
-            workspaceRoot == null ? "(none)" : workspaceRoot);
-      } catch (RuntimeException initializationError) {
-        initialized.completeExceptionally(initializationError);
-        LOGGER.error("Unable to finish language server initialization.", initializationError);
-        close();
-      }
-    });
-  }
+	private volatile boolean formattingSupported;
 
-  private TextDocumentSyncKind getSynchronizationKind(org.eclipse.lsp4j.InitializeResult result) {
-    Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
-        .getTextDocumentSync();
-    if (sync == null) {
-      return TextDocumentSyncKind.None;
-    }
-    if (sync.isLeft()) {
-      return sync.getLeft();
-    }
-    if (sync.getRight() == null) {
-      return TextDocumentSyncKind.None;
-    }
-    TextDocumentSyncKind change = sync.getRight().getChange();
-    return change == null ? TextDocumentSyncKind.None : change;
-  }
+	/**
+	 * Creates a client without extra environment variables.
+	 * @param command command and arguments used to start the language server
+	 * @param workspaceRoot root directory passed to the server and used as its working
+	 * directory
+	 * @param diagnosticsHandler consumer for diagnostics published by the server
+	 * @throws IOException when the client cannot register its startup work
+	 */
+	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler)
+			throws IOException {
+		this(command, workspaceRoot, diagnosticsHandler, Map.of());
+	}
 
-  private boolean hasOpenCloseSupport(org.eclipse.lsp4j.InitializeResult result) {
-    Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
-        .getTextDocumentSync();
-    if (sync == null) {
-      return false;
-    }
-    return sync.isLeft()
-        || sync.getRight() != null && Boolean.TRUE.equals(sync.getRight().getOpenClose());
-  }
+	/**
+	 * Creates a client and registers its startup work with the thread manager.
+	 * @param command command and arguments used to start the language server
+	 * @param workspaceRoot root directory passed to the server and used as its working
+	 * directory
+	 * @param diagnosticsHandler consumer for diagnostics published by the server, may be
+	 * {@code null}
+	 * @param environment extra environment variables for the server process
+	 * @throws IOException when the client cannot register its startup work
+	 */
+	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler,
+			Map<String, String> environment) throws IOException {
+		if (command == null || command.isEmpty()) {
+			throw new IllegalArgumentException("Language server command must not be empty.");
+		}
+		if (environment == null) {
+			throw new IllegalArgumentException("Language server environment must not be null.");
+		}
 
-  private boolean hasSaveSupport(org.eclipse.lsp4j.InitializeResult result) {
-    Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
-        .getTextDocumentSync();
-    if (sync == null || sync.isLeft() || sync.getRight() == null) {
-      return false;
-    }
+		this.diagnosticsHandler = diagnosticsHandler == null ? ignored -> {
+		} : diagnosticsHandler;
+		this.startupNode = new RunnableNode(runtimeNode, () -> startServer(command, workspaceRoot, environment), () -> {
+			if (!closed && !initializationSubmitted) {
+				LOGGER.warn("Language server startup node closed before initialization was submitted.");
+			}
+		});
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		try {
+			threadMaster.register(runtimeNode);
+			threadMaster.register(startupNode);
+		}
+		catch (RuntimeException error) {
+			threadMaster.removeNodeCascade(runtimeNode);
+			throw error;
+		}
+	}
 
-    Either<Boolean, SaveOptions> save = sync.getRight().getSave();
-    return save != null && (save.isLeft()
-        ? Boolean.TRUE.equals(save.getLeft())
-        : save.getRight() != null);
-  }
+	private void startServer(List<String> command, Path workspaceRoot, Map<String, String> environment) {
+		if (closed) {
+			return;
+		}
 
-  private boolean hasFormattingSupport(org.eclipse.lsp4j.InitializeResult result) {
-    Either<Boolean, org.eclipse.lsp4j.DocumentFormattingOptions> provider = result.getCapabilities()
-        .getDocumentFormattingProvider();
-    return provider != null && (provider.isLeft()
-        ? Boolean.TRUE.equals(provider.getLeft())
-        : provider.getRight() != null);
-  }
+		try {
+			ProcessBuilder processBuilder = new ProcessBuilder(command);
+			processBuilder.environment().putAll(environment);
+			if (workspaceRoot != null && Files.isDirectory(workspaceRoot)) {
+				processBuilder.directory(workspaceRoot.toFile());
+			}
 
-  private boolean shouldIncludeTextOnSave(org.eclipse.lsp4j.InitializeResult result) {
-    Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
-        .getTextDocumentSync();
-    if (sync == null || sync.isLeft() || sync.getRight() == null) {
-      return false;
-    }
+			Process startedProcess = processBuilder.start();
+			process = startedProcess;
+			if (closed) {
+				closeProcess();
+				return;
+			}
 
-    Either<Boolean, SaveOptions> save = sync.getRight().getSave();
-    return save != null && save.isRight() && save.getRight() != null
-        && Boolean.TRUE.equals(save.getRight().getIncludeText());
-  }
+			startErrorStreamReader(startedProcess);
+			lspExecutor = createLspExecutor();
+			Launcher<LanguageServer> launcher = LSPLauncher.createClientLauncher(this, startedProcess.getInputStream(),
+					startedProcess.getOutputStream(), lspExecutor, Function.identity());
+			server = launcher.getRemoteProxy();
+			launcher.startListening();
 
-  private boolean hasDefinitionSupport(org.eclipse.lsp4j.InitializeResult result) {
-    Either<Boolean, DefinitionOptions> provider = result.getCapabilities().getDefinitionProvider();
-    return provider != null && (provider.isLeft()
-        ? Boolean.TRUE.equals(provider.getLeft())
-        : provider.getRight() != null);
-  }
+			startedProcess.onExit().thenAccept(exited -> {
+				if (closed) {
+					return;
+				}
+				try {
+					ThreadMaster.getInstance().register(new RunnableNode(runtimeNode, () -> {
+						if (!closed && !initialized.isDone()) {
+							LspServerStartupException error = new LspServerStartupException(exited.exitValue());
+							String output = recentErrorOutput();
+							if (!output.isBlank()) {
+								LOGGER.error("Language server output before exit:{}{}", System.lineSeparator(), output);
+							}
+							if (error.isJvmCompatibilityFailure()) {
+								LOGGER
+									.warn("Language server exited with code 13 before initialization. This usually means "
+											+ "the Java runtime used to launch it is older than the server requires. "
+											+ "On institutional machines with a fixed Java runtime this is a known issue; "
+											+ "Simple IDE will try a compatible language server version when available.");
+							}
+							if (initialized.completeExceptionally(error)) {
+								LOGGER.error("Language server exited before initialization.", error);
+								close();
+							}
+						}
+						else if (!closed) {
+							LOGGER.warn("Language server process exited with code {}.", exited.exitValue());
+							close();
+						}
+					}));
+				}
+				catch (RuntimeException error) {
+					LOGGER.error("Unable to schedule language server exit handling.", error);
+				}
+			});
 
-  private Position getEndPosition(String text) {
-    int line = 0;
-    int character = 0;
-    for (int index = 0; index < text.length(); index++) {
-      char current = text.charAt(index);
-      switch (current) {
-        case '\n' -> {
-          line++;
-          character = 0;
-        }
-        case '\r' -> {
-          if (index + 1 == text.length() || text.charAt(index + 1) != '\n') {
-            line++;
-            character = 0;
-          }
-        }
-        default -> character++;
-      }
-    }
-    return new Position(line, character);
-  }
+			if (closed) {
+				closeProcess();
+				return;
+			}
+			initializationSubmitted = true;
+			initialize(workspaceRoot);
+		}
+		catch (IOException | RuntimeException error) {
+			initialized.completeExceptionally(error);
+			LOGGER.error("Unable to start language server.", error);
+			close();
+		}
+	}
 
-  private ClientCapabilities createClientCapabilities() {
-    CompletionCapabilities completionCapabilities = new CompletionCapabilities();
-    completionCapabilities.setContextSupport(true);
-    CompletionItemCapabilities completionItemCapabilities = new CompletionItemCapabilities();
-    completionItemCapabilities.setSnippetSupport(false);
-    completionCapabilities.setCompletionItem(completionItemCapabilities);
+	/**
+	 * Returns a future that completes when the server initialization finishes.
+	 * @return the initialization future
+	 */
+	public CompletableFuture<Void> getInitialized() {
+		return initialized;
+	}
 
-    TextDocumentClientCapabilities textDocumentCapabilities = new TextDocumentClientCapabilities();
-    textDocumentCapabilities.setCompletion(completionCapabilities);
+	/**
+	 * Notifies the server that a document was opened.
+	 * @param document document identifier, language id, version and text
+	 */
+	public void didOpen(TextDocumentItem document) {
+		sendNotification("didOpen", () -> {
+			if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
+				server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(document));
+			}
+		});
+	}
 
-    DefinitionCapabilities definitionCapabilities = new DefinitionCapabilities();
-    definitionCapabilities.setLinkSupport(true);
-    textDocumentCapabilities.setDefinition(definitionCapabilities);
+	/**
+	 * Notifies the server that a document changed using the negotiated sync kind.
+	 * @param uri document URI
+	 * @param version new document version
+	 * @param previousText text previously sent to the server
+	 * @param text current document text
+	 */
+	public void didChange(String uri, int version, String previousText, String text) {
+		sendNotification("didChange", () -> {
+			if (synchronizationKind == TextDocumentSyncKind.None || previousText.equals(text)) {
+				return;
+			}
+			TextDocumentContentChangeEvent change = synchronizationKind == TextDocumentSyncKind.Incremental
+					? new TextDocumentContentChangeEvent(new Range(new Position(0, 0), getEndPosition(previousText)),
+							text)
+					: new TextDocumentContentChangeEvent(text);
+			server.getTextDocumentService()
+				.didChange(new DidChangeTextDocumentParams(new VersionedTextDocumentIdentifier(uri, version),
+						List.of(change)));
+		});
+	}
 
-    FormattingCapabilities formattingCapabilities = new FormattingCapabilities();
-    formattingCapabilities.setDynamicRegistration(false);
-    textDocumentCapabilities.setFormatting(formattingCapabilities);
+	/**
+	 * Requests document formatting when the server supports it.
+	 * @param params formatting options and document identifier
+	 * @return a future with the formatting edits, or an empty list when unsupported
+	 */
+	public CompletableFuture<List<? extends TextEdit>> formatting(DocumentFormattingParams params) {
+		return initialized.thenCompose(ignored -> formattingSupported
+				? server.getTextDocumentService().formatting(params) : CompletableFuture.completedFuture(List.of()));
+	}
 
-    SynchronizationCapabilities synchronizationCapabilities = new SynchronizationCapabilities();
-    synchronizationCapabilities.setDidSave(true);
-    textDocumentCapabilities.setSynchronization(synchronizationCapabilities);
-    textDocumentCapabilities.setPublishDiagnostics(new PublishDiagnosticsCapabilities(true));
+	/**
+	 * Notifies the server that a document was closed.
+	 * @param uri document URI
+	 */
+	public void didClose(String uri) {
+		sendNotification("didClose", () -> {
+			if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
+				server.getTextDocumentService()
+					.didClose(new DidCloseTextDocumentParams(new TextDocumentIdentifier(uri)));
+			}
+		});
+	}
 
-    ClientCapabilities capabilities = new ClientCapabilities();
-    capabilities.setTextDocument(textDocumentCapabilities);
+	/**
+	 * Notifies the server that a document was saved.
+	 * @param uri document URI
+	 * @param text saved document text, sent only when the server requested it
+	 */
+	public void didSave(String uri, String text) {
+		sendNotification("didSave", () -> {
+			if (saveSupported) {
+				server.getTextDocumentService()
+					.didSave(new DidSaveTextDocumentParams(new TextDocumentIdentifier(uri),
+							saveIncludeText ? text : null));
+			}
+		});
+	}
 
-    WorkspaceClientCapabilities workspaceCapabilities = new WorkspaceClientCapabilities();
-    workspaceCapabilities.setWorkspaceFolders(true);
-    capabilities.setWorkspace(workspaceCapabilities);
-    return capabilities;
-  }
+	private void sendNotification(String method, Runnable notification) {
+		initialized.thenRun(notification).whenComplete((ignored, error) -> {
+			if (error != null) {
+				LOGGER.error("Unable to send LSP {} notification.", method, error);
+			}
+		});
+	}
 
-  private void startErrorStreamReader(Process serverProcess) {
-    Thread errorReader = new Thread(() -> {
-      try (BufferedReader reader = new BufferedReader(
-          new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
-        String line;
-        while ((line = reader.readLine()) != null) {
-          recentErrorLines.addLast(line);
-          while (recentErrorLines.size() > MAX_RECENT_ERROR_LINES) {
-            recentErrorLines.removeFirst();
-          }
-          LOGGER.debug("[LSP server] {}", line);
-        }
-      } catch (IOException error) {
-        if (!closed) {
-          LOGGER.warn("Unable to read language server output.", error);
-        }
-      }
-    }, "simpleide-lsp-stderr-" + serverProcess.pid());
-    errorReader.setDaemon(true);
-    errorReaderThread = errorReader;
-    errorReader.start();
-  }
+	/**
+	 * Requests completion when the server supports it.
+	 * @param params completion position and context
+	 * @return a future with either a completion list or an array of items
+	 */
+	public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(CompletionParams params) {
+		return initialized
+			.thenCompose(ignored -> completionSupported ? server.getTextDocumentService().completion(params)
+					: CompletableFuture.completedFuture(Either.forLeft(List.of())));
+	}
 
-  private String recentErrorOutput() {
-    return String.join(System.lineSeparator(), recentErrorLines);
-  }
+	/**
+	 * Requests the definition at a position when the server supports it.
+	 * @param params definition position and document identifier
+	 * @return a future with definition locations or links
+	 */
+	public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definition(
+			DefinitionParams params) {
+		return initialized
+			.thenCompose(ignored -> definitionSupported ? server.getTextDocumentService().definition(params)
+					: CompletableFuture.completedFuture(Either.forLeft(List.of())));
+	}
 
-  private ExecutorService createLspExecutor() {
-    AtomicInteger threadNumber = new AtomicInteger();
-    String threadPrefix = "simpleide-lsp-" + runtimeNode.getId() + "-";
-    return Executors.newFixedThreadPool(2, task -> {
-      Thread thread = new Thread(task, threadPrefix + threadNumber.incrementAndGet());
-      thread.setDaemon(true);
-      return thread;
-    });
-  }
+	@SuppressWarnings("deprecation")
+	private void initialize(Path workspaceRoot) {
+		InitializeParams params = new InitializeParams();
 
-  @Override
-  public void telemetryEvent(Object event) {
-    LOGGER.debug("Language server telemetry: {}", event);
-  }
+		params.setProcessId(Math.toIntExact(ProcessHandle.current().pid()));
+		params.setClientInfo(new ClientInfo("SIMPLE-IDE", SimpleIDEVersion.VERSION));
+		params.setCapabilities(createClientCapabilities());
 
-  @Override
-  public void publishDiagnostics(PublishDiagnosticsParams params) {
-    diagnosticsHandler.accept(params);
-  }
+		if (workspaceRoot != null) {
+			String rootUri = workspaceRoot.toUri().toString();
+			params.setRootUri(rootUri);
+			params.setRootPath(workspaceRoot.toAbsolutePath().toString());
+			params.setWorkspaceFolders(List.of(new WorkspaceFolder(rootUri, workspaceRoot.getFileName().toString())));
+		}
 
-  @Override
-  public void showMessage(MessageParams message) {
-    LOGGER.info("[LSP] {}", message.getMessage());
-  }
+		initializationTimeoutTask = ThreadMaster.getInstance().schedule(runtimeNode, () -> {
+			TimeoutException error = new TimeoutException("Language server initialization timed out.");
+			if (initialized.completeExceptionally(error)) {
+				LOGGER.error("Unable to initialize language server.", error);
+				close();
+			}
+		}, INITIALIZATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+		server.initialize(params).whenComplete((result, error) -> {
+			ScheduledFuture<?> timeoutTask = initializationTimeoutTask;
+			if (timeoutTask != null) {
+				timeoutTask.cancel(false);
+			}
+			if (closed || initialized.isDone()) {
+				return;
+			}
+			if (error != null) {
+				initialized.completeExceptionally(error);
+				LOGGER.error("Unable to initialize language server.", error);
+				close();
+				return;
+			}
+			try {
+				if (result == null || result.getCapabilities() == null) {
+					throw new IllegalStateException("Language server returned no capabilities.");
+				}
+				synchronizationKind = getSynchronizationKind(result);
+				openCloseSupported = hasOpenCloseSupport(result);
+				completionSupported = result.getCapabilities().getCompletionProvider() != null;
+				definitionSupported = hasDefinitionSupport(result);
+				saveSupported = hasSaveSupport(result);
+				formattingSupported = hasFormattingSupport(result);
+				saveIncludeText = shouldIncludeTextOnSave(result);
+				server.initialized(new InitializedParams());
+				initialized.complete(null);
+				LOGGER.info("Language server initialized for workspace {}.",
+						workspaceRoot == null ? "(none)" : workspaceRoot);
+			}
+			catch (RuntimeException initializationError) {
+				initialized.completeExceptionally(initializationError);
+				LOGGER.error("Unable to finish language server initialization.", initializationError);
+				close();
+			}
+		});
+	}
 
-  @Override
-  public CompletableFuture<MessageActionItem> showMessageRequest(
-      org.eclipse.lsp4j.ShowMessageRequestParams request) {
-    LOGGER.info("[LSP] {}", request.getMessage());
-    return CompletableFuture.completedFuture(null);
-  }
+	private TextDocumentSyncKind getSynchronizationKind(org.eclipse.lsp4j.InitializeResult result) {
+		Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
+			.getTextDocumentSync();
+		if (sync == null) {
+			return TextDocumentSyncKind.None;
+		}
+		if (sync.isLeft()) {
+			return sync.getLeft();
+		}
+		if (sync.getRight() == null) {
+			return TextDocumentSyncKind.None;
+		}
+		TextDocumentSyncKind change = sync.getRight().getChange();
+		return change == null ? TextDocumentSyncKind.None : change;
+	}
 
-  @Override
-  public void logMessage(MessageParams message) {
-    LOGGER.debug("[LSP] {}", message.getMessage());
-  }
+	private boolean hasOpenCloseSupport(org.eclipse.lsp4j.InitializeResult result) {
+		Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
+			.getTextDocumentSync();
+		if (sync == null) {
+			return false;
+		}
+		return sync.isLeft() || sync.getRight() != null && Boolean.TRUE.equals(sync.getRight().getOpenClose());
+	}
 
-  @Override
-  public synchronized void close() {
-    if (closed) {
-      return;
-    }
-    closed = true;
-    if (!initialized.isDone()) {
-      initialized.completeExceptionally(new IOException("Language server client was closed before initialization."));
-    }
-    ThreadMaster threadMaster = ThreadMaster.getInstance();
-    try {
-      threadMaster.removeNodeCascade(startupNode);
-    } catch (RuntimeException error) {
-      LOGGER.warn("Unable to unregister language server startup node.", error);
-    }
+	private boolean hasSaveSupport(org.eclipse.lsp4j.InitializeResult result) {
+		Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
+			.getTextDocumentSync();
+		if (sync == null || sync.isLeft() || sync.getRight() == null) {
+			return false;
+		}
 
-    RunnableNode shutdownNode = new RunnableNode(
-        this::shutdownServer,
-        () -> {
-          Process child = process;
-          if (child != null && child.isAlive()) {
-            LOGGER.warn("Language server process is still running after its shutdown task.");
-          }
-        });
-    try {
-      threadMaster.register(shutdownNode);
-    } catch (RuntimeException error) {
-      LOGGER.warn("Unable to schedule language server shutdown; closing it directly.", error);
-      shutdownServer();
-    }
-  }
+		Either<Boolean, SaveOptions> save = sync.getRight().getSave();
+		return save != null && (save.isLeft() ? Boolean.TRUE.equals(save.getLeft()) : save.getRight() != null);
+	}
 
-  boolean isProcessAlive() {
-    Process child = process;
-    return child != null && child.isAlive();
-  }
+	private boolean hasFormattingSupport(org.eclipse.lsp4j.InitializeResult result) {
+		Either<Boolean, org.eclipse.lsp4j.DocumentFormattingOptions> provider = result.getCapabilities()
+			.getDocumentFormattingProvider();
+		return provider != null
+				&& (provider.isLeft() ? Boolean.TRUE.equals(provider.getLeft()) : provider.getRight() != null);
+	}
 
-  public boolean awaitShutdown(long timeout, TimeUnit unit) {
-    try {
-      shutdownComplete.get(timeout, unit);
-      return true;
-    } catch (InterruptedException error) {
-      Thread.currentThread().interrupt();
-      return false;
-    } catch (ExecutionException error) {
-      return true;
-    } catch (TimeoutException error) {
-      return false;
-    }
-  }
+	private boolean shouldIncludeTextOnSave(org.eclipse.lsp4j.InitializeResult result) {
+		Either<TextDocumentSyncKind, org.eclipse.lsp4j.TextDocumentSyncOptions> sync = result.getCapabilities()
+			.getTextDocumentSync();
+		if (sync == null || sync.isLeft() || sync.getRight() == null) {
+			return false;
+		}
 
-  private void shutdownServer() {
-    LanguageServer activeServer = server;
-    boolean interrupted = false;
-    try {
-      if (initialized.isDone() && !initialized.isCompletedExceptionally() && activeServer != null) {
-        try {
-          activeServer.shutdown().get(2, TimeUnit.SECONDS);
-        } catch (InterruptedException error) {
-          interrupted = true;
-        } catch (ExecutionException | TimeoutException | RuntimeException ignored) {
-        }
-        try {
-          activeServer.exit();
-        } catch (RuntimeException ignored) {
-        }
-      }
-    } finally {
-      closeProcess();
-      if (interrupted) {
-        Thread.currentThread().interrupt();
-      }
-    }
-  }
+		Either<Boolean, SaveOptions> save = sync.getRight().getSave();
+		return save != null && save.isRight() && save.getRight() != null
+				&& Boolean.TRUE.equals(save.getRight().getIncludeText());
+	}
 
-  private void closeProcess() {
-    Process child = process;
-    try {
-      if (child != null) {
-        child.destroy();
-        if (!waitFor(child, 2, TimeUnit.SECONDS)) {
-          child.destroyForcibly();
-          if (!waitFor(child, 2, TimeUnit.SECONDS)) {
-            LOGGER.warn("Unable to terminate language server process.");
-          }
-        }
-        try {
-          child.getErrorStream().close();
-        } catch (IOException error) {
-          LOGGER.debug("Unable to close language server stderr.", error);
-        }
-      }
-    } finally {
-      ExecutorService executor = lspExecutor;
-      lspExecutor = null;
-      if (executor != null) {
-        executor.shutdownNow();
-      }
-      ScheduledFuture<?> timeoutTask = initializationTimeoutTask;
-      initializationTimeoutTask = null;
-      if (timeoutTask != null) {
-        timeoutTask.cancel(false);
-      }
-      boolean wasInterrupted = Thread.interrupted();
-      Thread errorReader = errorReaderThread;
-      errorReaderThread = null;
-      if (errorReader != null && errorReader != Thread.currentThread()) {
-        errorReader.interrupt();
-        try {
-          errorReader.join(250);
-        } catch (InterruptedException error) {
-          wasInterrupted = true;
-        }
-        if (errorReader.isAlive()) {
-          LOGGER.warn("Language server stderr reader did not stop after process shutdown.");
-        }
-      }
-      if (wasInterrupted) {
-        Thread.currentThread().interrupt();
-      }
-      try {
-        ThreadMaster.getInstance().removeNodeCascade(runtimeNode);
-      } finally {
-        shutdownComplete.complete(null);
-      }
-    }
-  }
+	private boolean hasDefinitionSupport(org.eclipse.lsp4j.InitializeResult result) {
+		Either<Boolean, DefinitionOptions> provider = result.getCapabilities().getDefinitionProvider();
+		return provider != null
+				&& (provider.isLeft() ? Boolean.TRUE.equals(provider.getLeft()) : provider.getRight() != null);
+	}
 
-  private boolean waitFor(Process child, long timeout, TimeUnit unit) {
-    long deadline = System.nanoTime() + unit.toNanos(timeout);
-    boolean interrupted = false;
-    try {
-      while (true) {
-        long remaining = deadline - System.nanoTime();
-        if (remaining <= 0) {
-          return !child.isAlive();
-        }
-        try {
-          return child.waitFor(remaining, TimeUnit.NANOSECONDS);
-        } catch (InterruptedException error) {
-          interrupted = true;
-        }
-      }
-    } finally {
-      if (interrupted) {
-        Thread.currentThread().interrupt();
-      }
-    }
-  }
+	private Position getEndPosition(String text) {
+		int line = 0;
+		int character = 0;
+		for (int index = 0; index < text.length(); index++) {
+			char current = text.charAt(index);
+			switch (current) {
+				case '\n' -> {
+					line++;
+					character = 0;
+				}
+				case '\r' -> {
+					if (index + 1 == text.length() || text.charAt(index + 1) != '\n') {
+						line++;
+						character = 0;
+					}
+				}
+				default -> character++;
+			}
+		}
+		return new Position(line, character);
+	}
+
+	private ClientCapabilities createClientCapabilities() {
+		CompletionCapabilities completionCapabilities = new CompletionCapabilities();
+		completionCapabilities.setContextSupport(true);
+		CompletionItemCapabilities completionItemCapabilities = new CompletionItemCapabilities();
+		completionItemCapabilities.setSnippetSupport(false);
+		completionCapabilities.setCompletionItem(completionItemCapabilities);
+
+		TextDocumentClientCapabilities textDocumentCapabilities = new TextDocumentClientCapabilities();
+		textDocumentCapabilities.setCompletion(completionCapabilities);
+
+		DefinitionCapabilities definitionCapabilities = new DefinitionCapabilities();
+		definitionCapabilities.setLinkSupport(true);
+		textDocumentCapabilities.setDefinition(definitionCapabilities);
+
+		FormattingCapabilities formattingCapabilities = new FormattingCapabilities();
+		formattingCapabilities.setDynamicRegistration(false);
+		textDocumentCapabilities.setFormatting(formattingCapabilities);
+
+		SynchronizationCapabilities synchronizationCapabilities = new SynchronizationCapabilities();
+		synchronizationCapabilities.setDidSave(true);
+		textDocumentCapabilities.setSynchronization(synchronizationCapabilities);
+		textDocumentCapabilities.setPublishDiagnostics(new PublishDiagnosticsCapabilities(true));
+
+		ClientCapabilities capabilities = new ClientCapabilities();
+		capabilities.setTextDocument(textDocumentCapabilities);
+
+		WorkspaceClientCapabilities workspaceCapabilities = new WorkspaceClientCapabilities();
+		workspaceCapabilities.setWorkspaceFolders(true);
+		capabilities.setWorkspace(workspaceCapabilities);
+		return capabilities;
+	}
+
+	private void startErrorStreamReader(Process serverProcess) {
+		Thread errorReader = new Thread(() -> {
+			try (BufferedReader reader = new BufferedReader(
+					new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
+				String line;
+				while ((line = reader.readLine()) != null) {
+					recentErrorLines.addLast(line);
+					while (recentErrorLines.size() > MAX_RECENT_ERROR_LINES) {
+						recentErrorLines.removeFirst();
+					}
+					LOGGER.debug("[LSP server] {}", line);
+				}
+			}
+			catch (IOException error) {
+				if (!closed) {
+					LOGGER.warn("Unable to read language server output.", error);
+				}
+			}
+		}, "simpleide-lsp-stderr-" + serverProcess.pid());
+		errorReader.setDaemon(true);
+		errorReaderThread = errorReader;
+		errorReader.start();
+	}
+
+	private String recentErrorOutput() {
+		return String.join(System.lineSeparator(), recentErrorLines);
+	}
+
+	private ExecutorService createLspExecutor() {
+		AtomicInteger threadNumber = new AtomicInteger();
+		String threadPrefix = "simpleide-lsp-" + runtimeNode.getId() + "-";
+		return Executors.newFixedThreadPool(2, task -> {
+			Thread thread = new Thread(task, threadPrefix + threadNumber.incrementAndGet());
+			thread.setDaemon(true);
+			return thread;
+		});
+	}
+
+	/**
+	 * Logs a telemetry event sent by the server.
+	 * @param event telemetry payload
+	 */
+	@Override
+	public void telemetryEvent(Object event) {
+		LOGGER.debug("Language server telemetry: {}", event);
+	}
+
+	/**
+	 * Forwards diagnostics to the handler supplied when the client was created.
+	 * @param params diagnostics published by the server
+	 */
+	@Override
+	public void publishDiagnostics(PublishDiagnosticsParams params) {
+		diagnosticsHandler.accept(params);
+	}
+
+	/**
+	 * Logs a message sent by the server.
+	 * @param message message content and type
+	 */
+	@Override
+	public void showMessage(MessageParams message) {
+		LOGGER.info("[LSP] {}", message.getMessage());
+	}
+
+	/**
+	 * Logs a server message request and answers without selecting an action.
+	 * @param request requested message and actions
+	 * @return a future completed with {@code null}
+	 */
+	@Override
+	public CompletableFuture<MessageActionItem> showMessageRequest(org.eclipse.lsp4j.ShowMessageRequestParams request) {
+		LOGGER.info("[LSP] {}", request.getMessage());
+		return CompletableFuture.completedFuture(null);
+	}
+
+	/**
+	 * Logs a log message sent by the server.
+	 * @param message message content and type
+	 */
+	@Override
+	public void logMessage(MessageParams message) {
+		LOGGER.debug("[LSP] {}", message.getMessage());
+	}
+
+	/**
+	 * Closes the client, shuts down the server and releases its process resources.
+	 */
+	@Override
+	public synchronized void close() {
+		if (closed) {
+			return;
+		}
+		closed = true;
+		if (!initialized.isDone()) {
+			initialized
+				.completeExceptionally(new IOException("Language server client was closed before initialization."));
+		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		try {
+			threadMaster.removeNodeCascade(startupNode);
+		}
+		catch (RuntimeException error) {
+			LOGGER.warn("Unable to unregister language server startup node.", error);
+		}
+
+		RunnableNode shutdownNode = new RunnableNode(this::shutdownServer, () -> {
+			Process child = process;
+			if (child != null && child.isAlive()) {
+				LOGGER.warn("Language server process is still running after its shutdown task.");
+			}
+		});
+		try {
+			threadMaster.register(shutdownNode);
+		}
+		catch (RuntimeException error) {
+			LOGGER.warn("Unable to schedule language server shutdown; closing it directly.", error);
+			shutdownServer();
+		}
+	}
+
+	boolean isProcessAlive() {
+		Process child = process;
+		return child != null && child.isAlive();
+	}
+
+	/**
+	 * Waits for the shutdown task to finish within a timeout.
+	 * @param timeout maximum time to wait
+	 * @param unit unit of the timeout
+	 * @return {@code true} when shutdown completed, {@code false} on timeout or interrupt
+	 */
+	public boolean awaitShutdown(long timeout, TimeUnit unit) {
+		try {
+			shutdownComplete.get(timeout, unit);
+			return true;
+		}
+		catch (InterruptedException error) {
+			Thread.currentThread().interrupt();
+			return false;
+		}
+		catch (ExecutionException error) {
+			return true;
+		}
+		catch (TimeoutException error) {
+			return false;
+		}
+	}
+
+	private void shutdownServer() {
+		LanguageServer activeServer = server;
+		boolean interrupted = false;
+		try {
+			if (initialized.isDone() && !initialized.isCompletedExceptionally() && activeServer != null) {
+				try {
+					activeServer.shutdown().get(2, TimeUnit.SECONDS);
+				}
+				catch (InterruptedException error) {
+					interrupted = true;
+				}
+				catch (ExecutionException | TimeoutException | RuntimeException ignored) {
+				}
+				try {
+					activeServer.exit();
+				}
+				catch (RuntimeException ignored) {
+				}
+			}
+		}
+		finally {
+			closeProcess();
+			if (interrupted) {
+				Thread.currentThread().interrupt();
+			}
+		}
+	}
+
+	private void closeProcess() {
+		Process child = process;
+		try {
+			if (child != null) {
+				child.destroy();
+				if (!waitFor(child, 2, TimeUnit.SECONDS)) {
+					child.destroyForcibly();
+					if (!waitFor(child, 2, TimeUnit.SECONDS)) {
+						LOGGER.warn("Unable to terminate language server process.");
+					}
+				}
+				try {
+					child.getErrorStream().close();
+				}
+				catch (IOException error) {
+					LOGGER.debug("Unable to close language server stderr.", error);
+				}
+			}
+		}
+		finally {
+			ExecutorService executor = lspExecutor;
+			lspExecutor = null;
+			if (executor != null) {
+				executor.shutdownNow();
+			}
+			ScheduledFuture<?> timeoutTask = initializationTimeoutTask;
+			initializationTimeoutTask = null;
+			if (timeoutTask != null) {
+				timeoutTask.cancel(false);
+			}
+			boolean wasInterrupted = Thread.interrupted();
+			Thread errorReader = errorReaderThread;
+			errorReaderThread = null;
+			if (errorReader != null && errorReader != Thread.currentThread()) {
+				errorReader.interrupt();
+				try {
+					errorReader.join(250);
+				}
+				catch (InterruptedException error) {
+					wasInterrupted = true;
+				}
+				if (errorReader.isAlive()) {
+					LOGGER.warn("Language server stderr reader did not stop after process shutdown.");
+				}
+			}
+			if (wasInterrupted) {
+				Thread.currentThread().interrupt();
+			}
+			try {
+				ThreadMaster.getInstance().removeNodeCascade(runtimeNode);
+			}
+			finally {
+				shutdownComplete.complete(null);
+			}
+		}
+	}
+
+	private boolean waitFor(Process child, long timeout, TimeUnit unit) {
+		long deadline = System.nanoTime() + unit.toNanos(timeout);
+		boolean interrupted = false;
+		try {
+			while (true) {
+				long remaining = deadline - System.nanoTime();
+				if (remaining <= 0) {
+					return !child.isAlive();
+				}
+				try {
+					return child.waitFor(remaining, TimeUnit.NANOSECONDS);
+				}
+				catch (InterruptedException error) {
+					interrupted = true;
+				}
+			}
+		}
+		finally {
+			if (interrupted) {
+				Thread.currentThread().interrupt();
+			}
+		}
+	}
+
 }

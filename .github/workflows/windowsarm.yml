@@ -26,7 +26,7 @@ jobs:
             archive: zulu27.30.109-ca-jdk27.0.1.0.3-win_aarch64.zip
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configure Windows temp directory
         shell: pwsh
@@ -67,7 +67,7 @@ jobs:
           & $javaExecutable.FullName -version
 
       - name: Cache Maven packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.m2/repository
           key: windows-arm64-maven-${{ hashFiles('**/pom.xml') }}
@@ -94,7 +94,7 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $gccBin
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: "1.27.4"
           architecture: arm64
@@ -125,12 +125,12 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value $monoBin
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.x"
           architecture: arm64
@@ -176,3 +176,11 @@ jobs:
 
       - name: Run tests
         run: make test
+
+      - name: Validate fat JAR and generated packages
+        if: matrix.java == '17'
+        env:
+          SIMPLEIDE_PKG_OS: windows
+          SIMPLEIDE_PKG_ARCH: arm64
+        shell: pwsh
+        run: make pkg-verify

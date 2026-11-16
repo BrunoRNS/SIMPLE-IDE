@@ -1,90 +1,114 @@
 package io.simpleide.lsp.client;
 
+import io.simpleide.ui.editor.Editor;
 import java.awt.Color;
 import java.awt.Component;
 import java.beans.PropertyChangeListener;
 import java.util.List;
-
 import javax.swing.JList;
-
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.fife.ui.autocomplete.Completion;
 import org.fife.ui.autocomplete.CompletionCellRenderer;
 
-import io.simpleide.ui.editor.Editor;
-
+/**
+ * Auto-completion controller that keeps LSP completion popups consistent with the editor
+ * theme.
+ *
+ * <p>
+ * The controller follows background color changes on the editor, applies the theme to the
+ * completion list and delegates the actual insertion to its superclass. Additional LSP
+ * text edits are captured before insertion and applied afterwards by
+ * {@link LspCompletionEditApplier}.
+ *
+ * <p>
+ * Covered by {@code LspAutoCompletionTest}.
+ *
+ * @author LuisOtavio13
+ * @since v1.0.0beta
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ */
 public class LspAutoCompletion extends AutoCompletion {
-  private final Editor editor;
-  private final PropertyChangeListener editorThemeListener;
 
-  public LspAutoCompletion(Editor editor, LspCompletionProvider provider) {
-    super(provider);
-    this.editor = editor;
-    this.editorThemeListener = event -> {
-      if (event.getNewValue() instanceof Color background) {
-        setDescriptionWindowColor(background);
-      }
-    };
-    setListCellRenderer(new EditorThemeCompletionRenderer(editor));
-    setDescriptionWindowColor(editor.getBackground());
-    editor.addPropertyChangeListener("background", editorThemeListener);
-  }
+	private final Editor editor;
 
-  @Override
-  public void uninstall() {
-    editor.removePropertyChangeListener("background", editorThemeListener);
-    super.uninstall();
-  }
+	private final PropertyChangeListener editorThemeListener;
 
-  @Override
-  protected void insertCompletion(Completion completion, boolean typedParamListStart) {
-    if (!(completion instanceof LspCompletionProvider.LspCompletion lspCompletion)) {
-      super.insertCompletion(completion, typedParamListStart);
-      return;
-    }
+	public LspAutoCompletion(Editor editor, LspCompletionProvider provider) {
+		super(provider);
+		this.editor = editor;
+		this.editorThemeListener = event -> {
+			if (event.getNewValue() instanceof Color background) {
+				setDescriptionWindowColor(background);
+			}
+		};
+		setListCellRenderer(new EditorThemeCompletionRenderer(editor));
+		setDescriptionWindowColor(editor.getBackground());
+		editor.addPropertyChangeListener("background", editorThemeListener);
+	}
 
-    int primaryEnd = editor.getCaretPosition();
-    String alreadyEntered = completion.getAlreadyEntered(editor);
-    if (alreadyEntered == null) {
-      alreadyEntered = "";
-    }
-    int primaryStart = primaryEnd - alreadyEntered.length();
-    int originalLength = editor.getDocument().getLength();
-    List<LspCompletionEditApplier.ResolvedTextEdit> additionalEdits =
-        LspCompletionEditApplier.captureAdditionalEdits(
-            editor, lspCompletion.getItem(), primaryStart, primaryEnd);
+	@Override
+	public void uninstall() {
+		editor.removePropertyChangeListener("background", editorThemeListener);
+		super.uninstall();
+	}
 
-    super.insertCompletion(completion, typedParamListStart);
+	@Override
+	protected void insertCompletion(Completion completion, boolean typedParamListStart) {
+		if (!(completion instanceof LspCompletionProvider.LspCompletion lspCompletion)) {
+			super.insertCompletion(completion, typedParamListStart);
+			return;
+		}
 
-    int primaryDelta = editor.getDocument().getLength() - originalLength;
-    LspCompletionEditApplier.applyAdditionalEdits(
-        editor, additionalEdits, primaryStart, primaryEnd, primaryDelta);
-  }
+		int primaryEnd = editor.getCaretPosition();
+		String alreadyEntered = completion.getAlreadyEntered(editor);
+		if (alreadyEntered == null) {
+			alreadyEntered = "";
+		}
+		int primaryStart = primaryEnd - alreadyEntered.length();
+		int originalLength = editor.getDocument().getLength();
+		List<LspCompletionEditApplier.ResolvedTextEdit> additionalEdits = LspCompletionEditApplier
+			.captureAdditionalEdits(editor, lspCompletion.getItem(), primaryStart, primaryEnd);
 
-  private static final class EditorThemeCompletionRenderer extends CompletionCellRenderer {
-    private final Editor editor;
+		super.insertCompletion(completion, typedParamListStart);
 
-    EditorThemeCompletionRenderer(Editor editor) {
-      this.editor = editor;
-    }
+		int primaryDelta = editor.getDocument().getLength() - originalLength;
+		LspCompletionEditApplier.applyAdditionalEdits(editor, additionalEdits, primaryStart, primaryEnd, primaryDelta);
+	}
 
-    @Override
-    public Component getListCellRendererComponent(
-        JList list, Object value, int index, boolean selected, boolean cellHasFocus) {
-      Color background = editor.getBackground();
-      Color foreground = editor.getForeground();
-      Color selectionBackground = editor.getSelectionColor();
-      Color selectionForeground = editor.getSelectedTextColor();
-      list.setBackground(background);
-      list.setForeground(foreground);
-      list.setSelectionBackground(selectionBackground);
-      list.setSelectionForeground(selectionForeground);
+	/**
+	 * Completion cell renderer that copies the editor colors to the completion list.
+	 *
+	 * @author LuisOtavio13
+	 * @since v1.0.0beta
+	 */
+	private static final class EditorThemeCompletionRenderer extends CompletionCellRenderer {
 
-      Component component = super.getListCellRendererComponent(
-          list, value, index, selected, cellHasFocus);
-      component.setBackground(selected ? selectionBackground : background);
-      component.setForeground(selected ? selectionForeground : foreground);
-      return component;
-    }
-  }
+		private final Editor editor;
+
+		EditorThemeCompletionRenderer(Editor editor) {
+			this.editor = editor;
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Override
+		public Component getListCellRendererComponent(JList list, Object value, int index, boolean selected,
+				boolean cellHasFocus) {
+			Color background = editor.getBackground();
+			Color foreground = editor.getForeground();
+			Color selectionBackground = editor.getSelectionColor();
+			Color selectionForeground = editor.getSelectedTextColor();
+			list.setBackground(background);
+			list.setForeground(foreground);
+			list.setSelectionBackground(selectionBackground);
+			list.setSelectionForeground(selectionForeground);
+
+			Component component = super.getListCellRendererComponent(list, value, index, selected, cellHasFocus);
+			component.setBackground(selected ? selectionBackground : background);
+			component.setForeground(selected ? selectionForeground : foreground);
+			return component;
+		}
+
+	}
+
 }

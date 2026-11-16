@@ -24,251 +24,269 @@ import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.utils.service.FileService;
 
-final class TreeFileActions {
-  private static final Logger LOGGER = LoggerFactory.getLogger(TreeFileActions.class);
+/**
+ * Context menu actions for the project tree.
+ *
+ * <p>
+ * Adds new-file, new-folder, rename and delete entries to a popup menu, prompts for the
+ * required input and reports failures through the application popups. All actions run
+ * through EDT nodes and update the tree model after the file system operation.
+ *
+ * @author LuisOtavio13
+ * @since v1.0.0beta
+ */
+public final class TreeFileActions {
 
-  private final Tree tree;
-  private final TreeState state;
-  private final FileService fileService = new FileService();
+	private static final Logger LOGGER = LoggerFactory.getLogger(TreeFileActions.class);
 
-  TreeFileActions(Tree tree, TreeState state) {
-    this.tree = tree;
-    this.state = state;
-  }
+	private final Tree tree;
 
-  @SuppressWarnings("unused")
-  void installContextMenu() {
-    JPopupMenu menu = new JPopupMenu();
-    JMenuItem newFile = addMenuItem(menu, "New file", this::promptCreateFile);
-    JMenuItem newFolder = addMenuItem(menu, "New folder", this::promptCreateDirectory);
-    JMenuItem rename = addMenuItem(menu, "Rename", this::promptRename);
-    JMenuItem delete = addMenuItem(menu, "Delete", this::promptDelete);
+	private final TreeState state;
 
-    tree.addMouseListener(new MouseAdapter() {
-      @Override
-      public void mousePressed(MouseEvent event) {
-        showPopup(event);
-      }
+	private final FileService fileService = new FileService();
 
-      @Override
-      public void mouseReleased(MouseEvent event) {
-        showPopup(event);
-      }
+	TreeFileActions(Tree tree, TreeState state) {
+		this.tree = tree;
+		this.state = state;
+	}
 
-      private void showPopup(MouseEvent event) {
-        if (!event.isPopupTrigger()) {
-          return;
-        }
+	@SuppressWarnings("unused")
+	void installContextMenu() {
+		JPopupMenu menu = new JPopupMenu();
+		JMenuItem newFile = addMenuItem(menu, "New file", this::promptCreateFile);
+		JMenuItem newFolder = addMenuItem(menu, "New folder", this::promptCreateDirectory);
+		JMenuItem rename = addMenuItem(menu, "Rename", this::promptRename);
+		JMenuItem delete = addMenuItem(menu, "Delete", this::promptDelete);
 
-        TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
-        if (clickedPath != null) {
-          tree.setSelectionPath(clickedPath);
-        }
-        updateMenuActions(rename, delete);
-        SwingUtilities.updateComponentTreeUI(menu);
-        menu.show(event.getComponent(), event.getX(), event.getY());
-      }
-    });
-  }
+		tree.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mousePressed(MouseEvent event) {
+				showPopup(event);
+			}
 
-  void createNewFile() {
-    promptCreate(false);
-  }
+			@Override
+			public void mouseReleased(MouseEvent event) {
+				showPopup(event);
+			}
 
-  void createNewDirectory() {
-    promptCreate(true);
-  }
+			private void showPopup(MouseEvent event) {
+				if (!event.isPopupTrigger()) {
+					return;
+				}
 
-  void deleteSelected(TreePath selectedPath, TreeFile selected) throws IOException {
-    if (!isSelectedPath(selectedPath, selected) || selected.getPath().getParent() == null) {
-      return;
-    }
+				TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
+				if (clickedPath != null) {
+					tree.setSelectionPath(clickedPath);
+				}
+				updateMenuActions(rename, delete);
+				SwingUtilities.updateComponentTreeUI(menu);
+				menu.show(event.getComponent(), event.getX(), event.getY());
+			}
+		});
+	}
 
-    if (selectedPath.getParentPath() == null) {
-      Directory replacementRoot = new Directory(selected.getPath().getParent());
-      fileService.deleteFile(selected.getPath());
-      replacementRoot.getChildren().removeIf(child -> child.getPath().equals(selected.getPath()));
-      tree.setRoot(replacementRoot);
-      return;
-    }
+	void createNewFile() {
+		promptCreate(false);
+	}
 
-    Directory parentDirectory = getParentDirectory(selectedPath);
-    if (parentDirectory == null) {
-      return;
-    }
+	void createNewDirectory() {
+		promptCreate(true);
+	}
 
-    fileService.deleteFile(selected.getPath());
-    parentDirectory.refreshChildren();
-    refreshDirectoryNode(parentDirectory);
-    selectPath(parentDirectory.getPath());
-  }
+	void deleteSelected(TreePath selectedPath, TreeFile selected) throws IOException {
+		if (!isSelectedPath(selectedPath, selected) || selected.getPath().getParent() == null) {
+			return;
+		}
 
-  private JMenuItem addMenuItem(JPopupMenu menu, String label, Runnable action) {
-    JMenuItem item = new JMenuItem(label);
-    item.addActionListener(new ActionNode(event -> action.run()));
-    menu.add(item);
-    return item;
-  }
+		if (selectedPath.getParentPath() == null) {
+			Directory replacementRoot = new Directory(selected.getPath().getParent());
+			fileService.deleteFile(selected.getPath());
+			replacementRoot.getChildren().removeIf(child -> child.getPath().equals(selected.getPath()));
+			tree.setRoot(replacementRoot);
+			return;
+		}
 
-  private void updateMenuActions(JMenuItem rename, JMenuItem delete) {
-    TreePath selectedPath = tree.getSelectionPath();
-    TreeFile selected = getSelectedFile(selectedPath);
-    rename.setEnabled(selected != null && selectedPath.getParentPath() != null);
-    delete.setEnabled(selected != null && selected.getPath().getParent() != null);
-  }
+		Directory parentDirectory = getParentDirectory(selectedPath);
+		if (parentDirectory == null) {
+			return;
+		}
 
-  private void promptRename() {
-    TreeFile selected = state.getSelected();
-    TreePath selectedPath = tree.getSelectionPath();
-    if (!isSelectedPath(selectedPath, selected) || selectedPath.getParentPath() == null) {
-      return;
-    }
+		fileService.deleteFile(selected.getPath());
+		parentDirectory.refreshChildren();
+		refreshDirectoryNode(parentDirectory);
+		selectPath(parentDirectory.getPath());
+	}
 
-    new InputPopUP("Rename", "New name for: " + selected.getName(), tree,
-        this::renameSelected).startManaged();
-  }
+	private JMenuItem addMenuItem(JPopupMenu menu, String label, Runnable action) {
+		JMenuItem item = new JMenuItem(label);
+		item.addActionListener(new ActionNode(event -> action.run()));
+		menu.add(item);
+		return item;
+	}
 
-  private void renameSelected(String name) {
-    TreeFile selected = state.getSelected();
-    TreePath selectedPath = tree.getSelectionPath();
-    if (name == null || name.isBlank() || !isSelectedPath(selectedPath, selected)) {
-      return;
-    }
+	private void updateMenuActions(JMenuItem rename, JMenuItem delete) {
+		TreePath selectedPath = tree.getSelectionPath();
+		TreeFile selected = getSelectedFile(selectedPath);
+		rename.setEnabled(selected != null && selectedPath.getParentPath() != null);
+		delete.setEnabled(selected != null && selected.getPath().getParent() != null);
+	}
 
-    Directory parentDirectory = getParentDirectory(selectedPath);
-    if (parentDirectory == null) {
-      return;
-    }
+	private void promptRename() {
+		TreeFile selected = state.getSelected();
+		TreePath selectedPath = tree.getSelectionPath();
+		if (!isSelectedPath(selectedPath, selected) || selectedPath.getParentPath() == null) {
+			return;
+		}
 
-    try {
-      Path renamedPath = fileService.renameFile(selected.getPath(), name);
-      parentDirectory.refreshChildren();
-      refreshDirectoryNode(parentDirectory);
-      selectPath(renamedPath);
-    } catch (IllegalArgumentException exception) {
-      new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
-    } catch (IOException exception) {
-      LOGGER.error("Unable to rename {}.", selected.getPath(), exception);
-      showError(exception);
-    }
-  }
+		new InputPopUP("Rename", "New name for: " + selected.getName(), tree, this::renameSelected).startManaged();
+	}
 
-  private void promptDelete() {
-    TreePath selectedPath = tree.getSelectionPath();
-    TreeFile selected = state.getSelected();
-    if (!isSelectedPath(selectedPath, selected) || selected.getPath().getParent() == null) {
-      return;
-    }
+	private void renameSelected(String name) {
+		TreeFile selected = state.getSelected();
+		TreePath selectedPath = tree.getSelectionPath();
+		if (name == null || name.isBlank() || !isSelectedPath(selectedPath, selected)) {
+			return;
+		}
 
-    String message = "Delete \"" + selected.getName() + "\"? Folders and their contents will also be deleted.";
-    if (selectedPath.getParentPath() == null) {
-      message += " The tree root will move to its parent directory.";
-    }
-    int confirmation = JOptionPane.showConfirmDialog(
-        tree, message, "Confirm deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-    if (confirmation != JOptionPane.YES_OPTION) {
-      return;
-    }
+		Directory parentDirectory = getParentDirectory(selectedPath);
+		if (parentDirectory == null) {
+			return;
+		}
 
-    try {
-      deleteSelected(selectedPath, selected);
-    } catch (IOException exception) {
-      LOGGER.error("Unable to delete {}.", selected.getPath(), exception);
-      showError(exception);
-    }
-  }
+		try {
+			Path renamedPath = fileService.renameFile(selected.getPath(), name);
+			parentDirectory.refreshChildren();
+			refreshDirectoryNode(parentDirectory);
+			selectPath(renamedPath);
+		}
+		catch (IllegalArgumentException exception) {
+			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
+		}
+		catch (IOException exception) {
+			LOGGER.error("Unable to rename {}.", selected.getPath(), exception);
+			showError(exception);
+		}
+	}
 
-  private void promptCreateFile() {
-    promptCreate(false);
-  }
+	private void promptDelete() {
+		TreePath selectedPath = tree.getSelectionPath();
+		TreeFile selected = state.getSelected();
+		if (!isSelectedPath(selectedPath, selected) || selected.getPath().getParent() == null) {
+			return;
+		}
 
-  private void promptCreateDirectory() {
-    promptCreate(true);
-  }
+		String message = "Delete \"" + selected.getName() + "\"? Folders and their contents will also be deleted.";
+		if (selectedPath.getParentPath() == null) {
+			message += " The tree root will move to its parent directory.";
+		}
+		int confirmation = JOptionPane.showConfirmDialog(tree, message, "Confirm deletion", JOptionPane.YES_NO_OPTION,
+				JOptionPane.WARNING_MESSAGE);
+		if (confirmation != JOptionPane.YES_OPTION) {
+			return;
+		}
 
-  private void promptCreate(boolean directory) {
-    String type = directory ? "directory" : "file";
-    new InputPopUP("Create " + type, "Name of the new " + type + ":", tree,
-        name -> create(name, directory, type)).startManaged();
-  }
+		try {
+			deleteSelected(selectedPath, selected);
+		}
+		catch (IOException exception) {
+			LOGGER.error("Unable to delete {}.", selected.getPath(), exception);
+			showError(exception);
+		}
+	}
 
-  private void create(String name, boolean directory, String type) {
-    if (name == null || name.isBlank()) {
-      return;
-    }
+	private void promptCreateFile() {
+		promptCreate(false);
+	}
 
-    Directory parent = state.getCurrentDirectory();
-    try {
-      parent.loadChildren();
-      TreeFile created = fileService.createNewFile(parent, name, directory);
-      parent.addChild(created);
-      refreshDirectoryNode(parent);
-    } catch (IllegalArgumentException exception) {
-      new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
-    } catch (IOException exception) {
-      LOGGER.error("Unable to create {} in {}.", type, parent.getPath(), exception);
-      showError(exception);
-    }
-  }
+	private void promptCreateDirectory() {
+		promptCreate(true);
+	}
 
-  private void refreshDirectoryNode(Directory directory) {
-    DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
-    Enumeration<?> nodes = root.depthFirstEnumeration();
-    while (nodes.hasMoreElements()) {
-      DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
-      if (node.getUserObject() == directory) {
-        node.removeAllChildren();
-        for (TreeFile child : directory.getChildren()) {
-          node.add(Tree.createNode(child));
-        }
-        ((DefaultTreeModel) tree.getModel()).nodeStructureChanged(node);
-        return;
-      }
-    }
-  }
+	private void promptCreate(boolean directory) {
+		String type = directory ? "directory" : "file";
+		new InputPopUP("Create " + type, "Name of the new " + type + ":", tree, name -> create(name, directory, type))
+			.startManaged();
+	}
 
-  private void selectPath(Path path) {
-    TreePath treePath = findTreePath(path);
-    if (treePath != null) {
-      tree.setSelectionPath(treePath);
-    }
-  }
+	private void create(String name, boolean directory, String type) {
+		if (name == null || name.isBlank()) {
+			return;
+		}
 
-  private TreePath findTreePath(Path path) {
-    DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
-    Enumeration<?> nodes = root.depthFirstEnumeration();
-    while (nodes.hasMoreElements()) {
-      DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
-      if (node.getUserObject() instanceof TreeFile file && file.getPath().equals(path)) {
-        return new TreePath(node.getPath());
-      }
-    }
-    return null;
-  }
+		Directory parent = state.getCurrentDirectory();
+		try {
+			parent.loadChildren();
+			TreeFile created = fileService.createNewFile(parent, name, directory);
+			parent.addChild(created);
+			refreshDirectoryNode(parent);
+		}
+		catch (IllegalArgumentException exception) {
+			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
+		}
+		catch (IOException exception) {
+			LOGGER.error("Unable to create {} in {}.", type, parent.getPath(), exception);
+			showError(exception);
+		}
+	}
 
-  private TreeFile getSelectedFile(TreePath path) {
-    if (path == null) {
-      return null;
-    }
-    Object userObject = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
-    return userObject instanceof TreeFile file ? file : null;
-  }
+	private void refreshDirectoryNode(Directory directory) {
+		DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+		Enumeration<?> nodes = root.depthFirstEnumeration();
+		while (nodes.hasMoreElements()) {
+			DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
+			if (node.getUserObject() == directory) {
+				node.removeAllChildren();
+				for (TreeFile child : directory.getChildren()) {
+					node.add(Tree.createNode(child));
+				}
+				((DefaultTreeModel) tree.getModel()).nodeStructureChanged(node);
+				return;
+			}
+		}
+	}
 
-  private boolean isSelectedPath(TreePath path, TreeFile selected) {
-    TreeFile pathFile = getSelectedFile(path);
-    return selected != null && pathFile != null && pathFile.getPath().equals(selected.getPath());
-  }
+	private void selectPath(Path path) {
+		TreePath treePath = findTreePath(path);
+		if (treePath != null) {
+			tree.setSelectionPath(treePath);
+		}
+	}
 
-  private Directory getParentDirectory(TreePath path) {
-    if (path == null || path.getParentPath() == null) {
-      return null;
-    }
-    Object parentObject =
-        ((DefaultMutableTreeNode) path.getParentPath().getLastPathComponent()).getUserObject();
-    return parentObject instanceof Directory directory ? directory : null;
-  }
+	private TreePath findTreePath(Path path) {
+		DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
+		Enumeration<?> nodes = root.depthFirstEnumeration();
+		while (nodes.hasMoreElements()) {
+			DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
+			if (node.getUserObject() instanceof TreeFile file && file.getPath().equals(path)) {
+				return new TreePath(node.getPath());
+			}
+		}
+		return null;
+	}
 
-  private void showError(IOException exception) {
-    new ErrorPopUP(exception.getMessage(), tree, ErrorTypePopUp.INTERNAL_ERROR).startManaged();
-  }
+	private TreeFile getSelectedFile(TreePath path) {
+		if (path == null) {
+			return null;
+		}
+		Object userObject = ((DefaultMutableTreeNode) path.getLastPathComponent()).getUserObject();
+		return userObject instanceof TreeFile file ? file : null;
+	}
+
+	private boolean isSelectedPath(TreePath path, TreeFile selected) {
+		TreeFile pathFile = getSelectedFile(path);
+		return selected != null && pathFile != null && pathFile.getPath().equals(selected.getPath());
+	}
+
+	private Directory getParentDirectory(TreePath path) {
+		if (path == null || path.getParentPath() == null) {
+			return null;
+		}
+		Object parentObject = ((DefaultMutableTreeNode) path.getParentPath().getLastPathComponent()).getUserObject();
+		return parentObject instanceof Directory directory ? directory : null;
+	}
+
+	private void showError(IOException exception) {
+		new ErrorPopUP(exception.getMessage(), tree, ErrorTypePopUp.INTERNAL_ERROR).startManaged();
+	}
+
 }

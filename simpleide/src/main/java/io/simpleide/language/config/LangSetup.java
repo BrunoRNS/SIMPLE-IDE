@@ -1,11 +1,5 @@
 package io.simpleide.language.config;
 
-import java.util.List;
-import java.util.Objects;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.compiler.AbstractCompilerLanguage;
 import io.simpleide.language.compiler.CLanguage;
@@ -20,173 +14,184 @@ import io.simpleide.language.interpreter.JSLanguage;
 import io.simpleide.language.interpreter.Python3Language;
 import io.simpleide.language.jvmbytecode.AbstractBytecodeLanguage;
 import io.simpleide.language.jvmbytecode.GroovyLanguage;
-import io.simpleide.language.jvmbytecode.KotlinLanguage;
 import io.simpleide.language.jvmbytecode.JavaLanguage;
+import io.simpleide.language.jvmbytecode.KotlinLanguage;
 import io.simpleide.utils.OSpathUtil;
+import java.util.List;
+import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * Installs every language toolchain that is available on the current system.
+ *
+ * <p>
+ * The runnable validates compiler, interpreter, and bytecode languages and registers
+ * those whose required tools are present in the system path. It populates the supplied
+ * {@link LangConfig} and logs each setup phase.
+ *
+ * <p>
+ * Covered by {@code LangSetupTest}.
+ *
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/reference/LANGUAGES.md">docs/reference/LANGUAGES.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ */
 public class LangSetup implements Runnable {
 
-    protected static final Logger LOGGER = LoggerFactory.getLogger(LangSetup.class);
+	protected static final Logger LOGGER = LoggerFactory.getLogger(LangSetup.class);
 
-    protected LangConfig langConfig;
+	protected LangConfig langConfig;
 
-    public LangSetup(LangConfig instance) {
-        this.langConfig = Objects.requireNonNull(instance, "Language configuration must not be null.");
-    }
+	/**
+	 * Creates a setup task that registers languages in the given configuration.
+	 * @param instance the configuration to populate, must not be {@code null}
+	 * @throws NullPointerException if {@code instance} is {@code null}
+	 */
+	public LangSetup(LangConfig instance) {
+		this.langConfig = Objects.requireNonNull(instance, "Language configuration must not be null.");
+	}
 
-    @Override
-    public void run() {
+	/**
+	 * Performs toolchain discovery and registers all available languages.
+	 * @throws RuntimeException if a setup phase fails
+	 */
+	@Override
+	public void run() {
 
-        LOGGER.info("Setting up languages...");
+		LOGGER.info("Setting up languages...");
 
-        try {
-            this.setupCompilerLanguages();
-            LOGGER.info("Compiler languages setup complete.");
+		try {
+			this.setupCompilerLanguages();
+			LOGGER.info("Compiler languages setup complete.");
 
-            this.setupInterpreterLanguages();
-            LOGGER.info("Interpreter languages setup complete.");
+			this.setupInterpreterLanguages();
+			LOGGER.info("Interpreter languages setup complete.");
 
-            this.setupBytecodeLanguages();
-            LOGGER.info("Bytecode languages setup complete.");
+			this.setupBytecodeLanguages();
+			LOGGER.info("Bytecode languages setup complete.");
 
-        } catch (RuntimeException exception) {
-            LOGGER.error("Error occurred while setting up languages.", exception);
-            throw exception;
+		}
+		catch (RuntimeException exception) {
+			LOGGER.error("Error occurred while setting up languages.", exception);
+			throw exception;
 
-        } finally {
+		}
+		finally {
 
-            LOGGER.info("Language setup process finished.");
+			LOGGER.info("Language setup process finished.");
+		}
+	}
 
-        }
+	/**
+	 * Registers the compiler languages whose toolchains are available.
+	 */
+	protected void setupCompilerLanguages() {
 
-    }
+		if (this.validate(CLanguage.class)) {
+			this.setupLanguage(CLanguage.class, ".c", ".h");
+		}
+		if (this.validate(CPPLanguage.class)) {
+			this.setupLanguage(CPPLanguage.class, ".cpp", ".hpp", ".cc", ".cxx", ".hxx");
+		}
+		if (this.validate(MonoCSharpLanguage.class)) {
+			this.setupLanguage(MonoCSharpLanguage.class, ".cs", ".csx");
+		}
+		if (this.validate(GoLanguage.class)) {
+			this.setupLanguage(GoLanguage.class, ".go");
+		}
+		if (this.validate(RustLanguage.class)) {
+			this.setupLanguage(RustLanguage.class, ".rs");
+		}
+	}
 
-    protected void setupCompilerLanguages() {
+	/**
+	 * Registers the interpreter languages whose toolchains are available.
+	 */
+	protected void setupInterpreterLanguages() {
 
-        if (this.validate(CLanguage.class)) {
-            this.setupLanguage(
-                CLanguage.class,
-                ".c", ".h"
-            );
-        }
-        if (this.validate(CPPLanguage.class)) {
-            this.setupLanguage(
-                CPPLanguage.class,
-                ".cpp", ".hpp", ".cc", ".cxx", ".hxx"
-            );
-        }
-        if (this.validate(MonoCSharpLanguage.class)) {
-            this.setupLanguage(
-                MonoCSharpLanguage.class,
-                ".cs", ".csx"
-            );
-        }
-        if (this.validate(GoLanguage.class)) {
-            this.setupLanguage(
-                GoLanguage.class,
-                ".go"
-            );
-        }
-        if (this.validate(RustLanguage.class)) {
-            this.setupLanguage(
-                RustLanguage.class,
-                ".rs"
-            );
-        }
+		if (this.validate(JSLanguage.class)) {
+			this.setupLanguage(JSLanguage.class, ".js", ".jsx", ".mjs", ".cjs", ".jscript");
+		}
+		if (this.validate(Python3Language.class)) {
+			this.setupLanguage(Python3Language.class, ".py", ".pyi", ".pyw", ".py3");
+		}
+	}
 
-    }
+	/**
+	 * Registers the JVM bytecode languages when the embedded compiler is available.
+	 */
+	protected void setupBytecodeLanguages() {
 
-    protected void setupInterpreterLanguages() {
+		if (this.validate(GroovyLanguage.class)) {
+			this.setupLanguage(GroovyLanguage.class, ".groovy", ".gvy", ".gy", ".gsh");
+		}
+		if (this.validate(KotlinLanguage.class)) {
+			this.setupLanguage(KotlinLanguage.class, ".kt", ".kts");
+		}
+		if (this.validate(JavaLanguage.class)) {
+			this.setupLanguage(JavaLanguage.class, ".jav", ".java");
+		}
+	}
 
-        if (this.validate(JSLanguage.class)) {
-            this.setupLanguage(
-                JSLanguage.class,
-                ".js", ".jsx", ".mjs", ".cjs", ".jscript"
-            );
-        }
-        if (this.validate(Python3Language.class)) {
-            this.setupLanguage(
-                Python3Language.class,
-                ".py", ".pyi", ".pyw", ".py3"
-            );
-        }
+	/**
+	 * Registers a language class for its file extensions.
+	 * @param langClass the language class to register
+	 * @param extensions the file extensions handled by the language
+	 */
+	protected void setupLanguage(Class<? extends AbstractLanguage> langClass, String... extensions) {
+		this.langConfig.addLanguage(langClass, extensions);
+	}
 
-    }
+	/**
+	 * Checks whether a language class can run on the current system.
+	 * @param langClass the language class to validate
+	 * @return {@code true} when the required toolchain is available
+	 */
+	protected boolean validate(Class<? extends AbstractLanguage> langClass) {
 
-    protected void setupBytecodeLanguages() {
+		if (langClass == null) {
+			LOGGER.error("Language class is null.");
+			return false;
+		}
 
-        if (this.validate(GroovyLanguage.class)) {
-            this.setupLanguage(
-                GroovyLanguage.class,
-                ".groovy", ".gvy", ".gy", ".gsh"
-            );
-        }
-        if (this.validate(KotlinLanguage.class)) {
-            this.setupLanguage(
-                KotlinLanguage.class,
-                ".kt", ".kts"
-            );
-        }
-        if (this.validate(JavaLanguage.class)) {
-            this.setupLanguage(
-                JavaLanguage.class,
-                ".jav", ".java"
-            );
-        }
+		if (AbstractBytecodeLanguage.class.isAssignableFrom(langClass)) {
+			return AbstractBytecodeLanguage.isAvailable();
+		}
 
-    }
+		if (AbstractCompilerLanguage.class.isAssignableFrom(langClass)) {
+			LOGGER.info("Validating compiler language class: {}", langClass.getName());
 
-    protected void setupLanguage(
-        Class<? extends AbstractLanguage> langClass,
-        String... extensions
-    ) {
-        this.langConfig.addLanguage(langClass, extensions);
-    }
+			Class<? extends AbstractCompilerLanguage> compilerClass = langClass
+				.asSubclass(AbstractCompilerLanguage.class);
 
-    protected boolean validate(Class<? extends AbstractLanguage> langClass) {
+			List<String> requiredFiles = CompilerRequiredFiles.getRequiredFilesFromCompiler(compilerClass);
 
-        if (langClass == null) {
-            LOGGER.error("Language class is null.");
-            return false;
-        }
+			return !requiredFiles.isEmpty() && requiredFiles.stream().allMatch(this::isInSystemPATH);
+		}
 
-        if (AbstractBytecodeLanguage.class.isAssignableFrom(langClass)) {
-            return AbstractBytecodeLanguage.isAvailable();
-        }
+		if (AbstractInterpreterLanguage.class.isAssignableFrom(langClass)) {
+			LOGGER.info("Validating interpreter language class: {}", langClass.getName());
 
-        if (AbstractCompilerLanguage.class.isAssignableFrom(langClass)) {
-            LOGGER.info("Validating compiler language class: {}", langClass.getName());
+			Class<? extends AbstractInterpreterLanguage> interpreterClass = langClass
+				.asSubclass(AbstractInterpreterLanguage.class);
 
-            Class<? extends AbstractCompilerLanguage> compilerClass = 
-                    langClass.asSubclass(AbstractCompilerLanguage.class);
+			String requiredFile = InterpreterRequiredFile.getInterpreter(interpreterClass);
 
-            List<String> requiredFiles = CompilerRequiredFiles.getRequiredFilesFromCompiler(
-                compilerClass
-            );
+			return isInSystemPATH(requiredFile);
+		}
 
-            return !requiredFiles.isEmpty() && requiredFiles.stream().allMatch(this::isInSystemPATH);
-        }
+		return false;
+	}
 
-        if (AbstractInterpreterLanguage.class.isAssignableFrom(langClass)) {
-            LOGGER.info("Validating interpreter language class: {}", langClass.getName());
-
-            Class<? extends AbstractInterpreterLanguage> interpreterClass =
-                    langClass.asSubclass(AbstractInterpreterLanguage.class);
-
-            String requiredFile = InterpreterRequiredFile.getInterpreter(
-                interpreterClass
-            );
-
-            return isInSystemPATH(requiredFile);
-        }
-
-
-        return false;
-
-    }
-
-    protected boolean isInSystemPATH(String filename) {
-        return OSpathUtil.which(filename) != null;
-    }
+	/**
+	 * Reports whether an executable can be found on the system path.
+	 * @param filename the executable name to look up
+	 * @return {@code true} when the executable exists on the path
+	 */
+	protected boolean isInSystemPATH(String filename) {
+		return OSpathUtil.which(filename) != null;
+	}
 
 }

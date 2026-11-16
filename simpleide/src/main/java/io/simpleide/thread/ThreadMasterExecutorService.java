@@ -13,99 +13,118 @@ import java.util.concurrent.atomic.AtomicReference;
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 
-final class ThreadMasterExecutorService extends AbstractExecutorService {
-    private final AbstractThreadMaster threadMaster;
-    private final NodePattern parent;
-    private final Object stateLock = new Object();
-    private final Map<RunnableNode, Runnable> tasks = new LinkedHashMap<>();
-    private boolean shutdown;
+/**
+ * Executor service view over the thread tree.
+ *
+ * <p>
+ * Every submitted command becomes a child node of the configured parent and is tracked
+ * until it finishes. Shutting the service down stops accepting tasks;
+ * {@link #shutdownNow()} additionally cancels pending and running nodes and returns the
+ * commands that never started.
+ *
+ * @author BrunoRNS
+ * @since v1.0.0beta
+ */
+public final class ThreadMasterExecutorService extends AbstractExecutorService {
 
-    ThreadMasterExecutorService(AbstractThreadMaster threadMaster, NodePattern parent) {
-        this.threadMaster = threadMaster;
-        this.parent = parent;
-    }
+	private final AbstractThreadMaster threadMaster;
 
-    @Override
-    public void execute(Runnable command) {
-        Objects.requireNonNull(command, "command");
-        AtomicReference<RunnableNode> nodeReference = new AtomicReference<>();
-        RunnableNode node = new RunnableNode(parent, command, () -> taskFinished(nodeReference.get()));
-        nodeReference.set(node);
+	private final NodePattern parent;
 
-        synchronized (stateLock) {
-            if (shutdown) {
-                throw new RejectedExecutionException("ThreadMaster executor has been shut down.");
-            }
-            tasks.put(node, command);
-            try {
-                threadMaster.register(node);
-            } catch (RuntimeException error) {
-                tasks.remove(node);
-                stateLock.notifyAll();
-                throw new RejectedExecutionException("Unable to register task with ThreadMaster.", error);
-            }
-        }
-    }
+	private final Object stateLock = new Object();
 
-    @Override
-    public void shutdown() {
-        synchronized (stateLock) {
-            shutdown = true;
-            stateLock.notifyAll();
-        }
-    }
+	private final Map<RunnableNode, Runnable> tasks = new LinkedHashMap<>();
 
-    @Override
-    public List<Runnable> shutdownNow() {
-        List<Map.Entry<RunnableNode, Runnable>> pending;
-        synchronized (stateLock) {
-            shutdown = true;
-            pending = new ArrayList<>(tasks.entrySet());
-            stateLock.notifyAll();
-        }
-        for (Map.Entry<RunnableNode, Runnable> task : pending) {
-            threadMaster.removeNodeCascade(task.getKey());
-        }
-        return pending.stream().map(Map.Entry::getValue).toList();
-    }
+	private boolean shutdown;
 
-    @Override
-    public boolean isShutdown() {
-        synchronized (stateLock) {
-            return shutdown;
-        }
-    }
+	ThreadMasterExecutorService(AbstractThreadMaster threadMaster, NodePattern parent) {
+		this.threadMaster = threadMaster;
+		this.parent = parent;
+	}
 
-    @Override
-    public boolean isTerminated() {
-        synchronized (stateLock) {
-            return shutdown && tasks.isEmpty();
-        }
-    }
+	@Override
+	public void execute(Runnable command) {
+		Objects.requireNonNull(command, "command");
+		AtomicReference<RunnableNode> nodeReference = new AtomicReference<>();
+		RunnableNode node = new RunnableNode(parent, command, () -> taskFinished(nodeReference.get()));
+		nodeReference.set(node);
 
-    @Override
-    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        long remainingNanos = unit.toNanos(timeout);
-        long deadline = System.nanoTime() + remainingNanos;
-        synchronized (stateLock) {
-            while (!shutdown || !tasks.isEmpty()) {
-                if (remainingNanos <= 0) {
-                    return false;
-                }
-                TimeUnit.NANOSECONDS.timedWait(stateLock, remainingNanos);
-                remainingNanos = deadline - System.nanoTime();
-            }
-            return true;
-        }
-    }
+		synchronized (stateLock) {
+			if (shutdown) {
+				throw new RejectedExecutionException("ThreadMaster executor has been shut down.");
+			}
+			tasks.put(node, command);
+			try {
+				threadMaster.register(node);
+			}
+			catch (RuntimeException error) {
+				tasks.remove(node);
+				stateLock.notifyAll();
+				throw new RejectedExecutionException("Unable to register task with ThreadMaster.", error);
+			}
+		}
+	}
 
-    private void taskFinished(RunnableNode node) {
-        threadMaster.removeNodeCascade(node);
-        synchronized (stateLock) {
-            tasks.remove(node);
-            if (tasks.isEmpty()) {
-                stateLock.notifyAll();
-            }
-        }
-    }
+	@Override
+	public void shutdown() {
+		synchronized (stateLock) {
+			shutdown = true;
+			stateLock.notifyAll();
+		}
+	}
+
+	@Override
+	public List<Runnable> shutdownNow() {
+		List<Map.Entry<RunnableNode, Runnable>> pending;
+		synchronized (stateLock) {
+			shutdown = true;
+			pending = new ArrayList<>(tasks.entrySet());
+			stateLock.notifyAll();
+		}
+		for (Map.Entry<RunnableNode, Runnable> task : pending) {
+			threadMaster.removeNodeCascade(task.getKey());
+		}
+		return pending.stream().map(Map.Entry::getValue).toList();
+	}
+
+	@Override
+	public boolean isShutdown() {
+		synchronized (stateLock) {
+			return shutdown;
+		}
+	}
+
+	@Override
+	public boolean isTerminated() {
+		synchronized (stateLock) {
+			return shutdown && tasks.isEmpty();
+		}
+	}
+
+	@Override
+	public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+		long remainingNanos = unit.toNanos(timeout);
+		long deadline = System.nanoTime() + remainingNanos;
+		synchronized (stateLock) {
+			while (!shutdown || !tasks.isEmpty()) {
+				if (remainingNanos <= 0) {
+					return false;
+				}
+				TimeUnit.NANOSECONDS.timedWait(stateLock, remainingNanos);
+				remainingNanos = deadline - System.nanoTime();
+			}
+			return true;
+		}
+	}
+
+	private void taskFinished(RunnableNode node) {
+		threadMaster.removeNodeCascade(node);
+		synchronized (stateLock) {
+			tasks.remove(node);
+			if (tasks.isEmpty()) {
+				stateLock.notifyAll();
+			}
+		}
+	}
+
 }

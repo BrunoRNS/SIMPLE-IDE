@@ -1,7 +1,5 @@
 package io.simpleide.frame.popup;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.awt.Component;
 import java.awt.Container;
 import java.util.Collections;
@@ -13,67 +11,70 @@ import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 
-public class ErrorPopUPTest {
-    @Test
-    public void createsPopupWithErrorMessageTypeAndIcon() {
-        ErrorPopUP popup = new ErrorPopUP("Failed to compile", ErrorTypePopUp.COMPILE_ERROR);
+/**
+ * Tests {@link io.simpleide.frame.popup.ErrorPopUP}.
+ */
+class ErrorPopUPTest {
 
-        assertThat(popup.getTitle()).isEqualTo("Compile error");
-        assertThat(popup.jp.getMessage()).isEqualTo("Failed to compile");
-        assertThat(popup.jp.getMessageType()).isEqualTo(JOptionPane.ERROR_MESSAGE);
-        assertThat(popup.jp.getOptionType()).isEqualTo(JOptionPane.DEFAULT_OPTION);
-        assertThat(popup.jp.getOptions()).containsExactly("Ok");
-        assertThat(popup.jp.getInitialValue()).isEqualTo("Ok");
-        assertThat(popup.jp.getIcon())
-                .isInstanceOfSatisfying(ImageIcon.class, icon -> {
-                    assertThat(icon.getIconWidth()).isPositive();
-                    assertThat(icon.getIconHeight()).isPositive();
-                });
-    }
+	@Test
+	void createsPopupWithErrorMessageTypeAndIcon() {
+		ErrorPopUP popup = new ErrorPopUP("Failed to compile", ErrorTypePopUp.COMPILE_ERROR);
 
-    @Test
-    public void acceptsParentComponentInConstructor() {
-        JComponent parent = new JPanel();
+		assertThat(popup.getTitle()).isEqualTo("Compile error");
+		assertThat(popup.jp.getMessage()).isEqualTo("Failed to compile");
+		assertThat(popup.jp.getMessageType()).isEqualTo(JOptionPane.ERROR_MESSAGE);
+		assertThat(popup.jp.getOptionType()).isEqualTo(JOptionPane.DEFAULT_OPTION);
+		assertThat(popup.jp.getOptions()).containsExactly("Ok");
+		assertThat(popup.jp.getInitialValue()).isEqualTo("Ok");
+		assertThat(popup.jp.getIcon()).isInstanceOfSatisfying(ImageIcon.class, icon -> {
+			assertThat(icon.getIconWidth()).isPositive();
+			assertThat(icon.getIconHeight()).isPositive();
+		});
+	}
 
-        ErrorPopUP popup = new ErrorPopUP("Erro", parent, ErrorTypePopUp.RUNTIME_ERROR);
+	@Test
+	void acceptsParentComponentInConstructor() {
+		JComponent parent = new JPanel();
 
-        assertThat(popup.parent).isSameAs(parent);
-        assertThat(popup.getTitle()).isEqualTo("Runtime error");
-    }
+		ErrorPopUP popup = new ErrorPopUP("Erro", parent, ErrorTypePopUp.RUNTIME_ERROR);
 
-    @Test
-    public void mapsAndUpdatesTitle() {
-        ErrorPopUP popup = new ErrorPopUP("Erro", ErrorTypePopUp.INTERNAL_ERROR);
+		assertThat(popup.parent).isSameAs(parent);
+		assertThat(popup.getTitle()).isEqualTo("Runtime error");
+	}
 
-        assertThat(popup.getMap()).containsEntry("title", "Internal error");
+	@Test
+	void mapsAndUpdatesTitle() {
+		ErrorPopUP popup = new ErrorPopUP("Erro", ErrorTypePopUp.INTERNAL_ERROR);
 
-        popup.setMap(Collections.<String, Object>singletonMap("title", "Update error"));
+		assertThat(popup.getMap()).containsEntry("title", "Internal error");
 
-        assertThat(popup.getTitle()).isEqualTo("Update error");
-    }
+		popup.setMap(Collections.<String, Object>singletonMap("title", "Update error"));
 
-    @Test
-    public void addsErrorIconToOptionPaneForRendering() {
-        ErrorPopUP popup = new ErrorPopUP("eror fatal", ErrorTypePopUp.FATAL_ERROR);
+		assertThat(popup.getTitle()).isEqualTo("Update error");
+	}
 
-        assertThat(containsIcon(popup.jp, popup.jp.getIcon())).isTrue();
-    }
+	@Test
+	void addsErrorIconToOptionPaneForRendering() {
+		ErrorPopUP popup = new ErrorPopUP("eror fatal", ErrorTypePopUp.FATAL_ERROR);
 
-    private static boolean containsIcon(Container container, Icon expectedIcon) {
-        for (Component component : container.getComponents()) {
-            if (component instanceof JLabel
-                    && ((JLabel) component).getIcon() == expectedIcon) {
-                return true;
-            }
-            if (component instanceof Container
-                    && containsIcon((Container) component, expectedIcon)) {
-                return true;
-            }
-        }
-        return false;
-    }
+		assertThat(containsIcon(popup.jp, popup.jp.getIcon())).isTrue();
+	}
+
+	private static boolean containsIcon(Container container, Icon expectedIcon) {
+		for (Component component : container.getComponents()) {
+			if (component instanceof JLabel && ((JLabel) component).getIcon() == expectedIcon) {
+				return true;
+			}
+			if (component instanceof Container && containsIcon((Container) component, expectedIcon)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
 }

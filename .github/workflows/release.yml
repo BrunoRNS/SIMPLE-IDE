@@ -4,50 +4,278 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 jobs:
-  release:
+  metadata:
+    name: Read version and release type
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Read application version
         id: version
+        shell: bash
         run: |
-          VERSION="$(sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties)"
+          VERSION="$(sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties | tr -d '\r' | head -n 1)"
           test -n "$VERSION"
+
+          TAG="v$VERSION"
+
+          if printf '%s' "$VERSION" | grep -qi 'beta'; then
+            PRERELEASE=true
+          else
+            PRERELEASE=false
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
-      - name: Build fat JAR on Alpine x64 with JDK 17
+  fat-jar:
+    name: Fat JAR
+    needs: metadata
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: "17"
+          cache: maven
+
+      - name: Build executable fat JAR
+        run: make jar
+
+      - name: Stage fat JAR
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+        shell: bash
         run: |
-          docker run --rm --platform linux/amd64 \
-            --volume "$GITHUB_WORKSPACE:/workspace" \
-            --env VERSION="$VERSION" \
-            --workdir /workspace \
-            eclipse-temurin:17-jdk-alpine \
-            sh -ec '
-              apk add --no-cache bash curl
-              ./mvnw -B -DskipTests package
-              mkdir -p dist
-              cp simpleide/target/simpleide.jar "dist/simpleide-${VERSION}.jar"
-            '
+          mkdir -p dist
+          cp simpleide/target/simpleide.jar \
+            "dist/simpleide-v${VERSION}-any-with-deps.jar"
 
-      - name: Create GitHub release and upload fat JAR
+      - name: Upload fat JAR artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fat-jar
+          path: dist/simpleide-v*-any-with-deps.jar
+          if-no-files-found: error
+          retention-days: 1
+
+  linux-packages:
+    name: Package Linux ${{ matrix.pkg_arch }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            container_platform: linux/amd64
+            pkg_arch: x64
+
+          - runner: ubuntu-24.04-arm
+            container_platform: linux/arm64
+            pkg_arch: arm64
+
+          - runner: ubuntu-latest
+            container_platform: linux/386
+            pkg_arch: x86
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
+
+      - name: Build Linux packages in Debian 10
+        env:
+          SIMPLEIDE_CI_JAVA: "17"
+          SIMPLEIDE_CI_ARCH: ${{ matrix.pkg_arch }}
+        run: |
+          set -eu
+
+          bash scripts/ci/run-linux-debian.sh \
+            ${{ matrix.container_platform }} pkg
+
+      - name: Upload Linux package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-linux-${{ matrix.pkg_arch }}
+          path: simpleide/target/pkg/simpleide-v*-linux-${{ matrix.pkg_arch }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  native-packages:
+    name: Package ${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}
+    needs: metadata
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-15-intel
+            pkg_os: macos
+            pkg_arch: x64
+            java_arch: x64
+
+          - os: macos-latest
+            pkg_os: macos
+            pkg_arch: arm64
+            java_arch: aarch64
+
+          - os: windows-latest
+            pkg_os: windows
+            pkg_arch: x64
+            java_arch: x64
+
+          - os: windows-latest
+            pkg_os: windows
+            pkg_arch: x86
+            java_arch: x86
+
+          - os: windows-11-arm
+            pkg_os: windows
+            pkg_arch: arm64
+            java_arch: aarch64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        if: matrix.os != 'windows-11-arm'
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: "17"
+          architecture: ${{ matrix.java_arch }}
+          cache: maven
+
+      - name: Set up Windows ARM64 Java
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        env:
+          JDK_ARCHIVE: zulu17.70.113-ca-jdk17.0.21.0.3-win_aarch64.zip
+        run: |
+          $downloadUrl = "https://github.com/BrunoRNS/homebrew-jdk-holder-windows-arm/releases/download/v1.0.0/$env:JDK_ARCHIVE"
+          $archivePath = Join-Path $env:RUNNER_TEMP $env:JDK_ARCHIVE
+          $extractPath = Join-Path $env:RUNNER_TEMP "zulu-jdk-17"
+
+          Invoke-WebRequest -Uri $downloadUrl -OutFile $archivePath
+          Expand-Archive -LiteralPath $archivePath -DestinationPath $extractPath
+
+          $javaExecutable = Get-ChildItem -LiteralPath $extractPath -Filter java.exe -Recurse |
+            Where-Object { $_.Directory.Name -eq "bin" } |
+            Select-Object -First 1
+
+          if ($null -eq $javaExecutable) {
+            throw "Could not find java.exe in the downloaded JDK archive."
+          }
+
+          $jdkHome = $javaExecutable.Directory.Parent.FullName
+
+          Add-Content -Path $env:GITHUB_ENV -Value "JAVA_HOME=$jdkHome"
+          Add-Content -Path $env:GITHUB_PATH -Value "$jdkHome\bin"
+
+          & $javaExecutable.FullName -version
+
+      # Windows packages are zip + .msi on x64 and zip only on x86/ARM64.
+      - name: Ensure WiX toolset for the x64 .msi build
+        if: matrix.pkg_os == 'windows' && matrix.pkg_arch == 'x64'
+        shell: pwsh
+        run: ./scripts/ci/ensure-wix.ps1
+
+      - name: Build native packages
+        env:
+          SIMPLEIDE_PKG_OS: ${{ matrix.pkg_os }}
+          SIMPLEIDE_PKG_ARCH: ${{ matrix.pkg_arch }}
+        run: make pkg
+
+      # The release .dmg is built with JDK 17 and must stay compatible with
+      # macOS Big Sur (11.0) on both architectures. The runner uses a newer
+      # macOS, so validate the declared minimum instead of the runner version.
+      - name: Validate the macOS minimum version
+        if: matrix.pkg_os == 'macos'
+        shell: bash
+        run: sh scripts/validate-package.sh
+
+      - name: Upload native package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: package-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}
+          path: simpleide/target/pkg/simpleide-v*-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}.*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub release
+    needs:
+      - metadata
+      - fat-jar
+      - linux-packages
+      - native-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release and upload artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.metadata.outputs.version }}
+          TAG: ${{ needs.metadata.outputs.tag }}
+          PRERELEASE: ${{ needs.metadata.outputs.prerelease }}
+        shell: bash
         run: |
-          TAG="v$VERSION"
-          if ! gh release view "$TAG" >/dev/null 2>&1; then
+          set -euo pipefail
+
+          if [ ! -d dist ] || [ -z "$(find dist -type f -print -quit)" ]; then
+            echo "No release artifacts were downloaded." >&2
+            exit 1
+          fi
+
+          PRERELEASE_FLAG=()
+
+          if [ "$PRERELEASE" = "true" ]; then
+            PRERELEASE_FLAG=(--prerelease)
+          fi
+
+          TITLE="Simple IDE $VERSION"
+          NOTES="Simple IDE $VERSION release."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" \
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              "${PRERELEASE_FLAG[@]}"
+          else
             gh release create "$TAG" \
               --target "$GITHUB_SHA" \
-              --title "Simple IDE $VERSION" \
-              --notes "Simple IDE $VERSION release."
+              --title "$TITLE" \
+              --notes "$NOTES" \
+              "${PRERELEASE_FLAG[@]}"
           fi
-          gh release upload "$TAG" "dist/simpleide-$VERSION.jar" --clobber
+
+          mapfile -d '' RELEASE_FILES < <(find dist -maxdepth 1 -type f -print0)
+
+          gh release upload "$TAG" "${RELEASE_FILES[@]}" --clobber

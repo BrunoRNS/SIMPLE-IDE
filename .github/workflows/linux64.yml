@@ -9,45 +9,43 @@ permissions:
 
 jobs:
   test:
+    name: Linux x64 (Debian 10)
+
     runs-on: ubuntu-latest
+
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x64
+
     strategy:
       fail-fast: false
       matrix:
         java: ["17", "21", "25", "27"]
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up Java
-        uses: actions/setup-java@v5
+      - name: Cache Maven packages
+        uses: actions/cache@v6
         with:
-          distribution: temurin
-          java-version: ${{ matrix.java }}
-          cache: maven
+          path: ~/.m2
+          key: linux-x64-debian10-maven-${{ matrix.java }}-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: linux-x64-debian10-maven-${{ matrix.java }}-
 
-      - name: Install language toolchains
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
+
+      - name: Run tests and build packages in Debian 10
+        env:
+          SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
+          SIMPLEIDE_CI_ARCH: x64
+          BUILD_PACKAGES: ${{ matrix.java == '17' }}
         run: |
-          sudo apt-get update
-          sudo apt-get install --yes build-essential golang-go mono-devel nodejs python3 rustc
+          set -eu
 
-      - name: Verify language toolchains
-        run: |
-          command -v gcc
-          command -v g++
-          command -v mcs
-          command -v mono
-          command -v go
-          command -v rustc
-          command -v node
-          command -v python3
-          test "$(go env GOOS)" = linux
-          test "$(go env GOARCH)" = amd64
-          rustc -vV | grep -Eq '^host: x86_64-unknown-linux-gnu$'
-          test "$(node -p 'process.arch')" = x64
-          python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
-          file -L "$(command -v mono)" | grep -Eq 'ELF 64-bit.*(x86-64|x86_64)'
+          tasks="test"
+          if [ "$BUILD_PACKAGES" = "true" ]; then
+            tasks="test pkg"
+          fi
 
-      - name: Run tests
-        run: make test
+          bash scripts/ci/run-linux-debian.sh linux/amd64 $tasks

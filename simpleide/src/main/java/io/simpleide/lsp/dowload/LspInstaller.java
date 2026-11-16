@@ -1,5 +1,6 @@
 package io.simpleide.lsp.dowload;
 
+import io.simpleide.lsp.LspStatus;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -18,228 +19,239 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-
 import org.rauschig.jarchivelib.Archiver;
 import org.rauschig.jarchivelib.ArchiverFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.lsp.LspStatus;
-
+/**
+ * Downloads, extracts and installs language servers into the user directory.
+ *
+ * <p>
+ * Installation is serialized per target directory. A server is reused only when its
+ * {@code .installed} marker contains the expected version; otherwise the directory is
+ * recreated and the configured install command, archiver command or archive URL is used.
+ * Failures remove the partial installation and report {@link LspStatus.State#FAILED}. The
+ * package name keeps the original misspelling {@code dowload}.
+ *
+ * @author luisotavio15
+ * @since v1.0.0beta
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ */
 public final class LspInstaller {
-    private static final Logger LOGGER = LoggerFactory.getLogger(LspInstaller.class);
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build();
-    private static final ConcurrentMap<Path, Object> INSTALL_LOCKS = new ConcurrentHashMap<>();
 
-    public static boolean dowloading(LspServer server) {
-        return dowloading(server, server.getLanguageId(), ignored -> { });
-    }
+	private static final Logger LOGGER = LoggerFactory.getLogger(LspInstaller.class);
 
-    public static boolean dowloading(
-            LspServer server, String statusId, Consumer<LspStatus> statusListener) {
-        Path lspDirectory = getInstallDirectory(server);
-        Object installLock = INSTALL_LOCKS.computeIfAbsent(lspDirectory, ignored -> new Object());
-        synchronized (installLock) {
-            return install(server, lspDirectory, statusId, statusListener);
-        }
-    }
+	private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
+		.connectTimeout(Duration.ofSeconds(30))
+		.followRedirects(HttpClient.Redirect.NORMAL)
+		.build();
 
-    private static boolean install(
-            LspServer server, Path lspDirectory, String statusId, Consumer<LspStatus> statusListener) {
-        try {
-            if (isInstalled(server)) {
-                return true;
-            }
-            deleteDirectory(lspDirectory);
-            Files.createDirectories(lspDirectory);
+	private static final ConcurrentMap<Path, Object> INSTALL_LOCKS = new ConcurrentHashMap<>();
 
-            if (server.getInstallCommand() != null) {
-                publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
-                dowloadingByCommand(
-                        server.getInstallCommand(), server.getInstallArguments(), lspDirectory, server.getVersion(),
-                        server.getInstallEnvironment());
-            } else if (server.getArchiverCommand() != null) {
-                publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
-                dowloadingByCommand(
-                        server.getArchiverCommand(), server.getParamsArchiverCommand(), lspDirectory,
-                        server.getVersion(), server.getInstallEnvironment());
-            } else {
-                publishStatus(statusListener, statusId, server.getName(), LspStatus.State.DOWNLOADING);
-                Path archive = dowloadingByUrl(server, lspDirectory);
-                try {
-                    publishStatus(statusListener, statusId, server.getName(), LspStatus.State.EXTRACTING);
-                    descompact(archive, lspDirectory);
-                } finally {
-                    Files.deleteIfExists(archive);
-                }
-            }
+	/**
+	 * Installs a server without publishing status updates.
+	 * @param server server definition to install
+	 * @return {@code true} when the server is installed and ready
+	 */
+	public static boolean dowloading(LspServer server) {
+		return dowloading(server, server.getLanguageId(), ignored -> {
+		});
+	}
 
-            if (server.getPostInstallCommand() != null) {
-                publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
-                dowloadingByCommand(
-                        server.getPostInstallCommand(),
-                        server.getPostInstallArguments(),
-                        lspDirectory,
-                        server.getVersion(),
-                        server.getInstallEnvironment());
-            }
+	/**
+	 * Installs a server, reusing an existing installation when the version matches.
+	 * @param server server definition to install
+	 * @param statusId identifier included in status events
+	 * @param statusListener consumer for installation status events, may be {@code null}
+	 * @return {@code true} when the server is installed and ready
+	 */
+	public static boolean dowloading(LspServer server, String statusId, Consumer<LspStatus> statusListener) {
+		Path lspDirectory = getInstallDirectory(server);
+		Object installLock = INSTALL_LOCKS.computeIfAbsent(lspDirectory, ignored -> new Object());
+		synchronized (installLock) {
+			return install(server, lspDirectory, statusId, statusListener);
+		}
+	}
 
-            Files.writeString(
-                    lspDirectory.resolve(".installed"),
-                    server.getVersion(),
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.TRUNCATE_EXISTING);
-            LOGGER.info("LSP {} installed successfully.", server.getName());
-            return true;
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return failInstallation(server, lspDirectory, statusId, statusListener, e);
-        } catch (IOException | RuntimeException e) {
-            return failInstallation(server, lspDirectory, statusId, statusListener, e);
-        }
-    }
+	private static boolean install(LspServer server, Path lspDirectory, String statusId,
+			Consumer<LspStatus> statusListener) {
+		try {
+			if (isInstalled(server)) {
+				return true;
+			}
+			deleteDirectory(lspDirectory);
+			Files.createDirectories(lspDirectory);
 
-    public static boolean isInstalled(LspServer server) {
-        Path marker = getInstallDirectory(server).resolve(".installed");
-        if (!Files.isRegularFile(marker)) {
-            return false;
-        }
-        try {
-            return Files.readString(marker).trim().equals(server.getVersion());
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to read installed LSP version: " + marker, e);
-        }
-    }
+			if (server.getInstallCommand() != null) {
+				publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
+				dowloadingByCommand(server.getInstallCommand(), server.getInstallArguments(), lspDirectory,
+						server.getVersion(), server.getInstallEnvironment());
+			}
+			else if (server.getArchiverCommand() != null) {
+				publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
+				dowloadingByCommand(server.getArchiverCommand(), server.getParamsArchiverCommand(), lspDirectory,
+						server.getVersion(), server.getInstallEnvironment());
+			}
+			else {
+				publishStatus(statusListener, statusId, server.getName(), LspStatus.State.DOWNLOADING);
+				Path archive = dowloadingByUrl(server, lspDirectory);
+				try {
+					publishStatus(statusListener, statusId, server.getName(), LspStatus.State.EXTRACTING);
+					descompact(archive, lspDirectory);
+				}
+				finally {
+					Files.deleteIfExists(archive);
+				}
+			}
 
-    static Path getInstallDirectory(LspServer server) {
-        String installKey = server.getInstallKey();
-        if (installKey != null && !installKey.isBlank()
-                && !installKey.matches("[A-Za-z0-9._-]+")) {
-            throw new IllegalArgumentException("Invalid LSP installation key: " + installKey);
-        }
-        return Paths.get(
-                System.getProperty("user.home"),
-                ".simpleide",
-                "lsp",
-                installKey == null || installKey.isBlank()
-                        ? server.getLanguageId() + server.getVersion()
-                        : installKey);
-    }
+			if (server.getPostInstallCommand() != null) {
+				publishStatus(statusListener, statusId, server.getName(), LspStatus.State.INSTALLING);
+				dowloadingByCommand(server.getPostInstallCommand(), server.getPostInstallArguments(), lspDirectory,
+						server.getVersion(), server.getInstallEnvironment());
+			}
 
-    private static boolean failInstallation(
-            LspServer server,
-            Path directory,
-            String statusId,
-            Consumer<LspStatus> statusListener,
-            Exception error) {
-        try {
-            deleteDirectory(directory);
-        } catch (IOException cleanupError) {
-            error.addSuppressed(cleanupError);
-        }
-        LOGGER.error("Unable to install LSP {}.", server.getName(), error);
-        publishStatus(statusListener, statusId, server.getName(), LspStatus.State.FAILED);
-        return false;
-    }
+			Files.writeString(lspDirectory.resolve(".installed"), server.getVersion(), StandardOpenOption.CREATE,
+					StandardOpenOption.TRUNCATE_EXISTING);
+			LOGGER.info("LSP {} installed successfully.", server.getName());
+			return true;
+		}
+		catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			return failInstallation(server, lspDirectory, statusId, statusListener, e);
+		}
+		catch (IOException | RuntimeException e) {
+			return failInstallation(server, lspDirectory, statusId, statusListener, e);
+		}
+	}
 
-    private static void publishStatus(
-            Consumer<LspStatus> statusListener, String id, String serverName, LspStatus.State state) {
-        if (statusListener != null) {
-            statusListener.accept(new LspStatus(id, serverName, state));
-        }
-    }
+	/**
+	 * Checks whether the server version is recorded as installed.
+	 * @param server server definition to check
+	 * @return {@code true} when the installation marker matches the server version
+	 * @throws IllegalStateException when the installation marker cannot be read
+	 */
+	public static boolean isInstalled(LspServer server) {
+		Path marker = getInstallDirectory(server).resolve(".installed");
+		if (!Files.isRegularFile(marker)) {
+			return false;
+		}
+		try {
+			return Files.readString(marker).trim().equals(server.getVersion());
+		}
+		catch (IOException e) {
+			throw new IllegalStateException("Unable to read installed LSP version: " + marker, e);
+		}
+	}
 
-    private static void deleteDirectory(Path directory) throws IOException {
-        if (!Files.exists(directory)) {
-            return;
-        }
-        try (var paths = Files.walk(directory)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(path);
-            }
-        }
-    }
+	static Path getInstallDirectory(LspServer server) {
+		String installKey = server.getInstallKey();
+		if (installKey != null && !installKey.isBlank() && !installKey.matches("[A-Za-z0-9._-]+")) {
+			throw new IllegalArgumentException("Invalid LSP installation key: " + installKey);
+		}
+		return Paths.get(System.getProperty("user.home"), ".simpleide", "lsp",
+				installKey == null || installKey.isBlank() ? server.getLanguageId() + server.getVersion() : installKey);
+	}
 
-    private static void descompact(Path path, Path destination) throws IOException {
-        Archiver archiver = ArchiverFactory.createArchiver(path.toFile());
-        archiver.extract(path.toFile(), destination.toFile());
-    }
+	private static boolean failInstallation(LspServer server, Path directory, String statusId,
+			Consumer<LspStatus> statusListener, Exception error) {
+		try {
+			deleteDirectory(directory);
+		}
+		catch (IOException cleanupError) {
+			error.addSuppressed(cleanupError);
+		}
+		LOGGER.error("Unable to install LSP {}.", server.getName(), error);
+		publishStatus(statusListener, statusId, server.getName(), LspStatus.State.FAILED);
+		return false;
+	}
 
-    private static Path dowloadingByUrl(LspServer lspServer, Path lsp)
-            throws IOException, InterruptedException {
-        if (lspServer.getUrl() == null || lspServer.getUrl().isBlank()
-                || lspServer.getTypeFile() == null || lspServer.getTypeFile().isBlank()) {
-            throw new IOException("LSP URL or archive type is not configured.");
-        }
-        Path destination = Files.createTempFile(
-                lsp, "lsp-download.", "." + lspServer.getTypeFile());
+	private static void publishStatus(Consumer<LspStatus> statusListener, String id, String serverName,
+			LspStatus.State state) {
+		if (statusListener != null) {
+			statusListener.accept(new LspStatus(id, serverName, state));
+		}
+	}
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(lspServer.getUrl()))
-                .timeout(Duration.ofMinutes(5))
-                .header("User-Agent", "SimpleIDE")
-                .GET()
-                .build();
-        try {
-            HttpResponse<Path> response = HTTP_CLIENT.send(
-                    request,
-                    HttpResponse.BodyHandlers.ofFile(
-                            destination,
-                            StandardOpenOption.WRITE,
-                            StandardOpenOption.TRUNCATE_EXISTING));
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IOException(
-                        "HTTP download failed: " + response.statusCode());
-            }
+	private static void deleteDirectory(Path directory) throws IOException {
+		if (!Files.exists(directory)) {
+			return;
+		}
+		try (var paths = Files.walk(directory)) {
+			for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
+				Files.deleteIfExists(path);
+			}
+		}
+	}
 
-            LOGGER.info("LSP downloaded successfully: {}", destination);
-            return destination;
+	private static void descompact(Path path, Path destination) throws IOException {
+		Archiver archiver = ArchiverFactory.createArchiver(path.toFile());
+		archiver.extract(path.toFile(), destination.toFile());
+	}
 
-        } catch (IOException | InterruptedException | RuntimeException e) {
-            Files.deleteIfExists(destination);
-            throw e;
-        }
-    }
+	private static Path dowloadingByUrl(LspServer lspServer, Path lsp) throws IOException, InterruptedException {
+		if (lspServer.getUrl() == null || lspServer.getUrl().isBlank() || lspServer.getTypeFile() == null
+				|| lspServer.getTypeFile().isBlank()) {
+			throw new IOException("LSP URL or archive type is not configured.");
+		}
+		Path destination = Files.createTempFile(lsp, "lsp-download.", "." + lspServer.getTypeFile());
 
-    private static void dowloadingByCommand(
-            String command, List<String> params, Path directory, String version, Map<String, String> environment)
-            throws IOException, InterruptedException {
-        if (command.isBlank()) {
-            throw new IOException("LSP install command is empty.");
-        }
-        String installDirectory = directory.toAbsolutePath().toString();
-        List<String> full = new ArrayList<>();
-        full.add(command.replace("${installDir}", installDirectory).replace("${version}", version));
-        if (params != null) {
-            params.stream()
-                    .map(argument -> argument.replace("${installDir}", installDirectory)
-                            .replace("${version}", version))
-                    .forEach(full::add);
-        }
-        ProcessBuilder processBuilder = new ProcessBuilder(full)
-                .directory(directory.toFile())
-                .inheritIO();
-        if (environment != null) {
-            environment.forEach((key, value) -> processBuilder.environment().put(
-                    key,
-                    value.replace("${installDir}", installDirectory).replace("${version}", version)));
-        }
-        Process process = processBuilder.start();
-        try {
-            if (!process.waitFor(5, TimeUnit.MINUTES)) {
-                process.destroyForcibly();
-                throw new IOException("LSP install command timed out: " + command);
-            }
-        } catch (InterruptedException e) {
-            process.destroyForcibly();
-            throw e;
-        }
-        if (process.exitValue() != 0) {
-            throw new IOException("LSP install command failed with exit code "
-                    + process.exitValue() + ": " + command);
-        }
-    }
+		HttpRequest request = HttpRequest.newBuilder()
+			.uri(URI.create(lspServer.getUrl()))
+			.timeout(Duration.ofMinutes(5))
+			.header("User-Agent", "SimpleIDE")
+			.GET()
+			.build();
+		try {
+			HttpResponse<Path> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(destination,
+					StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING));
+			if (response.statusCode() < 200 || response.statusCode() >= 300) {
+				throw new IOException("HTTP download failed: " + response.statusCode());
+			}
+
+			LOGGER.info("LSP downloaded successfully: {}", destination);
+			return destination;
+
+		}
+		catch (IOException | InterruptedException | RuntimeException e) {
+			Files.deleteIfExists(destination);
+			throw e;
+		}
+	}
+
+	private static void dowloadingByCommand(String command, List<String> params, Path directory, String version,
+			Map<String, String> environment) throws IOException, InterruptedException {
+		if (command.isBlank()) {
+			throw new IOException("LSP install command is empty.");
+		}
+		String installDirectory = directory.toAbsolutePath().toString();
+		List<String> full = new ArrayList<>();
+		full.add(command.replace("${installDir}", installDirectory).replace("${version}", version));
+		if (params != null) {
+			params.stream()
+				.map(argument -> argument.replace("${installDir}", installDirectory).replace("${version}", version))
+				.forEach(full::add);
+		}
+		ProcessBuilder processBuilder = new ProcessBuilder(full).directory(directory.toFile()).inheritIO();
+		if (environment != null) {
+			environment.forEach((key, value) -> processBuilder.environment()
+				.put(key, value.replace("${installDir}", installDirectory).replace("${version}", version)));
+		}
+		Process process = processBuilder.start();
+		try {
+			if (!process.waitFor(5, TimeUnit.MINUTES)) {
+				process.destroyForcibly();
+				throw new IOException("LSP install command timed out: " + command);
+			}
+		}
+		catch (InterruptedException e) {
+			process.destroyForcibly();
+			throw e;
+		}
+		if (process.exitValue() != 0) {
+			throw new IOException("LSP install command failed with exit code " + process.exitValue() + ": " + command);
+		}
+	}
+
 }

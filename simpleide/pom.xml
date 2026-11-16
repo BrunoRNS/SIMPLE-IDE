@@ -5,6 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
+        <?m2e execute onConfiguration,onIncremental?>
         <groupId>io</groupId>
         <artifactId>simpleide-parent</artifactId>
         <version>1.0.0beta</version>
@@ -27,13 +28,6 @@
     </repositories>
 
     <dependencies>
-        <dependency>
-            <groupId>io</groupId>
-            <artifactId>simplebytecode-compiler</artifactId>
-            <version>${project.version}</version>
-            <classifier>jar-with-dependencies</classifier>
-            <scope>provided</scope>
-        </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
@@ -195,7 +189,7 @@
                     <execution>
                         <id>copy-bytecode-compiler-jar</id>
                         <?m2e ignore?>
-                        <phase>process-resources</phase>
+                        <phase>prepare-package</phase>
                         <goals>
                             <goal>copy</goal>
                         </goals>

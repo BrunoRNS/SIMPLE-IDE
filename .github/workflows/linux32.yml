@@ -9,75 +9,32 @@ permissions:
 
 jobs:
   test:
+    name: Linux x86 (Debian 10 32-bit)
+
     runs-on: ubuntu-latest
+
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x86
+
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Set up 32-bit Java
-        uses: actions/setup-java@v5
+      - name: Cache Maven packages
+        uses: actions/cache@v6
         with:
-          distribution: zulu
-          java-version: "17"
-          architecture: x86
-          cache: maven
+          path: ~/.m2
+          key: linux-x86-debian10-maven-${{ hashFiles('**/pom.xml', '.mvn/wrapper/maven-wrapper.properties') }}
+          restore-keys: linux-x86-debian10-maven-
 
-      - name: Build 32-bit language toolchain image
-        run: |
-          mkdir -p "$RUNNER_TEMP/linux-x86-image"
-          cat > "$RUNNER_TEMP/linux-x86-image/Dockerfile" <<'DOCKERFILE'
-          FROM debian:trixie-slim
-          RUN apt-get update \
-              && apt-get install -y --no-install-recommends \
-                   ca-certificates curl file g++ gcc binutils golang-go make mono-complete:i386 \
-                   rustc \
-                   python3 xz-utils \
-              && curl --fail --location --silent --show-error \
-                   https://nodejs.org/dist/v8.17.0/node-v8.17.0-linux-x86.tar.xz \
-                   -o /tmp/node.tar.xz \
-              && tar -xJf /tmp/node.tar.xz -C /opt \
-              && ln -s /opt/node-v8.17.0-linux-x86/bin/node /usr/local/bin/node \
-              && rm /tmp/node.tar.xz \
-              && rm -rf /var/lib/apt/lists/*
-          DOCKERFILE
-          docker build --platform linux/386 \
-            --tag simpleide-linux-x86:ci "$RUNNER_TEMP/linux-x86-image"
+      - name: Prepare Maven cache
+        run: mkdir -p "$HOME/.m2"
 
-      - name: Verify 32-bit language toolchains
+      - name: Run tests and build packages in Debian 10
+        env:
+          SIMPLEIDE_CI_JAVA: "17"
+          SIMPLEIDE_CI_ARCH: x86
         run: |
-          docker run --rm --platform linux/386 \
-            --volume "$JAVA_HOME:$JAVA_HOME:ro" \
-            --env JAVA_HOME="$JAVA_HOME" \
-            --env PATH="$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-            simpleide-linux-x86:ci sh -eu -c '
-              test "$(dpkg --print-architecture)" = i386
-              java -XshowSettings:properties -version 2>&1 | grep -q "sun.arch.data.model = 32"
-              test "$(node --version)" = v8.17.0
-              test "$(node -p "process.arch")" = ia32
-              test "$(python3 -c "import struct; print(struct.calcsize(\"P\") * 8)")" = 32
-              command -v g++
-              command -v mcs
-              command -v go
-              command -v rustc
-              test "$(go env GOOS)" = linux
-              test "$(go env GOARCH)" = 386
-              rustc -vV | grep -Eq "^host: i[3-6]86-unknown-linux-gnu$"
-              g++ -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
-              gcc -dumpmachine | grep -Eq "^i[3-6]86-|^i686-"
-              file -L "$(command -v mono)" | grep -Eq "ELF 32-bit.*Intel (i386|80386)"
-              file -L "$(command -v node)" | grep -q "ELF 32-bit"
-            '
+          set -eu
 
-      - name: Run tests
-        run: |
-          docker run --rm --platform linux/386 \
-            --volume "$GITHUB_WORKSPACE:/workspace" \
-            --volume "$JAVA_HOME:$JAVA_HOME:ro" \
-            --volume "$HOME/.m2:/root/.m2" \
-            --workdir /workspace \
-            --env JAVA_HOME="$JAVA_HOME" \
-            --env PATH="$JAVA_HOME/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
-            --env SIMPLEIDE_EXPECTED_PLATFORM=linux-x86 \
-            simpleide-linux-x86:ci make test
+          bash scripts/ci/run-linux-debian.sh linux/386 test pkg
