@@ -1,6 +1,7 @@
 package io.simpleide.frame.log;
 
 import java.awt.Color;
+import io.simpleide.ui.ThemeColors;
 
 import javax.swing.SwingUtilities;
 import javax.swing.text.Element;
@@ -34,7 +35,9 @@ class LogPanelTest {
 		StyledDocument doc = log.getStyledDocument();
 
 		Element levelEl = doc.getCharacterElement(0);
-		assertThat(StyleConstants.getForeground(levelEl.getAttributes())).isEqualTo(Color.RED);
+		assertThat(
+				ThemeColors.contrastRatio(StyleConstants.getForeground(levelEl.getAttributes()), log.getBackground()))
+			.isGreaterThanOrEqualTo(ThemeColors.MIN_LARGE_TEXT_CONTRAST);
 
 		Element msgEl = doc.getCharacterElement(7);
 		assertThat(StyleConstants.getForeground(msgEl.getAttributes())).isEqualTo(messageColor);

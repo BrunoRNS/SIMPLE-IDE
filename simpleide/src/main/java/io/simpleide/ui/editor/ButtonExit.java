@@ -1,6 +1,8 @@
 package io.simpleide.ui.editor;
 
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.icon.MaterialIcons;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
@@ -25,14 +27,14 @@ import javax.swing.UIManager;
  */
 public class ButtonExit extends JButton {
 
-	private static final int ICON_SIZE = 12;
-
 	@SuppressWarnings("unused")
 	private final EditorTab tab;
 
-	private final Icon iconX = new TabIcon(false);
+	private Icon iconX;
 
-	private final Icon iconDot = new TabIcon(true);
+	private Icon iconDot;
+
+	private boolean edited;
 
 	/**
 	 * Creates a close button for a tab.
@@ -41,6 +43,7 @@ public class ButtonExit extends JButton {
 	public ButtonExit(EditorTab tab) {
 		super();
 		this.tab = tab;
+		refreshIconSize();
 		setIcon(iconX);
 		setToolTipText("Close " + tab.getName());
 		addActionListener(new ActionNode(e -> {
@@ -58,6 +61,7 @@ public class ButtonExit extends JButton {
 	 * Switches the icon to the edited marker.
 	 */
 	public void setEdited() {
+		edited = true;
 		setIcon(iconDot);
 	}
 
@@ -65,25 +69,36 @@ public class ButtonExit extends JButton {
 	 * Switches the icon back to the close cross.
 	 */
 	public void setNotEdited() {
+		edited = false;
 		setIcon(iconX);
+	}
+
+	/** Rebuilds close and edited icons using the current application font size. */
+	public void refreshIconSize() {
+		iconX = new TabIcon(false, MaterialIcons.tabIconSize());
+		iconDot = new TabIcon(true, MaterialIcons.tabIconSize());
+		setIcon(edited ? iconDot : iconX);
 	}
 
 	private static final class TabIcon implements Icon {
 
 		private final boolean edited;
 
-		private TabIcon(boolean edited) {
+		private final int size;
+
+		private TabIcon(boolean edited, int size) {
 			this.edited = edited;
+			this.size = size;
 		}
 
 		@Override
 		public int getIconWidth() {
-			return ICON_SIZE;
+			return size;
 		}
 
 		@Override
 		public int getIconHeight() {
-			return ICON_SIZE;
+			return size;
 		}
 
 		@Override
@@ -92,16 +107,23 @@ public class ButtonExit extends JButton {
 			try {
 				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 				if (edited) {
-					Color accent = UIManager.getColor("Actions.Yellow");
-					g2.setColor(accent != null ? accent : new Color(0xD9A441));
-					g2.fillOval(x + 6, y + 6, 6, 6);
+					Color accent = ThemeColors.ui("Actions.Yellow", "Component.accentColor",
+							"TabbedPane.selectedForeground");
+					Color background = ThemeColors.ui("TabbedPane.selectedBackground", "TabbedPane.background",
+							"Panel.background");
+					g2.setColor(ThemeColors.readable(accent == null ? new Color(0xD9A441) : accent, background,
+							ThemeColors.MIN_LARGE_TEXT_CONTRAST));
+					int diameter = Math.max(6, size / 2);
+					g2.fillOval(x + (size - diameter) / 2, y + (size - diameter) / 2, diameter, diameter);
 				}
 				else {
 					Color foreground = component.getForeground();
 					g2.setColor(foreground != null ? foreground : Color.GRAY);
-					g2.setStroke(new BasicStroke(1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-					g2.drawLine(x + 3, y + 3, x + 9, y + 9);
-					g2.drawLine(x + 9, y + 3, x + 3, y + 9);
+					g2.setStroke(new BasicStroke(Math.max(1.5f, size / 10.0f), BasicStroke.CAP_ROUND,
+							BasicStroke.JOIN_ROUND));
+					int inset = Math.max(3, size / 4);
+					g2.drawLine(x + inset, y + inset, x + size - inset, y + size - inset);
+					g2.drawLine(x + size - inset, y + inset, x + inset, y + size - inset);
 				}
 			}
 			finally {

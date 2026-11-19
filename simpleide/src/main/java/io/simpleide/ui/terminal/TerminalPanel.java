@@ -6,6 +6,7 @@ import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -73,21 +74,38 @@ public final class TerminalPanel extends JPanel {
 		add(actions, BorderLayout.EAST);
 	}
 
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		if (addButton != null) {
+			addButton.setIcon(createActionIcon("io/simpleide/ui/terminal/terminal-add.svg"));
+		}
+		if (closeButton != null) {
+			closeButton.setIcon(createActionIcon("io/simpleide/ui/terminal/terminal-close.svg"));
+		}
+	}
+
 	private static FlatSVGIcon createActionIcon(String resource) {
-		return new FlatSVGIcon(resource, 20, 20).setColorFilter(new FlatSVGIcon.ColorFilter((component, color) -> {
-			Color background = getIconBackground(component);
-			if (ICON_ACCENT.equals(color)) {
-				Color foreground = UIManager.getColor("Button.foreground");
-				if (foreground == null && component != null) {
-					foreground = component.getForeground();
+		Font font = UIManager.getFont("Menu.font");
+		if (font == null) {
+			font = UIManager.getFont("Label.font");
+		}
+		int iconSize = Math.max(12, font == null ? 14 : font.getSize());
+		return new FlatSVGIcon(resource, iconSize, iconSize)
+			.setColorFilter(new FlatSVGIcon.ColorFilter((component, color) -> {
+				Color background = getIconBackground(component);
+				if (ICON_ACCENT.equals(color)) {
+					Color foreground = UIManager.getColor("Button.foreground");
+					if (foreground == null && component != null) {
+						foreground = component.getForeground();
+					}
+					return getAccessibleIconForeground(foreground, background);
 				}
-				return getAccessibleIconForeground(foreground, background);
-			}
-			if (Color.WHITE.equals(color)) {
-				return background;
-			}
-			return color;
-		}));
+				if (Color.WHITE.equals(color)) {
+					return background;
+				}
+				return color;
+			}));
 	}
 
 	static Color getAccessibleIconForeground(Color preferred, Color background) {

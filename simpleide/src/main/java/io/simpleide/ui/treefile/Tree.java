@@ -15,6 +15,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -49,6 +50,19 @@ public class Tree extends JTree {
 
 	private Consumer<Directory> rootChangeListener = root -> {
 	};
+
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		java.awt.Color background = UIManager.getColor("Tree.background");
+		java.awt.Color foreground = UIManager.getColor("Tree.foreground");
+		if (background != null) {
+			setBackground(background);
+		}
+		if (foreground != null) {
+			setForeground(foreground);
+		}
+	}
 
 	/**
 	 * Creates a tree for a root directory.

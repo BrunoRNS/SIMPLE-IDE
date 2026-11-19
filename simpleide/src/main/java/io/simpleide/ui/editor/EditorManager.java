@@ -7,9 +7,9 @@ import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.ui.icon.MaterialIcons;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
-import java.awt.FlowLayout;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
@@ -17,10 +17,14 @@ import java.util.Map;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 import javax.swing.JLabel;
+import javax.swing.Icon;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
+import javax.swing.JComponent;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
+import java.awt.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -278,10 +282,50 @@ public class EditorManager {
 		jTabbedPane.setSelectedComponent(tab);
 	}
 
+	/** Refreshes file icons after a theme or global font-size change. */
+	public static void refreshFileIcons() {
+		EditorManager manager = instance;
+		if (manager == null || manager.jTabbedPane == null) {
+			return;
+		}
+		java.awt.Color tabBackground = UIManager.getColor("TabbedPane.background");
+		java.awt.Color tabForeground = UIManager.getColor("TabbedPane.foreground");
+		if (tabBackground != null) {
+			manager.jTabbedPane.setBackground(tabBackground);
+		}
+		if (tabForeground != null) {
+			manager.jTabbedPane.setForeground(tabForeground);
+		}
+		for (int tabIndex = 0; tabIndex < manager.jTabbedPane.getTabCount(); tabIndex++) {
+			Component page = manager.jTabbedPane.getComponentAt(tabIndex);
+			if (!(page instanceof EditorTab tab)) {
+				if (page instanceof JComponent component && tabBackground != null) {
+					component.setBackground(tabBackground);
+					component.setOpaque(true);
+				}
+				continue;
+			}
+			Icon icon = MaterialIcons.forFile(tab.getFile().getPath());
+			manager.jTabbedPane.setIconAt(tabIndex, icon);
+			tab.getButtonExit().refreshIconSize();
+			Component header = manager.jTabbedPane.getTabComponentAt(tabIndex);
+			if (header instanceof JPanel panel && panel.getComponentCount() > 0
+					&& panel.getComponent(0) instanceof JLabel label) {
+				label.setIcon(icon);
+				panel.revalidate();
+				panel.repaint();
+			}
+		}
+	}
+
 	private JPanel createTabHeader(EditorTab tab) {
-		JPanel header = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+		JPanel header = new JPanel();
+		header.setLayout(new javax.swing.BoxLayout(header, javax.swing.BoxLayout.LINE_AXIS));
 		header.setOpaque(false);
-		header.add(new JLabel(tab.getName(), tab.getFileIcon(), SwingConstants.LEADING));
+		JLabel fileLabel = new JLabel(tab.getName(), tab.getFileIcon(), SwingConstants.LEADING);
+		fileLabel.setAlignmentY(Component.CENTER_ALIGNMENT);
+		tab.getButtonExit().setAlignmentY(Component.CENTER_ALIGNMENT);
+		header.add(fileLabel);
 		header.add(tab.getButtonExit());
 		return header;
 	}

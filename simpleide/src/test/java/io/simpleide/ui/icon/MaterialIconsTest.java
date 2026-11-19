@@ -3,7 +3,10 @@ package io.simpleide.ui.icon;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Path;
+import java.awt.Font;
+import javax.swing.plaf.FontUIResource;
 import javax.swing.Icon;
+import javax.swing.UIManager;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -25,8 +28,11 @@ class MaterialIconsTest {
 		Icon openFolder = MaterialIcons.forDirectory(Path.of("src"), true);
 
 		assertThat(java).isNotNull();
-		assertThat(java.getIconWidth()).isEqualTo(16);
-		assertThat(java.getIconHeight()).isEqualTo(16);
+		Font menuFont = UIManager.getFont("Menu.font");
+		int expectedSize = Math.max(12, menuFont == null ? 12 : menuFont.getSize());
+		assertThat(java.getIconWidth()).isEqualTo(expectedSize);
+		assertThat(java.getIconHeight()).isEqualTo(expectedSize);
+		assertThat(MaterialIcons.tabIconSize()).isEqualTo(expectedSize);
 		assertThat(python).isNotNull();
 		assertThat(unknown).isNotNull();
 		assertThat(folder).isNotNull();
@@ -41,6 +47,26 @@ class MaterialIconsTest {
 
 		assertThat(component).isNotNull();
 		assertThat(typescript).isNotNull();
+	}
+
+	@Test
+	void iconSizeTracksTheConfiguredApplicationMenuFont() {
+		Object originalFont = UIManager.get("Menu.font");
+		try {
+			UIManager.put("Menu.font", new FontUIResource(Font.DIALOG, Font.PLAIN, 23));
+			Icon icon = MaterialIcons.forFile("Main.java");
+			assertThat(icon.getIconWidth()).isEqualTo(23);
+			assertThat(icon.getIconHeight()).isEqualTo(23);
+			assertThat(MaterialIcons.tabIconSize()).isEqualTo(23);
+		}
+		finally {
+			if (originalFont == null) {
+				UIManager.getDefaults().remove("Menu.font");
+			}
+			else {
+				UIManager.put("Menu.font", originalFont);
+			}
+		}
 	}
 
 }

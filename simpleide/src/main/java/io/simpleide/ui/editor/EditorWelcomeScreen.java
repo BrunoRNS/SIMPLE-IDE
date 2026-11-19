@@ -1,13 +1,13 @@
 package io.simpleide.ui.editor;
 
 import java.awt.BorderLayout;
-import java.awt.Font;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
 
 import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
@@ -27,8 +27,9 @@ public final class EditorWelcomeScreen {
 	private EditorWelcomeScreen() {
 	}
 
-	static JPanel create(Runnable openFolder, Runnable createFile) {
-		JPanel welcomePanel = new JPanel(new BorderLayout());
+	public static JPanel create(Runnable openFolder, Runnable createFile) {
+		JPanel welcomePanel = new WelcomePanel();
+		welcomePanel.setLayout(new BorderLayout());
 
 		JPanel content = new JPanel();
 		MainLayout layout = new MainLayout();
@@ -36,13 +37,11 @@ public final class EditorWelcomeScreen {
 		content.setOpaque(false);
 
 		JLabel title = new JLabel("Welcome to SIMPLE-IDE");
-		title.setFont(new Font("Segoe UI", Font.BOLD, 24));
 		title.setHorizontalAlignment(SwingConstants.CENTER);
 		layout.addComponent(title, 0, 0, 2, 1);
 		content.add(title);
 
 		JLabel subtitle = new JLabel("Open a file in the tree to start editing.");
-		subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 		subtitle.setHorizontalAlignment(SwingConstants.CENTER);
 		layout.addComponent(subtitle, 0, 1, 2, 1);
 		content.add(subtitle);
@@ -63,11 +62,36 @@ public final class EditorWelcomeScreen {
 
 	private static JButton createButton(String text) {
 		JButton button = new JButton(text);
-		button.setFont(new Font("Segoe UI", Font.PLAIN, 13));
 		button.setFocusable(false);
 		button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-		button.setContentAreaFilled(false);
+		button.setContentAreaFilled(true);
 		return button;
+	}
+
+	private static final class WelcomePanel extends JPanel {
+
+		private WelcomePanel() {
+			super(new BorderLayout());
+			applyTheme();
+		}
+
+		@Override
+		public void updateUI() {
+			super.updateUI();
+			applyTheme();
+		}
+
+		private void applyTheme() {
+			java.awt.Color background = UIManager.getColor("TabbedPane.background");
+			if (background == null) {
+				background = UIManager.getColor("Panel.background");
+			}
+			if (background != null) {
+				setBackground(background);
+			}
+			setOpaque(true);
+		}
+
 	}
 
 }

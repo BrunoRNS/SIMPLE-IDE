@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import io.simpleide.ui.ThemeColors;
 import java.awt.Color;
-import java.awt.Component;
+import java.awt.Font;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -14,6 +14,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.Icon;
+import javax.swing.UIManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,10 +39,6 @@ public final class MaterialIcons {
 	private static final String BASE = "io/simpleide/icon/material/";
 
 	private static final String MANIFEST = BASE + "material-icons.json";
-
-	private static final int TREE_ICON_SIZE = 16;
-
-	private static final int TAB_ICON_SIZE = 16;
 
 	private static final MaterialIcons INSTANCE = new MaterialIcons();
 
@@ -145,7 +142,7 @@ public final class MaterialIcons {
 		else if (icon == null) {
 			icon = defaultFolderExpandedIcon;
 		}
-		return load(icon, TREE_ICON_SIZE, light, defaultFolderIcon);
+		return load(icon, configuredIconSize(), light, defaultFolderIcon);
 	}
 
 	/**
@@ -153,7 +150,7 @@ public final class MaterialIcons {
 	 * @return the tab icon size in pixels
 	 */
 	public static int tabIconSize() {
-		return TAB_ICON_SIZE;
+		return configuredIconSize();
 	}
 
 	private Icon forFileInternal(String fileName) {
@@ -165,7 +162,15 @@ public final class MaterialIcons {
 		if (icon == null) {
 			icon = defaultFileIcon;
 		}
-		return load(icon, TREE_ICON_SIZE, light, defaultFileIcon);
+		return load(icon, configuredIconSize(), light, defaultFileIcon);
+	}
+
+	private static int configuredIconSize() {
+		Font font = UIManager.getFont("Menu.font");
+		if (font == null) {
+			font = UIManager.getFont("Label.font");
+		}
+		return Math.max(12, font == null ? 12 : font.getSize());
 	}
 
 	private String findByExtension(String fileName, boolean light) {
@@ -225,21 +230,7 @@ public final class MaterialIcons {
 			LOGGER.warn("Material icon {} is not bundled; using the default file icon.", fileName);
 			resource = BASE + "icons/" + iconFiles.getOrDefault(defaultFileIcon, "file.svg");
 		}
-		FlatSVGIcon icon = new FlatSVGIcon(resource, key.size(), key.size());
-		icon.setColorFilter(new FlatSVGIcon.ColorFilter((component, color) -> ensureIconContrast(component, color)));
-		return icon;
-	}
-
-	private static Color ensureIconContrast(Component component, Color color) {
-		if (color == null || color.getAlpha() == 0) {
-			return color;
-		}
-		Color background = component == null ? null : component.getBackground();
-		if (background == null) {
-			background = ThemeColors.ui("Tree.background", "Panel.background", "TabbedPane.background");
-		}
-		Color readable = ThemeColors.readable(color, background, ThemeColors.MIN_LARGE_TEXT_CONTRAST);
-		return new Color(readable.getRed(), readable.getGreen(), readable.getBlue(), color.getAlpha());
+		return new FlatSVGIcon(resource, key.size(), key.size());
 	}
 
 	private void readIconFiles(JsonNode node) {

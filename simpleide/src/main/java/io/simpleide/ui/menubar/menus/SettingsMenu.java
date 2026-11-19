@@ -1,5 +1,6 @@
 package io.simpleide.ui.menubar.menus;
 
+import io.simpleide.ui.editor.EditorManager;
 import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
 import java.awt.Font;
 import java.awt.Window;
@@ -61,6 +62,7 @@ public class SettingsMenu extends JMenu {
 			for (Window window : Window.getWindows()) {
 				SwingUtilities.updateComponentTreeUI(window);
 			}
+			EditorManager.refreshFileIcons();
 		}));
 	}
 

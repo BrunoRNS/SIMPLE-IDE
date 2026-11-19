@@ -26,6 +26,7 @@ import com.formdev.flatlaf.FlatPropertiesLaf;
 
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.editor.Editor;
+import io.simpleide.ui.editor.EditorManager;
 import io.simpleide.utils.ResourceUtil;
 
 /**
@@ -33,8 +34,9 @@ import io.simpleide.utils.ResourceUtil;
  *
  * <p>
  * The manager keeps a set of registered editors so a theme change updates both the Swing
- * windows and the syntax highlighting. Five themes are available: light, dark, Dracula,
- * Brown and Brown Light. Theme changes are marshalled to the Swing Event Dispatch Thread.
+ * windows and the syntax highlighting. Themes include light, dark, Dracula, Dracula
+ * Light, Brown and Brown Light. Theme changes are marshalled to the Swing Event Dispatch
+ * Thread.
  *
  * <p>
  * Covered by {@code ThemeManagerTest}.
@@ -68,7 +70,7 @@ public final class ThemeManager {
 	 */
 	public enum ThemeType {
 
-		DARK, LIGHT, DRACULA, BROWN, BROWN_LIGHT,
+		DARK, LIGHT, DRACULA, DRACULA_LIGHT, BROWN, BROWN_LIGHT,
 
 	}
 
@@ -123,11 +125,13 @@ public final class ThemeManager {
 				case LIGHT -> FlatLightLaf.setup();
 				case DARK -> FlatDarkLaf.setup();
 				case DRACULA -> setupPropertiesLookAndFeel("dracula.properties", "Dracula");
+				case DRACULA_LIGHT -> setupPropertiesLookAndFeel("dracula-light.properties", "Dracula Light");
 				case BROWN -> setupPropertiesLookAndFeel("brown.properties", "Brown");
 				case BROWN_LIGHT -> setupPropertiesLookAndFeel("brown-light.properties", "Brown Light");
 			}
 			applyGlobalUiDefaults(theme);
 			updateAllWindows();
+			EditorManager.refreshFileIcons();
 			for (Editor registeredEditor : editors) {
 				if (registeredEditor != null) {
 					applyEditorTheme(registeredEditor, theme);
@@ -168,6 +172,7 @@ public final class ThemeManager {
 			case LIGHT -> "default.xml";
 			case DARK -> "dark.xml";
 			case DRACULA -> "dracula.xml";
+			case DRACULA_LIGHT -> "default.xml";
 			case BROWN, BROWN_LIGHT -> "dark.xml";
 		};
 
@@ -177,15 +182,16 @@ public final class ThemeManager {
 					: ResourceUtil.getResourcePath("org.fife.ui.rsyntaxtextarea.themes", themeResource);
 			try (InputStream input = Files.newInputStream(themePath)) {
 				Theme editorTheme = Theme.load(input);
-				if (theme == ThemeType.DRACULA) {
-					editorTheme.bgColor = new Color(0x282A36);
-					editorTheme.caretColor = new Color(0xF8F8F2);
-					editorTheme.selectionBG = new Color(0x44475A);
-					editorTheme.currentLineHighlight = new Color(0x44475A);
-					editorTheme.gutterBackgroundColor = new Color(0x282A36);
-					editorTheme.gutterBorderColor = new Color(0x44475A);
+				if (theme == ThemeType.DRACULA || theme == ThemeType.DRACULA_LIGHT) {
+					boolean light = theme == ThemeType.DRACULA_LIGHT;
+					editorTheme.bgColor = new Color(light ? 0xF8F8F2 : 0x282A36);
+					editorTheme.caretColor = new Color(light ? 0x282A36 : 0xF8F8F2);
+					editorTheme.selectionBG = new Color(light ? 0xE6E6DC : 0x44475A);
+					editorTheme.currentLineHighlight = new Color(light ? 0xEFEFE5 : 0x44475A);
+					editorTheme.gutterBackgroundColor = editorTheme.bgColor;
+					editorTheme.gutterBorderColor = editorTheme.selectionBG;
 					editorTheme.lineNumberColor = new Color(0x6272A4);
-					editorTheme.currentLineNumberColor = new Color(0xF8F8F2);
+					editorTheme.currentLineNumberColor = editorTheme.caretColor;
 				}
 				if (theme == ThemeType.BROWN || theme == ThemeType.BROWN_LIGHT) {
 					boolean lightBrown = theme == ThemeType.BROWN_LIGHT;
@@ -201,6 +207,7 @@ public final class ThemeManager {
 				if (theme != ThemeType.DRACULA) {
 					applyReadableSyntaxColors(editorTheme, theme);
 				}
+				ensureSyntaxSchemeContrast(editorTheme);
 				editorTheme.apply(editor);
 				if (theme == ThemeType.DRACULA) {
 					editor.setBracketMatchingEnabled(true);
@@ -291,6 +298,26 @@ public final class ThemeManager {
 					markupAttributes = new Color(0x246C72);
 					markupValues = new Color(0x8A5A00);
 					markupOther = new Color(0x7952A3);
+				}
+				case DRACULA_LIGHT -> {
+					comments = new Color(0x6272A4);
+					keywords = new Color(0xA33A70);
+					types = new Color(0x247A78);
+					functions = new Color(0x4666B0);
+					strings = new Color(0x9A6100);
+					numbers = new Color(0x7651A8);
+					punctuation = new Color(0x44475A);
+					commentKeywords = new Color(0x9A6100);
+					identifiers = new Color(0x44475A);
+					variables = new Color(0x247A78);
+					annotations = new Color(0xA33A70);
+					regexes = new Color(0x9A6100);
+					booleans = new Color(0x7651A8);
+					errors = new Color(0xB00020);
+					markupTags = new Color(0xA33A70);
+					markupAttributes = new Color(0x247A78);
+					markupValues = new Color(0x9A6100);
+					markupOther = new Color(0x4666B0);
 				}
 				case BROWN -> {
 					comments = new Color(0x928374);
@@ -424,8 +451,18 @@ public final class ThemeManager {
 	}
 
 	private void setForeground(Theme theme, Color color, int... tokenTypes) {
+		Color readable = ensureContrast(color, theme.bgColor);
 		for (int tokenType : tokenTypes) {
-			theme.scheme.getStyle(tokenType).foreground = color;
+			theme.scheme.getStyle(tokenType).foreground = readable;
+		}
+	}
+
+	private void ensureSyntaxSchemeContrast(Theme theme) {
+		for (int tokenType = 0; tokenType < theme.scheme.getStyleCount(); tokenType++) {
+			var style = theme.scheme.getStyle(tokenType);
+			if (style.foreground != null) {
+				style.foreground = ensureContrast(style.foreground, theme.bgColor);
+			}
 		}
 	}
 
@@ -450,13 +487,22 @@ public final class ThemeManager {
 		put(d, "TitledBorder.titleColor", p.fg);
 		put(d, "Separator.foreground", p.border);
 		put(d, "Separator.background", p.bg);
+		put(d, "SplitPane.background", p.bg);
+		put(d, "SplitPaneDivider.background", p.border);
+		put(d, "SplitPaneDivider.borderColor", p.border);
+		put(d, "SplitPaneDivider.gripColor", ensureContrast(p.border, p.bg, 1.5d));
+		put(d, "SplitPaneDivider.hoverColor", blend(p.fg, p.bg, 0.35f));
+		put(d, "SplitPaneDivider.draggingColor", blend(p.fg, p.bg, 0.5f));
 		put(d, "Viewport.background", p.bg);
 		put(d, "ScrollPane.background", p.bg);
 		put(d, "ScrollPane.foreground", p.fg);
 
-		putTextLike(d, "TextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
-		putTextLike(d, "FormattedTextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
-		putTextLike(d, "PasswordField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+		putTextLike(d, "TextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret,
+				ensureContrast(p.disabledFg, p.inputBg, 3.0d));
+		putTextLike(d, "FormattedTextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret,
+				ensureContrast(p.disabledFg, p.inputBg, 3.0d));
+		putTextLike(d, "PasswordField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret,
+				ensureContrast(p.disabledFg, p.inputBg, 3.0d));
 		putTextLike(d, "TextArea", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
 		putTextLike(d, "TextPane", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
 		putTextLike(d, "EditorPane", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
@@ -479,11 +525,16 @@ public final class ThemeManager {
 
 		put(d, "Button.foreground", p.buttonFg);
 		put(d, "Button.background", p.buttonBg);
-		put(d, "Button.disabledText", p.disabledFg);
-		put(d, "Button.disabledForeground", p.disabledFg);
+		Color disabledButtonBg = blend(p.buttonBg, p.bg, 0.55f);
+		Color disabledButtonFg = ensureContrast(p.disabledFg, disabledButtonBg, 3.0d);
+		put(d, "Button.disabledText", disabledButtonFg);
+		put(d, "Button.disabledForeground", disabledButtonFg);
+		put(d, "Button.disabledBackground", disabledButtonBg);
 		put(d, "ToggleButton.foreground", p.buttonFg);
 		put(d, "ToggleButton.background", p.buttonBg);
-		put(d, "ToggleButton.disabledText", p.disabledFg);
+		put(d, "ToggleButton.disabledText", disabledButtonFg);
+		put(d, "ToggleButton.disabledForeground", disabledButtonFg);
+		put(d, "ToggleButton.disabledBackground", disabledButtonBg);
 		put(d, "CheckBox.foreground", p.fg);
 		put(d, "CheckBox.background", p.bg);
 		put(d, "RadioButton.foreground", p.fg);
@@ -492,7 +543,7 @@ public final class ThemeManager {
 		put(d, "ComboBox.background", p.inputBg);
 		put(d, "ComboBox.selectionBackground", p.selBg);
 		put(d, "ComboBox.selectionForeground", p.selFg);
-		put(d, "ComboBox.disabledForeground", p.disabledFg);
+		put(d, "ComboBox.disabledForeground", ensureContrast(p.disabledFg, p.inputBg, 3.0d));
 		put(d, "Spinner.foreground", p.fg);
 		put(d, "Spinner.background", p.inputBg);
 
@@ -519,7 +570,7 @@ public final class ThemeManager {
 		put(d, "TabbedPane.contentAreaColor", p.bg);
 		put(d, "TabbedPane.selectedBackground", p.bg);
 		put(d, "TabbedPane.selectedForeground", p.fg);
-		put(d, "TabbedPane.disabledForeground", p.disabledFg);
+		put(d, "TabbedPane.disabledForeground", ensureContrast(p.disabledFg, p.bg, 3.0d));
 		put(d, "TabbedPane.hoverColor", p.selBg);
 		put(d, "TabbedPane.focusColor", p.selBg);
 		put(d, "TabbedPane.underlineColor", p.selBg);
@@ -563,7 +614,7 @@ public final class ThemeManager {
 		put(d, prefix + ".foreground", fg);
 		put(d, prefix + ".selectionBackground", selBg);
 		put(d, prefix + ".selectionForeground", selFg);
-		put(d, prefix + ".disabledForeground", disabledFg);
+		put(d, prefix + ".disabledForeground", ensureContrast(disabledFg, bg, 3.0d));
 		put(d, prefix + ".acceleratorForeground", fg);
 		put(d, prefix + ".acceleratorSelectionForeground", selFg);
 	}
@@ -571,64 +622,36 @@ public final class ThemeManager {
 	private void put(UIDefaults d, String key, Object value) {
 		if (value != null) {
 			d.put(key, value);
+			UIManager.put(key, value);
 		}
 	}
 
 	private Palette paletteFromCurrentLookAndFeel(ThemeType theme) {
 		ThemeDefaults td = themeDefaults(theme);
-		Color bg = first(td.bg, "Panel.background", "control", "window", "Viewport.background");
-		Color fg = ensureContrast(first(td.fg, "Label.foreground", "Panel.foreground", "controlText", "textText"), bg);
-		Color inputBg = first(td.inputBg, "TextField.background", "TextArea.background", "TextPane.background", "text");
-		if (inputBg == null) {
-			inputBg = bg;
-		}
-		Color selBg = first(td.selBg, "MenuItem.selectionBackground", "TextField.selectionBackground",
-				"List.selectionBackground", "Table.selectionBackground");
-		if (selBg == null) {
-			selBg = blend(fg, bg, 0.25f);
-		}
-		Color selFg = ensureContrast(first(td.selFg, "MenuItem.selectionForeground", "TextField.selectionForeground",
-				"List.selectionForeground", "Table.selectionForeground"), selBg);
-		Color disabledFg = first(td.disabledFg, "Label.disabledForeground", "MenuItem.disabledForeground",
-				"Button.disabledText");
+		Color bg = td.bg;
+		Color fg = ensureContrast(td.fg, bg);
+		Color inputBg = td.inputBg;
+		Color selBg = td.selBg;
+		Color selFg = ensureContrast(td.selFg, selBg);
+		Color disabledFg = td.disabledFg;
 		if (disabledFg == null || contrastRatio(disabledFg, bg) < 3.0d) {
 			disabledFg = blend(fg, bg, 0.45f);
 		}
 		if (contrastRatio(disabledFg, bg) < 3.0d) {
 			disabledFg = ensureContrast(disabledFg, bg);
 		}
-		Color popupBg = first(td.popupBg, "PopupMenu.background", "MenuItem.background", "ToolTip.background");
-		if (popupBg == null) {
-			popupBg = bg;
-		}
-		Color border = first(td.border, "Component.borderColor", "MenuBar.borderColor", "Separator.foreground");
-		if (border == null) {
-			border = blend(fg, bg, 0.25f);
-		}
-		Color caret = ensureContrast(first(td.caret, "TextField.caretForeground", "TextComponent.caretForeground"),
-				inputBg);
-		Color menuBg = first("Menu.background", "MenuItem.background", "MenuBar.background");
-		if (menuBg == null) {
-			menuBg = bg;
-		}
-		Color menuFg = ensureContrast(first("Menu.foreground", "MenuItem.foreground", "MenuBar.foreground"), menuBg);
-		Color menuSelBg = first("Menu.selectionBackground", "MenuItem.selectionBackground");
-		if (menuSelBg == null) {
-			menuSelBg = selBg;
-		}
-		Color menuSelFg = ensureContrast(first("Menu.selectionForeground", "MenuItem.selectionForeground"), menuSelBg);
-		Color popupFg = ensureContrast(first("PopupMenu.foreground", "ToolTip.foreground"), popupBg);
-		Color buttonBg = first("Button.background", "OptionPane.buttonBackground", "ToggleButton.background");
-		if (buttonBg == null) {
-			buttonBg = bg;
-		}
-		Color buttonFg = ensureContrast(
-				first("Button.foreground", "OptionPane.buttonForeground", "ToggleButton.foreground"), buttonBg);
-		Color headerBg = first("TableHeader.background", "ToolBar.background");
-		if (headerBg == null) {
-			headerBg = bg;
-		}
-		Color headerFg = ensureContrast(first("TableHeader.foreground", "ToolBar.foreground"), headerBg);
+		Color popupBg = td.popupBg;
+		Color border = td.border;
+		Color caret = ensureContrast(td.caret, inputBg);
+		Color menuBg = bg;
+		Color menuFg = fg;
+		Color menuSelBg = selBg;
+		Color menuSelFg = selFg;
+		Color popupFg = ensureContrast(fg, popupBg);
+		Color buttonBg = td.buttonBg;
+		Color buttonFg = ensureContrast(fg, buttonBg);
+		Color headerBg = bg;
+		Color headerFg = fg;
 
 		return new Palette(bg, fg, inputBg, buttonBg, buttonFg, selBg, selFg, disabledFg, popupBg, popupFg, menuBg,
 				menuFg, menuSelBg, menuSelFg, border, caret, headerBg, headerFg);
@@ -637,33 +660,18 @@ public final class ThemeManager {
 	private ThemeDefaults themeDefaults(ThemeType theme) {
 		return switch (theme) {
 			case DRACULA -> new ThemeDefaults(c(0x282A36), c(0xF8F8F2), c(0x282A36), c(0x44475A), c(0xF8F8F2),
-					c(0x6272A4), c(0x21222C), c(0x44475A), c(0xF8F8F2));
+					c(0x6272A4), c(0x21222C), c(0x44475A), c(0xF8F8F2), c(0x44475A));
+			case DRACULA_LIGHT -> new ThemeDefaults(c(0xF8F8F2), c(0x282A36), c(0xFFFFFF), c(0xE6E6DC), c(0x282A36),
+					c(0x6272A4), c(0xFFFFFF), c(0xD6D6CC), c(0x282A36), c(0xE6E6DC));
 			case BROWN -> new ThemeDefaults(c(0x282828), c(0xEBDBB2), c(0x3C3836), c(0x504945), c(0xFBF1C7),
-					c(0x928374), c(0x282828), c(0x504945), c(0xEBDBB2));
+					c(0x928374), c(0x282828), c(0x504945), c(0xEBDBB2), c(0x3C3836));
 			case BROWN_LIGHT -> new ThemeDefaults(c(0xFBF1C7), c(0x3C3836), c(0xF2E5BC), c(0xD5C4A1), c(0x282828),
-					c(0x7C6F64), c(0xFBF1C7), c(0xD5C4A1), c(0x3C3836));
-			case DARK -> new ThemeDefaults(c(0x3C3F41), c(0xBBBBBB), null, c(0x4B6EAF), c(0xFFFFFF), c(0x777777), null,
-					null, c(0xBBBBBB));
-			case LIGHT -> new ThemeDefaults(c(0xF2F2F2), c(0x1F1F1F), null, c(0x2675BF), c(0xFFFFFF), c(0x8C8C8C), null,
-					null, c(0x1F1F1F));
+					c(0x7C6F64), c(0xFBF1C7), c(0xD5C4A1), c(0x3C3836), c(0xEBDBB2));
+			case DARK -> new ThemeDefaults(c(0x3C3F41), c(0xBBBBBB), c(0x2B2B2B), c(0x4B6EAF), c(0xFFFFFF), c(0x777777),
+					c(0x2B2B2B), c(0x55595B), c(0xBBBBBB), c(0x4B6EAF));
+			case LIGHT -> new ThemeDefaults(c(0xF2F2F2), c(0x1F1F1F), c(0xFFFFFF), c(0x2675BF), c(0xFFFFFF),
+					c(0x8C8C8C), c(0xFFFFFF), c(0xD0D0D0), c(0x1F1F1F), c(0x2675BF));
 		};
-	}
-
-	private static Color first(Color preferred, String... keys) {
-		if (preferred != null) {
-			return preferred;
-		}
-		for (String key : keys) {
-			Color color = UIManager.getColor(key);
-			if (color != null) {
-				return color;
-			}
-		}
-		return null;
-	}
-
-	private static Color first(String... keys) {
-		return first(null, keys);
 	}
 
 	private static Color c(int rgb) {
@@ -671,17 +679,21 @@ public final class ThemeManager {
 	}
 
 	private static Color ensureContrast(Color fg, Color bg) {
+		return ensureContrast(fg, bg, 4.5d);
+	}
+
+	private static Color ensureContrast(Color fg, Color bg, double minimumContrast) {
 		if (bg == null) {
 			return fg;
 		}
 		if (fg == null) {
 			return contrastingForeground(bg);
 		}
-		if (contrastRatio(fg, bg) >= 4.5d) {
+		if (contrastRatio(fg, bg) >= minimumContrast) {
 			return fg;
 		}
 		Color contrasted = contrastingForeground(bg);
-		if (contrastRatio(contrasted, bg) >= 4.5d) {
+		if (contrastRatio(contrasted, bg) >= minimumContrast) {
 			return contrasted;
 		}
 		return contrastRatio(Color.WHITE, bg) >= contrastRatio(Color.BLACK, bg) ? Color.WHITE : Color.BLACK;
@@ -733,7 +745,7 @@ public final class ThemeManager {
 	}
 
 	private record ThemeDefaults(Color bg, Color fg, Color inputBg, Color selBg, Color selFg, Color disabledFg,
-			Color popupBg, Color border, Color caret) {
+			Color popupBg, Color border, Color caret, Color buttonBg) {
 	}
 
 	private record Palette(Color bg, Color fg, Color inputBg, Color buttonBg, Color buttonFg, Color selBg, Color selFg,

@@ -9,12 +9,15 @@ import com.formdev.flatlaf.extras.FlatSVGIcon;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Font;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.plaf.FontUIResource;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -33,17 +36,39 @@ class TerminalPanelTest {
 	}
 
 	@Test
+	void refreshesTerminalActionIconSizesWhenTheConfiguredFontChanges() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			TerminalPanel panel = new TerminalPanel();
+			Object originalFont = UIManager.get("Menu.font");
+			try {
+				UIManager.put("Menu.font", new FontUIResource(Font.DIALOG, Font.PLAIN, 22));
+				SwingUtilities.updateComponentTreeUI(panel);
+				assertThat(findButtons(panel)).allSatisfy(button -> {
+					assertThat(button.getIcon().getIconWidth()).isEqualTo(22);
+					assertThat(button.getIcon().getIconHeight()).isEqualTo(22);
+				});
+			}
+			finally {
+				restoreUiValue("Menu.font", originalFont);
+				SwingUtilities.updateComponentTreeUI(panel);
+			}
+		});
+	}
+
+	@Test
 	void preservesSessionNumbersAndOtherTabsWhenRemovingOneSession() throws Exception {
 		SwingUtilities.invokeAndWait(() -> {
 			TerminalPanel panel = new TerminalPanel();
 			List<JButton> actionButtons = findButtons(panel);
 			assertThat(actionButtons).hasSize(2);
+			Font menuFont = UIManager.getFont("Menu.font");
+			int expectedIconSize = Math.max(12, menuFont == null ? 14 : menuFont.getSize());
 			for (JButton button : actionButtons) {
 				assertThat(button.getIcon()).isInstanceOf(FlatSVGIcon.class);
 				FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
 				assertThat(icon.hasFound()).isTrue();
-				assertThat(icon.getIconWidth()).isEqualTo(20);
-				assertThat(icon.getIconHeight()).isEqualTo(20);
+				assertThat(icon.getIconWidth()).isEqualTo(expectedIconSize);
+				assertThat(icon.getIconHeight()).isEqualTo(expectedIconSize);
 			}
 
 			for (long id = 1; id <= TerminalPanel.MAX_TABS; id++) {
@@ -135,6 +160,15 @@ class TerminalPanelTest {
 		double lighter = Math.max(foregroundLuminance, backgroundLuminance);
 		double darker = Math.min(foregroundLuminance, backgroundLuminance);
 		return (lighter + 0.05) / (darker + 0.05);
+	}
+
+	private static void restoreUiValue(String key, Object value) {
+		if (value == null) {
+			UIManager.getDefaults().remove(key);
+		}
+		else {
+			UIManager.put(key, value);
+		}
 	}
 
 	private static double relativeLuminance(Color color) {

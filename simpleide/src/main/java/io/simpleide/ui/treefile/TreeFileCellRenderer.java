@@ -54,7 +54,7 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 		}
 		if (background != null) {
 			setBackground(background);
-			setOpaque(selected);
+			setOpaque(true);
 		}
 		if (foreground != null) {
 			setForeground(ThemeColors.readable(foreground, background));
