@@ -3,7 +3,10 @@ package io.simpleide.ui.terminal;
 import com.jediterm.core.Color;
 import com.jediterm.terminal.TerminalColor;
 import com.jediterm.terminal.TextStyle;
+import com.jediterm.terminal.emulator.ColorPalette;
+import com.jediterm.terminal.emulator.ColorPaletteImpl;
 import com.jediterm.terminal.ui.settings.DefaultSettingsProvider;
+import io.simpleide.ui.ThemeColors;
 import java.awt.Font;
 import javax.swing.UIManager;
 
@@ -72,6 +75,58 @@ public final class TerminalSettingsProvider extends DefaultSettingsProvider {
 	@Override
 	public TextStyle getDefaultStyle() {
 		return new TextStyle(getDefaultForeground(), getDefaultBackground());
+	}
+
+	/**
+	 * Returns a palette that keeps ANSI colours readable against the current theme
+	 * background.
+	 * @return the contrast-aware terminal palette
+	 */
+	@Override
+	public ColorPalette getTerminalColorPalette() {
+		return new ContrastPalette();
+	}
+
+	/**
+	 * Returns a selection style derived from the active theme selection colours.
+	 * @return the selection text style
+	 */
+	@Override
+	public TextStyle getSelectionColor() {
+		java.awt.Color foreground = ThemeColors.ui("TextArea.selectionForeground", "TextField.selectionForeground");
+		java.awt.Color background = ThemeColors.ui("TextArea.selectionBackground", "TextField.selectionBackground");
+		if (foreground == null || background == null) {
+			return super.getSelectionColor();
+		}
+		java.awt.Color readable = ThemeColors.readable(foreground, background, ThemeColors.MIN_TEXT_CONTRAST);
+		return new TextStyle(TerminalColor.color(toTerminalColor(readable)),
+				TerminalColor.color(toTerminalColor(background)));
+	}
+
+	private static Color toTerminalColor(java.awt.Color color) {
+		return new Color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
+	}
+
+	private static final class ContrastPalette extends ColorPalette {
+
+		@Override
+		protected Color getForegroundByColorIndex(int index) {
+			Color base = ColorPaletteImpl.XTERM_PALETTE.getForeground(TerminalColor.index(index));
+			java.awt.Color background = UIManager.getColor("TextArea.background");
+			if (background == null) {
+				background = UIManager.getColor("TextPane.background");
+			}
+			java.awt.Color foreground = new java.awt.Color(base.getRed(), base.getGreen(), base.getBlue(),
+					base.getAlpha());
+			java.awt.Color readable = ThemeColors.readable(foreground, background, ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+			return new Color(readable.getRed(), readable.getGreen(), readable.getBlue(), readable.getAlpha());
+		}
+
+		@Override
+		protected Color getBackgroundByColorIndex(int index) {
+			return ColorPaletteImpl.XTERM_PALETTE.getBackground(TerminalColor.index(index));
+		}
+
 	}
 
 	private static Color getThemeColor(String key, java.awt.Color fallback) {

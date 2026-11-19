@@ -129,9 +129,9 @@ public class MainFrame extends JFrame implements Runnable {
 
 		attachLogAppender(logPanel);
 
-		ThemeManager.getInstance().register(this);
 		MenuBarFactory.createMenuBar(this, this::createNewFile, this::createNewDirectory, this::setDirectory,
 				editorManager::saveSelectedFile);
+		ThemeManager.getInstance().register(this);
 		logger.info("start IDE");
 
 		pack();

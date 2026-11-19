@@ -1,24 +1,23 @@
 package io.simpleide.ui.treefile;
 
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.icon.MaterialIcons;
+import java.awt.Color;
 import java.awt.Component;
-import java.io.IOException;
-import java.util.EnumMap;
-import java.util.Map;
 
 import javax.swing.Icon;
-import javax.swing.ImageIcon;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
-
-import io.simpleide.utils.ResourceUtil;
 
 /**
  * Tree cell renderer that draws folders and per-language file icons.
  *
  * <p>
- * Open and closed folders use different icons, and files use the icon registered for
- * their {@link TypeFile}. Types without an icon keep the default renderer icon.
+ * Icons come from the bundled Material Icon Theme manifest, matched by file name,
+ * compound extension or extension, with a default file icon when no mapping exists.
+ * Foreground and selection colours are taken from the active look and feel and adjusted
+ * when necessary so names remain readable on every theme.
  *
  * @author LuisOtavio13
  * @since v1.0.0beta
@@ -27,48 +26,38 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 
 	private static final long serialVersionUID = 1L;
 
-	private static final Icon CLOSED_FOLDER_ICON = loadIcon("folder.png");
-
-	private static final Icon OPEN_FOLDER_ICON = loadIcon("folder-open.png");
-
-	private static final Map<TypeFile, Icon> FILE_ICONS = loadFileIcons();
-
 	@Override
 	public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded,
 			boolean leaf, int row, boolean hasFocus) {
 		super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+		applyTextColors(tree, selected);
 		if (value instanceof DefaultMutableTreeNode node && node.getUserObject() instanceof TreeFile file) {
-			if (file instanceof Directory) {
-				setIcon(expanded ? OPEN_FOLDER_ICON : CLOSED_FOLDER_ICON);
-			}
-			else if (file instanceof File fileEntry) {
-				Icon icon = FILE_ICONS.get(fileEntry.getTypeFile());
-				if (icon != null) {
-					setIcon(icon);
-				}
-			}
+			Icon icon = file instanceof Directory directory ? MaterialIcons.forDirectory(directory.getPath(), expanded)
+					: MaterialIcons.forFile(file.getPath());
+			setIcon(icon);
 		}
 		return this;
 	}
 
-	private static Map<TypeFile, Icon> loadFileIcons() {
-		Map<TypeFile, Icon> icons = new EnumMap<>(TypeFile.class);
-		icons.put(TypeFile.JAVA, loadIcon("java.png"));
-		icons.put(TypeFile.GROOVY, loadIcon("groovy.png"));
-		icons.put(TypeFile.KOTLIN, loadIcon("kotlin.png"));
-		icons.put(TypeFile.JAVASCRIPT, loadIcon("javascript.png"));
-		icons.put(TypeFile.PYTHON, loadIcon("python.png"));
-		icons.put(TypeFile.CPP, loadIcon("cpp.png"));
-		icons.put(TypeFile.C, loadIcon("c.png"));
-		return icons;
-	}
-
-	private static Icon loadIcon(String fileName) {
-		try {
-			return new ImageIcon(ResourceUtil.getResourcePath("io.simpleide.icon", fileName).toString());
+	private void applyTextColors(JTree tree, boolean selected) {
+		Color background = selected
+				? ThemeColors.ui("Tree.selectionBackground", "List.selectionBackground", "Tree.background")
+				: ThemeColors.ui("Tree.background", "Panel.background", "Viewport.background");
+		Color foreground = selected
+				? ThemeColors.ui("Tree.selectionForeground", "List.selectionForeground", "Tree.foreground")
+				: ThemeColors.ui("Tree.foreground", "Tree.textForeground", "Label.foreground");
+		if (background == null && tree != null) {
+			background = tree.getBackground();
 		}
-		catch (IOException exception) {
-			throw new IllegalStateException("Unable to load file icon: " + fileName, exception);
+		if (foreground == null && tree != null) {
+			foreground = tree.getForeground();
+		}
+		if (background != null) {
+			setBackground(background);
+			setOpaque(selected);
+		}
+		if (foreground != null) {
+			setForeground(ThemeColors.readable(foreground, background));
 		}
 	}
 

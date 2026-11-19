@@ -1,6 +1,8 @@
 package io.simpleide.ui.menubar;
 
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Container;
 import java.awt.Window;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,7 +11,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import javax.swing.JMenu;
 import javax.swing.SwingUtilities;
+import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 
@@ -122,20 +126,41 @@ public final class ThemeManager {
 				case BROWN -> setupPropertiesLookAndFeel("brown.properties", "Brown");
 				case BROWN_LIGHT -> setupPropertiesLookAndFeel("brown-light.properties", "Brown Light");
 			}
-			for (Window window : Window.getWindows()) {
-				if (window == null) {
-					continue;
-				}
-				SwingUtilities.updateComponentTreeUI(window);
-				window.validate();
-				window.repaint();
-			}
+			applyGlobalUiDefaults(theme);
+			updateAllWindows();
 			for (Editor registeredEditor : editors) {
 				if (registeredEditor != null) {
 					applyEditorTheme(registeredEditor, theme);
 				}
 			}
 		});
+	}
+
+	private void updateAllWindows() {
+		for (Window window : Window.getWindows()) {
+			if (window == null) {
+				continue;
+			}
+			SwingUtilities.updateComponentTreeUI(window);
+			updateMenuPopups(window);
+			window.invalidate();
+			window.validate();
+			window.repaint();
+		}
+	}
+
+	private void updateMenuPopups(Component component) {
+		if (component == null) {
+			return;
+		}
+		if (component instanceof JMenu menu) {
+			SwingUtilities.updateComponentTreeUI(menu.getPopupMenu());
+		}
+		if (component instanceof Container container) {
+			for (Component child : container.getComponents()) {
+				updateMenuPopups(child);
+			}
+		}
 	}
 
 	private void applyEditorTheme(Editor editor, ThemeType theme) {
@@ -402,6 +427,318 @@ public final class ThemeManager {
 		for (int tokenType : tokenTypes) {
 			theme.scheme.getStyle(tokenType).foreground = color;
 		}
+	}
+
+	private void applyGlobalUiDefaults(ThemeType theme) {
+		Palette p = paletteFromCurrentLookAndFeel(theme);
+		UIDefaults d = UIManager.getLookAndFeelDefaults();
+
+		put(d, "control", p.bg);
+		put(d, "controlText", p.fg);
+		put(d, "text", p.bg);
+		put(d, "textText", p.fg);
+		put(d, "info", p.popupBg);
+		put(d, "infoText", p.fg);
+		put(d, "nimbusBase", p.bg);
+		put(d, "nimbusLightBackground", p.bg);
+
+		put(d, "Panel.background", p.bg);
+		put(d, "Panel.foreground", p.fg);
+		put(d, "Label.foreground", p.fg);
+		put(d, "Label.background", p.bg);
+		put(d, "Label.disabledForeground", p.disabledFg);
+		put(d, "TitledBorder.titleColor", p.fg);
+		put(d, "Separator.foreground", p.border);
+		put(d, "Separator.background", p.bg);
+		put(d, "Viewport.background", p.bg);
+		put(d, "ScrollPane.background", p.bg);
+		put(d, "ScrollPane.foreground", p.fg);
+
+		putTextLike(d, "TextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+		putTextLike(d, "FormattedTextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+		putTextLike(d, "PasswordField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+		putTextLike(d, "TextArea", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+		putTextLike(d, "TextPane", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+		putTextLike(d, "EditorPane", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+
+		put(d, "MenuBar.background", p.bg);
+		put(d, "MenuBar.foreground", p.fg);
+		put(d, "MenuBar.borderColor", p.border);
+		put(d, "MenuBar.hoverBackground", p.menuSelBg);
+		put(d, "MenuBar.hoverForeground", p.menuSelFg);
+		put(d, "MenuBar.selectionBackground", p.menuSelBg);
+		put(d, "MenuBar.selectionForeground", p.menuSelFg);
+		put(d, "MenuBar.disabledForeground", p.disabledFg);
+		putMenuLike(d, "Menu", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
+		putMenuLike(d, "MenuItem", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
+		putMenuLike(d, "CheckBoxMenuItem", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
+		putMenuLike(d, "RadioButtonMenuItem", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
+		put(d, "PopupMenu.background", p.popupBg);
+		put(d, "PopupMenu.foreground", p.popupFg);
+		put(d, "PopupMenu.borderColor", p.border);
+
+		put(d, "Button.foreground", p.buttonFg);
+		put(d, "Button.background", p.buttonBg);
+		put(d, "Button.disabledText", p.disabledFg);
+		put(d, "Button.disabledForeground", p.disabledFg);
+		put(d, "ToggleButton.foreground", p.buttonFg);
+		put(d, "ToggleButton.background", p.buttonBg);
+		put(d, "ToggleButton.disabledText", p.disabledFg);
+		put(d, "CheckBox.foreground", p.fg);
+		put(d, "CheckBox.background", p.bg);
+		put(d, "RadioButton.foreground", p.fg);
+		put(d, "RadioButton.background", p.bg);
+		put(d, "ComboBox.foreground", p.fg);
+		put(d, "ComboBox.background", p.inputBg);
+		put(d, "ComboBox.selectionBackground", p.selBg);
+		put(d, "ComboBox.selectionForeground", p.selFg);
+		put(d, "ComboBox.disabledForeground", p.disabledFg);
+		put(d, "Spinner.foreground", p.fg);
+		put(d, "Spinner.background", p.inputBg);
+
+		put(d, "List.background", p.bg);
+		put(d, "List.foreground", p.fg);
+		put(d, "List.selectionBackground", p.selBg);
+		put(d, "List.selectionForeground", p.selFg);
+		put(d, "Table.background", p.bg);
+		put(d, "Table.foreground", p.fg);
+		put(d, "Table.selectionBackground", p.selBg);
+		put(d, "Table.selectionForeground", p.selFg);
+		put(d, "Table.gridColor", p.border);
+		put(d, "TableHeader.background", p.headerBg);
+		put(d, "TableHeader.foreground", p.headerFg);
+		put(d, "Tree.background", p.bg);
+		put(d, "Tree.foreground", p.fg);
+		put(d, "Tree.textBackground", p.bg);
+		put(d, "Tree.textForeground", p.fg);
+		put(d, "Tree.selectionBackground", p.selBg);
+		put(d, "Tree.selectionForeground", p.selFg);
+
+		put(d, "TabbedPane.foreground", p.fg);
+		put(d, "TabbedPane.background", p.bg);
+		put(d, "TabbedPane.contentAreaColor", p.bg);
+		put(d, "TabbedPane.selectedBackground", p.bg);
+		put(d, "TabbedPane.selectedForeground", p.fg);
+		put(d, "TabbedPane.disabledForeground", p.disabledFg);
+		put(d, "TabbedPane.hoverColor", p.selBg);
+		put(d, "TabbedPane.focusColor", p.selBg);
+		put(d, "TabbedPane.underlineColor", p.selBg);
+		put(d, "TabbedPane.inactiveUnderlineColor", p.border);
+		put(d, "ToolBar.foreground", p.fg);
+		put(d, "ToolBar.background", p.bg);
+		put(d, "ToolTip.background", p.popupBg);
+		put(d, "ToolTip.foreground", p.popupFg);
+
+		put(d, "OptionPane.background", p.bg);
+		put(d, "OptionPane.foreground", p.fg);
+		put(d, "OptionPane.messageForeground", p.fg);
+		put(d, "OptionPane.buttonBackground", p.buttonBg);
+		put(d, "OptionPane.buttonForeground", p.buttonFg);
+
+		put(d, "ProgressBar.background", p.headerBg);
+		put(d, "ProgressBar.foreground", p.selBg);
+		put(d, "ProgressBar.selectionForeground", p.selFg);
+		put(d, "ProgressBar.selectionBackground", p.fg);
+		put(d, "Slider.background", p.bg);
+		put(d, "Slider.foreground", p.fg);
+		put(d, "FileChooser.background", p.bg);
+		put(d, "FileChooser.foreground", p.fg);
+	}
+
+	private void putTextLike(UIDefaults d, String prefix, Color bg, Color fg, Color selBg, Color selFg, Color caret,
+			Color disabledFg) {
+		put(d, prefix + ".background", bg);
+		put(d, prefix + ".foreground", fg);
+		put(d, prefix + ".caretForeground", caret);
+		put(d, prefix + ".selectionBackground", selBg);
+		put(d, prefix + ".selectionForeground", selFg);
+		put(d, prefix + ".inactiveForeground", disabledFg);
+		put(d, prefix + ".inactiveBackground", bg);
+		put(d, prefix + ".disabledBackground", bg);
+	}
+
+	private void putMenuLike(UIDefaults d, String prefix, Color bg, Color fg, Color selBg, Color selFg,
+			Color disabledFg) {
+		put(d, prefix + ".background", bg);
+		put(d, prefix + ".foreground", fg);
+		put(d, prefix + ".selectionBackground", selBg);
+		put(d, prefix + ".selectionForeground", selFg);
+		put(d, prefix + ".disabledForeground", disabledFg);
+		put(d, prefix + ".acceleratorForeground", fg);
+		put(d, prefix + ".acceleratorSelectionForeground", selFg);
+	}
+
+	private void put(UIDefaults d, String key, Object value) {
+		if (value != null) {
+			d.put(key, value);
+		}
+	}
+
+	private Palette paletteFromCurrentLookAndFeel(ThemeType theme) {
+		ThemeDefaults td = themeDefaults(theme);
+		Color bg = first(td.bg, "Panel.background", "control", "window", "Viewport.background");
+		Color fg = ensureContrast(first(td.fg, "Label.foreground", "Panel.foreground", "controlText", "textText"), bg);
+		Color inputBg = first(td.inputBg, "TextField.background", "TextArea.background", "TextPane.background", "text");
+		if (inputBg == null) {
+			inputBg = bg;
+		}
+		Color selBg = first(td.selBg, "MenuItem.selectionBackground", "TextField.selectionBackground",
+				"List.selectionBackground", "Table.selectionBackground");
+		if (selBg == null) {
+			selBg = blend(fg, bg, 0.25f);
+		}
+		Color selFg = ensureContrast(first(td.selFg, "MenuItem.selectionForeground", "TextField.selectionForeground",
+				"List.selectionForeground", "Table.selectionForeground"), selBg);
+		Color disabledFg = first(td.disabledFg, "Label.disabledForeground", "MenuItem.disabledForeground",
+				"Button.disabledText");
+		if (disabledFg == null || contrastRatio(disabledFg, bg) < 3.0d) {
+			disabledFg = blend(fg, bg, 0.45f);
+		}
+		if (contrastRatio(disabledFg, bg) < 3.0d) {
+			disabledFg = ensureContrast(disabledFg, bg);
+		}
+		Color popupBg = first(td.popupBg, "PopupMenu.background", "MenuItem.background", "ToolTip.background");
+		if (popupBg == null) {
+			popupBg = bg;
+		}
+		Color border = first(td.border, "Component.borderColor", "MenuBar.borderColor", "Separator.foreground");
+		if (border == null) {
+			border = blend(fg, bg, 0.25f);
+		}
+		Color caret = ensureContrast(first(td.caret, "TextField.caretForeground", "TextComponent.caretForeground"),
+				inputBg);
+		Color menuBg = first("Menu.background", "MenuItem.background", "MenuBar.background");
+		if (menuBg == null) {
+			menuBg = bg;
+		}
+		Color menuFg = ensureContrast(first("Menu.foreground", "MenuItem.foreground", "MenuBar.foreground"), menuBg);
+		Color menuSelBg = first("Menu.selectionBackground", "MenuItem.selectionBackground");
+		if (menuSelBg == null) {
+			menuSelBg = selBg;
+		}
+		Color menuSelFg = ensureContrast(first("Menu.selectionForeground", "MenuItem.selectionForeground"), menuSelBg);
+		Color popupFg = ensureContrast(first("PopupMenu.foreground", "ToolTip.foreground"), popupBg);
+		Color buttonBg = first("Button.background", "OptionPane.buttonBackground", "ToggleButton.background");
+		if (buttonBg == null) {
+			buttonBg = bg;
+		}
+		Color buttonFg = ensureContrast(
+				first("Button.foreground", "OptionPane.buttonForeground", "ToggleButton.foreground"), buttonBg);
+		Color headerBg = first("TableHeader.background", "ToolBar.background");
+		if (headerBg == null) {
+			headerBg = bg;
+		}
+		Color headerFg = ensureContrast(first("TableHeader.foreground", "ToolBar.foreground"), headerBg);
+
+		return new Palette(bg, fg, inputBg, buttonBg, buttonFg, selBg, selFg, disabledFg, popupBg, popupFg, menuBg,
+				menuFg, menuSelBg, menuSelFg, border, caret, headerBg, headerFg);
+	}
+
+	private ThemeDefaults themeDefaults(ThemeType theme) {
+		return switch (theme) {
+			case DRACULA -> new ThemeDefaults(c(0x282A36), c(0xF8F8F2), c(0x282A36), c(0x44475A), c(0xF8F8F2),
+					c(0x6272A4), c(0x21222C), c(0x44475A), c(0xF8F8F2));
+			case BROWN -> new ThemeDefaults(c(0x282828), c(0xEBDBB2), c(0x3C3836), c(0x504945), c(0xFBF1C7),
+					c(0x928374), c(0x282828), c(0x504945), c(0xEBDBB2));
+			case BROWN_LIGHT -> new ThemeDefaults(c(0xFBF1C7), c(0x3C3836), c(0xF2E5BC), c(0xD5C4A1), c(0x282828),
+					c(0x7C6F64), c(0xFBF1C7), c(0xD5C4A1), c(0x3C3836));
+			case DARK -> new ThemeDefaults(c(0x3C3F41), c(0xBBBBBB), null, c(0x4B6EAF), c(0xFFFFFF), c(0x777777), null,
+					null, c(0xBBBBBB));
+			case LIGHT -> new ThemeDefaults(c(0xF2F2F2), c(0x1F1F1F), null, c(0x2675BF), c(0xFFFFFF), c(0x8C8C8C), null,
+					null, c(0x1F1F1F));
+		};
+	}
+
+	private static Color first(Color preferred, String... keys) {
+		if (preferred != null) {
+			return preferred;
+		}
+		for (String key : keys) {
+			Color color = UIManager.getColor(key);
+			if (color != null) {
+				return color;
+			}
+		}
+		return null;
+	}
+
+	private static Color first(String... keys) {
+		return first(null, keys);
+	}
+
+	private static Color c(int rgb) {
+		return new Color(rgb);
+	}
+
+	private static Color ensureContrast(Color fg, Color bg) {
+		if (bg == null) {
+			return fg;
+		}
+		if (fg == null) {
+			return contrastingForeground(bg);
+		}
+		if (contrastRatio(fg, bg) >= 4.5d) {
+			return fg;
+		}
+		Color contrasted = contrastingForeground(bg);
+		if (contrastRatio(contrasted, bg) >= 4.5d) {
+			return contrasted;
+		}
+		return contrastRatio(Color.WHITE, bg) >= contrastRatio(Color.BLACK, bg) ? Color.WHITE : Color.BLACK;
+	}
+
+	private static Color contrastingForeground(Color bg) {
+		return contrastRatio(Color.WHITE, bg) >= contrastRatio(Color.BLACK, bg) ? Color.WHITE : Color.BLACK;
+	}
+
+	private static double contrastRatio(Color c1, Color c2) {
+		if (c1 == null || c2 == null) {
+			return 21.0d;
+		}
+		double l1 = luminance(c1);
+		double l2 = luminance(c2);
+		double lighter = Math.max(l1, l2);
+		double darker = Math.min(l1, l2);
+		return (lighter + 0.05d) / (darker + 0.05d);
+	}
+
+	private static double luminance(Color c) {
+		double r = srgb(c.getRed());
+		double g = srgb(c.getGreen());
+		double b = srgb(c.getBlue());
+		return 0.2126d * r + 0.7152d * g + 0.0722d * b;
+	}
+
+	private static double srgb(int channel) {
+		double v = channel / 255.0d;
+		return v <= 0.04045d ? v / 12.92d : Math.pow((v + 0.055d) / 1.055d, 2.4d);
+	}
+
+	private static Color blend(Color fg, Color bg, float fgRatio) {
+		if (fg == null) {
+			return bg;
+		}
+		if (bg == null) {
+			return fg;
+		}
+		float bgRatio = 1f - fgRatio;
+		int r = Math.round(fg.getRed() * fgRatio + bg.getRed() * bgRatio);
+		int g = Math.round(fg.getGreen() * fgRatio + bg.getGreen() * bgRatio);
+		int b = Math.round(fg.getBlue() * fgRatio + bg.getBlue() * bgRatio);
+		return new Color(clamp(r), clamp(g), clamp(b));
+	}
+
+	private static int clamp(int value) {
+		return Math.max(0, Math.min(255, value));
+	}
+
+	private record ThemeDefaults(Color bg, Color fg, Color inputBg, Color selBg, Color selFg, Color disabledFg,
+			Color popupBg, Color border, Color caret) {
+	}
+
+	private record Palette(Color bg, Color fg, Color inputBg, Color buttonBg, Color buttonFg, Color selBg, Color selFg,
+			Color disabledFg, Color popupBg, Color popupFg, Color menuBg, Color menuFg, Color menuSelBg,
+			Color menuSelFg, Color border, Color caret, Color headerBg, Color headerFg) {
 	}
 
 }
