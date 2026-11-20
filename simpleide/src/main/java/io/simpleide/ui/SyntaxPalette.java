@@ -34,7 +34,7 @@ import java.awt.Color;
  * @param preprocessor preprocessor directive
  * @param hyperlink hyperlink
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  */
 public record SyntaxPalette(Color comment, Color commentKeyword, Color keyword, Color keywordSecondary, Color type,
 		Color function, Color string, Color number, Color booleanLiteral, Color punctuation, Color operator,

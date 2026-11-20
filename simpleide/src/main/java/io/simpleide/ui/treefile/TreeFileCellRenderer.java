@@ -1,14 +1,15 @@
 package io.simpleide.ui.treefile;
 
-import io.simpleide.ui.icon.MaterialIcons;
 import java.awt.Color;
 import java.awt.Component;
 
 import javax.swing.Icon;
 import javax.swing.JTree;
-import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
+
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.icon.MaterialIcons;
 
 /**
  * Tree cell renderer that draws folders and per-language file icons.
@@ -20,7 +21,7 @@ import javax.swing.tree.DefaultTreeCellRenderer;
  * when necessary so names remain readable on every theme.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  */
 public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 
@@ -43,23 +44,21 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 	}
 
 	private void applyTextColors(JTree tree, boolean selected) {
-		Color background = selected ? UIManager.getColor("Tree.selectionBackground")
-				: UIManager.getColor("Tree.background");
-		Color foreground = selected ? UIManager.getColor("Tree.selectionForeground")
-				: UIManager.getColor("Tree.foreground");
-		if (background == null && tree != null) {
-			background = tree.getBackground();
+		Color treeBackground = ThemeColors.ui("Tree.background");
+		Color selectionBackground = ThemeColors.ui("Tree.selectionBackground");
+		Color treeForeground = ThemeColors.ui("Tree.foreground");
+		Color selectionForeground = ThemeColors.ui("Tree.selectionForeground");
+		if (tree != null) {
+			treeBackground = treeBackground == null ? tree.getBackground() : treeBackground;
+			treeForeground = treeForeground == null ? tree.getForeground() : treeForeground;
 		}
-		if (foreground == null && tree != null) {
-			foreground = tree.getForeground();
-		}
-		setOpaque(selected);
-		if (background != null) {
-			setBackground(background);
-		}
-		if (foreground != null) {
-			setForeground(foreground);
-		}
+		setBackgroundNonSelectionColor(treeBackground);
+		setTextNonSelectionColor(treeForeground);
+		setBackgroundSelectionColor(selectionBackground == null ? treeBackground : selectionBackground);
+		setTextSelectionColor(selectionForeground == null ? treeForeground : selectionForeground);
+		setBorderSelectionColor(selectionBackground == null ? treeBackground : selectionBackground);
+		setForeground(selected ? selectionForeground : treeForeground);
+		setOpaque(false);
 	}
 
 }

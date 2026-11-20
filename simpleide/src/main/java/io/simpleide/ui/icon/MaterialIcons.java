@@ -1,9 +1,5 @@
 package io.simpleide.ui.icon;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.formdev.flatlaf.extras.FlatSVGIcon;
-import io.simpleide.ui.ThemeColors;
 import java.awt.Color;
 import java.awt.Font;
 import java.io.IOException;
@@ -13,10 +9,18 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+
 import javax.swing.Icon;
 import javax.swing.UIManager;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.formdev.flatlaf.extras.FlatSVGIcon;
+
+import io.simpleide.ui.ThemeColors;
 
 /**
  * Material Icon Theme file and folder icons bundled with the application.

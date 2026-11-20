@@ -20,7 +20,7 @@ import javax.swing.UIManager;
  * Covered by {@code TerminalSettingsProviderTest}.
  *
  * @author BrunoRNS
- * @since v1.0.0beta
+ * @since v1.1.0
  */
 public final class TerminalSettingsProvider extends DefaultSettingsProvider {
 

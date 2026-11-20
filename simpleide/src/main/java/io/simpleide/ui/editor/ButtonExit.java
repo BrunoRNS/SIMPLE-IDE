@@ -22,7 +22,7 @@ import javax.swing.UIManager;
  * prompt is honored.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  */
 public class ButtonExit extends JButton {
 

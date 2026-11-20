@@ -12,7 +12,7 @@ import javax.swing.UIManager;
  * Covered by {@code LogLevelColorMappingTest}.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/logging.md">docs/api/ui/logging.md</a>
  */

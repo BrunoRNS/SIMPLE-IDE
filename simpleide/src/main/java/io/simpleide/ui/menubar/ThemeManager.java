@@ -14,11 +14,21 @@ import java.util.List;
 
 import javax.swing.JMenu;
 import javax.swing.BorderFactory;
+import javax.swing.AbstractButton;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.JTree;
+import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
+import javax.swing.JPanel;
+import javax.swing.JTextPane;
 
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rsyntaxtextarea.TokenTypes;
@@ -48,7 +58,7 @@ import io.simpleide.utils.ResourceUtil;
  * Covered by {@code ThemeManagerTest}.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/menubar.md">docs/api/ui/menubar.md</a>
  */
@@ -178,9 +188,65 @@ public final class ThemeManager {
 			}
 			SwingUtilities.updateComponentTreeUI(window);
 			updateMenuPopups(window);
+			refreshComponentTheme(window, currentPalette());
 			window.invalidate();
 			window.validate();
 			window.repaint();
+		}
+	}
+
+	void refreshComponentTheme(Component component, ThemePalette palette) {
+		if (component instanceof JMenuBar menuBar) {
+			menuBar.setBackground(palette.menuBarBackground());
+			menuBar.setForeground(palette.foreground());
+			menuBar.setOpaque(true);
+		}
+		else if (component instanceof JPopupMenu popup) {
+			popup.setBackground(palette.popupBackground());
+			popup.setForeground(palette.popupForeground());
+		}
+		else if (component instanceof JMenuItem menuItem) {
+			menuItem.setForeground(palette.foreground());
+			if (menuItem instanceof JMenu menu && menu.getParent() instanceof JMenuBar) {
+				menu.setBackground(palette.menuBarBackground());
+				menu.setOpaque(true);
+			}
+		}
+		else if (component instanceof AbstractButton button) {
+			button.putClientProperty("JButton.buttonType", "roundRect");
+			button.setBackground(palette.buttonBackground());
+			button.setForeground(palette.buttonForeground());
+		}
+		else if (component instanceof JTabbedPane tabs) {
+			tabs.setBackground(palette.surface());
+			tabs.setForeground(palette.foreground());
+		}
+		else if (component instanceof JSplitPane splitPane) {
+			splitPane.setBackground(palette.background());
+			splitPane.setDividerSize(10);
+		}
+		else if (component instanceof JTree tree) {
+			tree.setBackground(palette.background());
+			tree.setForeground(palette.foreground());
+		}
+		else if (component instanceof JTextPane textPane) {
+			textPane.setBackground(palette.background());
+			textPane.setForeground(palette.foreground());
+		}
+		else if (component instanceof JViewport viewport) {
+			viewport.setBackground(palette.background());
+		}
+		else if (component instanceof JScrollPane scrollPane) {
+			scrollPane.setBackground(palette.background());
+		}
+		else if (component instanceof JPanel panel) {
+			panel.setBackground(palette.background());
+			panel.setForeground(palette.foreground());
+		}
+		if (component instanceof Container container) {
+			for (Component child : container.getComponents()) {
+				refreshComponentTheme(child, palette);
+			}
 		}
 	}
 
@@ -339,9 +405,9 @@ public final class ThemeManager {
 		put(d, "Component.success.borderColor", syntax.function());
 		put(d, "Component.success.focusedBorderColor", syntax.function());
 		put(d, "Component.focusWidth", 1);
-		put(d, "Component.innerFocusWidth", 0);
+		put(d, "Component.innerFocusWidth", 1);
 		put(d, "Component.borderWidth", 1);
-		put(d, "Component.arc", 6);
+		put(d, "Component.arc", 12);
 		put(d, "Component.minimumWidth", 0);
 		put(d, "Component.arrowType", "chevron");
 		put(d, "Component.hideMnemonics", true);
@@ -384,8 +450,8 @@ public final class ThemeManager {
 		put(d, "Separator.stripeIndent", 1);
 
 		put(d, "SplitPane.background", p.background());
-		put(d, "SplitPaneDivider.background", p.border());
-		put(d, "SplitPane.dividerSize", 1);
+		put(d, "SplitPaneDivider.background", p.background());
+		put(d, "SplitPane.dividerSize", 10);
 		put(d, "SplitPaneDivider.style", "plain");
 		put(d, "SplitPaneDivider.gripColor", p.mutedForeground());
 		put(d, "SplitPaneDivider.hoverColor", p.accent());
@@ -395,14 +461,14 @@ public final class ThemeManager {
 		put(d, "SplitPaneDivider.oneTouchHoverArrowColor", p.accent());
 		put(d, "SplitPaneDivider.oneTouchPressedArrowColor", p.accent());
 		put(d, "SplitPaneDivider.gripDotCount", 3);
-		put(d, "SplitPaneDivider.gripDotSize", 3);
+		put(d, "SplitPaneDivider.gripDotSize", 4);
 		put(d, "SplitPaneDivider.gripGap", 2);
 
 		put(d, "Viewport.background", p.background());
 		put(d, "ScrollPane.background", p.background());
 		put(d, "ScrollPane.foreground", p.foreground());
 		put(d, "ScrollPane.borderColor", p.border());
-		put(d, "ScrollPane.arc", 0);
+		put(d, "ScrollPane.arc", 10);
 		put(d, "ScrollPane.fillUpperCorner", true);
 		put(d, "ScrollPane.smoothScrolling", true);
 		put(d, "ScrollBar.track", p.scrollbarTrack());
@@ -440,12 +506,12 @@ public final class ThemeManager {
 		put(d, "TextField.placeholderForeground", p.mutedForeground());
 		put(d, "FormattedTextField.placeholderForeground", p.mutedForeground());
 		put(d, "PasswordField.placeholderForeground", p.mutedForeground());
-		put(d, "TextField.arc", 6);
-		put(d, "FormattedTextField.arc", 6);
-		put(d, "PasswordField.arc", 6);
-		put(d, "TextArea.arc", 0);
-		put(d, "TextPane.arc", 0);
-		put(d, "EditorPane.arc", 0);
+		put(d, "TextField.arc", 10);
+		put(d, "FormattedTextField.arc", 10);
+		put(d, "PasswordField.arc", 10);
+		put(d, "TextArea.arc", 8);
+		put(d, "TextPane.arc", 8);
+		put(d, "EditorPane.arc", 8);
 
 		put(d, "MenuBar.background", p.menuBarBackground());
 		put(d, "MenuBar.foreground", p.foreground());
@@ -457,7 +523,7 @@ public final class ThemeManager {
 		put(d, "MenuBar.selectionForeground", p.selectionForeground());
 		put(d, "MenuBar.itemMargins", new Insets(3, 8, 3, 8));
 		put(d, "MenuBar.selectionInsets", new Insets(2, 6, 2, 6));
-		put(d, "MenuBar.selectionArc", 4);
+		put(d, "MenuBar.selectionArc", 8);
 		putMenuLike(d, "Menu", p);
 		putMenuLike(d, "MenuItem", p);
 		putMenuLike(d, "CheckBoxMenuItem", p);
@@ -476,13 +542,13 @@ public final class ThemeManager {
 		put(d, "Popup.foreground", p.popupForeground());
 		put(d, "Popup.borderColor", p.border());
 		put(d, "Popup.borderWidth", 1);
-		put(d, "Popup.borderCornerRadius", 6);
+		put(d, "Popup.borderCornerRadius", 12);
 		put(d, "Popup.dropShadowPainted", true);
 		put(d, "PopupMenu.background", p.popupBackground());
 		put(d, "PopupMenu.foreground", p.popupForeground());
 		put(d, "PopupMenu.borderColor", p.border());
 		put(d, "PopupMenu.borderWidth", 1);
-		put(d, "PopupMenu.borderCornerRadius", 6);
+		put(d, "PopupMenu.borderCornerRadius", 12);
 		put(d, "PopupMenu.borderInsets", new Insets(4, 1, 4, 1));
 		put(d, "PopupMenu.separatorColor", p.border());
 		put(d, "PopupMenuSeparator.stripeWidth", 1);
@@ -492,7 +558,7 @@ public final class ThemeManager {
 		put(d, "ToolTip.foreground", p.tooltipForeground());
 		put(d, "ToolTip.borderColor", p.border());
 		put(d, "ToolTip.borderWidth", 1);
-		put(d, "ToolTip.borderCornerRadius", 6);
+		put(d, "ToolTip.borderCornerRadius", 10);
 		put(d, "ToolTip.margin", new Insets(4, 8, 4, 8));
 
 		put(d, "Button.background", p.buttonBackground());
@@ -514,7 +580,7 @@ public final class ThemeManager {
 		put(d, "Button.focusedBorderColor", p.focusBorder());
 		put(d, "Button.hoverBorderColor", p.focusBorder());
 		put(d, "Button.disabledBorderColor", p.border());
-		put(d, "Button.arc", 6);
+		put(d, "Button.arc", 12);
 		put(d, "Button.borderWidth", 1);
 		put(d, "Button.margin", new Insets(2, 14, 2, 14));
 		put(d, "Button.minimumWidth", 72);
@@ -551,14 +617,14 @@ public final class ThemeManager {
 		put(d, "ComboBox.selectionForeground", p.selectionForeground());
 		put(d, "ComboBox.popupBackground", p.popupBackground());
 		put(d, "ComboBox.popupForeground", p.popupForeground());
-		put(d, "ComboBox.arc", 6);
+		put(d, "ComboBox.arc", 10);
 		put(d, "ComboBox.borderColor", p.border());
 		put(d, "ComboBox.focusedBorderColor", p.focusBorder());
 		put(d, "ComboBox.disabledBorderColor", p.border());
 		put(d, "ComboBox.editableBackground", p.inputBackground());
 		put(d, "ComboBox.focusedBackground", p.inputBackground());
 		put(d, "ComboBox.selectionInsets", new Insets(2, 4, 2, 4));
-		put(d, "ComboBox.selectionArc", 4);
+		put(d, "ComboBox.selectionArc", 8);
 		put(d, "ComboBox.padding", new Insets(2, 6, 2, 6));
 		put(d, "ComboBox.minimumWidth", 72);
 		put(d, "ComboBox.arrowType", "chevron");
@@ -577,7 +643,7 @@ public final class ThemeManager {
 		put(d, "Spinner.borderColor", p.border());
 		put(d, "Spinner.focusedBorderColor", p.focusBorder());
 		put(d, "Spinner.disabledBorderColor", p.border());
-		put(d, "Spinner.arc", 6);
+		put(d, "Spinner.arc", 10);
 		put(d, "Spinner.padding", new Insets(2, 6, 2, 6));
 		put(d, "Spinner.buttonStyle", "button");
 
@@ -588,7 +654,7 @@ public final class ThemeManager {
 		put(d, "List.selectionInactiveBackground", p.inactiveSelectionBackground());
 		put(d, "List.selectionInactiveForeground", p.inactiveSelectionForeground());
 		put(d, "List.cellFocusColor", p.focusBorder());
-		put(d, "List.selectionArc", 4);
+		put(d, "List.selectionArc", 8);
 		put(d, "List.selectionInsets", new Insets(2, 4, 2, 4));
 		put(d, "List.cellMargins", new Insets(2, 6, 2, 6));
 		put(d, "List.rowHeight", 22);
@@ -628,9 +694,9 @@ public final class ThemeManager {
 		put(d, "Tree.selectionForeground", p.selectionForeground());
 		put(d, "Tree.selectionInactiveBackground", p.inactiveSelectionBackground());
 		put(d, "Tree.selectionInactiveForeground", p.inactiveSelectionForeground());
-		put(d, "Tree.selectionBorderColor", p.focusBorder());
+		put(d, "Tree.selectionBorderColor", p.treeSelectionBackground());
 		put(d, "Tree.hash", p.border());
-		put(d, "Tree.selectionArc", 4);
+		put(d, "Tree.selectionArc", 8);
 		put(d, "Tree.selectionInsets", new Insets(2, 4, 2, 4));
 		put(d, "Tree.rowHeight", 22);
 		put(d, "Tree.rendererMargins", new Insets(2, 4, 2, 4));
@@ -667,8 +733,8 @@ public final class ThemeManager {
 		put(d, "TabbedPane.tabSelectionHeight", 2);
 		put(d, "TabbedPane.tabInsets", new Insets(4, 12, 4, 12));
 		put(d, "TabbedPane.tabAreaInsets", new Insets(0, 0, 0, 0));
-		put(d, "TabbedPane.tabArc", 0);
-		put(d, "TabbedPane.tabSelectionArc", 0);
+		put(d, "TabbedPane.tabArc", 10);
+		put(d, "TabbedPane.tabSelectionArc", 10);
 		put(d, "TabbedPane.tabType", "underlined");
 		put(d, "TabbedPane.hasFullBorder", false);
 
@@ -788,7 +854,7 @@ public final class ThemeManager {
 		put(d, prefix + ".acceleratorForeground", p.mutedForeground());
 		put(d, prefix + ".acceleratorSelectionForeground", p.menuSelectionForeground());
 		put(d, prefix + ".selectionInsets", new Insets(2, 4, 2, 4));
-		put(d, prefix + ".selectionArc", 4);
+		put(d, prefix + ".selectionArc", 8);
 		put(d, prefix + ".margin", new Insets(3, 6, 3, 6));
 	}
 

@@ -38,6 +38,13 @@ class TerminalPanelTest {
 			SwingUtilities.invokeAndWait(() -> {
 				TerminalPanel panel = new TerminalPanel();
 				assertThat(findButtons(panel)).isNotEmpty().allSatisfy(button -> {
+					assertThat(button.getBackground()).as("button background follows active theme")
+						.isEqualTo(background);
+					assertThat(button.getForeground()).as("button foreground follows active theme")
+						.isEqualTo(foreground);
+					assertThat(button.getClientProperty("JButton.buttonType"))
+						.as("terminal action buttons use rounded styling")
+						.isEqualTo("roundRect");
 					FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
 					FlatSVGIcon.ColorFilter filter = icon.getColorFilter();
 					assertThat(filter.filter(null, new Color(0x6E7781))).as("accent stroke color")

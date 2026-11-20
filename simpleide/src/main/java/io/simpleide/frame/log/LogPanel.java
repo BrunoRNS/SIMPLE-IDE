@@ -24,7 +24,7 @@ import org.slf4j.LoggerFactory;
  * Covered by {@code LogPanelTest}.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/logging.md">docs/api/ui/logging.md</a>
  */

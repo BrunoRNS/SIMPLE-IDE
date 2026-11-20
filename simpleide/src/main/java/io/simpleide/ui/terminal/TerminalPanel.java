@@ -28,7 +28,7 @@ import javax.swing.UIManager;
  * Covered by {@code TerminalPanelTest}.
  *
  * @author BrunoRNS
- * @since v1.0.0beta
+ * @since v1.1.0
  */
 public final class TerminalPanel extends JPanel {
 
@@ -65,6 +65,8 @@ public final class TerminalPanel extends JPanel {
 		closeButton.setMaximumSize(buttonSize);
 		closeButton.getAccessibleContext().setAccessibleName("Close selected terminal");
 		closeButton.setEnabled(false);
+		applyThemeToActionButton(addButton);
+		applyThemeToActionButton(closeButton);
 
 		actions.add(addButton);
 		actions.add(closeButton);
@@ -75,11 +77,41 @@ public final class TerminalPanel extends JPanel {
 	@Override
 	public void updateUI() {
 		super.updateUI();
+		if (terminalTabs != null) {
+			Color background = UIManager.getColor("TabbedPane.background");
+			Color foreground = UIManager.getColor("TabbedPane.foreground");
+			Color panelBackground = UIManager.getColor("Panel.background");
+			if (background != null) {
+				terminalTabs.setBackground(background);
+			}
+			if (panelBackground != null) {
+				setBackground(panelBackground);
+			}
+			if (foreground != null) {
+				terminalTabs.setForeground(foreground);
+			}
+		}
+		Color buttonBackground = UIManager.getColor("Button.background");
+		Color buttonForeground = UIManager.getColor("Button.foreground");
 		if (addButton != null) {
+			applyThemeToActionButton(addButton);
 			addButton.setIcon(createActionIcon("io/simpleide/ui/terminal/terminal-add.svg"));
 		}
 		if (closeButton != null) {
+			applyThemeToActionButton(closeButton);
 			closeButton.setIcon(createActionIcon("io/simpleide/ui/terminal/terminal-close.svg"));
+		}
+	}
+
+	private static void applyThemeToActionButton(JButton button) {
+		button.putClientProperty("JButton.buttonType", "roundRect");
+		Color background = UIManager.getColor("Button.background");
+		Color foreground = UIManager.getColor("Button.foreground");
+		if (background != null) {
+			button.setBackground(background);
+		}
+		if (foreground != null) {
+			button.setForeground(foreground);
 		}
 	}
 

@@ -1,26 +1,30 @@
 package io.simpleide.ui.editor;
 
 import java.awt.BorderLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 
-import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingConstants;
 import javax.swing.UIManager;
 
-import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 
 /**
  * Welcome page shown when no editor tab is open.
  *
  * <p>
- * Offers buttons to open a folder or create a file. Both callbacks are supplied by the
- * editor manager and run as EDT nodes.
+ * Offers quick actions to open a folder or create a file. The centered layout and
+ * typography keep the landing page visually separate from editor content.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  */
 public final class EditorWelcomeScreen {
 
@@ -28,43 +32,57 @@ public final class EditorWelcomeScreen {
 	}
 
 	public static JPanel create(Runnable openFolder, Runnable createFile) {
-		JPanel welcomePanel = new WelcomePanel();
-		welcomePanel.setLayout(new BorderLayout());
-
+		WelcomePanel welcomePanel = new WelcomePanel();
 		JPanel content = new JPanel();
-		MainLayout layout = new MainLayout();
-		content.setLayout(layout);
 		content.setOpaque(false);
+		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
-		JLabel title = new JLabel("Welcome to SIMPLE-IDE");
-		title.setHorizontalAlignment(SwingConstants.CENTER);
-		layout.addComponent(title, 0, 0, 2, 1);
-		content.add(title);
+		JLabel title = new JLabel("Welcome to SIMPLE-IDE", SwingConstants.CENTER);
+		Font labelFont = UIManager.getFont("Label.font");
+		if (labelFont != null) {
+			title.setFont(labelFont.deriveFont(Font.BOLD, 28f));
+		}
+		title.setForeground(UIManager.getColor("Label.foreground"));
+		title.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 
-		JLabel subtitle = new JLabel("Open a file in the tree to start editing.");
-		subtitle.setHorizontalAlignment(SwingConstants.CENTER);
-		layout.addComponent(subtitle, 0, 1, 2, 1);
-		content.add(subtitle);
+		JLabel subtitle = new JLabel("Open a project or create a file to get started", SwingConstants.CENTER);
+		subtitle.setForeground(UIManager.getColor("Label.disabledForeground"));
+		subtitle.setAlignmentX(JLabel.CENTER_ALIGNMENT);
 
-		JButton openFolderButton = createButton("Open Folder");
+		JPanel actions = new JPanel(new GridBagLayout());
+		actions.setOpaque(false);
+		GridBagConstraints constraints = new GridBagConstraints();
+		constraints.gridy = 0;
+		constraints.insets = new Insets(0, 0, 0, 12);
+		JButton openFolderButton = createButton("Open Folder", true);
 		openFolderButton.addActionListener(new ActionNode(event -> openFolder.run()));
-		layout.addComponent(openFolderButton, 0, 3, 1, 1);
-		content.add(openFolderButton);
+		actions.add(openFolderButton, constraints);
 
-		JButton newFileButton = createButton("New File");
+		constraints.gridx = 1;
+		constraints.insets = new Insets(0, 0, 0, 0);
+		JButton newFileButton = createButton("New File", false);
 		newFileButton.addActionListener(new ActionNode(event -> createFile.run()));
-		layout.addComponent(newFileButton, 0, 4, 1, 1);
-		content.add(newFileButton);
+		actions.add(newFileButton, constraints);
 
+		content.add(Box.createVerticalGlue());
+		content.add(title);
+		content.add(Box.createVerticalStrut(10));
+		content.add(subtitle);
+		content.add(Box.createVerticalStrut(24));
+		content.add(actions);
+		content.add(Box.createVerticalGlue());
 		welcomePanel.add(content, BorderLayout.CENTER);
 		return welcomePanel;
 	}
 
-	private static JButton createButton(String text) {
+	private static JButton createButton(String text, boolean primary) {
 		JButton button = new JButton(text);
+		button.putClientProperty("JButton.buttonType", "roundRect");
 		button.setFocusable(false);
-		button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-		button.setContentAreaFilled(true);
+		button.setMargin(new Insets(9, 18, 9, 18));
+		if (primary) {
+			button.setFont(button.getFont().deriveFont(Font.BOLD));
+		}
 		return button;
 	}
 
