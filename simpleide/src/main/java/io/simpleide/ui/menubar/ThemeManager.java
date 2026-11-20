@@ -3,6 +3,7 @@ package io.simpleide.ui.menubar;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Insets;
 import java.awt.Window;
 import java.io.IOException;
 import java.io.InputStream;
@@ -12,6 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JMenu;
+import javax.swing.BorderFactory;
+import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
@@ -25,6 +28,8 @@ import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
 
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.SyntaxPalette;
+import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorManager;
 import io.simpleide.utils.ResourceUtil;
@@ -36,7 +41,8 @@ import io.simpleide.utils.ResourceUtil;
  * The manager keeps a set of registered editors so a theme change updates both the Swing
  * windows and the syntax highlighting. Themes include light, dark, Dracula, Dracula
  * Light, Brown and Brown Light. Theme changes are marshalled to the Swing Event Dispatch
- * Thread.
+ * Thread. Colors come from {@link ThemePalette}, which mirrors the official palettes of
+ * VS Code Dark+/Light+, Dracula, Alucard and Gruvbox.
  *
  * <p>
  * Covered by {@code ThemeManagerTest}.
@@ -72,6 +78,31 @@ public final class ThemeManager {
 
 		DARK, LIGHT, DRACULA, DRACULA_LIGHT, BROWN, BROWN_LIGHT,
 
+	}
+
+	/**
+	 * Returns the palette for a theme.
+	 * @param theme theme identifier
+	 * @return the official palette for the theme
+	 */
+	public static ThemePalette paletteOf(ThemeType theme) {
+		return ThemePalette.of(theme);
+	}
+
+	/**
+	 * Returns the currently selected theme.
+	 * @return the current theme identifier
+	 */
+	public ThemeType getCurrentTheme() {
+		return currentTheme;
+	}
+
+	/**
+	 * Returns the palette of the currently selected theme.
+	 * @return the current palette
+	 */
+	public ThemePalette currentPalette() {
+		return ThemePalette.of(currentTheme);
 	}
 
 	/**
@@ -157,8 +188,12 @@ public final class ThemeManager {
 		if (component == null) {
 			return;
 		}
+		if (component instanceof JPopupMenu popup) {
+			SwingUtilities.updateComponentTreeUI(popup);
+		}
 		if (component instanceof JMenu menu) {
 			SwingUtilities.updateComponentTreeUI(menu.getPopupMenu());
+			updateMenuPopups(menu.getPopupMenu());
 		}
 		if (component instanceof Container container) {
 			for (Component child : container.getComponents()) {
@@ -168,56 +203,58 @@ public final class ThemeManager {
 	}
 
 	private void applyEditorTheme(Editor editor, ThemeType theme) {
-		String themeResource = switch (theme) {
-			case LIGHT -> "default.xml";
-			case DARK -> "dark.xml";
-			case DRACULA -> "dracula.xml";
-			case DRACULA_LIGHT -> "default.xml";
-			case BROWN, BROWN_LIGHT -> "dark.xml";
-		};
+		ThemePalette palette = ThemePalette.of(theme);
+		String themeResource = palette.dark() ? "dark.xml" : "default.xml";
 
 		try {
-			Path themePath = theme == ThemeType.DRACULA
-					? ResourceUtil.getResourcePath(ThemeManager.class, themeResource)
-					: ResourceUtil.getResourcePath("org.fife.ui.rsyntaxtextarea.themes", themeResource);
+			Path themePath = ResourceUtil.getResourcePath("org.fife.ui.rsyntaxtextarea.themes", themeResource);
 			try (InputStream input = Files.newInputStream(themePath)) {
 				Theme editorTheme = Theme.load(input);
-				if (theme == ThemeType.DRACULA || theme == ThemeType.DRACULA_LIGHT) {
-					boolean light = theme == ThemeType.DRACULA_LIGHT;
-					editorTheme.bgColor = new Color(light ? 0xF8F8F2 : 0x282A36);
-					editorTheme.caretColor = new Color(light ? 0x282A36 : 0xF8F8F2);
-					editorTheme.selectionBG = new Color(light ? 0xE6E6DC : 0x44475A);
-					editorTheme.currentLineHighlight = new Color(light ? 0xEFEFE5 : 0x44475A);
-					editorTheme.gutterBackgroundColor = editorTheme.bgColor;
-					editorTheme.gutterBorderColor = editorTheme.selectionBG;
-					editorTheme.lineNumberColor = new Color(0x6272A4);
-					editorTheme.currentLineNumberColor = editorTheme.caretColor;
-				}
-				if (theme == ThemeType.BROWN || theme == ThemeType.BROWN_LIGHT) {
-					boolean lightBrown = theme == ThemeType.BROWN_LIGHT;
-					editorTheme.bgColor = new Color(lightBrown ? 0xFBF1C7 : 0x282828);
-					editorTheme.caretColor = new Color(lightBrown ? 0x3C3836 : 0xEBDBB2);
-					editorTheme.selectionBG = new Color(lightBrown ? 0xD5C4A1 : 0x504945);
-					editorTheme.currentLineHighlight = new Color(lightBrown ? 0xF2E5BC : 0x32302F);
-					editorTheme.gutterBackgroundColor = editorTheme.bgColor;
-					editorTheme.gutterBorderColor = editorTheme.selectionBG;
-					editorTheme.lineNumberColor = new Color(lightBrown ? 0xA89984 : 0x928374);
-					editorTheme.currentLineNumberColor = editorTheme.caretColor;
-				}
-				if (theme != ThemeType.DRACULA) {
-					applyReadableSyntaxColors(editorTheme, theme);
-				}
-				ensureSyntaxSchemeContrast(editorTheme);
+				editorTheme.bgColor = palette.background();
+				editorTheme.caretColor = palette.foreground();
+				editorTheme.selectionBG = palette.editorSelectionBackground();
+				editorTheme.selectionFG = palette.editorSelectionForeground();
+				editorTheme.useSelectionFG = true;
+				editorTheme.selectionRoundedEdges = true;
+				editorTheme.currentLineHighlight = palette.editorCurrentLine();
+				editorTheme.fadeCurrentLineHighlight = false;
+				editorTheme.gutterBackgroundColor = palette.editorGutterBackground();
+				editorTheme.gutterBorderColor = palette.border();
+				editorTheme.lineNumberColor = palette.editorLineNumber();
+				editorTheme.currentLineNumberColor = palette.editorCurrentLineNumber();
+				editorTheme.marginLineColor = palette.border();
+				editorTheme.markAllHighlightColor = palette.editorSelectionBackground();
+				editorTheme.markOccurrencesColor = palette.editorSelectionBackground();
+				editorTheme.markOccurrencesBorder = false;
+				editorTheme.matchedBracketFG = palette.accent();
+				editorTheme.matchedBracketBG = palette.editorSelectionBackground();
+				editorTheme.matchedBracketHighlightBoth = true;
+				editorTheme.matchedBracketAnimate = true;
+				editorTheme.hyperlinkFG = palette.syntax().hyperlink();
+				editorTheme.activeLineRangeColor = palette.accent();
+				editorTheme.tabLineColor = palette.border();
+				editorTheme.foldIndicatorBG = palette.surface();
+				editorTheme.foldIndicatorFG = palette.mutedForeground();
+				editorTheme.foldIndicatorArmedFG = palette.accent();
+				editorTheme.foldBG = palette.surface();
+				editorTheme.armedFoldBG = palette.elevated();
+				editorTheme.iconRowHeaderInheritsGutterBG = true;
+				applySyntaxPalette(editorTheme, palette.syntax());
 				editorTheme.apply(editor);
-				if (theme == ThemeType.DRACULA) {
-					editor.setBracketMatchingEnabled(true);
-					editor.setMatchedBracketBGColor(new Color(0x44475A));
-					editor.setMatchedBracketBorderColor(new Color(0xFF79C6));
-					editor.setPaintMatchedBracketPair(true);
-					editor.setMarkOccurrencesColor(new Color(0x44475A));
-					editor.setMarkAllHighlightColor(new Color(0x44475A));
-					editor.setHyperlinkForeground(new Color(0x8BE9FD));
-				}
+				editor.setBracketMatchingEnabled(true);
+				editor.setMatchedBracketBGColor(palette.editorSelectionBackground());
+				editor.setMatchedBracketBorderColor(palette.accent());
+				editor.setPaintMatchedBracketPair(true);
+				editor.setMarkOccurrencesColor(palette.editorSelectionBackground());
+				editor.setMarkAllHighlightColor(palette.editorSelectionBackground());
+				editor.setHyperlinkForeground(palette.syntax().hyperlink());
+				editor.setTabLineColor(palette.border());
+				editor.setSelectionColor(palette.editorSelectionBackground());
+				editor.setSelectedTextColor(palette.editorSelectionForeground());
+				editor.setUseSelectedTextColor(true);
+				editor.setCaretColor(palette.foreground());
+				editor.setBackground(palette.background());
+				editor.setForeground(palette.foreground());
 			}
 		}
 		catch (IOException exception) {
@@ -237,386 +274,542 @@ public final class ThemeManager {
 		}
 	}
 
-	private void applyReadableSyntaxColors(Theme editorTheme, ThemeType theme) {
-		Color comments;
-		Color keywords;
-		Color types;
-		Color functions;
-		Color strings;
-		Color numbers;
-		Color punctuation;
-		Color commentKeywords;
-		Color identifiers;
-		Color variables;
-		Color annotations;
-		Color regexes;
-		Color booleans;
-		Color errors;
-		Color markupTags;
-		Color markupAttributes;
-		Color markupValues;
-		Color markupOther;
-
-		if (null == theme) {
-			comments = new Color(0x8FA39A);
-			keywords = new Color(0xF08A9B);
-			types = new Color(0x9CCB8A);
-			functions = new Color(0x83C5E8);
-			strings = new Color(0xE4C07A);
-			numbers = new Color(0xC6A0F6);
-			punctuation = new Color(0xD5DCE5);
-			commentKeywords = new Color(0xE4C07A);
-			identifiers = new Color(0xD5DCE5);
-			variables = new Color(0x83C5E8);
-			annotations = new Color(0xF08A9B);
-			regexes = new Color(0xE4C07A);
-			booleans = new Color(0xC6A0F6);
-			errors = new Color(0xF08A9B);
-			markupTags = new Color(0xF08A9B);
-			markupAttributes = new Color(0x9CCB8A);
-			markupValues = new Color(0xE4C07A);
-			markupOther = new Color(0x83C5E8);
+	private void applySyntaxPalette(Theme editorTheme, SyntaxPalette palette) {
+		for (int tokenType = 0; tokenType < editorTheme.scheme.getStyleCount(); tokenType++) {
+			editorTheme.scheme.getStyle(tokenType).foreground = palette.punctuation();
 		}
-		else
-			switch (theme) {
-				case LIGHT -> {
-					comments = new Color(0x687A64);
-					keywords = new Color(0xA13D63);
-					types = new Color(0x246C72);
-					functions = new Color(0x315FA3);
-					strings = new Color(0x8A5A00);
-					numbers = new Color(0x7952A3);
-					punctuation = new Color(0x81511D);
-					commentKeywords = new Color(0x8A5A00);
-					identifiers = new Color(0x315FA3);
-					variables = new Color(0x246C72);
-					annotations = new Color(0xA13D63);
-					regexes = new Color(0x7952A3);
-					booleans = new Color(0x7952A3);
-					errors = new Color(0xB00020);
-					markupTags = new Color(0xA13D63);
-					markupAttributes = new Color(0x246C72);
-					markupValues = new Color(0x8A5A00);
-					markupOther = new Color(0x7952A3);
-				}
-				case DRACULA_LIGHT -> {
-					comments = new Color(0x6272A4);
-					keywords = new Color(0xA33A70);
-					types = new Color(0x247A78);
-					functions = new Color(0x4666B0);
-					strings = new Color(0x9A6100);
-					numbers = new Color(0x7651A8);
-					punctuation = new Color(0x44475A);
-					commentKeywords = new Color(0x9A6100);
-					identifiers = new Color(0x44475A);
-					variables = new Color(0x247A78);
-					annotations = new Color(0xA33A70);
-					regexes = new Color(0x9A6100);
-					booleans = new Color(0x7651A8);
-					errors = new Color(0xB00020);
-					markupTags = new Color(0xA33A70);
-					markupAttributes = new Color(0x247A78);
-					markupValues = new Color(0x9A6100);
-					markupOther = new Color(0x4666B0);
-				}
-				case BROWN -> {
-					comments = new Color(0x928374);
-					keywords = new Color(0xFB4934);
-					types = new Color(0xFABD2F);
-					functions = new Color(0xB8BB26);
-					strings = new Color(0xB8BB26);
-					numbers = new Color(0xD3869B);
-					punctuation = new Color(0xEBDBB2);
-					commentKeywords = new Color(0xFE8019);
-					identifiers = new Color(0x83A598);
-					variables = new Color(0x8EC07C);
-					annotations = new Color(0xFE8019);
-					regexes = new Color(0x83A598);
-					booleans = new Color(0xD3869B);
-					errors = new Color(0xFB4934);
-					markupTags = new Color(0xFB4934);
-					markupAttributes = new Color(0xFABD2F);
-					markupValues = new Color(0xB8BB26);
-					markupOther = new Color(0x83A598);
-				}
-				case BROWN_LIGHT -> {
-					comments = new Color(0xA89984);
-					keywords = new Color(0x9D0006);
-					types = new Color(0xB57614);
-					functions = new Color(0x79740E);
-					strings = new Color(0x79740E);
-					numbers = new Color(0x8F3F71);
-					punctuation = new Color(0x3C3836);
-					commentKeywords = new Color(0xAF3A03);
-					identifiers = new Color(0x076678);
-					variables = new Color(0x427B58);
-					annotations = new Color(0xAF3A03);
-					regexes = new Color(0x076678);
-					booleans = new Color(0x8F3F71);
-					errors = new Color(0x9D0006);
-					markupTags = new Color(0x9D0006);
-					markupAttributes = new Color(0xB57614);
-					markupValues = new Color(0x79740E);
-					markupOther = new Color(0x076678);
-				}
-				default -> {
-					comments = new Color(0x8FA39A);
-					keywords = new Color(0xF08A9B);
-					types = new Color(0x9CCB8A);
-					functions = new Color(0x83C5E8);
-					strings = new Color(0xE4C07A);
-					numbers = new Color(0xC6A0F6);
-					punctuation = new Color(0xD5DCE5);
-					commentKeywords = new Color(0xE4C07A);
-					identifiers = new Color(0xD5DCE5);
-					variables = new Color(0x83C5E8);
-					annotations = new Color(0xF08A9B);
-					regexes = new Color(0xE4C07A);
-					booleans = new Color(0xC6A0F6);
-					errors = new Color(0xF08A9B);
-					markupTags = new Color(0xF08A9B);
-					markupAttributes = new Color(0x9CCB8A);
-					markupValues = new Color(0xE4C07A);
-					markupOther = new Color(0x83C5E8);
-				}
-			}
-
-		setForeground(editorTheme, comments, TokenTypes.COMMENT_EOL, TokenTypes.COMMENT_MULTILINE,
-				TokenTypes.COMMENT_DOCUMENTATION);
-		setForeground(editorTheme, commentKeywords, TokenTypes.COMMENT_KEYWORD, TokenTypes.COMMENT_MARKUP);
-		setForeground(editorTheme, keywords, TokenTypes.RESERVED_WORD, TokenTypes.RESERVED_WORD_2);
-		setForeground(editorTheme, types, TokenTypes.DATA_TYPE);
-		setForeground(editorTheme, functions, TokenTypes.FUNCTION);
-		setForeground(editorTheme, identifiers, TokenTypes.IDENTIFIER);
-		setForeground(editorTheme, variables, TokenTypes.VARIABLE);
-		setForeground(editorTheme, strings, TokenTypes.LITERAL_STRING_DOUBLE_QUOTE, TokenTypes.LITERAL_CHAR,
-				TokenTypes.LITERAL_BACKQUOTE);
-		setForeground(editorTheme, numbers, TokenTypes.LITERAL_NUMBER_DECIMAL_INT, TokenTypes.LITERAL_NUMBER_FLOAT,
-				TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
-		setForeground(editorTheme, booleans, TokenTypes.LITERAL_BOOLEAN);
-		setForeground(editorTheme, annotations, TokenTypes.ANNOTATION);
-		setForeground(editorTheme, regexes, TokenTypes.REGEX);
-		setForeground(editorTheme, errors, TokenTypes.ERROR_IDENTIFIER, TokenTypes.ERROR_NUMBER_FORMAT,
+		setSyntaxForeground(editorTheme, palette.comment(), TokenTypes.COMMENT_EOL, TokenTypes.COMMENT_MULTILINE,
+				TokenTypes.COMMENT_DOCUMENTATION, TokenTypes.MARKUP_COMMENT);
+		setSyntaxForeground(editorTheme, palette.commentKeyword(), TokenTypes.COMMENT_KEYWORD,
+				TokenTypes.COMMENT_MARKUP);
+		setSyntaxForeground(editorTheme, palette.keyword(), TokenTypes.RESERVED_WORD);
+		setSyntaxForeground(editorTheme, palette.keywordSecondary(), TokenTypes.RESERVED_WORD_2);
+		setSyntaxForeground(editorTheme, palette.type(), TokenTypes.DATA_TYPE);
+		setSyntaxForeground(editorTheme, palette.function(), TokenTypes.FUNCTION);
+		setSyntaxForeground(editorTheme, palette.string(), TokenTypes.LITERAL_STRING_DOUBLE_QUOTE,
+				TokenTypes.LITERAL_CHAR, TokenTypes.LITERAL_BACKQUOTE);
+		setSyntaxForeground(editorTheme, palette.number(), TokenTypes.LITERAL_NUMBER_DECIMAL_INT,
+				TokenTypes.LITERAL_NUMBER_FLOAT, TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
+		setSyntaxForeground(editorTheme, palette.booleanLiteral(), TokenTypes.LITERAL_BOOLEAN);
+		setSyntaxForeground(editorTheme, palette.annotation(), TokenTypes.ANNOTATION);
+		setSyntaxForeground(editorTheme, palette.regex(), TokenTypes.REGEX);
+		setSyntaxForeground(editorTheme, palette.identifier(), TokenTypes.IDENTIFIER);
+		setSyntaxForeground(editorTheme, palette.variable(), TokenTypes.VARIABLE);
+		setSyntaxForeground(editorTheme, palette.operator(), TokenTypes.OPERATOR);
+		setSyntaxForeground(editorTheme, palette.separator(), TokenTypes.SEPARATOR);
+		setSyntaxForeground(editorTheme, palette.preprocessor(), TokenTypes.PREPROCESSOR);
+		setSyntaxForeground(editorTheme, palette.error(), TokenTypes.ERROR_IDENTIFIER, TokenTypes.ERROR_NUMBER_FORMAT,
 				TokenTypes.ERROR_STRING_DOUBLE, TokenTypes.ERROR_CHAR);
-		setForeground(editorTheme, markupTags, TokenTypes.MARKUP_TAG_DELIMITER, TokenTypes.MARKUP_TAG_NAME,
-				TokenTypes.MARKUP_PROCESSING_INSTRUCTION, TokenTypes.MARKUP_CDATA_DELIMITER);
-		setForeground(editorTheme, markupAttributes, TokenTypes.MARKUP_TAG_ATTRIBUTE);
-		setForeground(editorTheme, markupValues, TokenTypes.MARKUP_TAG_ATTRIBUTE_VALUE);
-		setForeground(editorTheme, markupOther, TokenTypes.MARKUP_DTD, TokenTypes.MARKUP_ENTITY_REFERENCE,
-				TokenTypes.MARKUP_CDATA);
-		setForeground(editorTheme, comments, TokenTypes.MARKUP_COMMENT);
-		setForeground(editorTheme, punctuation, TokenTypes.OPERATOR, TokenTypes.SEPARATOR, TokenTypes.PREPROCESSOR);
-		applyDistinctSyntaxColors(editorTheme, theme);
-	}
-
-	private void applyDistinctSyntaxColors(Theme editorTheme, ThemeType theme) {
-		if (theme == ThemeType.BROWN) {
-			setForeground(editorTheme, new Color(0xA89984), TokenTypes.COMMENT_MULTILINE);
-			setForeground(editorTheme, new Color(0xBDAE93), TokenTypes.COMMENT_DOCUMENTATION);
-			setForeground(editorTheme, new Color(0xFE8019), TokenTypes.COMMENT_MARKUP);
-			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.RESERVED_WORD_2);
-			setForeground(editorTheme, new Color(0xE0A577), TokenTypes.LITERAL_NUMBER_FLOAT);
-			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
-			setForeground(editorTheme, new Color(0xFE8019), TokenTypes.LITERAL_CHAR);
-			setForeground(editorTheme, new Color(0x83A598), TokenTypes.LITERAL_BACKQUOTE);
-			setForeground(editorTheme, new Color(0xFE8019), TokenTypes.ERROR_NUMBER_FORMAT);
-			setForeground(editorTheme, new Color(0xFB4934), TokenTypes.ERROR_STRING_DOUBLE);
-			setForeground(editorTheme, new Color(0xFF6B5E), TokenTypes.ERROR_CHAR);
-			setForeground(editorTheme, new Color(0xE4685D), TokenTypes.MARKUP_TAG_NAME);
-			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.MARKUP_PROCESSING_INSTRUCTION);
-			setForeground(editorTheme, new Color(0x83A598), TokenTypes.MARKUP_CDATA_DELIMITER);
-			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.MARKUP_DTD);
-			setForeground(editorTheme, new Color(0x8EC07C), TokenTypes.MARKUP_ENTITY_REFERENCE);
-			setForeground(editorTheme, new Color(0x83A598), TokenTypes.MARKUP_CDATA);
-		}
-		else if (theme == ThemeType.BROWN_LIGHT) {
-			setForeground(editorTheme, new Color(0x928374), TokenTypes.COMMENT_MULTILINE);
-			setForeground(editorTheme, new Color(0x7C6F64), TokenTypes.COMMENT_DOCUMENTATION);
-			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.COMMENT_MARKUP);
-			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.RESERVED_WORD_2);
-			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.LITERAL_NUMBER_FLOAT);
-			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
-			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.LITERAL_CHAR);
-			setForeground(editorTheme, new Color(0x076678), TokenTypes.LITERAL_BACKQUOTE);
-			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.ERROR_NUMBER_FORMAT);
-			setForeground(editorTheme, new Color(0x9D0006), TokenTypes.ERROR_STRING_DOUBLE);
-			setForeground(editorTheme, new Color(0xB00020), TokenTypes.ERROR_CHAR);
-			setForeground(editorTheme, new Color(0xA31218), TokenTypes.MARKUP_TAG_NAME);
-			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.MARKUP_PROCESSING_INSTRUCTION);
-			setForeground(editorTheme, new Color(0x076678), TokenTypes.MARKUP_CDATA_DELIMITER);
-			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.MARKUP_DTD);
-			setForeground(editorTheme, new Color(0x427B58), TokenTypes.MARKUP_ENTITY_REFERENCE);
-			setForeground(editorTheme, new Color(0x076678), TokenTypes.MARKUP_CDATA);
-		}
-	}
-
-	private void setForeground(Theme theme, Color color, int... tokenTypes) {
-		Color readable = ensureContrast(color, theme.bgColor);
-		for (int tokenType : tokenTypes) {
-			theme.scheme.getStyle(tokenType).foreground = readable;
-		}
-	}
-
-	private void ensureSyntaxSchemeContrast(Theme theme) {
-		for (int tokenType = 0; tokenType < theme.scheme.getStyleCount(); tokenType++) {
-			var style = theme.scheme.getStyle(tokenType);
-			if (style.foreground != null) {
-				style.foreground = ensureContrast(style.foreground, theme.bgColor);
+		setSyntaxForeground(editorTheme, palette.markupTag(), TokenTypes.MARKUP_TAG_DELIMITER,
+				TokenTypes.MARKUP_TAG_NAME, TokenTypes.MARKUP_PROCESSING_INSTRUCTION,
+				TokenTypes.MARKUP_CDATA_DELIMITER);
+		setSyntaxForeground(editorTheme, palette.markupAttribute(), TokenTypes.MARKUP_TAG_ATTRIBUTE);
+		setSyntaxForeground(editorTheme, palette.markupValue(), TokenTypes.MARKUP_TAG_ATTRIBUTE_VALUE);
+		setSyntaxForeground(editorTheme, palette.markupOther(), TokenTypes.MARKUP_DTD,
+				TokenTypes.MARKUP_ENTITY_REFERENCE, TokenTypes.MARKUP_CDATA);
+		for (int tokenType = 0; tokenType < editorTheme.scheme.getStyleCount(); tokenType++) {
+			var style = editorTheme.scheme.getStyle(tokenType);
+			if (style.foreground == null) {
+				style.foreground = palette.punctuation();
 			}
+			style.background = null;
+		}
+	}
+
+	private void setSyntaxForeground(Theme theme, Color color, int... tokenTypes) {
+		for (int tokenType : tokenTypes) {
+			theme.scheme.getStyle(tokenType).foreground = color;
 		}
 	}
 
 	private void applyGlobalUiDefaults(ThemeType theme) {
-		Palette p = paletteFromCurrentLookAndFeel(theme);
+		ThemePalette p = ThemePalette.of(theme);
+		SyntaxPalette syntax = p.syntax();
 		UIDefaults d = UIManager.getLookAndFeelDefaults();
 
-		put(d, "control", p.bg);
-		put(d, "controlText", p.fg);
-		put(d, "text", p.bg);
-		put(d, "textText", p.fg);
-		put(d, "info", p.popupBg);
-		put(d, "infoText", p.fg);
-		put(d, "nimbusBase", p.bg);
-		put(d, "nimbusLightBackground", p.bg);
+		put(d, "Component.accentColor", p.accent());
+		put(d, "Component.focusColor", alpha(p.accent(), 0x33));
+		put(d, "Component.borderColor", p.border());
+		put(d, "Component.disabledBorderColor", p.border());
+		put(d, "Component.focusedBorderColor", p.focusBorder());
+		put(d, "Component.error.borderColor", syntax.error());
+		put(d, "Component.error.focusedBorderColor", syntax.error());
+		put(d, "Component.warning.borderColor", syntax.string());
+		put(d, "Component.warning.focusedBorderColor", syntax.string());
+		put(d, "Component.success.borderColor", syntax.function());
+		put(d, "Component.success.focusedBorderColor", syntax.function());
+		put(d, "Component.focusWidth", 1);
+		put(d, "Component.innerFocusWidth", 0);
+		put(d, "Component.borderWidth", 1);
+		put(d, "Component.arc", 6);
+		put(d, "Component.minimumWidth", 0);
+		put(d, "Component.arrowType", "chevron");
+		put(d, "Component.hideMnemonics", true);
 
-		put(d, "Panel.background", p.bg);
-		put(d, "Panel.foreground", p.fg);
-		put(d, "Label.foreground", p.fg);
-		put(d, "Label.background", p.bg);
-		put(d, "Label.disabledForeground", p.disabledFg);
-		put(d, "TitledBorder.titleColor", p.fg);
-		put(d, "Separator.foreground", p.border);
-		put(d, "Separator.background", p.bg);
-		put(d, "SplitPane.background", p.bg);
-		put(d, "SplitPaneDivider.background", p.border);
-		put(d, "SplitPaneDivider.borderColor", p.border);
-		put(d, "SplitPaneDivider.gripColor", ensureContrast(p.border, p.bg, 1.5d));
-		put(d, "SplitPaneDivider.hoverColor", blend(p.fg, p.bg, 0.35f));
-		put(d, "SplitPaneDivider.draggingColor", blend(p.fg, p.bg, 0.5f));
-		put(d, "Viewport.background", p.bg);
-		put(d, "ScrollPane.background", p.bg);
-		put(d, "ScrollPane.foreground", p.fg);
+		put(d, "control", p.surface());
+		put(d, "controlText", p.foreground());
+		put(d, "controlShadow", p.border());
+		put(d, "controlDkShadow", p.border());
+		put(d, "controlHighlight", p.surface());
+		put(d, "controlLtHighlight", p.surface());
+		put(d, "text", p.background());
+		put(d, "textText", p.foreground());
+		put(d, "textHighlight", p.selectionBackground());
+		put(d, "textHighlightText", p.selectionForeground());
+		put(d, "textInactiveText", p.disabledForeground());
+		put(d, "info", p.tooltipBackground());
+		put(d, "infoText", p.tooltipForeground());
+		put(d, "menu", p.popupBackground());
+		put(d, "menuText", p.popupForeground());
+		put(d, "window", p.background());
+		put(d, "windowText", p.foreground());
+		put(d, "desktop", p.surface());
+		put(d, "activeCaption", p.surface());
+		put(d, "activeCaptionText", p.foreground());
+		put(d, "inactiveCaption", p.surface());
+		put(d, "inactiveCaptionText", p.disabledForeground());
+		put(d, "scrollbar", p.scrollbarTrack());
 
-		putTextLike(d, "TextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret,
-				ensureContrast(p.disabledFg, p.inputBg, 3.0d));
-		putTextLike(d, "FormattedTextField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret,
-				ensureContrast(p.disabledFg, p.inputBg, 3.0d));
-		putTextLike(d, "PasswordField", p.inputBg, p.fg, p.selBg, p.selFg, p.caret,
-				ensureContrast(p.disabledFg, p.inputBg, 3.0d));
-		putTextLike(d, "TextArea", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
-		putTextLike(d, "TextPane", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
-		putTextLike(d, "EditorPane", p.bg, p.fg, p.selBg, p.selFg, p.caret, p.disabledFg);
+		put(d, "Panel.background", p.background());
+		put(d, "Panel.foreground", p.foreground());
+		put(d, "Label.background", p.background());
+		put(d, "Label.foreground", p.foreground());
+		put(d, "Label.disabledForeground", p.disabledForeground());
+		put(d, "TitledBorder.titleColor", p.foreground());
+		put(d, "TitledBorder.borderColor", p.border());
+		put(d, "Separator.foreground", p.border());
+		put(d, "Separator.background", p.background());
+		put(d, "Separator.height", 1);
+		put(d, "Separator.stripeWidth", 1);
+		put(d, "Separator.stripeIndent", 1);
 
-		put(d, "MenuBar.background", p.bg);
-		put(d, "MenuBar.foreground", p.fg);
-		put(d, "MenuBar.borderColor", p.border);
-		put(d, "MenuBar.hoverBackground", p.menuSelBg);
-		put(d, "MenuBar.hoverForeground", p.menuSelFg);
-		put(d, "MenuBar.selectionBackground", p.menuSelBg);
-		put(d, "MenuBar.selectionForeground", p.menuSelFg);
-		put(d, "MenuBar.disabledForeground", p.disabledFg);
-		putMenuLike(d, "Menu", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
-		putMenuLike(d, "MenuItem", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
-		putMenuLike(d, "CheckBoxMenuItem", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
-		putMenuLike(d, "RadioButtonMenuItem", p.menuBg, p.menuFg, p.menuSelBg, p.menuSelFg, p.disabledFg);
-		put(d, "PopupMenu.background", p.popupBg);
-		put(d, "PopupMenu.foreground", p.popupFg);
-		put(d, "PopupMenu.borderColor", p.border);
+		put(d, "SplitPane.background", p.background());
+		put(d, "SplitPaneDivider.background", p.border());
+		put(d, "SplitPane.dividerSize", 1);
+		put(d, "SplitPaneDivider.style", "plain");
+		put(d, "SplitPaneDivider.gripColor", p.mutedForeground());
+		put(d, "SplitPaneDivider.hoverColor", p.accent());
+		put(d, "SplitPaneDivider.pressedColor", p.accent());
+		put(d, "SplitPaneDivider.draggingColor", p.accent());
+		put(d, "SplitPaneDivider.oneTouchArrowColor", p.foreground());
+		put(d, "SplitPaneDivider.oneTouchHoverArrowColor", p.accent());
+		put(d, "SplitPaneDivider.oneTouchPressedArrowColor", p.accent());
+		put(d, "SplitPaneDivider.gripDotCount", 3);
+		put(d, "SplitPaneDivider.gripDotSize", 3);
+		put(d, "SplitPaneDivider.gripGap", 2);
 
-		put(d, "Button.foreground", p.buttonFg);
-		put(d, "Button.background", p.buttonBg);
-		Color disabledButtonBg = blend(p.buttonBg, p.bg, 0.55f);
-		Color disabledButtonFg = ensureContrast(p.disabledFg, disabledButtonBg, 3.0d);
-		put(d, "Button.disabledText", disabledButtonFg);
-		put(d, "Button.disabledForeground", disabledButtonFg);
-		put(d, "Button.disabledBackground", disabledButtonBg);
-		put(d, "ToggleButton.foreground", p.buttonFg);
-		put(d, "ToggleButton.background", p.buttonBg);
-		put(d, "ToggleButton.disabledText", disabledButtonFg);
-		put(d, "ToggleButton.disabledForeground", disabledButtonFg);
-		put(d, "ToggleButton.disabledBackground", disabledButtonBg);
-		put(d, "CheckBox.foreground", p.fg);
-		put(d, "CheckBox.background", p.bg);
-		put(d, "RadioButton.foreground", p.fg);
-		put(d, "RadioButton.background", p.bg);
-		put(d, "ComboBox.foreground", p.fg);
-		put(d, "ComboBox.background", p.inputBg);
-		put(d, "ComboBox.selectionBackground", p.selBg);
-		put(d, "ComboBox.selectionForeground", p.selFg);
-		put(d, "ComboBox.disabledForeground", ensureContrast(p.disabledFg, p.inputBg, 3.0d));
-		put(d, "Spinner.foreground", p.fg);
-		put(d, "Spinner.background", p.inputBg);
+		put(d, "Viewport.background", p.background());
+		put(d, "ScrollPane.background", p.background());
+		put(d, "ScrollPane.foreground", p.foreground());
+		put(d, "ScrollPane.borderColor", p.border());
+		put(d, "ScrollPane.arc", 0);
+		put(d, "ScrollPane.fillUpperCorner", true);
+		put(d, "ScrollPane.smoothScrolling", true);
+		put(d, "ScrollBar.track", p.scrollbarTrack());
+		put(d, "ScrollBar.thumb", p.scrollbarThumb());
+		put(d, "ScrollBar.hoverThumbColor", p.scrollbarHoverThumb());
+		put(d, "ScrollBar.pressedThumbColor", p.scrollbarHoverThumb());
+		put(d, "ScrollBar.hoverTrackColor", p.scrollbarTrack());
+		put(d, "ScrollBar.pressedTrackColor", p.scrollbarTrack());
+		put(d, "ScrollBar.width", 10);
+		put(d, "ScrollBar.thumbArc", 999);
+		put(d, "ScrollBar.thumbInsets", new Insets(2, 2, 2, 2));
+		put(d, "ScrollBar.trackArc", 0);
+		put(d, "ScrollBar.trackInsets", new Insets(0, 0, 0, 0));
+		put(d, "ScrollBar.showButtons", false);
+		put(d, "ScrollBar.buttonArrowColor", p.foreground());
+		put(d, "ScrollBar.buttonDisabledArrowColor", p.disabledForeground());
+		put(d, "ScrollBar.hoverButtonBackground", p.surface());
+		put(d, "ScrollBar.pressedButtonBackground", p.surface());
 
-		put(d, "List.background", p.bg);
-		put(d, "List.foreground", p.fg);
-		put(d, "List.selectionBackground", p.selBg);
-		put(d, "List.selectionForeground", p.selFg);
-		put(d, "Table.background", p.bg);
-		put(d, "Table.foreground", p.fg);
-		put(d, "Table.selectionBackground", p.selBg);
-		put(d, "Table.selectionForeground", p.selFg);
-		put(d, "Table.gridColor", p.border);
-		put(d, "TableHeader.background", p.headerBg);
-		put(d, "TableHeader.foreground", p.headerFg);
-		put(d, "Tree.background", p.bg);
-		put(d, "Tree.foreground", p.fg);
-		put(d, "Tree.textBackground", p.bg);
-		put(d, "Tree.textForeground", p.fg);
-		put(d, "Tree.selectionBackground", p.selBg);
-		put(d, "Tree.selectionForeground", p.selFg);
+		putTextLike(d, "TextField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				new Insets(2, 6, 2, 6));
+		putTextLike(d, "FormattedTextField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				new Insets(2, 6, 2, 6));
+		putTextLike(d, "PasswordField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				new Insets(2, 6, 2, 6));
+		putTextLike(d, "TextArea", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
+				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+		putTextLike(d, "TextPane", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
+				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+		putTextLike(d, "EditorPane", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
+				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+		put(d, "TextField.placeholderForeground", p.mutedForeground());
+		put(d, "FormattedTextField.placeholderForeground", p.mutedForeground());
+		put(d, "PasswordField.placeholderForeground", p.mutedForeground());
+		put(d, "TextField.arc", 6);
+		put(d, "FormattedTextField.arc", 6);
+		put(d, "PasswordField.arc", 6);
+		put(d, "TextArea.arc", 0);
+		put(d, "TextPane.arc", 0);
+		put(d, "EditorPane.arc", 0);
 
-		put(d, "TabbedPane.foreground", p.fg);
-		put(d, "TabbedPane.background", p.bg);
-		put(d, "TabbedPane.contentAreaColor", p.bg);
-		put(d, "TabbedPane.selectedBackground", p.bg);
-		put(d, "TabbedPane.selectedForeground", p.fg);
-		put(d, "TabbedPane.disabledForeground", ensureContrast(p.disabledFg, p.bg, 3.0d));
-		put(d, "TabbedPane.hoverColor", p.selBg);
-		put(d, "TabbedPane.focusColor", p.selBg);
-		put(d, "TabbedPane.underlineColor", p.selBg);
-		put(d, "TabbedPane.inactiveUnderlineColor", p.border);
-		put(d, "ToolBar.foreground", p.fg);
-		put(d, "ToolBar.background", p.bg);
-		put(d, "ToolTip.background", p.popupBg);
-		put(d, "ToolTip.foreground", p.popupFg);
+		put(d, "MenuBar.background", p.menuBarBackground());
+		put(d, "MenuBar.foreground", p.foreground());
+		put(d, "MenuBar.disabledForeground", p.disabledForeground());
+		put(d, "MenuBar.borderColor", p.border());
+		put(d, "MenuBar.hoverBackground", p.selectionBackground());
+		put(d, "MenuBar.hoverForeground", p.selectionForeground());
+		put(d, "MenuBar.selectionBackground", p.selectionBackground());
+		put(d, "MenuBar.selectionForeground", p.selectionForeground());
+		put(d, "MenuBar.itemMargins", new Insets(3, 8, 3, 8));
+		put(d, "MenuBar.selectionInsets", new Insets(2, 6, 2, 6));
+		put(d, "MenuBar.selectionArc", 4);
+		putMenuLike(d, "Menu", p);
+		putMenuLike(d, "MenuItem", p);
+		putMenuLike(d, "CheckBoxMenuItem", p);
+		putMenuLike(d, "RadioButtonMenuItem", p);
+		put(d, "MenuItem.underlineSelectionBackground", p.menuSelectionBackground());
+		put(d, "MenuItem.underlineSelectionColor", p.accent());
+		put(d, "MenuItem.underlineSelectionHeight", 2);
+		put(d, "Menu.arrowType", "chevron");
+		put(d, "MenuItem.arrowType", "chevron");
+		put(d, "CheckBoxMenuItem.arrowType", "chevron");
+		put(d, "RadioButtonMenuItem.arrowType", "chevron");
+		put(d, "CheckBoxMenuItem.icon.checkmarkColor", p.menuSelectionForeground());
+		put(d, "RadioButtonMenuItem.icon.checkmarkColor", p.menuSelectionForeground());
 
-		put(d, "OptionPane.background", p.bg);
-		put(d, "OptionPane.foreground", p.fg);
-		put(d, "OptionPane.messageForeground", p.fg);
-		put(d, "OptionPane.buttonBackground", p.buttonBg);
-		put(d, "OptionPane.buttonForeground", p.buttonFg);
+		put(d, "Popup.background", p.popupBackground());
+		put(d, "Popup.foreground", p.popupForeground());
+		put(d, "Popup.borderColor", p.border());
+		put(d, "Popup.borderWidth", 1);
+		put(d, "Popup.borderCornerRadius", 6);
+		put(d, "Popup.dropShadowPainted", true);
+		put(d, "PopupMenu.background", p.popupBackground());
+		put(d, "PopupMenu.foreground", p.popupForeground());
+		put(d, "PopupMenu.borderColor", p.border());
+		put(d, "PopupMenu.borderWidth", 1);
+		put(d, "PopupMenu.borderCornerRadius", 6);
+		put(d, "PopupMenu.borderInsets", new Insets(4, 1, 4, 1));
+		put(d, "PopupMenu.separatorColor", p.border());
+		put(d, "PopupMenuSeparator.stripeWidth", 1);
+		put(d, "PopupMenuSeparator.stripeIndent", 4);
+		put(d, "PopupMenuSeparator.height", 9);
+		put(d, "ToolTip.background", p.tooltipBackground());
+		put(d, "ToolTip.foreground", p.tooltipForeground());
+		put(d, "ToolTip.borderColor", p.border());
+		put(d, "ToolTip.borderWidth", 1);
+		put(d, "ToolTip.borderCornerRadius", 6);
+		put(d, "ToolTip.margin", new Insets(4, 8, 4, 8));
 
-		put(d, "ProgressBar.background", p.headerBg);
-		put(d, "ProgressBar.foreground", p.selBg);
-		put(d, "ProgressBar.selectionForeground", p.selFg);
-		put(d, "ProgressBar.selectionBackground", p.fg);
-		put(d, "Slider.background", p.bg);
-		put(d, "Slider.foreground", p.fg);
-		put(d, "FileChooser.background", p.bg);
-		put(d, "FileChooser.foreground", p.fg);
+		put(d, "Button.background", p.buttonBackground());
+		put(d, "Button.foreground", p.buttonForeground());
+		put(d, "Button.disabledBackground", p.background());
+		put(d, "Button.disabledText", p.disabledForeground());
+		put(d, "Button.disabledForeground", p.disabledForeground());
+		put(d, "Button.hoverBackground", p.buttonHoverBackground());
+		put(d, "Button.pressedBackground", p.buttonPressedBackground());
+		put(d, "Button.selectedBackground", p.buttonPressedBackground());
+		put(d, "Button.selectedForeground", p.buttonForeground());
+		put(d, "Button.default.background", p.accent());
+		put(d, "Button.default.foreground", p.buttonForeground());
+		put(d, "Button.default.hoverBackground", p.buttonHoverBackground());
+		put(d, "Button.default.pressedBackground", p.buttonPressedBackground());
+		put(d, "Button.default.borderColor", p.accent());
+		put(d, "Button.default.focusedBorderColor", p.focusBorder());
+		put(d, "Button.borderColor", p.border());
+		put(d, "Button.focusedBorderColor", p.focusBorder());
+		put(d, "Button.hoverBorderColor", p.focusBorder());
+		put(d, "Button.disabledBorderColor", p.border());
+		put(d, "Button.arc", 6);
+		put(d, "Button.borderWidth", 1);
+		put(d, "Button.margin", new Insets(2, 14, 2, 14));
+		put(d, "Button.minimumWidth", 72);
+		put(d, "Button.iconTextGap", 4);
+		put(d, "Button.toolbar.hoverBackground", p.buttonHoverBackground());
+		put(d, "Button.toolbar.pressedBackground", p.buttonPressedBackground());
+		put(d, "Button.toolbar.selectedBackground", p.buttonPressedBackground());
+		put(d, "ToggleButton.background", p.buttonBackground());
+		put(d, "ToggleButton.foreground", p.buttonForeground());
+		put(d, "ToggleButton.hoverBackground", p.buttonHoverBackground());
+		put(d, "ToggleButton.pressedBackground", p.buttonPressedBackground());
+		put(d, "ToggleButton.selectedBackground", p.accent());
+		put(d, "ToggleButton.selectedForeground", p.buttonForeground());
+		put(d, "ToggleButton.disabledBackground", p.background());
+		put(d, "ToggleButton.disabledText", p.disabledForeground());
+		put(d, "ToggleButton.disabledForeground", p.disabledForeground());
+		put(d, "ToggleButton.disabledSelectedBackground", p.buttonBackground());
+		putCheckBoxLike(d, "CheckBox", p);
+		putCheckBoxLike(d, "RadioButton", p);
+
+		put(d, "ComboBox.background", p.inputBackground());
+		put(d, "ComboBox.foreground", p.inputForeground());
+		put(d, "ComboBox.disabledBackground", p.inputBackground());
+		put(d, "ComboBox.disabledForeground", p.disabledForeground());
+		put(d, "ComboBox.buttonBackground", p.inputBackground());
+		put(d, "ComboBox.buttonEditableBackground", p.inputBackground());
+		put(d, "ComboBox.buttonSeparatorColor", p.border());
+		put(d, "ComboBox.buttonDisabledSeparatorColor", p.border());
+		put(d, "ComboBox.buttonArrowColor", p.foreground());
+		put(d, "ComboBox.buttonDisabledArrowColor", p.disabledForeground());
+		put(d, "ComboBox.buttonHoverArrowColor", p.accent());
+		put(d, "ComboBox.buttonPressedArrowColor", p.accent());
+		put(d, "ComboBox.selectionBackground", p.selectionBackground());
+		put(d, "ComboBox.selectionForeground", p.selectionForeground());
+		put(d, "ComboBox.popupBackground", p.popupBackground());
+		put(d, "ComboBox.popupForeground", p.popupForeground());
+		put(d, "ComboBox.arc", 6);
+		put(d, "ComboBox.borderColor", p.border());
+		put(d, "ComboBox.focusedBorderColor", p.focusBorder());
+		put(d, "ComboBox.disabledBorderColor", p.border());
+		put(d, "ComboBox.editableBackground", p.inputBackground());
+		put(d, "ComboBox.focusedBackground", p.inputBackground());
+		put(d, "ComboBox.selectionInsets", new Insets(2, 4, 2, 4));
+		put(d, "ComboBox.selectionArc", 4);
+		put(d, "ComboBox.padding", new Insets(2, 6, 2, 6));
+		put(d, "ComboBox.minimumWidth", 72);
+		put(d, "ComboBox.arrowType", "chevron");
+
+		put(d, "Spinner.background", p.inputBackground());
+		put(d, "Spinner.foreground", p.inputForeground());
+		put(d, "Spinner.disabledBackground", p.inputBackground());
+		put(d, "Spinner.disabledForeground", p.disabledForeground());
+		put(d, "Spinner.buttonBackground", p.inputBackground());
+		put(d, "Spinner.buttonSeparatorColor", p.border());
+		put(d, "Spinner.buttonDisabledSeparatorColor", p.border());
+		put(d, "Spinner.buttonArrowColor", p.foreground());
+		put(d, "Spinner.buttonDisabledArrowColor", p.disabledForeground());
+		put(d, "Spinner.buttonHoverArrowColor", p.accent());
+		put(d, "Spinner.buttonPressedArrowColor", p.accent());
+		put(d, "Spinner.borderColor", p.border());
+		put(d, "Spinner.focusedBorderColor", p.focusBorder());
+		put(d, "Spinner.disabledBorderColor", p.border());
+		put(d, "Spinner.arc", 6);
+		put(d, "Spinner.padding", new Insets(2, 6, 2, 6));
+		put(d, "Spinner.buttonStyle", "button");
+
+		put(d, "List.background", p.background());
+		put(d, "List.foreground", p.foreground());
+		put(d, "List.selectionBackground", p.selectionBackground());
+		put(d, "List.selectionForeground", p.selectionForeground());
+		put(d, "List.selectionInactiveBackground", p.inactiveSelectionBackground());
+		put(d, "List.selectionInactiveForeground", p.inactiveSelectionForeground());
+		put(d, "List.cellFocusColor", p.focusBorder());
+		put(d, "List.selectionArc", 4);
+		put(d, "List.selectionInsets", new Insets(2, 4, 2, 4));
+		put(d, "List.cellMargins", new Insets(2, 6, 2, 6));
+		put(d, "List.rowHeight", 22);
+		put(d, "Table.background", p.background());
+		put(d, "Table.foreground", p.foreground());
+		put(d, "Table.selectionBackground", p.selectionBackground());
+		put(d, "Table.selectionForeground", p.selectionForeground());
+		put(d, "Table.selectionInactiveBackground", p.inactiveSelectionBackground());
+		put(d, "Table.selectionInactiveForeground", p.inactiveSelectionForeground());
+		put(d, "Table.gridColor", p.border());
+		put(d, "Table.showHorizontalLines", false);
+		put(d, "Table.showVerticalLines", false);
+		put(d, "Table.intercellSpacing", new java.awt.Dimension(0, 0));
+		put(d, "Table.rowHeight", 22);
+		put(d, "Table.cellFocusColor", p.focusBorder());
+		put(d, "Table.cellMargins", new Insets(2, 6, 2, 6));
+		put(d, "Table.focusCellBackground", p.background());
+		put(d, "Table.focusCellForeground", p.foreground());
+		put(d, "TableHeader.background", p.headerBackground());
+		put(d, "TableHeader.foreground", p.headerForeground());
+		put(d, "TableHeader.disabledForeground", p.disabledForeground());
+		put(d, "TableHeader.hoverBackground", p.selectionBackground());
+		put(d, "TableHeader.hoverForeground", p.selectionForeground());
+		put(d, "TableHeader.pressedBackground", p.selectionBackground());
+		put(d, "TableHeader.pressedForeground", p.selectionForeground());
+		put(d, "TableHeader.separatorColor", p.border());
+		put(d, "TableHeader.bottomSeparatorColor", p.border());
+		put(d, "TableHeader.height", 26);
+		put(d, "TableHeader.cellMargins", new Insets(2, 6, 2, 6));
+		put(d, "TableHeader.sortIconColor", p.mutedForeground());
+		put(d, "TableHeader.focusCellBackground", p.headerBackground());
+		put(d, "Tree.background", p.background());
+		put(d, "Tree.foreground", p.foreground());
+		put(d, "Tree.textBackground", p.background());
+		put(d, "Tree.textForeground", p.foreground());
+		put(d, "Tree.selectionBackground", p.treeSelectionBackground());
+		put(d, "Tree.selectionForeground", p.selectionForeground());
+		put(d, "Tree.selectionInactiveBackground", p.inactiveSelectionBackground());
+		put(d, "Tree.selectionInactiveForeground", p.inactiveSelectionForeground());
+		put(d, "Tree.selectionBorderColor", p.focusBorder());
+		put(d, "Tree.hash", p.border());
+		put(d, "Tree.selectionArc", 4);
+		put(d, "Tree.selectionInsets", new Insets(2, 4, 2, 4));
+		put(d, "Tree.rowHeight", 22);
+		put(d, "Tree.rendererMargins", new Insets(2, 4, 2, 4));
+		put(d, "Tree.paintLines", false);
+		put(d, "Tree.showDefaultIcons", false);
+		put(d, "Tree.wideSelection", true);
+		put(d, "Tree.dropLineColor", p.accent());
+		put(d, "Tree.dropCellBackground", p.treeSelectionBackground());
+		put(d, "Tree.dropCellForeground", p.selectionForeground());
+		put(d, "Tree.icon.expandedColor", p.mutedForeground());
+		put(d, "Tree.icon.collapsedColor", p.mutedForeground());
+		put(d, "Tree.icon.leafColor", p.mutedForeground());
+		put(d, "Tree.icon.closedColor", p.mutedForeground());
+		put(d, "Tree.icon.openColor", p.mutedForeground());
+
+		put(d, "TabbedPane.foreground", p.foreground());
+		put(d, "TabbedPane.background", p.surface());
+		put(d, "TabbedPane.selectedForeground", p.tabSelectedForeground());
+		put(d, "TabbedPane.selectedBackground", p.tabSelectedBackground());
+		put(d, "TabbedPane.disabledForeground", p.disabledForeground());
+		put(d, "TabbedPane.disabledBackground", p.surface());
+		put(d, "TabbedPane.hoverForeground", p.foreground());
+		put(d, "TabbedPane.hoverColor", p.selectionBackground());
+		put(d, "TabbedPane.focusColor", p.selectionBackground());
+		put(d, "TabbedPane.underlineColor", p.tabUnderline());
+		put(d, "TabbedPane.inactiveUnderlineColor", p.border());
+		put(d, "TabbedPane.disabledUnderlineColor", p.border());
+		put(d, "TabbedPane.contentAreaColor", p.background());
+		put(d, "TabbedPane.tabSeparatorColor", p.border());
+		put(d, "TabbedPane.showTabSeparators", true);
+		put(d, "TabbedPane.tabSeparatorsFullHeight", false);
+		put(d, "TabbedPane.showContentSeparator", true);
+		put(d, "TabbedPane.tabHeight", 32);
+		put(d, "TabbedPane.tabSelectionHeight", 2);
+		put(d, "TabbedPane.tabInsets", new Insets(4, 12, 4, 12));
+		put(d, "TabbedPane.tabAreaInsets", new Insets(0, 0, 0, 0));
+		put(d, "TabbedPane.tabArc", 0);
+		put(d, "TabbedPane.tabSelectionArc", 0);
+		put(d, "TabbedPane.tabType", "underlined");
+		put(d, "TabbedPane.hasFullBorder", false);
+
+		put(d, "ToolBar.background", p.surface());
+		put(d, "ToolBar.foreground", p.foreground());
+		put(d, "ToolBar.borderColor", p.border());
+		put(d, "ToolBar.hoverBackground", p.buttonHoverBackground());
+		put(d, "ToolBar.pressedBackground", p.buttonPressedBackground());
+		put(d, "ToolBar.hoverForeground", p.buttonForeground());
+		put(d, "ToolBar.pressedForeground", p.buttonForeground());
+		put(d, "ToolBar.separatorColor", p.border());
+		put(d, "ToolBar.separatorWidth", 1);
+		put(d, "ToolBar.margin", new Insets(2, 2, 2, 2));
+		put(d, "ToolBar.spacingInsets", new Insets(2, 2, 2, 2));
+		put(d, "ToolBar.gripColor", p.mutedForeground());
+
+		put(d, "OptionPane.background", p.surface());
+		put(d, "OptionPane.foreground", p.foreground());
+		put(d, "OptionPane.messageForeground", p.foreground());
+		put(d, "OptionPane.buttonBackground", p.buttonBackground());
+		put(d, "OptionPane.buttonForeground", p.buttonForeground());
+		put(d, "OptionPane.border", BorderFactory.createEmptyBorder(12, 12, 12, 12));
+		put(d, "OptionPane.messageAreaBorder", BorderFactory.createEmptyBorder(0, 0, 0, 0));
+		put(d, "OptionPane.buttonAreaBorder", BorderFactory.createEmptyBorder(12, 0, 0, 0));
+		put(d, "FileChooser.background", p.surface());
+		put(d, "FileChooser.foreground", p.foreground());
+		put(d, "FileChooser.borderColor", p.border());
+		put(d, "FileChooser.focusColor", p.focusBorder());
+		put(d, "FileChooser.readOnlyForeground", p.mutedForeground());
+		put(d, "ColorChooser.background", p.surface());
+		put(d, "ColorChooser.foreground", p.foreground());
+		put(d, "ColorChooser.swatchBorderColor", p.border());
+		put(d, "ColorChooser.swatchSelectedBorderColor", p.accent());
+		put(d, "ColorChooser.swatchFocusColor", p.focusBorder());
+		put(d, "ColorChooser.swatchesDefaultRecentColor", p.surface());
+
+		put(d, "ProgressBar.background", p.surface());
+		put(d, "ProgressBar.foreground", p.accent());
+		put(d, "ProgressBar.selectionBackground", p.foreground());
+		put(d, "ProgressBar.selectionForeground", p.background());
+		put(d, "ProgressBar.arc", 6);
+		put(d, "ProgressBar.horizontalSize", new java.awt.Dimension(146, 4));
+		put(d, "ProgressBar.verticalSize", new java.awt.Dimension(4, 146));
+		put(d, "Slider.background", p.background());
+		put(d, "Slider.foreground", p.foreground());
+		put(d, "Slider.thumbColor", p.accent());
+		put(d, "Slider.trackColor", p.border());
+		put(d, "Slider.trackValueColor", p.accent());
+		put(d, "Slider.hoverThumbColor", p.accent());
+		put(d, "Slider.pressedThumbColor", p.accent());
+		put(d, "Slider.disabledTrackColor", p.border());
+		put(d, "Slider.disabledThumbColor", p.disabledForeground());
+		put(d, "Slider.tickColor", p.mutedForeground());
+		put(d, "Slider.focusColor", alpha(p.accent(), 0x33));
+		put(d, "Slider.trackWidth", 4);
+		put(d, "Slider.thumbSize", new java.awt.Dimension(14, 14));
+		put(d, "Slider.thumbArc", 999);
+		put(d, "Slider.trackArc", 999);
+
+		put(d, "TitlePane.background", p.menuBarBackground());
+		put(d, "TitlePane.inactiveBackground", p.surface());
+		put(d, "TitlePane.foreground", p.foreground());
+		put(d, "TitlePane.inactiveForeground", p.disabledForeground());
+		put(d, "TitlePane.buttonHoverBackground", p.selectionBackground());
+		put(d, "TitlePane.buttonPressedBackground", p.buttonPressedBackground());
+		put(d, "TitlePane.buttonForeground", p.foreground());
+		put(d, "TitlePane.buttonInactiveForeground", p.disabledForeground());
+		put(d, "TitlePane.buttonHoverForeground", p.selectionForeground());
+		put(d, "TitlePane.buttonPressedForeground", p.selectionForeground());
+		put(d, "InternalFrame.background", p.surface());
+		put(d, "InternalFrame.foreground", p.foreground());
+		put(d, "InternalFrame.borderColor", p.border());
+		put(d, "InternalFrame.activeBorderColor", p.focusBorder());
+		put(d, "InternalFrame.inactiveBorderColor", p.border());
+		put(d, "InternalFrame.activeTitleBackground", p.menuBarBackground());
+		put(d, "InternalFrame.activeTitleForeground", p.foreground());
+		put(d, "InternalFrame.inactiveTitleBackground", p.surface());
+		put(d, "InternalFrame.inactiveTitleForeground", p.disabledForeground());
+		put(d, "InternalFrame.buttonHoverBackground", p.selectionBackground());
+		put(d, "InternalFrame.buttonPressedBackground", p.buttonPressedBackground());
+		put(d, "DesktopPane.background", p.surface());
+		put(d, "RootPane.background", p.background());
+		put(d, "RootPane.activeBorderColor", p.focusBorder());
+		put(d, "RootPane.inactiveBorderColor", p.border());
+
+		put(d, "Log.traceForeground", p.mutedForeground());
+		put(d, "Log.debugForeground", syntax.type());
+		put(d, "Log.infoForeground", p.foreground());
+		put(d, "Log.warnForeground", syntax.string());
+		put(d, "Log.errorForeground", syntax.error());
 	}
 
-	private void putTextLike(UIDefaults d, String prefix, Color bg, Color fg, Color selBg, Color selFg, Color caret,
-			Color disabledFg) {
-		put(d, prefix + ".background", bg);
-		put(d, prefix + ".foreground", fg);
+	private void putTextLike(UIDefaults d, String prefix, Color background, Color foreground, Color selectionBackground,
+			Color selectionForeground, Color caret, Color disabledForeground, Color border, Color focusBorder,
+			Insets margin) {
+		put(d, prefix + ".background", background);
+		put(d, prefix + ".foreground", foreground);
 		put(d, prefix + ".caretForeground", caret);
-		put(d, prefix + ".selectionBackground", selBg);
-		put(d, prefix + ".selectionForeground", selFg);
-		put(d, prefix + ".inactiveForeground", disabledFg);
-		put(d, prefix + ".inactiveBackground", bg);
-		put(d, prefix + ".disabledBackground", bg);
+		put(d, prefix + ".selectionBackground", selectionBackground);
+		put(d, prefix + ".selectionForeground", selectionForeground);
+		put(d, prefix + ".inactiveBackground", background);
+		put(d, prefix + ".inactiveForeground", foreground);
+		put(d, prefix + ".disabledBackground", background);
+		put(d, prefix + ".disabledForeground", disabledForeground);
+		put(d, prefix + ".borderColor", border);
+		put(d, prefix + ".focusedBorderColor", focusBorder);
+		put(d, prefix + ".disabledBorderColor", border);
+		put(d, prefix + ".margin", margin);
 	}
 
-	private void putMenuLike(UIDefaults d, String prefix, Color bg, Color fg, Color selBg, Color selFg,
-			Color disabledFg) {
-		put(d, prefix + ".background", bg);
-		put(d, prefix + ".foreground", fg);
-		put(d, prefix + ".selectionBackground", selBg);
-		put(d, prefix + ".selectionForeground", selFg);
-		put(d, prefix + ".disabledForeground", ensureContrast(disabledFg, bg, 3.0d));
-		put(d, prefix + ".acceleratorForeground", fg);
-		put(d, prefix + ".acceleratorSelectionForeground", selFg);
+	private void putMenuLike(UIDefaults d, String prefix, ThemePalette p) {
+		put(d, prefix + ".background", p.popupBackground());
+		put(d, prefix + ".foreground", p.popupForeground());
+		put(d, prefix + ".selectionBackground", p.menuSelectionBackground());
+		put(d, prefix + ".selectionForeground", p.menuSelectionForeground());
+		put(d, prefix + ".disabledForeground", p.disabledForeground());
+		put(d, prefix + ".acceleratorForeground", p.mutedForeground());
+		put(d, prefix + ".acceleratorSelectionForeground", p.menuSelectionForeground());
+		put(d, prefix + ".selectionInsets", new Insets(2, 4, 2, 4));
+		put(d, prefix + ".selectionArc", 4);
+		put(d, prefix + ".margin", new Insets(3, 6, 3, 6));
+	}
+
+	private void putCheckBoxLike(UIDefaults d, String prefix, ThemePalette p) {
+		put(d, prefix + ".background", p.background());
+		put(d, prefix + ".foreground", p.foreground());
+		put(d, prefix + ".disabledText", p.disabledForeground());
+		put(d, prefix + ".disabledForeground", p.disabledForeground());
+		put(d, prefix + ".icon.background", p.inputBackground());
+		put(d, prefix + ".icon.borderColor", p.border());
+		put(d, prefix + ".icon.selectedBorderColor", p.accent());
+		put(d, prefix + ".icon.selectedBackground", p.accent());
+		put(d, prefix + ".icon.checkmarkColor", p.buttonForeground());
+		put(d, prefix + ".icon.focusedBorderColor", p.focusBorder());
+		put(d, prefix + ".icon.hoverBorderColor", p.focusBorder());
+		put(d, prefix + ".icon.pressedBorderColor", p.focusBorder());
+		put(d, prefix + ".icon.disabledBorderColor", p.border());
+		put(d, prefix + ".icon.disabledBackground", p.background());
+		put(d, prefix + ".icon.disabledCheckmarkColor", p.disabledForeground());
+		put(d, prefix + ".icon.focusWidth", 1);
+		put(d, prefix + ".icon.arc", 4);
 	}
 
 	private void put(UIDefaults d, String key, Object value) {
@@ -626,131 +819,8 @@ public final class ThemeManager {
 		}
 	}
 
-	private Palette paletteFromCurrentLookAndFeel(ThemeType theme) {
-		ThemeDefaults td = themeDefaults(theme);
-		Color bg = td.bg;
-		Color fg = ensureContrast(td.fg, bg);
-		Color inputBg = td.inputBg;
-		Color selBg = td.selBg;
-		Color selFg = ensureContrast(td.selFg, selBg);
-		Color disabledFg = td.disabledFg;
-		if (disabledFg == null || contrastRatio(disabledFg, bg) < 3.0d) {
-			disabledFg = blend(fg, bg, 0.45f);
-		}
-		if (contrastRatio(disabledFg, bg) < 3.0d) {
-			disabledFg = ensureContrast(disabledFg, bg);
-		}
-		Color popupBg = td.popupBg;
-		Color border = td.border;
-		Color caret = ensureContrast(td.caret, inputBg);
-		Color menuBg = bg;
-		Color menuFg = fg;
-		Color menuSelBg = selBg;
-		Color menuSelFg = selFg;
-		Color popupFg = ensureContrast(fg, popupBg);
-		Color buttonBg = td.buttonBg;
-		Color buttonFg = ensureContrast(fg, buttonBg);
-		Color headerBg = bg;
-		Color headerFg = fg;
-
-		return new Palette(bg, fg, inputBg, buttonBg, buttonFg, selBg, selFg, disabledFg, popupBg, popupFg, menuBg,
-				menuFg, menuSelBg, menuSelFg, border, caret, headerBg, headerFg);
-	}
-
-	private ThemeDefaults themeDefaults(ThemeType theme) {
-		return switch (theme) {
-			case DRACULA -> new ThemeDefaults(c(0x282A36), c(0xF8F8F2), c(0x282A36), c(0x44475A), c(0xF8F8F2),
-					c(0x6272A4), c(0x21222C), c(0x44475A), c(0xF8F8F2), c(0x44475A));
-			case DRACULA_LIGHT -> new ThemeDefaults(c(0xF8F8F2), c(0x282A36), c(0xFFFFFF), c(0xE6E6DC), c(0x282A36),
-					c(0x6272A4), c(0xFFFFFF), c(0xD6D6CC), c(0x282A36), c(0xE6E6DC));
-			case BROWN -> new ThemeDefaults(c(0x282828), c(0xEBDBB2), c(0x3C3836), c(0x504945), c(0xFBF1C7),
-					c(0x928374), c(0x282828), c(0x504945), c(0xEBDBB2), c(0x3C3836));
-			case BROWN_LIGHT -> new ThemeDefaults(c(0xFBF1C7), c(0x3C3836), c(0xF2E5BC), c(0xD5C4A1), c(0x282828),
-					c(0x7C6F64), c(0xFBF1C7), c(0xD5C4A1), c(0x3C3836), c(0xEBDBB2));
-			case DARK -> new ThemeDefaults(c(0x3C3F41), c(0xBBBBBB), c(0x2B2B2B), c(0x4B6EAF), c(0xFFFFFF), c(0x777777),
-					c(0x2B2B2B), c(0x55595B), c(0xBBBBBB), c(0x4B6EAF));
-			case LIGHT -> new ThemeDefaults(c(0xF2F2F2), c(0x1F1F1F), c(0xFFFFFF), c(0x2675BF), c(0xFFFFFF),
-					c(0x8C8C8C), c(0xFFFFFF), c(0xD0D0D0), c(0x1F1F1F), c(0x2675BF));
-		};
-	}
-
-	private static Color c(int rgb) {
-		return new Color(rgb);
-	}
-
-	private static Color ensureContrast(Color fg, Color bg) {
-		return ensureContrast(fg, bg, 4.5d);
-	}
-
-	private static Color ensureContrast(Color fg, Color bg, double minimumContrast) {
-		if (bg == null) {
-			return fg;
-		}
-		if (fg == null) {
-			return contrastingForeground(bg);
-		}
-		if (contrastRatio(fg, bg) >= minimumContrast) {
-			return fg;
-		}
-		Color contrasted = contrastingForeground(bg);
-		if (contrastRatio(contrasted, bg) >= minimumContrast) {
-			return contrasted;
-		}
-		return contrastRatio(Color.WHITE, bg) >= contrastRatio(Color.BLACK, bg) ? Color.WHITE : Color.BLACK;
-	}
-
-	private static Color contrastingForeground(Color bg) {
-		return contrastRatio(Color.WHITE, bg) >= contrastRatio(Color.BLACK, bg) ? Color.WHITE : Color.BLACK;
-	}
-
-	private static double contrastRatio(Color c1, Color c2) {
-		if (c1 == null || c2 == null) {
-			return 21.0d;
-		}
-		double l1 = luminance(c1);
-		double l2 = luminance(c2);
-		double lighter = Math.max(l1, l2);
-		double darker = Math.min(l1, l2);
-		return (lighter + 0.05d) / (darker + 0.05d);
-	}
-
-	private static double luminance(Color c) {
-		double r = srgb(c.getRed());
-		double g = srgb(c.getGreen());
-		double b = srgb(c.getBlue());
-		return 0.2126d * r + 0.7152d * g + 0.0722d * b;
-	}
-
-	private static double srgb(int channel) {
-		double v = channel / 255.0d;
-		return v <= 0.04045d ? v / 12.92d : Math.pow((v + 0.055d) / 1.055d, 2.4d);
-	}
-
-	private static Color blend(Color fg, Color bg, float fgRatio) {
-		if (fg == null) {
-			return bg;
-		}
-		if (bg == null) {
-			return fg;
-		}
-		float bgRatio = 1f - fgRatio;
-		int r = Math.round(fg.getRed() * fgRatio + bg.getRed() * bgRatio);
-		int g = Math.round(fg.getGreen() * fgRatio + bg.getGreen() * bgRatio);
-		int b = Math.round(fg.getBlue() * fgRatio + bg.getBlue() * bgRatio);
-		return new Color(clamp(r), clamp(g), clamp(b));
-	}
-
-	private static int clamp(int value) {
-		return Math.max(0, Math.min(255, value));
-	}
-
-	private record ThemeDefaults(Color bg, Color fg, Color inputBg, Color selBg, Color selFg, Color disabledFg,
-			Color popupBg, Color border, Color caret, Color buttonBg) {
-	}
-
-	private record Palette(Color bg, Color fg, Color inputBg, Color buttonBg, Color buttonFg, Color selBg, Color selFg,
-			Color disabledFg, Color popupBg, Color popupFg, Color menuBg, Color menuFg, Color menuSelBg,
-			Color menuSelFg, Color border, Color caret, Color headerBg, Color headerFg) {
+	private static Color alpha(Color color, int alpha) {
+		return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
 	}
 
 }

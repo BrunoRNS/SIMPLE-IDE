@@ -1,12 +1,12 @@
 package io.simpleide.ui.treefile;
 
-import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.icon.MaterialIcons;
 import java.awt.Color;
 import java.awt.Component;
 
 import javax.swing.Icon;
 import javax.swing.JTree;
+import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
@@ -30,6 +30,9 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 	public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded,
 			boolean leaf, int row, boolean hasFocus) {
 		super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+		if (tree != null) {
+			setFont(tree.getFont());
+		}
 		applyTextColors(tree, selected);
 		if (value instanceof DefaultMutableTreeNode node && node.getUserObject() instanceof TreeFile file) {
 			Icon icon = file instanceof Directory directory ? MaterialIcons.forDirectory(directory.getPath(), expanded)
@@ -40,24 +43,22 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 	}
 
 	private void applyTextColors(JTree tree, boolean selected) {
-		Color background = selected
-				? ThemeColors.ui("Tree.selectionBackground", "List.selectionBackground", "Tree.background")
-				: ThemeColors.ui("Tree.background", "Panel.background", "Viewport.background");
-		Color foreground = selected
-				? ThemeColors.ui("Tree.selectionForeground", "List.selectionForeground", "Tree.foreground")
-				: ThemeColors.ui("Tree.foreground", "Tree.textForeground", "Label.foreground");
+		Color background = selected ? UIManager.getColor("Tree.selectionBackground")
+				: UIManager.getColor("Tree.background");
+		Color foreground = selected ? UIManager.getColor("Tree.selectionForeground")
+				: UIManager.getColor("Tree.foreground");
 		if (background == null && tree != null) {
 			background = tree.getBackground();
 		}
 		if (foreground == null && tree != null) {
 			foreground = tree.getForeground();
 		}
+		setOpaque(selected);
 		if (background != null) {
 			setBackground(background);
-			setOpaque(true);
 		}
 		if (foreground != null) {
-			setForeground(ThemeColors.readable(foreground, background));
+			setForeground(foreground);
 		}
 	}
 

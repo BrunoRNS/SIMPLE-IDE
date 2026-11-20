@@ -1,7 +1,6 @@
 package io.simpleide.ui.editor;
 
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.icon.MaterialIcons;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -55,6 +54,21 @@ public class ButtonExit extends JButton {
 		setBorder(BorderFactory.createEmptyBorder());
 		setContentAreaFilled(false);
 		setFocusable(false);
+		applyTheme();
+	}
+
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		applyTheme();
+	}
+
+	private void applyTheme() {
+		Color foreground = UIManager.getColor("TabbedPane.foreground");
+		if (foreground != null) {
+			setForeground(foreground);
+		}
+		refreshIconSize();
 	}
 
 	/**
@@ -107,12 +121,11 @@ public class ButtonExit extends JButton {
 			try {
 				g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 				if (edited) {
-					Color accent = ThemeColors.ui("Actions.Yellow", "Component.accentColor",
-							"TabbedPane.selectedForeground");
-					Color background = ThemeColors.ui("TabbedPane.selectedBackground", "TabbedPane.background",
-							"Panel.background");
-					g2.setColor(ThemeColors.readable(accent == null ? new Color(0xD9A441) : accent, background,
-							ThemeColors.MIN_LARGE_TEXT_CONTRAST));
+					Color accent = UIManager.getColor("Component.accentColor");
+					if (accent == null) {
+						accent = UIManager.getColor("Actions.Yellow");
+					}
+					g2.setColor(accent == null ? new Color(0xD9A441) : accent);
 					int diameter = Math.max(6, size / 2);
 					g2.fillOval(x + (size - diameter) / 2, y + (size - diameter) / 2, diameter, diameter);
 				}

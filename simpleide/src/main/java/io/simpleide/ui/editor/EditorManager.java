@@ -296,6 +296,7 @@ public class EditorManager {
 		if (tabForeground != null) {
 			manager.jTabbedPane.setForeground(tabForeground);
 		}
+		int selectedIndex = manager.jTabbedPane.getSelectedIndex();
 		for (int tabIndex = 0; tabIndex < manager.jTabbedPane.getTabCount(); tabIndex++) {
 			Component page = manager.jTabbedPane.getComponentAt(tabIndex);
 			if (!(page instanceof EditorTab tab)) {
@@ -312,10 +313,18 @@ public class EditorManager {
 			if (header instanceof JPanel panel && panel.getComponentCount() > 0
 					&& panel.getComponent(0) instanceof JLabel label) {
 				label.setIcon(icon);
+				label.setForeground(tabForeground(tabIndex == selectedIndex));
+				tab.getButtonExit().setForeground(tabForeground(tabIndex == selectedIndex));
 				panel.revalidate();
 				panel.repaint();
 			}
 		}
+	}
+
+	private static java.awt.Color tabForeground(boolean selected) {
+		java.awt.Color foreground = UIManager
+			.getColor(selected ? "TabbedPane.selectedForeground" : "TabbedPane.foreground");
+		return foreground != null ? foreground : UIManager.getColor("Label.foreground");
 	}
 
 	private JPanel createTabHeader(EditorTab tab) {
@@ -324,7 +333,9 @@ public class EditorManager {
 		header.setOpaque(false);
 		JLabel fileLabel = new JLabel(tab.getName(), tab.getFileIcon(), SwingConstants.LEADING);
 		fileLabel.setAlignmentY(Component.CENTER_ALIGNMENT);
+		fileLabel.setForeground(tabForeground(true));
 		tab.getButtonExit().setAlignmentY(Component.CENTER_ALIGNMENT);
+		tab.getButtonExit().setForeground(tabForeground(true));
 		header.add(fileLabel);
 		header.add(tab.getButtonExit());
 		return header;
@@ -398,6 +409,23 @@ public class EditorManager {
 
 	private void configJTabbedPane() {
 		this.jTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+		this.jTabbedPane.addChangeListener(event -> refreshTabHeaderColors());
+	}
+
+	private void refreshTabHeaderColors() {
+		int selectedIndex = jTabbedPane.getSelectedIndex();
+		for (int tabIndex = 0; tabIndex < jTabbedPane.getTabCount(); tabIndex++) {
+			Component header = jTabbedPane.getTabComponentAt(tabIndex);
+			if (!(header instanceof JPanel panel)) {
+				continue;
+			}
+			java.awt.Color foreground = tabForeground(tabIndex == selectedIndex);
+			for (Component child : panel.getComponents()) {
+				if (foreground != null) {
+					child.setForeground(foreground);
+				}
+			}
+		}
 	}
 
 	private void removeWelcomeScreen() {

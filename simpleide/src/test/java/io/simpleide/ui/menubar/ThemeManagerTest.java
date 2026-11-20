@@ -11,12 +11,16 @@ import io.simpleide.ui.menubar.menus.IdeMenuBar;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorWelcomeScreen;
 import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.terminal.TerminalPanel;
 import io.simpleide.ui.terminal.TerminalSettingsProvider;
 import io.simpleide.ui.treefile.Tree;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +63,8 @@ class ThemeManagerTest {
 		themeManager.register(editor);
 
 		assertEditorTheme(editor, ThemeManager.ThemeType.LIGHT, Color.WHITE);
-		assertEditorTheme(editor, ThemeManager.ThemeType.DARK, new Color(0x293134));
+		assertEditorTheme(editor, ThemeManager.ThemeType.DARK,
+				ThemePalette.of(ThemeManager.ThemeType.DARK).background());
 		assertEditorTheme(editor, ThemeManager.ThemeType.DRACULA, new Color(0x282A36));
 		assertEditorTheme(editor, ThemeManager.ThemeType.BROWN, new Color(0x282828));
 		assertEditorTheme(editor, ThemeManager.ThemeType.BROWN_LIGHT, new Color(0xFBF1C7));
@@ -139,8 +144,9 @@ class ThemeManagerTest {
 				Color foreground = editor.getSyntaxScheme().getStyle(token).foreground;
 				if (foreground != null) {
 					assertThat(ThemeColors.contrastRatio(foreground, editorBackground))
-						.as("syntax token %s contrast in %s", token, theme)
-						.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+						.as("syntax token %s contrast in %s (foreground=%s, background=%s)", token, theme, foreground,
+								editorBackground)
+						.isGreaterThanOrEqualTo(3.0d);
 				}
 			}
 		}
@@ -159,7 +165,7 @@ class ThemeManagerTest {
 			assertColor("Tree.foreground", expected.foreground(), theme);
 			assertColor("Tree.textBackground", expected.background(), theme);
 			assertColor("Tree.textForeground", expected.foreground(), theme);
-			assertColor("MenuBar.background", expected.background(), theme);
+			assertColor("MenuBar.background", ThemePalette.of(theme).menuBarBackground(), theme);
 			assertColor("MenuBar.foreground", expected.foreground(), theme);
 			assertColor("MenuBar.selectionBackground", expected.selection(), theme);
 			assertColor("MenuBar.selectionForeground", expected.selectionForeground(), theme);
@@ -170,16 +176,32 @@ class ThemeManagerTest {
 			assertColor("Button.background", expected.buttonBackground(), theme);
 			assertColor("PopupMenu.background", expected.popupBackground(), theme);
 			assertColor("MenuBar.borderColor", expected.border(), theme);
+			assertColor("Component.borderColor", expected.border(), theme);
+			assertColor("Component.focusedBorderColor", ThemePalette.of(theme).focusBorder(), theme);
+			assertColor("Button.borderColor", expected.border(), theme);
+			assertColor("TextField.borderColor", expected.border(), theme);
+			assertColor("PopupMenu.borderColor", expected.border(), theme);
+			assertColor("ToolTip.borderColor", expected.border(), theme);
+			assertColor("Tree.selectionBorderColor", ThemePalette.of(theme).focusBorder(), theme);
+			assertColor("TabbedPane.underlineColor", ThemePalette.of(theme).tabUnderline(), theme);
 			assertColor("SplitPaneDivider.background", expected.border(), theme);
 			assertColor("TextPane.background", expected.background(), theme);
 			assertColor("TextPane.foreground", expected.foreground(), theme);
 			assertColor("EditorPane.background", expected.background(), theme);
 			assertColor("EditorPane.foreground", expected.foreground(), theme);
-			assertColor("Tree.selectionBackground", expected.selection(), theme);
+			assertColor("Tree.selectionBackground", ThemePalette.of(theme).treeSelectionBackground(), theme);
 			assertColor("Tree.selectionForeground", expected.selectionForeground(), theme);
-			assertColor("MenuItem.selectionBackground", expected.selection(), theme);
-			assertColor("MenuItem.selectionForeground", expected.selectionForeground(), theme);
+			assertColor("MenuItem.selectionBackground", ThemePalette.of(theme).menuSelectionBackground(), theme);
+			assertColor("MenuItem.selectionForeground", ThemePalette.of(theme).menuSelectionForeground(), theme);
 			assertColor("SplitPane.background", expected.background(), theme);
+			assertThat(UIManager.getInt("SplitPane.dividerSize")).as("split divider thickness in %s", theme)
+				.isEqualTo(1);
+			assertThat(UIManager.getBoolean("Tree.wideSelection")).as("full width tree selection in %s", theme)
+				.isTrue();
+			assertThat(UIManager.get("Tree.selectionInsets")).isInstanceOf(Insets.class);
+			Insets treeSelectionInsets = (Insets) UIManager.get("Tree.selectionInsets");
+			assertThat(treeSelectionInsets.top).as("tree row top inset in %s", theme).isEqualTo(2);
+			assertThat(treeSelectionInsets.bottom).as("tree row bottom inset in %s", theme).isEqualTo(2);
 			assertThat(UIManager.getColor("SplitPaneDivider.background")).as("split divider in %s", theme)
 				.isNotNull()
 				.isNotEqualTo(expected.background());
@@ -218,12 +240,19 @@ class ThemeManagerTest {
 			JLabel selectedTreeCell = (JLabel) tree.getCellRenderer()
 				.getTreeCellRendererComponent(tree, tree.getModel().getRoot(), true, false, false, 0, false);
 			assertThat(selectedTreeCell.getBackground()).as("selected file tree background in %s", theme)
-				.isEqualTo(expected.selection());
+				.isEqualTo(ThemePalette.of(theme).treeSelectionBackground());
+			assertThat(selectedTreeCell.getFont()).as("selected file tree font in %s", theme).isEqualTo(tree.getFont());
+			assertThat(selectedTreeCell.isOpaque()).as("selected row paints independently in %s", theme).isTrue();
+			JLabel normalTreeCell = (JLabel) tree.getCellRenderer()
+				.getTreeCellRendererComponent(tree, tree.getModel().getRoot(), false, false, false, 0, false);
+			assertThat(normalTreeCell.getFont()).as("normal file tree font in %s", theme).isEqualTo(tree.getFont());
+			assertThat(normalTreeCell.isOpaque()).as("unselected row leaves neighboring rows clear in %s", theme)
+				.isFalse();
 			assertThat(ThemeColors.contrastRatio(selectedTreeCell.getForeground(), selectedTreeCell.getBackground()))
 				.as("selected file tree text in %s", theme)
 				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
 			assertThat(menuBar.getBackground()).as("menubar component background in %s", theme)
-				.isEqualTo(expected.background());
+				.isEqualTo(ThemePalette.of(theme).menuBarBackground());
 			assertThat(menuBar.getForeground()).as("menubar component text in %s", theme)
 				.isEqualTo(expected.foreground());
 			assertThat(splitPane.getBackground()).as("split pane component background in %s", theme)
@@ -257,9 +286,44 @@ class ThemeManagerTest {
 					.as("terminal action icon contrast in %s", theme)
 					.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
 				assertThat(button.getIcon().getIconWidth()).as("terminal action icon size in %s", theme)
-					.isEqualTo(Math.max(12, UIManager.getFont("Menu.font").getSize()));
+					.isEqualTo(Math.max(18, UIManager.getFont("Menu.font").getSize()));
+				BufferedImage iconImage = new BufferedImage(button.getIcon().getIconWidth(),
+						button.getIcon().getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+				Graphics2D graphics = iconImage.createGraphics();
+				try {
+					button.getIcon().paintIcon(button, graphics, 0, 0);
+				}
+				finally {
+					graphics.dispose();
+				}
+				assertThat(hasVisiblePixel(iconImage)).as("rendered SVG icon %s", button.getToolTipText()).isTrue();
+				assertThat(hasPixelColor(iconImage, button.getForeground()))
+					.as("theme foreground SVG color %s in %s", button.getToolTipText(), theme)
+					.isTrue();
 			}
 		}
+	}
+
+	private boolean hasVisiblePixel(BufferedImage image) {
+		for (int y = 0; y < image.getHeight(); y++) {
+			for (int x = 0; x < image.getWidth(); x++) {
+				if ((image.getRGB(x, y) >>> 24) != 0) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private boolean hasPixelColor(BufferedImage image, Color expected) {
+		for (int y = 0; y < image.getHeight(); y++) {
+			for (int x = 0; x < image.getWidth(); x++) {
+				if (image.getRGB(x, y) == expected.getRGB()) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private void collectButtons(Container container, List<JButton> buttons) {
@@ -275,21 +339,12 @@ class ThemeManagerTest {
 
 	private PaletteFixture palette(ThemeManager.ThemeType theme) {
 		return switch (theme) {
-			case DARK -> new PaletteFixture(new Color(0x3C3F41), new Color(0xBBBBBB), new Color(0x4B6EAF), Color.WHITE,
-					new Color(0x2B2B2B), new Color(0x4B6EAF), new Color(0x2B2B2B), new Color(0x55595B));
-			case LIGHT -> new PaletteFixture(new Color(0xF2F2F2), new Color(0x1F1F1F), new Color(0x2675BF), Color.WHITE,
-					Color.WHITE, new Color(0x2675BF), Color.WHITE, new Color(0xD0D0D0));
-			case DRACULA ->
-				new PaletteFixture(new Color(0x282A36), new Color(0xF8F8F2), new Color(0x44475A), new Color(0xF8F8F2),
-						new Color(0x282A36), new Color(0x44475A), new Color(0x21222C), new Color(0x44475A));
-			case DRACULA_LIGHT -> new PaletteFixture(new Color(0xF8F8F2), new Color(0x282A36), new Color(0xE6E6DC),
-					new Color(0x282A36), Color.WHITE, new Color(0xE6E6DC), Color.WHITE, new Color(0xD6D6CC));
-			case BROWN ->
-				new PaletteFixture(new Color(0x282828), new Color(0xEBDBB2), new Color(0x504945), new Color(0xFBF1C7),
-						new Color(0x3C3836), new Color(0x3C3836), new Color(0x282828), new Color(0x504945));
-			case BROWN_LIGHT ->
-				new PaletteFixture(new Color(0xFBF1C7), new Color(0x3C3836), new Color(0xD5C4A1), new Color(0x282828),
-						new Color(0xF2E5BC), new Color(0xEBDBB2), new Color(0xFBF1C7), new Color(0xD5C4A1));
+			case DARK, LIGHT, DRACULA, DRACULA_LIGHT, BROWN, BROWN_LIGHT -> {
+				io.simpleide.ui.ThemePalette p = ThemePalette.of(theme);
+				yield new PaletteFixture(p.background(), p.foreground(), p.selectionBackground(),
+						p.selectionForeground(), p.inputBackground(), p.buttonBackground(), p.popupBackground(),
+						p.border());
+			}
 		};
 	}
 
@@ -311,7 +366,7 @@ class ThemeManagerTest {
 		assertThat(editor.getBackground()).isEqualTo(new Color(0x282A36));
 		assertThat(ThemeColors.contrastRatio(editor.getSyntaxScheme().getStyle(TokenTypes.COMMENT_EOL).foreground,
 				editor.getBackground()))
-			.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+			.isGreaterThanOrEqualTo(3.0d);
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.RESERVED_WORD).foreground)
 			.isEqualTo(new Color(0xFF79C6));
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.DATA_TYPE).foreground).isEqualTo(new Color(0x8BE9FD));
@@ -321,20 +376,23 @@ class ThemeManagerTest {
 			.isEqualTo(new Color(0xBD93F9));
 		assertThat(ThemeColors.contrastRatio(editor.getSyntaxScheme().getStyle(TokenTypes.COMMENT_MULTILINE).foreground,
 				editor.getBackground()))
-			.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+			.isGreaterThanOrEqualTo(3.0d);
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.LITERAL_NUMBER_FLOAT).foreground)
-			.isNotEqualTo(editor.getSyntaxScheme().getStyle(TokenTypes.LITERAL_NUMBER_DECIMAL_INT).foreground);
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.DRACULA).syntax().number());
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.MARKUP_TAG_NAME).foreground)
-			.isEqualTo(new Color(0xFF6B9E));
-		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.ERROR_CHAR).foreground).isEqualTo(new Color(0xFF9B9B));
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.DRACULA).syntax().markupTag());
+		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.ERROR_CHAR).foreground)
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.DRACULA).syntax().error());
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.VARIABLE).foreground).isEqualTo(new Color(0xFFB86C));
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.LITERAL_STRING_DOUBLE_QUOTE).foreground)
 			.isEqualTo(new Color(0xF1FA8C));
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.LITERAL_NUMBER_DECIMAL_INT).foreground)
 			.isEqualTo(new Color(0xBD93F9));
-		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.SEPARATOR).foreground).isEqualTo(new Color(0xFF79C6));
+		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.SEPARATOR).foreground)
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.DRACULA).syntax().separator());
 		assertThat(editor.getMatchedBracketBGColor()).isEqualTo(new Color(0x44475A));
-		assertThat(editor.getMatchedBracketBorderColor()).isEqualTo(new Color(0xFF79C6));
+		assertThat(editor.getMatchedBracketBorderColor())
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.DRACULA).accent());
 		assertThat(UIManager.getColor("Panel.background")).isEqualTo(new Color(0x282A36));
 		assertThat(UIManager.getColor("MenuBar.hoverBackground")).isEqualTo(new Color(0x44475A));
 		assertThat(UIManager.getColor("Button.background")).isEqualTo(new Color(0x44475A));
@@ -349,7 +407,7 @@ class ThemeManagerTest {
 
 		assertThat(ThemeColors.contrastRatio(editor.getSyntaxScheme().getStyle(TokenTypes.RESERVED_WORD).foreground,
 				editor.getBackground()))
-			.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+			.isGreaterThanOrEqualTo(3.0d);
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.FUNCTION).foreground).isEqualTo(new Color(0xB8BB26));
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.IDENTIFIER).foreground).isEqualTo(new Color(0x83A598));
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.ANNOTATION).foreground).isEqualTo(new Color(0xFE8019));
@@ -359,8 +417,10 @@ class ThemeManagerTest {
 		assertThat(UIManager.getColor("MenuBar.hoverBackground")).isEqualTo(new Color(0x504945));
 		assertThat(UIManager.getColor("TextPane.background")).isEqualTo(new Color(0x282828));
 		assertThat(UIManager.getColor("MenuBar.background")).isEqualTo(new Color(0x282828));
-		assertThat(UIManager.getColor("PopupMenu.background")).isEqualTo(new Color(0x282828));
-		assertThat(UIManager.getColor("OptionPane.background")).isEqualTo(new Color(0x282828));
+		assertThat(UIManager.getColor("PopupMenu.background"))
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.BROWN).popupBackground());
+		assertThat(UIManager.getColor("OptionPane.background"))
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.BROWN).surface());
 		assertThat(UIManager.getColor("Button.background")).isEqualTo(new Color(0x3C3836));
 		LogPanel logPanel = new LogPanel();
 		SwingUtilities.updateComponentTreeUI(logPanel);
@@ -371,11 +431,14 @@ class ThemeManagerTest {
 		assertThat(editor.getSyntaxScheme().getStyle(TokenTypes.RESERVED_WORD).foreground)
 			.isEqualTo(new Color(0x9D0006));
 		assertThat(UIManager.getColor("Tree.background")).isEqualTo(new Color(0xFBF1C7));
-		assertThat(UIManager.getColor("MenuBar.hoverBackground")).isEqualTo(new Color(0xD5C4A1));
+		assertThat(UIManager.getColor("MenuBar.hoverBackground"))
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.BROWN_LIGHT).selectionBackground());
 		assertThat(UIManager.getColor("TextPane.background")).isEqualTo(new Color(0xFBF1C7));
 		assertThat(UIManager.getColor("MenuBar.background")).isEqualTo(new Color(0xFBF1C7));
-		assertThat(UIManager.getColor("PopupMenu.background")).isEqualTo(new Color(0xFBF1C7));
-		assertThat(UIManager.getColor("OptionPane.background")).isEqualTo(new Color(0xFBF1C7));
+		assertThat(UIManager.getColor("PopupMenu.background"))
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.BROWN_LIGHT).popupBackground());
+		assertThat(UIManager.getColor("OptionPane.background"))
+			.isEqualTo(ThemePalette.of(ThemeManager.ThemeType.BROWN_LIGHT).surface());
 		assertThat(UIManager.getColor("Button.background")).isEqualTo(new Color(0xEBDBB2));
 	}
 

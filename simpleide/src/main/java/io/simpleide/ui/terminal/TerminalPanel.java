@@ -34,8 +34,6 @@ public final class TerminalPanel extends JPanel {
 
 	static final int MAX_TABS = 5;
 
-	private static final double MIN_ICON_CONTRAST = 4.5;
-
 	private static final Color ICON_ACCENT = new Color(0x6E7781);
 
 	private final JTabbedPane terminalTabs = new JTabbedPane();
@@ -90,32 +88,24 @@ public final class TerminalPanel extends JPanel {
 		if (font == null) {
 			font = UIManager.getFont("Label.font");
 		}
-		int iconSize = Math.max(12, font == null ? 14 : font.getSize());
+		int iconSize = Math.max(18, font == null ? 18 : font.getSize());
 		return new FlatSVGIcon(resource, iconSize, iconSize)
 			.setColorFilter(new FlatSVGIcon.ColorFilter((component, color) -> {
-				Color background = getIconBackground(component);
 				if (ICON_ACCENT.equals(color)) {
 					Color foreground = UIManager.getColor("Button.foreground");
 					if (foreground == null && component != null) {
 						foreground = component.getForeground();
 					}
-					return getAccessibleIconForeground(foreground, background);
+					if (foreground == null) {
+						foreground = UIManager.getColor("Label.foreground");
+					}
+					return foreground == null ? Color.GRAY : foreground;
 				}
 				if (Color.WHITE.equals(color)) {
-					return background;
+					return getIconBackground(component);
 				}
 				return color;
 			}));
-	}
-
-	static Color getAccessibleIconForeground(Color preferred, Color background) {
-		Color effectiveBackground = background == null ? Color.WHITE : background;
-		Color effectiveForeground = preferred == null ? Color.DARK_GRAY : preferred;
-		if (contrastRatio(effectiveForeground, effectiveBackground) >= MIN_ICON_CONTRAST) {
-			return effectiveForeground;
-		}
-		return contrastRatio(Color.BLACK, effectiveBackground) >= contrastRatio(Color.WHITE, effectiveBackground)
-				? Color.BLACK : Color.WHITE;
 	}
 
 	private static Color getIconBackground(Component component) {
@@ -127,36 +117,6 @@ public final class TerminalPanel extends JPanel {
 			background = UIManager.getColor("Panel.background");
 		}
 		return background == null ? Color.WHITE : background;
-	}
-
-	private static double contrastRatio(Color foreground, Color background) {
-		Color opaqueBackground = composite(background, Color.WHITE);
-		Color opaqueForeground = composite(foreground, opaqueBackground);
-		double foregroundLuminance = relativeLuminance(opaqueForeground);
-		double backgroundLuminance = relativeLuminance(opaqueBackground);
-		double lighter = Math.max(foregroundLuminance, backgroundLuminance);
-		double darker = Math.min(foregroundLuminance, backgroundLuminance);
-		return (lighter + 0.05) / (darker + 0.05);
-	}
-
-	private static Color composite(Color color, Color background) {
-		if (color.getAlpha() == 255) {
-			return color;
-		}
-		double alpha = color.getAlpha() / 255.0;
-		return new Color((int) Math.round(color.getRed() * alpha + background.getRed() * (1 - alpha)),
-				(int) Math.round(color.getGreen() * alpha + background.getGreen() * (1 - alpha)),
-				(int) Math.round(color.getBlue() * alpha + background.getBlue() * (1 - alpha)));
-	}
-
-	private static double relativeLuminance(Color color) {
-		return 0.2126 * linearize(color.getRed()) + 0.7152 * linearize(color.getGreen())
-				+ 0.0722 * linearize(color.getBlue());
-	}
-
-	private static double linearize(int channel) {
-		double normalized = channel / 255.0;
-		return normalized <= 0.04045 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
 	}
 
 	void setActions(Runnable addAction, Runnable closeAction) {

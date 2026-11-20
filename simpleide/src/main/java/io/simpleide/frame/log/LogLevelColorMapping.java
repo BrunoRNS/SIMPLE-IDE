@@ -3,6 +3,7 @@ package io.simpleide.frame.log;
 import ch.qos.logback.classic.Level;
 import java.awt.Color;
 import java.util.Map;
+import javax.swing.UIManager;
 
 /**
  * Maps Logback log levels to the colors used by the IDE log console.
@@ -17,16 +18,18 @@ import java.util.Map;
  */
 public class LogLevelColorMapping {
 
-	private static final Map<Level, Color> LEVEL_COLORS = Map.of(Level.TRACE, Color.GRAY, Level.DEBUG, Color.CYAN,
-			Level.INFO, Color.BLACK, Level.WARN, Color.ORANGE, Level.ERROR, Color.RED);
+	private static final Map<Level, String> LEVEL_KEYS = Map.of(Level.TRACE, "Log.traceForeground", Level.DEBUG,
+			"Log.debugForeground", Level.INFO, "Log.infoForeground", Level.WARN, "Log.warnForeground", Level.ERROR,
+			"Log.errorForeground");
 
 	/**
 	 * Returns the display color for a log level.
 	 * @param level level to look up
-	 * @return the configured color, or {@code null} when the level has no mapping
+	 * @return the theme color, or {@code null} when the level has no mapping
 	 */
 	public static Color colorForLevel(Level level) {
-		return LEVEL_COLORS.get(level);
+		String key = LEVEL_KEYS.get(level);
+		return key == null ? null : UIManager.getColor(key);
 	}
 
 }

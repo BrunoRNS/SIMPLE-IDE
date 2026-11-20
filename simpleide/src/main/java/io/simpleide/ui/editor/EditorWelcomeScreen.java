@@ -82,7 +82,10 @@ public final class EditorWelcomeScreen {
 		}
 
 		private void applyTheme() {
-			java.awt.Color background = UIManager.getColor("TabbedPane.background");
+			java.awt.Color background = UIManager.getColor("TabbedPane.contentAreaColor");
+			if (background == null) {
+				background = UIManager.getColor("TabbedPane.background");
+			}
 			if (background == null) {
 				background = UIManager.getColor("Panel.background");
 			}

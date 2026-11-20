@@ -1,7 +1,6 @@
 package io.simpleide.frame.log;
 
 import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.ThemeColors;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
@@ -97,10 +96,7 @@ public class LogPanel extends JTextPane {
 	}
 
 	private Color levelColor(Color preferred) {
-		if (Color.BLACK.equals(preferred)) {
-			return getForeground();
-		}
-		return ThemeColors.readable(preferred, getBackground(), ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+		return preferred == null ? getForeground() : preferred;
 	}
 
 	private void rebuildDocument() {

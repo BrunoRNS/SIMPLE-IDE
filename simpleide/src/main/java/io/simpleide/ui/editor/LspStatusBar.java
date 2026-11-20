@@ -41,12 +41,6 @@ public final class LspStatusBar extends JPanel {
 	 */
 	public LspStatusBar() {
 		super(new BorderLayout(8, 0));
-		Color separator = UIManager.getColor("Separator.foreground");
-		if (separator == null) {
-			separator = Color.GRAY;
-		}
-		setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, separator),
-				BorderFactory.createEmptyBorder(4, 8, 4, 8)));
 		setMinimumSize(new Dimension(0, 26));
 
 		progress.setIndeterminate(true);
@@ -55,6 +49,25 @@ public final class LspStatusBar extends JPanel {
 		progress.setVisible(false);
 		add(label, BorderLayout.CENTER);
 		add(progress, BorderLayout.EAST);
+		applyTheme();
+	}
+
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		applyTheme();
+	}
+
+	private void applyTheme() {
+		Color separator = UIManager.getColor("Separator.foreground");
+		if (separator == null) {
+			separator = UIManager.getColor("Component.borderColor");
+		}
+		if (separator == null) {
+			separator = Color.GRAY;
+		}
+		setBorder(BorderFactory.createCompoundBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, separator),
+				BorderFactory.createEmptyBorder(4, 8, 4, 8)));
 	}
 
 	/**

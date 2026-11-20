@@ -26,12 +26,30 @@ import org.junit.jupiter.api.Test;
 class TerminalPanelTest {
 
 	@Test
-	void selectsHighContrastIconColorsForLightDarkAndMidToneThemes() {
-		Color[] backgrounds = { new Color(0x252525), new Color(0x777777), new Color(0xF5F5F5) };
+	void actionIconSvgColorsFollowTheTheme() throws Exception {
+		Object originalForeground = UIManager.get("Button.foreground");
+		Object originalBackground = UIManager.get("Button.background");
+		try {
+			Color foreground = new Color(0xEBDBB2);
+			Color background = new Color(0x3C3836);
+			UIManager.put("Button.foreground", foreground);
+			UIManager.put("Button.background", background);
 
-		for (Color background : backgrounds) {
-			Color foreground = TerminalPanel.getAccessibleIconForeground(background, background);
-			assertThat(contrastRatio(foreground, background)).isGreaterThanOrEqualTo(4.5);
+			SwingUtilities.invokeAndWait(() -> {
+				TerminalPanel panel = new TerminalPanel();
+				assertThat(findButtons(panel)).isNotEmpty().allSatisfy(button -> {
+					FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
+					FlatSVGIcon.ColorFilter filter = icon.getColorFilter();
+					assertThat(filter.filter(null, new Color(0x6E7781))).as("accent stroke color")
+						.isEqualTo(foreground);
+					assertThat(filter.filter(null, Color.WHITE)).as("icon background color").isEqualTo(background);
+					assertThat(filter.filter(null, Color.RED)).as("unmapped svg color").isEqualTo(Color.RED);
+				});
+			});
+		}
+		finally {
+			restoreUiValue("Button.foreground", originalForeground);
+			restoreUiValue("Button.background", originalBackground);
 		}
 	}
 
@@ -62,7 +80,7 @@ class TerminalPanelTest {
 			List<JButton> actionButtons = findButtons(panel);
 			assertThat(actionButtons).hasSize(2);
 			Font menuFont = UIManager.getFont("Menu.font");
-			int expectedIconSize = Math.max(12, menuFont == null ? 14 : menuFont.getSize());
+			int expectedIconSize = Math.max(18, menuFont == null ? 18 : menuFont.getSize());
 			for (JButton button : actionButtons) {
 				assertThat(button.getIcon()).isInstanceOf(FlatSVGIcon.class);
 				FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
@@ -154,14 +172,6 @@ class TerminalPanelTest {
 		}
 	}
 
-	private static double contrastRatio(Color foreground, Color background) {
-		double foregroundLuminance = relativeLuminance(foreground);
-		double backgroundLuminance = relativeLuminance(background);
-		double lighter = Math.max(foregroundLuminance, backgroundLuminance);
-		double darker = Math.min(foregroundLuminance, backgroundLuminance);
-		return (lighter + 0.05) / (darker + 0.05);
-	}
-
 	private static void restoreUiValue(String key, Object value) {
 		if (value == null) {
 			UIManager.getDefaults().remove(key);
@@ -169,16 +179,6 @@ class TerminalPanelTest {
 		else {
 			UIManager.put(key, value);
 		}
-	}
-
-	private static double relativeLuminance(Color color) {
-		return 0.2126 * linearize(color.getRed()) + 0.7152 * linearize(color.getGreen())
-				+ 0.0722 * linearize(color.getBlue());
-	}
-
-	private static double linearize(int channel) {
-		double normalized = channel / 255.0;
-		return normalized <= 0.04045 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
 	}
 
 }
