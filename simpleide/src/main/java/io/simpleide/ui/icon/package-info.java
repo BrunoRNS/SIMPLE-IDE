@@ -6,7 +6,7 @@
  * {@link io.simpleide.ui.icon.MaterialIcons} for file and folder lookups. Icons are read
  * from the application classpath or jar, so the IDE never downloads them at runtime.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  */
 package io.simpleide.ui.icon;

@@ -20,6 +20,8 @@ import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JSpinner;
+import javax.swing.JTextField;
 import javax.swing.JTabbedPane;
 import javax.swing.JTree;
 import javax.swing.JViewport;
@@ -206,8 +208,13 @@ public final class ThemeManager {
 			popup.setForeground(palette.popupForeground());
 		}
 		else if (component instanceof JMenuItem menuItem) {
-			menuItem.setForeground(palette.foreground());
-			if (menuItem instanceof JMenu menu && menu.getParent() instanceof JMenuBar) {
+			boolean topLevel = menuItem instanceof JMenu menu && menu.getParent() instanceof JMenuBar;
+			menuItem.setForeground(topLevel ? palette.foreground() : palette.popupForeground());
+			if (!topLevel) {
+				menuItem.setBackground(palette.popupBackground());
+				menuItem.setOpaque(true);
+			}
+			if (topLevel && menuItem instanceof JMenu menu) {
 				menu.setBackground(palette.menuBarBackground());
 				menu.setOpaque(true);
 			}
@@ -216,6 +223,25 @@ public final class ThemeManager {
 			button.putClientProperty("JButton.buttonType", "roundRect");
 			button.setBackground(palette.buttonBackground());
 			button.setForeground(palette.buttonForeground());
+		}
+		else if (component instanceof JSpinner spinner) {
+			spinner.setBackground(palette.inputBackground());
+			spinner.setForeground(palette.inputForeground());
+			spinner.setOpaque(true);
+		}
+		else if (component instanceof JSpinner.DefaultEditor editor) {
+			editor.setBackground(palette.inputBackground());
+			editor.setForeground(palette.inputForeground());
+			editor.setOpaque(true);
+		}
+		else if (component instanceof JTextField textField) {
+			textField.setBackground(palette.inputBackground());
+			textField.setForeground(palette.inputForeground());
+			textField.setCaretColor(palette.inputForeground());
+			textField.setSelectionColor(palette.selectionBackground());
+			textField.setSelectedTextColor(palette.selectionForeground());
+			textField.setDisabledTextColor(palette.disabledForeground());
+			textField.setOpaque(true);
 		}
 		else if (component instanceof JTabbedPane tabs) {
 			tabs.setBackground(palette.surface());
@@ -248,6 +274,9 @@ public final class ThemeManager {
 				refreshComponentTheme(child, palette);
 			}
 		}
+		if (component instanceof JMenu menu) {
+			refreshComponentTheme(menu.getPopupMenu(), palette);
+		}
 	}
 
 	private void updateMenuPopups(Component component) {
@@ -256,6 +285,7 @@ public final class ThemeManager {
 		}
 		if (component instanceof JPopupMenu popup) {
 			SwingUtilities.updateComponentTreeUI(popup);
+			refreshComponentTheme(popup, currentPalette());
 		}
 		if (component instanceof JMenu menu) {
 			SwingUtilities.updateComponentTreeUI(menu.getPopupMenu());

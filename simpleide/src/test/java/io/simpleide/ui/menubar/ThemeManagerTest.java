@@ -1,20 +1,5 @@
 package io.simpleide.ui.menubar;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import com.formdev.flatlaf.FlatDarkLaf;
-import com.formdev.flatlaf.FlatLightLaf;
-import com.formdev.flatlaf.FlatPropertiesLaf;
-import io.simpleide.frame.log.LogPanel;
-import io.simpleide.ui.treefile.Directory;
-import io.simpleide.ui.menubar.menus.IdeMenuBar;
-import io.simpleide.ui.editor.Editor;
-import io.simpleide.ui.editor.EditorWelcomeScreen;
-import io.simpleide.ui.ThemeColors;
-import io.simpleide.ui.ThemePalette;
-import io.simpleide.ui.terminal.TerminalPanel;
-import io.simpleide.ui.terminal.TerminalSettingsProvider;
-import io.simpleide.ui.treefile.Tree;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
@@ -24,20 +9,43 @@ import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.swing.JButton;
-import javax.swing.JMenu;
-import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
-import javax.swing.JSplitPane;
+import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuBar;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JSpinner;
 import javax.swing.JTabbedPane;
 import javax.swing.JTree;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.tree.DefaultTreeCellRenderer;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.fife.ui.rsyntaxtextarea.TokenTypes;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatPropertiesLaf;
+
+import io.simpleide.frame.log.LogPanel;
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.ThemePalette;
+import io.simpleide.ui.editor.Editor;
+import io.simpleide.ui.editor.EditorWelcomeScreen;
+import io.simpleide.ui.menubar.menus.IdeMenuBar;
+import io.simpleide.ui.menubar.menus.SettingsMenu;
+import io.simpleide.ui.terminal.TerminalPanel;
+import io.simpleide.ui.terminal.TerminalSettingsProvider;
+import io.simpleide.ui.treefile.Directory;
+import io.simpleide.ui.treefile.Tree;
 
 /**
  * Tests {@link io.simpleide.ui.menubar.ThemeManager}.
@@ -299,6 +307,21 @@ class ThemeManagerTest {
 			assertThat(ThemeColors.contrastRatio(welcomeTitle.getForeground(), welcome.getBackground()))
 				.as("welcome title contrast in %s", theme)
 				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+			assertThat(ThemeColors.contrastRatio(welcomeTitle.getForeground(), ThemePalette.of(theme).surface()))
+				.as("welcome title contrast over the theme surface in %s", theme)
+				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+			JLabel welcomeSubtitle = collectLabels(welcome).stream()
+				.filter(label -> "Open a project or create a file to get started".equals(label.getText()))
+				.findFirst()
+				.orElseThrow();
+			assertThat(welcomeSubtitle.getFont().getSize()).as("welcome subtitle size in %s", theme)
+				.isGreaterThanOrEqualTo(15);
+			assertThat(ThemeColors.contrastRatio(welcomeSubtitle.getForeground(), welcome.getBackground()))
+				.as("welcome subtitle contrast in %s", theme)
+				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+			assertThat(ThemeColors.contrastRatio(welcomeSubtitle.getForeground(), ThemePalette.of(theme).surface()))
+				.as("welcome subtitle contrast over the theme surface in %s", theme)
+				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
 			assertThat(welcomeButtons).allSatisfy(button -> assertThat(button.getClientProperty("JButton.buttonType"))
 				.as("welcome button has rounded FlatLaf styling in %s", theme)
 				.isEqualTo("roundRect"));
@@ -336,6 +359,70 @@ class ThemeManagerTest {
 					.as("theme foreground SVG color %s in %s", button.getToolTipText(), theme)
 					.isTrue();
 			}
+		}
+	}
+
+	@Test
+	void nestedMenuItemsAdoptTheSelectedThemePalette() throws Exception {
+		JMenuBar menuBar = new JMenuBar();
+		JMenu settings = new JMenu("Settings");
+		JMenu theme = new JMenu("Theme");
+		JMenuItem light = new JMenuItem("Light");
+		theme.add(light);
+		settings.add(theme);
+		menuBar.add(settings);
+
+		for (ThemeManager.ThemeType type : ThemeManager.ThemeType.values()) {
+			themeManager.setTheme(type);
+			flushEdt();
+			ThemePalette palette = ThemePalette.of(type);
+			themeManager.refreshComponentTheme(menuBar, palette);
+			assertThat(settings.getBackground()).as("top menu background in %s", type)
+				.isEqualTo(palette.menuBarBackground());
+			assertThat(theme.getBackground()).as("submenu background in %s", type).isEqualTo(palette.popupBackground());
+			assertThat(theme.getForeground()).as("submenu foreground in %s", type).isEqualTo(palette.popupForeground());
+			assertThat(light.getBackground()).as("nested item background in %s", type)
+				.isEqualTo(palette.popupBackground());
+			assertThat(light.getForeground()).as("nested item foreground in %s", type)
+				.isEqualTo(palette.popupForeground());
+		}
+	}
+
+	@Test
+	void fontSizeSpinnerInputAdoptsEverySelectedTheme() throws Exception {
+		JMenuBar menuBar = new JMenuBar();
+		SettingsMenu settings = new SettingsMenu();
+		menuBar.add(settings);
+		JSpinner spinner = (JSpinner) settings.getMenuComponent(2);
+		JFormattedTextField editor = ((JSpinner.DefaultEditor) spinner.getEditor()).getTextField();
+		ThemePalette darkPalette = ThemePalette.of(ThemeManager.ThemeType.DARK);
+
+		for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
+			themeManager.setTheme(theme);
+			flushEdt();
+			SwingUtilities.invokeAndWait(() -> SwingUtilities.updateComponentTreeUI(menuBar));
+
+			spinner.setBackground(darkPalette.inputBackground());
+			spinner.setForeground(darkPalette.inputForeground());
+			editor.setBackground(darkPalette.inputBackground());
+			editor.setForeground(darkPalette.inputForeground());
+			editor.setCaretColor(darkPalette.inputForeground());
+
+			ThemePalette palette = ThemePalette.of(theme);
+			themeManager.refreshComponentTheme(menuBar, palette);
+
+			assertThat(spinner.getBackground()).as("font size control background in %s", theme)
+				.isEqualTo(palette.inputBackground());
+			assertThat(spinner.getForeground()).as("font size control text in %s", theme)
+				.isEqualTo(palette.inputForeground());
+			assertThat(editor.getBackground()).as("font size editor background in %s", theme)
+				.isEqualTo(palette.inputBackground());
+			assertThat(editor.getForeground()).as("font size editor text in %s", theme)
+				.isEqualTo(palette.inputForeground());
+			assertThat(editor.getCaretColor()).as("font size caret in %s", theme).isEqualTo(palette.inputForeground());
+			assertThat(ThemeColors.contrastRatio(editor.getForeground(), editor.getBackground()))
+				.as("font size text contrast in %s", theme)
+				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
 		}
 	}
 

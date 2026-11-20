@@ -5,7 +5,7 @@ examples target Java 17 or newer.
 
 ## 1. Add the dependency
 
-Choose one of the options in [Artifacts and imports](artifacts.md). The shortest
+Choose one of the options in [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts). The shortest
 path is JitPack:
 
 ```xml
@@ -64,7 +64,7 @@ public final class MinimalEditor {
 
 This path does not start `ThreadMaster`, a language server or the terminal. It is
 the smallest way to reuse the editor look and syntax mapping. See
-[Standalone RSyntaxTextArea](rsyntax.md).
+[Standalone RSyntaxTextArea](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-RSyntax).
 
 ## 3. Run a source file
 
@@ -93,7 +93,7 @@ public final class RunFile {
 `Languages.start` installs the available languages once, creates the language
 instance, and registers it with the shared thread manager. The process output
 and the optional input queue are global; do not run two interactive programs at
-the same time unless you coordinate their input. See [Languages](languages.md).
+the same time unless you coordinate their input. See [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages).
 
 ## 4. Open an editor with LSP
 
@@ -129,7 +129,7 @@ public final class EditorWithLsp {
 
 The language server is installed under `~/.simpleide/lsp/` when needed. Opening
 the editor does not block on the network; the future completes when the server
-is initialized. See [LSP](lsp.md).
+is initialized. See [LSP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP).
 
 ## 5. Add a background task
 
@@ -145,7 +145,7 @@ Threads.background(() -> System.out.println("done"), () -> System.out.println("c
 ```
 
 `Threads.background` uses the shared worker pool. Keep tasks short and never
-block the Swing EDT. See [Threading](threading.md).
+block the Swing EDT. See [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading).
 
 ## 6. Add a terminal
 
@@ -161,7 +161,7 @@ frame.add(terminal);
 
 The embedded BusyBox binary is extracted from the fat JAR at runtime. The
 controller creates a dedicated managed worker pool for terminal sessions. See
-[Terminal](terminal.md).
+[Terminal](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Terminal).
 
 ## 7. Run the full IDE
 

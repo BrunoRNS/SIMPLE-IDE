@@ -1,7 +1,5 @@
 package io.simpleide.ui.terminal;
 
-import com.formdev.flatlaf.extras.FlatSVGIcon;
-import com.jediterm.terminal.TtyConnector;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -10,11 +8,15 @@ import java.awt.Font;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.UIManager;
+
+import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.jediterm.terminal.TtyConnector;
 
 /**
  * Panel that hosts the tabbed terminal views and their add and close buttons.
@@ -34,6 +36,7 @@ public final class TerminalPanel extends JPanel {
 
 	static final int MAX_TABS = 5;
 
+	@SuppressWarnings("unused")
 	private static final Color ICON_ACCENT = new Color(0x6E7781);
 
 	private final JTabbedPane terminalTabs = new JTabbedPane();
@@ -65,13 +68,13 @@ public final class TerminalPanel extends JPanel {
 		closeButton.setMaximumSize(buttonSize);
 		closeButton.getAccessibleContext().setAccessibleName("Close selected terminal");
 		closeButton.setEnabled(false);
-		applyThemeToActionButton(addButton);
-		applyThemeToActionButton(closeButton);
+		this.applyThemeToActionButton(addButton);
+		this.applyThemeToActionButton(closeButton);
 
 		actions.add(addButton);
 		actions.add(closeButton);
-		add(terminalTabs, BorderLayout.CENTER);
-		add(actions, BorderLayout.EAST);
+		this.add(terminalTabs, BorderLayout.CENTER);
+		this.add(actions, BorderLayout.EAST);
 	}
 
 	@Override
@@ -91,8 +94,6 @@ public final class TerminalPanel extends JPanel {
 				terminalTabs.setForeground(foreground);
 			}
 		}
-		Color buttonBackground = UIManager.getColor("Button.background");
-		Color buttonForeground = UIManager.getColor("Button.foreground");
 		if (addButton != null) {
 			applyThemeToActionButton(addButton);
 			addButton.setIcon(createActionIcon("io/simpleide/ui/terminal/terminal-add.svg"));
@@ -103,7 +104,7 @@ public final class TerminalPanel extends JPanel {
 		}
 	}
 
-	private static void applyThemeToActionButton(JButton button) {
+	void applyThemeToActionButton(JButton button) {
 		button.putClientProperty("JButton.buttonType", "roundRect");
 		Color background = UIManager.getColor("Button.background");
 		Color foreground = UIManager.getColor("Button.foreground");
@@ -115,7 +116,7 @@ public final class TerminalPanel extends JPanel {
 		}
 	}
 
-	private static FlatSVGIcon createActionIcon(String resource) {
+	FlatSVGIcon createActionIcon(String resource) {
 		Font font = UIManager.getFont("Menu.font");
 		if (font == null) {
 			font = UIManager.getFont("Label.font");
@@ -134,13 +135,13 @@ public final class TerminalPanel extends JPanel {
 					return foreground == null ? Color.GRAY : foreground;
 				}
 				if (Color.WHITE.equals(color)) {
-					return getIconBackground(component);
+					return this.getIconBackground(component);
 				}
 				return color;
 			}));
 	}
 
-	private static Color getIconBackground(Component component) {
+	Color getIconBackground(Component component) {
 		Color background = component == null ? null : component.getBackground();
 		if (background == null) {
 			background = UIManager.getColor("Button.background");

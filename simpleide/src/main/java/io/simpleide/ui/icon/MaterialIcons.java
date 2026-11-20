@@ -33,8 +33,8 @@ import io.simpleide.ui.ThemeColors;
  * overrides from the manifest are honoured, and unknown files fall back to the standard
  * Material file icon.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  */
 public final class MaterialIcons {
 
@@ -241,7 +241,7 @@ public final class MaterialIcons {
 		if (node == null || !node.isObject()) {
 			return;
 		}
-		node.fields().forEachRemaining(entry -> {
+		node.properties().iterator().forEachRemaining(entry -> {
 			String path = entry.getValue().path("iconPath").asText();
 			if (!path.isBlank()) {
 				String fileName = path.substring(path.lastIndexOf('/') + 1);
@@ -259,7 +259,7 @@ public final class MaterialIcons {
 		if (node == null || !node.isObject()) {
 			return;
 		}
-		node.fields().forEachRemaining(entry -> {
+		node.properties().iterator().forEachRemaining(entry -> {
 			if (entry.getValue().isTextual()) {
 				target.put(entry.getKey().toLowerCase(Locale.ROOT), entry.getValue().asText());
 			}

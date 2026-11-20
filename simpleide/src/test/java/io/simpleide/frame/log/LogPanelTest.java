@@ -1,13 +1,14 @@
 package io.simpleide.frame.log;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.awt.Color;
+
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.text.Element;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**

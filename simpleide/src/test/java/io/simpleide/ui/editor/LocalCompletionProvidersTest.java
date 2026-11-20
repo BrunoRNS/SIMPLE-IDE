@@ -1,18 +1,19 @@
 package io.simpleide.ui.editor;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-
-import io.simpleide.lsp.dowload.LspManager;
-import io.simpleide.lsp.dowload.LspServer;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.fife.ui.autocomplete.Completion;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.lsp.dowload.LspManager;
+import io.simpleide.lsp.dowload.LspServer;
 
 /**
  * Tests {@link io.simpleide.ui.editor.LocalCompletionProviders}.

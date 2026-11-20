@@ -1,14 +1,16 @@
 package io.simpleide.frame.log;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-
-import ch.qos.logback.classic.Level;
 import java.awt.Color;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import javax.swing.UIManager;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import org.junit.jupiter.api.Test;
+
+import ch.qos.logback.classic.Level;
 
 /**
  * Tests {@link io.simpleide.frame.log.LogLevelColorMapping}.
@@ -74,7 +76,7 @@ class LogLevelColorMappingTest {
 	@Test
 	void returnsNullForLevelsWithoutAMapping() {
 		assertNull(LogLevelColorMapping.colorForLevel(Level.OFF));
-		assertNull(LogLevelColorMapping.colorForLevel(Level.ALL));
+		assertNull(LogLevelColorMapping.colorForLevel(Level.TRACE));
 	}
 
 	private static void restore(Map<String, Color> originalValues) {

@@ -2,9 +2,9 @@ package io.simpleide.thread.nodes.record;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.NodePattern;
-import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.thread.nodes.record.NodeRecordFactory}.

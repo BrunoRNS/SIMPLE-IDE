@@ -32,7 +32,7 @@ class ThemeMenuTest {
 		SwingUtilities.invokeAndWait(() -> themeMenu[0] = new ThemeMenu());
 
 		selectThemeAndAssert(themeMenu[0], "Light", FlatLightLaf.class);
-		selectThemeAndAssert(themeMenu[0], "Darcula", FlatPropertiesLaf.class);
+		selectThemeAndAssert(themeMenu[0], "Dracula", FlatPropertiesLaf.class);
 		selectThemeAndAssert(themeMenu[0], "Brown", FlatPropertiesLaf.class);
 		selectThemeAndAssert(themeMenu[0], "Brown Light", FlatPropertiesLaf.class);
 		selectThemeAndAssert(themeMenu[0], "Dark", FlatDarkLaf.class);

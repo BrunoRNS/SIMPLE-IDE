@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 import javax.swing.JLabel;
@@ -266,6 +267,30 @@ public class EditorManager {
 	}
 
 	/**
+	 * Saves every modified editor before application shutdown.
+	 * @return {@code true} when every modified file was saved successfully
+	 */
+	public boolean saveAllModifiedFiles() {
+		boolean saved = true;
+		for (EditorTab tab : openedEditors.values()) {
+			boolean changed = tab.isEdit()
+					|| !java.util.Objects.equals(tab.getFile().getCode().toString(), tab.getEditor().getText());
+			if (!changed) {
+				continue;
+			}
+			try {
+				tab.save();
+			}
+			catch (IOException error) {
+				saved = false;
+				LOGGER.error("Unable to save modified file during application shutdown: {}", tab.getFile().getPath(),
+						error);
+			}
+		}
+		return saved;
+	}
+
+	/**
 	 * Returns the tab that has a path open.
 	 * @param path normalized source path
 	 * @return the matching tab, or {@code null}
@@ -307,6 +332,7 @@ public class EditorManager {
 				continue;
 			}
 			Icon icon = MaterialIcons.forFile(tab.getFile().getPath());
+			tab.getEditor().refreshUiFont();
 			manager.jTabbedPane.setIconAt(tabIndex, icon);
 			tab.getButtonExit().refreshIconSize();
 			Component header = manager.jTabbedPane.getTabComponentAt(tabIndex);
@@ -383,6 +409,9 @@ public class EditorManager {
 
 			if (error instanceof CompletionException && error.getCause() != null) {
 				cause = error.getCause();
+			}
+			if (cause instanceof CancellationException) {
+				return;
 			}
 
 			LOGGER.error("LSP connection failed for {}.", tab.getFile().getPath(), cause);

@@ -1,18 +1,5 @@
 package io.simpleide.thread;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.awaitility.Awaitility.await;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import io.simpleide.thread.nodes.NodePattern;
-import io.simpleide.thread.nodes.edt.EDTNode;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.concurrent.CountDownLatch;
@@ -22,8 +9,23 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.swing.SwingUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.thread.nodes.NodePattern;
+import io.simpleide.thread.nodes.edt.EDTNode;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
  * Tests {@link io.simpleide.thread.ThreadMaster}.

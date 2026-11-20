@@ -5,8 +5,8 @@ which branch to start from, how to test it and what a pull request must contain.
 
 ## Before you start
 
-1. Read [Branch model](BRANCHING.md), [Code style](CODE_STYLE.md) and
-   [Testing](TESTING.md).
+1. Read [Branch model](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Branching), [Code style](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Code-Style) and
+   [Testing](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Testing).
 2. Search existing issues and pull requests to avoid duplicate work.
 3. For a large change, open an issue or a draft pull request first. Describe the
    problem, the proposed behavior and the affected modules.
@@ -51,7 +51,7 @@ Rules:
 - Do not rewrite published history. Do not force-push a branch that others may
   have based work on.
 
-See [Branch model](BRANCHING.md) for worked examples.
+See [Branch model](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Branching) for worked examples.
 
 ## Contribution workflow
 
@@ -155,7 +155,7 @@ Configuration lives in the parent `pom.xml` and `.springjavaformatconfig`:
 - 120-column line limit.
 - The formatter does not reorder or remove imports.
 
-See [Code style](CODE_STYLE.md) for naming, package and comment conventions that
+See [Code style](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Code-Style) for naming, package and comment conventions that
 the formatter does not enforce.
 
 ## Tests
@@ -178,7 +178,7 @@ Add tests for:
 - Editor syntax mapping and file type detection.
 - Terminal platform selection and BusyBox extraction.
 
-See [Testing](TESTING.md) for test structure and commands.
+See [Testing](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Testing) for test structure and commands.
 
 ## Adding a language
 
@@ -188,11 +188,11 @@ See [Testing](TESTING.md) for test structure and commands.
 3. Register it in `LangSetup`.
 4. Add the extension mapping.
 5. Add or update the prepackaged compiler handling if the language needs one.
-6. Update [Languages](../reference/LANGUAGES.md) and the API [language table](../api/languages.md).
+6. Update [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages) and the API [language table](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages).
 7. Add tests that do not require the toolchain, plus a `language-tools` test for
    the real execution path.
 8. Document the toolchain requirement in
-   [Runtime tools](../third-party/RUNTIME.md).
+   [Runtime tools](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime).
 
 Do not add a language that shells out to an installer without documenting it.
 Do not add binaries without their license and source/provenance information.
@@ -206,7 +206,7 @@ Do not add binaries without their license and source/provenance information.
 3. Verify that the server's `textDocument/languageId` matches the editor mapping.
 4. Test installation on every supported OS/architecture you can access.
 5. Add registry tests for version selection and platform filtering.
-6. Update [LSP](../reference/LSP.md) and [LSP API](../api/lsp.md).
+6. Update [LSP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-LSP) and [LSP API](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP).
 
 Registry entries can run package managers and start network processes. Review
 the security and privacy implications before adding one.
@@ -219,8 +219,8 @@ the security and privacy implications before adding one.
 3. Add `LICENSE.txt` and `README.txt` with version, format, provenance and build
    notes.
 4. Update `BusyBoxPlatform` if the path changes.
-5. Update [BusyBox third-party notes](../third-party/BUSYBOX.md) and
-   [Third-party licenses](../third-party/LICENSES.md).
+5. Update [BusyBox third-party notes](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-BusyBox) and
+   [Third-party licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses).
 6. Test terminal startup on the target platform.
 
 BusyBox is GPLv2. Do not remove the source archive or license files.
@@ -232,7 +232,7 @@ Documentation is part of the change:
 - Update the closest focused page, not a central mega-page.
 - Keep all documentation in English.
 - Use relative links.
-- Update the index [`docs/README.md`](../README.md) if you add a page.
+- Update the index [`docs/README.md`](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Home) if you add a page.
 - Update API pages when a public facade changes.
 - Include commands that work from the repository root.
 
@@ -244,8 +244,8 @@ Adding a Maven dependency requires:
 
 - A license compatible with BSD 3-Clause distribution.
 - A version property in the parent `pom.xml` when the dependency is shared.
-- An entry in [Maven dependencies](../third-party/MAVEN.md).
-- An entry in [Third-party licenses](../third-party/LICENSES.md).
+- An entry in [Maven dependencies](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Maven).
+- An entry in [Third-party licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses).
 - A note about transitive dependencies that affect distribution.
 
 Do not add a dependency for something the JDK already provides unless there is a

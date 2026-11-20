@@ -192,7 +192,7 @@ public final class LanguageServerManager implements AutoCloseable {
 			Thread.currentThread().interrupt();
 			return completedClient(client);
 		}
-		catch (ExecutionException | TimeoutException error) {
+		catch (CancellationException | ExecutionException | TimeoutException error) {
 			return completedClient(client);
 		}
 	}

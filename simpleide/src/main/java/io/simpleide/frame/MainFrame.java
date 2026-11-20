@@ -8,6 +8,8 @@ import io.simpleide.frame.log.SwingLogAppender;
 import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.InfoPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.frame.utils.ApplicationIcon;
+import io.simpleide.frame.utils.LinuxStatusNotifierTray;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.editor.Editor;
@@ -24,6 +26,13 @@ import io.simpleide.ui.treefile.TreeFileFactory;
 import io.simpleide.ui.treefile.Watcher;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.Dimension;
+import java.awt.GraphicsEnvironment;
+import java.awt.Rectangle;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
+import java.awt.PopupMenu;
+import java.awt.MenuItem;
 import java.io.IOException;
 import java.nio.file.Path;
 import javax.swing.JFileChooser;
@@ -60,18 +69,34 @@ public class MainFrame extends JFrame implements Runnable {
 
 	private BusyBoxTerminalController terminalController;
 
+	private final Object trayLock = new Object();
+
+	private TrayIcon trayIcon;
+
+	private AutoCloseable statusNotifierTray;
+
+	private boolean trayDisposed;
+
 	/**
 	 * Builds and displays the application window, including its tree, editors, terminal
 	 * and log console.
 	 */
 	@Override
 	public void run() {
+		setTitle("SIMPLE-IDE");
+		ApplicationIcon.applyTo(this);
 
 		setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 		setLocationRelativeTo(null);
 		addWindowListener(new WindowAdapter() {
 			@Override
 			public void windowClosing(WindowEvent event) {
+				if (editorManager != null && !editorManager.saveAllModifiedFiles()) {
+					javax.swing.JOptionPane.showMessageDialog(MainFrame.this,
+							"Unable to save one or more modified files. Check the log before closing.", "Save failed",
+							javax.swing.JOptionPane.ERROR_MESSAGE);
+					return;
+				}
 				if (terminalController == null) {
 					dispose();
 					return;
@@ -87,13 +112,18 @@ public class MainFrame extends JFrame implements Runnable {
 
 			@Override
 			public void windowClosed(WindowEvent event) {
-				if (watcher != null) {
-					watcher.close();
+				try {
+					if (watcher != null) {
+						watcher.close();
+					}
+					if (editorManager != null) {
+						editorManager.closeAll();
+					}
+					ThreadMaster.getInstance().shutdown();
 				}
-				if (editorManager != null) {
-					editorManager.closeAll();
+				finally {
+					removeTrayIcon();
 				}
-				ThreadMaster.getInstance().shutdown();
 			}
 		});
 
@@ -135,13 +165,156 @@ public class MainFrame extends JFrame implements Runnable {
 		logger.info("start IDE");
 
 		pack();
-		setLocationRelativeTo(null);
+		setInitialWindowSize();
 		setVisible(true);
-
-		editorTreePane.setDividerLocation(0.2);
-		mainVerticalSplit.setDividerLocation(0.8);
+		installTrayIcon();
+		javax.swing.SwingUtilities.invokeLater(() -> {
+			editorTreePane.setDividerLocation(0.2);
+			mainVerticalSplit.setDividerLocation(0.8);
+		});
 
 		loadTree(treePane);
+	}
+
+	private void installTrayIcon() {
+		synchronized (trayLock) {
+			if (trayDisposed || trayIcon != null || statusNotifierTray != null) {
+				return;
+			}
+		}
+		// Icon loading and D-Bus registration can block, so keep both away from the
+		// EDT and never leave the frame unpainted while the desktop tray is contacted.
+		ThreadMaster.getInstance().register(new RunnableNode(this::installTrayIconInBackground));
+	}
+
+	private void installTrayIconInBackground() {
+		// Use the full-resolution source so high-density StatusNotifierItem pixmaps are
+		// downscaled instead of being enlarged from the small AWT tray image.
+		java.awt.Image iconImage = ApplicationIcon.loadImage();
+		if (iconImage == null) {
+			logger.warn("The SIMPLE-IDE application icon is missing; no tray icon can be installed.");
+			return;
+		}
+		if (isLinux()) {
+			try {
+				AutoCloseable notifier = LinuxStatusNotifierTray.install((java.awt.image.BufferedImage) iconImage,
+						this::showWindow);
+				if (notifier != null) {
+					synchronized (trayLock) {
+						if (!trayDisposed) {
+							statusNotifierTray = notifier;
+							logger.info("SIMPLE-IDE registered a StatusNotifierItem tray icon.");
+							return;
+						}
+					}
+					closeTray(notifier);
+					return;
+				}
+			}
+			catch (org.freedesktop.dbus.exceptions.DBusException | RuntimeException error) {
+				logger.warn("Unable to register SIMPLE-IDE with the Linux StatusNotifierWatcher; trying AWT.", error);
+			}
+		}
+		installAwtTrayIcon(iconImage);
+	}
+
+	private void installAwtTrayIcon(java.awt.Image iconImage) {
+		try {
+			if (!SystemTray.isSupported()) {
+				logger.warn("This desktop does not expose a compatible system tray for SIMPLE-IDE.");
+				return;
+			}
+
+			PopupMenu menu = new PopupMenu();
+			MenuItem show = new MenuItem("Show SIMPLE-IDE");
+			show.addActionListener(event -> showWindow());
+			menu.add(show);
+			MenuItem quit = new MenuItem("Quit SIMPLE-IDE");
+			quit.addActionListener(event -> requestClose());
+			menu.add(quit);
+			TrayIcon icon = new TrayIcon(iconImage, "SIMPLE-IDE", menu);
+			icon.setImageAutoSize(true);
+			icon.addActionListener(event -> showWindow());
+			SystemTray tray = SystemTray.getSystemTray();
+			tray.add(icon);
+			synchronized (trayLock) {
+				if (!trayDisposed) {
+					trayIcon = icon;
+					logger.info("SIMPLE-IDE registered an AWT system tray icon.");
+					return;
+				}
+			}
+			tray.remove(icon);
+		}
+		catch (java.awt.AWTException | RuntimeException error) {
+			logger.warn("Unable to add SIMPLE-IDE to the system tray.", error);
+		}
+	}
+
+	private void removeTrayIcon() {
+		AutoCloseable notifier;
+		TrayIcon icon;
+		synchronized (trayLock) {
+			trayDisposed = true;
+			notifier = statusNotifierTray;
+			statusNotifierTray = null;
+			icon = trayIcon;
+			trayIcon = null;
+		}
+		if (icon != null) {
+			try {
+				if (SystemTray.isSupported()) {
+					SystemTray.getSystemTray().remove(icon);
+				}
+			}
+			catch (RuntimeException error) {
+				logger.warn("Unable to remove SIMPLE-IDE from the AWT system tray.", error);
+			}
+		}
+		if (notifier != null) {
+			closeTray(notifier);
+		}
+	}
+
+	private void closeTray(AutoCloseable tray) {
+		try {
+			tray.close();
+		}
+		catch (Exception error) {
+			logger.warn("Unable to remove SIMPLE-IDE from the system tray.", error);
+		}
+	}
+
+	private void showWindow() {
+		javax.swing.SwingUtilities.invokeLater(() -> {
+			setVisible(true);
+			setState(JFrame.NORMAL);
+			toFront();
+		});
+	}
+
+	private void requestClose() {
+		javax.swing.SwingUtilities.invokeLater(() -> dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING)));
+	}
+
+	private boolean isLinux() {
+		return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("linux");
+	}
+
+	private void setInitialWindowSize() {
+		Rectangle usable = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+		int width = Math.min(1440, usable.width);
+		int height = Math.min(810, usable.height);
+		// Preserve a 16:9 content area where the available screen permits it.
+		if (usable.width / 16.0 < usable.height / 9.0) {
+			height = Math.min(usable.height, (int) Math.round(width * 9.0 / 16.0));
+		}
+		else {
+			width = Math.min(usable.width, (int) Math.round(height * 16.0 / 9.0));
+		}
+		setMinimumSize(new Dimension(Math.min(800, usable.width), Math.min(450, usable.height)));
+		setSize(Math.max(getMinimumSize().width, width), Math.max(getMinimumSize().height, height));
+		setLocationRelativeTo(null);
 	}
 
 	private void loadTree(JScrollPane treePane) {

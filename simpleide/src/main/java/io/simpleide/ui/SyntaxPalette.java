@@ -33,7 +33,7 @@ import java.awt.Color;
  * @param markupOther other markup token
  * @param preprocessor preprocessor directive
  * @param hyperlink hyperlink
- * @author LuisOtavio13
+ * @author BrunoRNS
  * @since v1.1.0
  */
 public record SyntaxPalette(Color comment, Color commentKeyword, Color keyword, Color keywordSecondary, Color type,

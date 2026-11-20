@@ -1,11 +1,12 @@
 package io.simpleide.frame.log;
 
+import javax.swing.SwingUtilities;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.spi.LoggingEvent;
-import javax.swing.SwingUtilities;
-import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.frame.log.SwingLogAppender}.

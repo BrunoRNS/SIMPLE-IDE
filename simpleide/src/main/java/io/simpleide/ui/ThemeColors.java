@@ -13,8 +13,8 @@ import javax.swing.UIManager;
  * never replaced when they already satisfy the requested contrast ratio, so themes keep
  * their identity.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  */
 public final class ThemeColors {
 

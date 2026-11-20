@@ -1,15 +1,17 @@
 package io.simpleide.ui.editor;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TypeFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
 import javax.swing.SwingUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.TypeFile;
 
 /**
  * Tests {@link io.simpleide.ui.editor.Editor}.

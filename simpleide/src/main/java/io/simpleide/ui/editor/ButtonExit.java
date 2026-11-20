@@ -1,17 +1,19 @@
 package io.simpleide.ui.editor;
 
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.ui.icon.MaterialIcons;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+
 import javax.swing.BorderFactory;
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.UIManager;
+
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.ui.icon.MaterialIcons;
 
 /**
  * Close button shown in an editor tab header.
@@ -24,7 +26,7 @@ import javax.swing.UIManager;
  * @author LuisOtavio13
  * @since v1.1.0
  */
-public class ButtonExit extends JButton {
+public final class ButtonExit extends JButton {
 
 	@SuppressWarnings("unused")
 	private final EditorTab tab;

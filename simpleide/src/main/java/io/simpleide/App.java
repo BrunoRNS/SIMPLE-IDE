@@ -1,6 +1,7 @@
 package io.simpleide;
 
 import io.simpleide.frame.MainFrame;
+import io.simpleide.frame.utils.ApplicationIcon;
 import io.simpleide.language.config.LangConfigHolder;
 import io.simpleide.language.config.LangSetup;
 import io.simpleide.thread.ThreadMaster;
@@ -28,6 +29,7 @@ public class App {
 	 * @param args command-line arguments passed to the application
 	 */
 	public static void main(String[] args) {
+		ApplicationIcon.setTaskbarIcon();
 		new LangSetup(LangConfigHolder.LANG_CONFIG).run();
 
 		ThreadMaster threadMaster = ThreadMaster.getInstance();

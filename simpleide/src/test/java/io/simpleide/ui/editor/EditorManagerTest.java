@@ -1,24 +1,28 @@
 package io.simpleide.ui.editor;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-
-import io.simpleide.lsp.core.Document;
-import io.simpleide.ui.treefile.File;
-import java.io.IOException;
 import java.awt.Font;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.plaf.FontUIResource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import org.fife.ui.autocomplete.Completion;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import io.simpleide.lsp.core.Document;
+import io.simpleide.ui.icon.MaterialIcons;
+import io.simpleide.ui.treefile.File;
 
 /**
  * Tests {@link io.simpleide.ui.editor.EditorManager}.
@@ -26,7 +30,15 @@ import org.junit.jupiter.api.io.TempDir;
 class EditorManagerTest {
 
 	@TempDir
-	Path root;
+	static Path root;
+
+	@AfterAll
+	static void closeLanguageServers() throws Exception {
+		EditorManager manager = EditorManager.getInstance();
+		if (manager != null) {
+			SwingUtilities.invokeAndWait(manager::closeAll);
+		}
+	}
 
 	@Test
 	void addsCloseButtonBesideTheTabName() throws Exception {
@@ -57,9 +69,10 @@ class EditorManagerTest {
 						- (closeButton.getY() + closeButton.getHeight() / 2)))
 					.as("filename and close control should share a center line")
 					.isLessThanOrEqualTo(1);
-				assertThat(closeButton.getIcon().getIconWidth()).isEqualTo(12);
+				int expectedIconSize = MaterialIcons.tabIconSize();
+				assertThat(closeButton.getIcon().getIconWidth()).isEqualTo(expectedIconSize);
 				closeButton.setEdited();
-				assertThat(closeButton.getIcon().getIconHeight()).isEqualTo(12);
+				assertThat(closeButton.getIcon().getIconHeight()).isEqualTo(expectedIconSize);
 
 				manager.closeTab(tab);
 			}
@@ -91,7 +104,41 @@ class EditorManagerTest {
 			catch (IOException error) {
 				throw new AssertionError(error);
 			}
+			finally {
+				testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize()));
+			}
 		});
+	}
+
+	@Test
+	void savesEveryModifiedEditorBeforeApplicationShutdown() throws Exception {
+		Path path = Files.writeString(root.resolve("Shutdown.java"), "class Shutdown {}\n");
+		EditorManager manager = EditorManager.getInstance();
+		if (manager == null) {
+			manager = new EditorManager(() -> {
+			}, () -> {
+			}, () -> {
+			});
+		}
+		EditorManager testManager = manager;
+		java.util.concurrent.atomic.AtomicReference<EditorTab> opened = new java.util.concurrent.atomic.AtomicReference<>();
+
+		SwingUtilities.invokeAndWait(() -> {
+			try {
+				testManager.openFile(new File(path));
+				EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
+				opened.set(tab);
+				tab.getEditor().setText("class Shutdown { int saved = 1; }\n");
+				assertThat(testManager.saveAllModifiedFiles()).isTrue();
+				assertThat(tab.isEdit()).isFalse();
+			}
+			catch (IOException error) {
+				throw new AssertionError(error);
+			}
+		});
+		assertThat(Files.readString(path)).isEqualTo("class Shutdown { int saved = 1; }\n");
+		await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> assertThat(opened.get().isEdit()).isFalse());
+		SwingUtilities.invokeAndWait(() -> testManager.closeTab(opened.get()));
 	}
 
 	@Test

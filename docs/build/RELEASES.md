@@ -43,7 +43,7 @@ Linux packages are built and validated inside an explicit Debian 10
 (`buster`) container. Debian 10 provides the minimum supported glibc (2.28),
 so a package that passes CI is known to run on every supported Linux
 distribution. Alpine is not used. See
-[Linux compatibility](../reference/LINUX.md).
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 ## Version types
 
@@ -72,6 +72,6 @@ the Linux, macOS and `windows-x64` installers.
 
 See also:
 
-- [Build, test and packaging](MAKEFILE.md)
-- [Linux compatibility](../reference/LINUX.md)
-- [Third-party overview](../third-party/README.md)
+- [Build, test and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile)
+- [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux)
+- [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party)

@@ -1,13 +1,16 @@
 package io.simpleide.ui.editor;
 
-import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TypeFile;
 import java.awt.Font;
 import java.util.Locale;
 import java.util.Objects;
+
 import javax.swing.UIManager;
+
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+
+import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.TypeFile;
 
 /**
  * RSyntaxTextArea subclass with the application editing defaults.
@@ -50,12 +53,18 @@ public class Editor extends RSyntaxTextArea {
 		}
 	}
 
+	/** Reapplies the current application font after a global settings change. */
+	public void refreshUiFont() {
+		applyUiFont();
+	}
+
 	/**
 	 * Loads a source file into the editor and moves the caret to the start.
 	 * @param file file to read, must not be {@code null}
 	 */
 	public void loadFile(File file) {
 		Objects.requireNonNull(file, "file");
+		applyUiFont();
 		setSyntaxEditingStyle(syntaxStyleForFile(file.getName(), file.getTypeFile()));
 		setText(file.getCode().toString());
 		setCaretPosition(0);

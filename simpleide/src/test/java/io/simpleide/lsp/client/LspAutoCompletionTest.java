@@ -1,14 +1,16 @@
 package io.simpleide.lsp.client;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import io.simpleide.ui.editor.Editor;
 import java.awt.Color;
 import java.awt.Component;
+
 import javax.swing.JList;
 import javax.swing.SwingUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.eclipse.lsp4j.CompletionItem;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.ui.editor.Editor;
 
 /**
  * Tests {@link io.simpleide.lsp.client.LspAutoCompletion}.

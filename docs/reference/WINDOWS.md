@@ -78,7 +78,7 @@ and attaches the resulting files to the GitHub release tag.
 
 ## See also
 
-- [Build, test and packaging](../build/MAKEFILE.md)
-- [Releases](../build/RELEASES.md)
-- [Linux compatibility](LINUX.md)
-- [macOS compatibility](MACOS.md)
+- [Build, test and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile)
+- [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Releases)
+- [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux)
+- [macOS compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-macOS)

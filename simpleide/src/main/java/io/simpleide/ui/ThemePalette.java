@@ -57,7 +57,7 @@ import java.awt.Color;
  * @param menuSelectionBackground menu item selection background
  * @param menuSelectionForeground menu item selection text
  * @param syntax syntax highlighting colors
- * @author LuisOtavio13
+ * @author BrunoRNS
  * @since v1.1.0
  */
 public record ThemePalette(ThemeManager.ThemeType type, boolean dark, Color background, Color surface, Color elevated,

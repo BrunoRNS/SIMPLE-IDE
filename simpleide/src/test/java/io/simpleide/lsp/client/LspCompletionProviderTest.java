@@ -1,9 +1,8 @@
 package io.simpleide.lsp.client;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import io.simpleide.ui.editor.Editor;
 import javax.swing.SwingUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.InsertTextFormat;
 import org.eclipse.lsp4j.Position;
@@ -11,6 +10,8 @@ import org.eclipse.lsp4j.Range;
 import org.eclipse.lsp4j.TextEdit;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.ui.editor.Editor;
 
 /**
  * Tests {@link io.simpleide.lsp.client.LspCompletionProvider}.
