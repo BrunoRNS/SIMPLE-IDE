@@ -28,6 +28,7 @@ PROPERTIES="$ROOT_DIR/simpleide/src/main/resources/simpleide.properties"
 FAT_JAR="$ROOT_DIR/simpleide/target/simpleide.jar"
 PKG_DIR="$ROOT_DIR/simpleide/target/pkg"
 INPUT_DIR="$ROOT_DIR/simpleide/target/jpackage-input"
+ICON_DIR="$ROOT_DIR/assets/icons"
 
 if [ ! -f "$FAT_JAR" ]; then
     echo "error: $FAT_JAR was not found. Run 'make jar' first." >&2
@@ -85,6 +86,16 @@ case "$ARCH" in
         ;;
 esac
 
+case "$OS" in
+    linux) ICON_FILE="$ICON_DIR/simpleide_icon_256.png" ;;
+    macos) ICON_FILE="$ICON_DIR/simpleide_icon.icns" ;;
+    windows) ICON_FILE="$ICON_DIR/simpleide_icon.ico" ;;
+esac
+if [ ! -f "$ICON_FILE" ]; then
+    echo "error: jpackage icon for $OS is missing: $ICON_FILE" >&2
+    exit 1
+fi
+
 PKG_TYPE=${SIMPLEIDE_PKG_TYPE:-}
 
 if [ -n "$PKG_TYPE" ]; then
@@ -136,7 +147,7 @@ jpackage_args="--name SimpleIDE --app-version $APP_VERSION --input $INPUT_DIR --
 # retaining the runtime launchers.
 jpackage_app() {
     # shellcheck disable=SC2086
-    "$JPACKAGE" $jpackage_args --jlink-options "$jlink_options" "$@"
+    "$JPACKAGE" $jpackage_args --icon "$ICON_FILE" --jlink-options "$jlink_options" "$@"
 }
 
 # Prints the minimum macOS version declared in the generated app bundle. The

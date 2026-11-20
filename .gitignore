@@ -87,3 +87,5 @@ target/
 .classpath
 
 *.out
+__pycache__/
+*.pyc

@@ -5,6 +5,7 @@ import java.nio.charset.MalformedInputException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -66,6 +67,7 @@ public final class Directory extends TreeFile {
 	 */
 	public void addChild(TreeFile child) {
 		children.add(child);
+		sortChildren(children);
 	}
 
 	boolean areChildrenLoaded() {
@@ -113,7 +115,14 @@ public final class Directory extends TreeFile {
 				}
 			}
 		}
+		sortChildren(loadedChildren);
 		return loadedChildren;
+	}
+
+	private static void sortChildren(List<TreeFile> entries) {
+		entries.sort(Comparator.comparing((TreeFile child) -> !(child instanceof Directory))
+			.thenComparing(TreeFile::getName, String.CASE_INSENSITIVE_ORDER)
+			.thenComparing(TreeFile::getName));
 	}
 
 }

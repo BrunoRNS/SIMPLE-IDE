@@ -30,7 +30,7 @@ complete `LICENSE.txt`.
 
 The Linux binaries require GNU glibc 2.28 or newer. They do not run on Alpine
 Linux or other musl-based distributions. See
-[Linux compatibility](../reference/LINUX.md).
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 ## License
 
@@ -66,7 +66,7 @@ Update it whenever a binary or its source archive changes.
 
 See also:
 
-- [Third-party overview](README.md)
-- [Runtime downloads](RUNTIME.md)
-- [Linux compatibility](../reference/LINUX.md)
-- [License inventory](LICENSES.md)
+- [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party)
+- [Runtime downloads](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime)
+- [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux)
+- [License inventory](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses)

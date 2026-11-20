@@ -1,21 +1,28 @@
 package io.simpleide.ui.editor;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-
-import io.simpleide.lsp.core.Document;
-import io.simpleide.ui.treefile.File;
+import java.awt.Font;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
+import javax.swing.plaf.FontUIResource;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import org.fife.ui.autocomplete.Completion;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import io.simpleide.lsp.core.Document;
+import io.simpleide.ui.icon.MaterialIcons;
+import io.simpleide.ui.treefile.File;
 
 /**
  * Tests {@link io.simpleide.ui.editor.EditorManager}.
@@ -23,7 +30,15 @@ import org.junit.jupiter.api.io.TempDir;
 class EditorManagerTest {
 
 	@TempDir
-	Path root;
+	static Path root;
+
+	@AfterAll
+	static void closeLanguageServers() throws Exception {
+		EditorManager manager = EditorManager.getInstance();
+		if (manager != null) {
+			SwingUtilities.invokeAndWait(manager::closeAll);
+		}
+	}
 
 	@Test
 	void addsCloseButtonBesideTheTabName() throws Exception {
@@ -31,22 +46,33 @@ class EditorManagerTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				EditorManager manager = new EditorManager(() -> {
-				}, () -> {
-				}, () -> {
-				});
+				EditorManager manager = EditorManager.getInstance();
+				if (manager == null) {
+					manager = new EditorManager(() -> {
+					}, () -> {
+					}, () -> {
+					});
+				}
 				EditorTab tab = new EditorTab(new File(path), new Document(path, "java"));
 
 				manager.addNewTab(tab);
 
 				JPanel header = (JPanel) manager.getJTabbedPane().getTabComponentAt(0);
+				header.setSize(header.getPreferredSize());
+				header.doLayout();
 				assertThat(header.getComponent(0)).isInstanceOf(JLabel.class);
 				assertThat(((JLabel) header.getComponent(0)).getText()).isEqualTo("Main.java");
 				assertThat(header.getComponent(1)).isInstanceOf(ButtonExit.class);
 				ButtonExit closeButton = (ButtonExit) header.getComponent(1);
-				assertThat(closeButton.getIcon().getIconWidth()).isEqualTo(12);
+				JLabel fileLabel = (JLabel) header.getComponent(0);
+				assertThat(Math.abs((fileLabel.getY() + fileLabel.getHeight() / 2)
+						- (closeButton.getY() + closeButton.getHeight() / 2)))
+					.as("filename and close control should share a center line")
+					.isLessThanOrEqualTo(1);
+				int expectedIconSize = MaterialIcons.tabIconSize();
+				assertThat(closeButton.getIcon().getIconWidth()).isEqualTo(expectedIconSize);
 				closeButton.setEdited();
-				assertThat(closeButton.getIcon().getIconHeight()).isEqualTo(12);
+				assertThat(closeButton.getIcon().getIconHeight()).isEqualTo(expectedIconSize);
 
 				manager.closeTab(tab);
 			}
@@ -74,6 +100,84 @@ class EditorManagerTest {
 
 				assertThat(testManager.getJTabbedPane().getSelectedComponent()).isInstanceOf(EditorTab.class);
 				assertThat(testManager.getSelectedEditor().getText()).isEqualTo("class Main {}");
+			}
+			catch (IOException error) {
+				throw new AssertionError(error);
+			}
+			finally {
+				testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize()));
+			}
+		});
+	}
+
+	@Test
+	void savesEveryModifiedEditorBeforeApplicationShutdown() throws Exception {
+		Path path = Files.writeString(root.resolve("Shutdown.java"), "class Shutdown {}\n");
+		EditorManager manager = EditorManager.getInstance();
+		if (manager == null) {
+			manager = new EditorManager(() -> {
+			}, () -> {
+			}, () -> {
+			});
+		}
+		EditorManager testManager = manager;
+		java.util.concurrent.atomic.AtomicReference<EditorTab> opened = new java.util.concurrent.atomic.AtomicReference<>();
+
+		SwingUtilities.invokeAndWait(() -> {
+			try {
+				testManager.openFile(new File(path));
+				EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
+				opened.set(tab);
+				tab.getEditor().setText("class Shutdown { int saved = 1; }\n");
+				assertThat(testManager.saveAllModifiedFiles()).isTrue();
+				assertThat(tab.isEdit()).isFalse();
+			}
+			catch (IOException error) {
+				throw new AssertionError(error);
+			}
+		});
+		assertThat(Files.readString(path)).isEqualTo("class Shutdown { int saved = 1; }\n");
+		await().atMost(2, TimeUnit.SECONDS).untilAsserted(() -> assertThat(opened.get().isEdit()).isFalse());
+		SwingUtilities.invokeAndWait(() -> testManager.closeTab(opened.get()));
+	}
+
+	@Test
+	void refreshesFilenameAndTabStatusIconsAfterGlobalFontSizeChanges() throws Exception {
+		Path path = Files.writeString(root.resolve("Scaled.java"), "class Scaled {}");
+		SwingUtilities.invokeAndWait(() -> {
+			try {
+				EditorManager manager = EditorManager.getInstance();
+				if (manager == null) {
+					manager = new EditorManager(() -> {
+					}, () -> {
+					}, () -> {
+					});
+				}
+				EditorTab tab = new EditorTab(new File(path), new Document(path, "java"));
+				manager.addNewTab(tab);
+				JPanel header = (JPanel) manager.getJTabbedPane().getTabComponentAt(0);
+				JLabel fileLabel = (JLabel) header.getComponent(0);
+				ButtonExit closeButton = tab.getButtonExit();
+				Object originalFont = UIManager.get("Menu.font");
+				try {
+					UIManager.put("Menu.font", new FontUIResource(Font.DIALOG, Font.PLAIN, 21));
+					EditorManager.refreshFileIcons();
+					assertThat(fileLabel.getIcon().getIconWidth()).isEqualTo(21);
+					assertThat(closeButton.getIcon().getIconWidth()).isEqualTo(21);
+					closeButton.setEdited();
+					EditorManager.refreshFileIcons();
+					assertThat(closeButton.getIcon().getIconWidth()).isEqualTo(21);
+				}
+				finally {
+					if (originalFont == null) {
+						UIManager.getDefaults().remove("Menu.font");
+					}
+					else {
+						UIManager.put("Menu.font", originalFont);
+					}
+					EditorManager.refreshFileIcons();
+					manager.closeTab(tab);
+				}
 			}
 			catch (IOException error) {
 				throw new AssertionError(error);

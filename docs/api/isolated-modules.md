@@ -95,7 +95,7 @@ Close: call `Languages.stop(language)` for a forced stop, or let the process
 finish and close its input. The static `Input` and `Output` queues are shared by
 all language instances, so avoid concurrent interactive runs.
 
-See [Languages](languages.md).
+See [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages).
 
 ## LSP client only
 
@@ -139,7 +139,7 @@ Important: `LanguageServerManager.connect` does not call `didOpen`. That is
 editor-specific: `EditorTab` sends the current text after connecting. A custom
 editor must send `didOpen`, `didChange`, `didSave` and `didClose` itself.
 
-See [LSP](lsp.md).
+See [LSP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP).
 
 ## Terminal only
 
@@ -163,13 +163,13 @@ Closing the terminal panel stops its sessions and releases the worker pool. Chec
 the source of `BusyBoxTerminalController` for the exact `close`/`dispose`
 methods available in your version.
 
-See [Terminal](terminal.md).
+See [Terminal](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Terminal).
 
 ## UI helpers only
 
 The `io.simpleide.ui.*` packages contain small helpers for popups, icons,
 themes and layouts. They create Swing components and do not start processes.
-They may read application preferences. See [UI helpers](ui.md).
+They may read application preferences. See [UI helpers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI).
 
 ## Combining modules
 

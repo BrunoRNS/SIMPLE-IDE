@@ -1,17 +1,18 @@
 package io.simpleide.lsp.dowload;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.slf4j.LoggerFactory;
 
 /**
  * Tests {@link io.simpleide.lsp.dowload.LspManager}.

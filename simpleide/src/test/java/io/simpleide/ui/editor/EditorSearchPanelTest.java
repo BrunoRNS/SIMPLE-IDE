@@ -1,10 +1,10 @@
 package io.simpleide.ui.editor;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**

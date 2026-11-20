@@ -1,16 +1,17 @@
 package io.simpleide.thread.tree;
 
+import java.math.BigInteger;
+import java.util.LinkedList;
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
-import java.math.BigInteger;
-import java.util.LinkedList;
-import java.util.List;
-import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.thread.tree.ThreadTreeRegistry}.

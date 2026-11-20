@@ -1,16 +1,18 @@
 package io.simpleide.ui.editor;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-
-import io.simpleide.lsp.LspStatus;
-import io.simpleide.thread.ThreadMaster;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.swing.JLabel;
 import javax.swing.SwingUtilities;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Tests {@link io.simpleide.ui.editor.LspStatusBar}.

@@ -22,7 +22,7 @@ IDE, `JAVA_HOME`, `simpleide.javaHome` or a JDK on `PATH`.
 | Go | `.go` | Go toolchain on `PATH` |
 | Rust | `.rs` | `rustc` on `PATH` |
 
-See [Languages reference](../reference/LANGUAGES.md) for the exact commands and the
+See [Languages reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages) for the exact commands and the
 toolchain discovery rules.
 
 ## Discover what is available

@@ -3,12 +3,12 @@ package io.simpleide.thread.validation;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.edt.EDTNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
-import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.thread.validation.NodeRegistrationValidation}.

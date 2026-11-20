@@ -8,14 +8,14 @@ target names and keeps the fat JAR and package paths in one place.
 - JDK 17 or newer. CI covers 17, 21, 25 and 27.
 - On Linux, GNU glibc 2.28 or newer (Debian 10+, Ubuntu 18.10+, Fedora 29+,
   RHEL 8+). Alpine and other musl-based distributions cannot run the bundled
-  JDK and native libraries. See [Linux compatibility](../reference/LINUX.md).
+  JDK and native libraries. See [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 - GNU Make on Linux and macOS. On Windows, use Git Bash, MSYS2 or the
   `mvnw.cmd` commands directly.
 - `jpackage` from the JDK for `make pkg`.
 - `zip` on Linux and macOS for the portable app image. PowerShell's
   `Compress-Archive` is used on Windows.
 - External language toolchains for the full test suite. See
-  [Runtime tools](../third-party/RUNTIME.md).
+  [Runtime tools](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime).
 
 Check the environment:
 
@@ -56,6 +56,11 @@ make help
 | `PKG_DIR` | `simpleide/target/pkg` | Package output |
 | `VERSION` | Read from `simpleide.properties` | Release version |
 | `JAVA_OPTS` | `-Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED` | Runtime options for `make run` |
+
+On 32-bit Linux, if the wrapper exits with an error, `mvnw` automatically
+downloads Apache Maven 3.9.16 with `wget`, extracts it into the user's Maven
+cache, prepends its `bin` directory to `PATH`, and retries the same command.
+This fallback is not used on other platforms.
 
 Packaging environment variables:
 
@@ -99,7 +104,10 @@ bytecode compiler and the Java language server then work without an external
 JDK. The `.msi` installer is only built on `windows-x64`; `windows-x86` and
 `windows-arm64` produce the static zip only. Windows x86 builds still pass
 `-J-Dos.arch=x86` so jpackage derives its metadata from the 32-bit runtime
-rather than the host `os.arch`.
+rather than the host `os.arch`. The package scripts pass the native app icon to
+`jpackage` for every build: a 256-pixel PNG for Linux, a multi-size ICO for
+Windows and an ICNS image for macOS. The native files are proportionally resized
+from the bundled `simpleide_icon.png`.
 
 Build only one package type:
 
@@ -173,7 +181,7 @@ make format
 `make format-check` is kept as an alias. The formatter uses the Java 17 baseline
 declared in `.springjavaformatconfig`, tab indentation and a 120-column line
 limit. Do not disable the check. See
-[Code style](../development/CODE_STYLE.md).
+[Code style](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Code-Style).
 
 ## Native access
 
@@ -217,7 +225,7 @@ language server caches under `~/.cache/simpleide`.
 ## Continuous integration
 
 CI workflows run `make test` and, on JDK 17, `make pkg-verify` with the expected
-OS and architecture. See [Releases](RELEASES.md) and the workflow files under
+OS and architecture. See [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Releases) and the workflow files under
 `.github/workflows/`.
 
 The Linux workflows check out the repository on the runner and run the build
@@ -238,4 +246,4 @@ default seccomp profile on newer runner images blocks `socketcall(2)`; Debian's
 i386 glibc still uses that syscall to create sockets, so without the override
 the container has no network and apt fails to reach `archive.debian.org`. The
 64-bit and ARM64 containers use the default profile and `--network host`. See
-[Linux compatibility](../reference/LINUX.md).
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).

@@ -118,7 +118,10 @@ Editor editor = Editors.create();
 ```
 
 `Editor.updateUI()` reapplies the `TextArea.font` after a look-and-feel change.
-See [UI helpers](ui.md) for the application theme manager.
+`refreshUiFont()` does the same after a host application changes global fonts
+without rebuilding the look and feel. The application calls it when applying
+its global font-size setting. See [UI helpers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI) for the application theme
+manager.
 
 ## Local completion
 

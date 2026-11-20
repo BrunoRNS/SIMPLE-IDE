@@ -87,7 +87,7 @@ previous step succeeds and are kept for one day.
 
 ## See also
 
-- [Build, test and packaging](../build/MAKEFILE.md)
-- [Releases](../build/RELEASES.md)
-- [Linux compatibility](LINUX.md)
-- [Windows compatibility](WINDOWS.md)
+- [Build, test and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile)
+- [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Releases)
+- [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux)
+- [Windows compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Windows)

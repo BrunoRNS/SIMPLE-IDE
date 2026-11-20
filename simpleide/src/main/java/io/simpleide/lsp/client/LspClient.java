@@ -49,6 +49,7 @@ import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.PublishDiagnosticsCapabilities;
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.RegistrationParams;
 import org.eclipse.lsp4j.SaveOptions;
 import org.eclipse.lsp4j.SynchronizationCapabilities;
 import org.eclipse.lsp4j.TextDocumentClientCapabilities;
@@ -57,11 +58,13 @@ import org.eclipse.lsp4j.TextDocumentIdentifier;
 import org.eclipse.lsp4j.TextDocumentItem;
 import org.eclipse.lsp4j.TextDocumentSyncKind;
 import org.eclipse.lsp4j.TextEdit;
+import org.eclipse.lsp4j.UnregistrationParams;
 import org.eclipse.lsp4j.VersionedTextDocumentIdentifier;
 import org.eclipse.lsp4j.WorkspaceClientCapabilities;
 import org.eclipse.lsp4j.WorkspaceFolder;
 import org.eclipse.lsp4j.jsonrpc.Launcher;
 import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.eclipse.lsp4j.jsonrpc.services.JsonNotification;
 import org.eclipse.lsp4j.launch.LSPLauncher;
 import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
@@ -211,11 +214,22 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 			}
 
 			startErrorStreamReader(startedProcess);
-			lspExecutor = createLspExecutor();
-			Launcher<LanguageServer> launcher = LSPLauncher.createClientLauncher(this, startedProcess.getInputStream(),
-					startedProcess.getOutputStream(), lspExecutor, Function.identity());
-			server = launcher.getRemoteProxy();
-			launcher.startListening();
+			Launcher<LanguageServer> launcher;
+			boolean aborted;
+			synchronized (this) {
+				aborted = closed;
+				if (!aborted) {
+					lspExecutor = createLspExecutor();
+					launcher = LSPLauncher.createClientLauncher(this, startedProcess.getInputStream(),
+							startedProcess.getOutputStream(), lspExecutor, Function.identity());
+					server = launcher.getRemoteProxy();
+					launcher.startListening();
+				}
+			}
+			if (aborted) {
+				closeProcess();
+				return;
+			}
 
 			startedProcess.onExit().thenAccept(exited -> {
 				if (closed) {
@@ -260,6 +274,11 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 			initialize(workspaceRoot);
 		}
 		catch (IOException | RuntimeException error) {
+			if (closed) {
+				LOGGER.debug("Language server startup stopped after the client was closed.", error);
+				closeProcess();
+				return;
+			}
 			initialized.completeExceptionally(error);
 			LOGGER.error("Unable to start language server.", error);
 			close();
@@ -629,12 +648,43 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	}
 
 	/**
+	 * Acknowledges capabilities registered dynamically by the server.
+	 * @param params registrations requested by the server
+	 * @return a completed future
+	 */
+	@Override
+	public CompletableFuture<Void> registerCapability(RegistrationParams params) {
+		LOGGER.debug("[LSP] registerCapability {}", params);
+		return CompletableFuture.completedFuture(null);
+	}
+
+	/**
+	 * Acknowledges capabilities unregistered dynamically by the server.
+	 * @param params unregistrations requested by the server
+	 * @return a completed future
+	 */
+	@Override
+	public CompletableFuture<Void> unregisterCapability(UnregistrationParams params) {
+		LOGGER.debug("[LSP] unregisterCapability {}", params);
+		return CompletableFuture.completedFuture(null);
+	}
+
+	/**
 	 * Logs a log message sent by the server.
 	 * @param message message content and type
 	 */
 	@Override
 	public void logMessage(MessageParams message) {
 		LOGGER.debug("[LSP] {}", message.getMessage());
+	}
+
+	/**
+	 * Consumes the non-standard JDT LS language status notification.
+	 * @param status notification payload
+	 */
+	@JsonNotification("language/status")
+	public void languageStatus(Object status) {
+		LOGGER.debug("[LSP] language/status {}", status);
 	}
 
 	/**
