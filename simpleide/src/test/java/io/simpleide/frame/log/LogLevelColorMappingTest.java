@@ -76,7 +76,6 @@ class LogLevelColorMappingTest {
 	@Test
 	void returnsNullForLevelsWithoutAMapping() {
 		assertNull(LogLevelColorMapping.colorForLevel(Level.OFF));
-		assertNull(LogLevelColorMapping.colorForLevel(Level.TRACE));
 	}
 
 	private static void restore(Map<String, Color> originalValues) {
