@@ -2,6 +2,8 @@ package io.simpleide.frame.log;
 
 import io.simpleide.thread.ThreadMaster;
 import java.awt.Color;
+import java.util.ArrayList;
+import java.util.List;
 import javax.swing.JTextPane;
 import javax.swing.UIManager;
 import javax.swing.text.BadLocationException;
@@ -22,13 +24,15 @@ import org.slf4j.LoggerFactory;
  * Covered by {@code LogPanelTest}.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/logging.md">docs/api/ui/logging.md</a>
  */
 public class LogPanel extends JTextPane {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LogPanel.class);
+
+	private final List<LogEntry> entries = new ArrayList<>();
 
 	/**
 	 * Creates an empty read-only log panel.
@@ -47,11 +51,11 @@ public class LogPanel extends JTextPane {
 		Color foreground = UIManager.getColor("TextPane.foreground");
 		if (background != null) {
 			setBackground(background);
-			applyDocumentBackground(background);
 		}
 		if (foreground != null) {
 			setForeground(foreground);
 		}
+		rebuildDocument();
 	}
 
 	/**
@@ -65,10 +69,16 @@ public class LogPanel extends JTextPane {
 	}
 
 	private void appendEntryOnEdt(String text, String level, Color color) {
+		LogEntry entry = new LogEntry(text, level, color);
+		entries.add(entry);
+		insertEntry(entry);
+	}
+
+	private void insertEntry(LogEntry entry) {
 		StyledDocument doc = getStyledDocument();
 
 		SimpleAttributeSet levelStyle = new SimpleAttributeSet();
-		StyleConstants.setForeground(levelStyle, Color.BLACK.equals(color) ? getForeground() : color);
+		StyleConstants.setForeground(levelStyle, levelColor(entry.color()));
 		StyleConstants.setBackground(levelStyle, getBackground());
 
 		SimpleAttributeSet messageStyle = new SimpleAttributeSet();
@@ -76,8 +86,8 @@ public class LogPanel extends JTextPane {
 		StyleConstants.setBackground(messageStyle, getBackground());
 
 		try {
-			doc.insertString(doc.getLength(), "[" + level + "]", levelStyle);
-			doc.insertString(doc.getLength(), text + "\n", messageStyle);
+			doc.insertString(doc.getLength(), "[" + entry.level() + "]", levelStyle);
+			doc.insertString(doc.getLength(), entry.text() + "\n", messageStyle);
 			setCaretPosition(doc.getLength());
 		}
 		catch (BadLocationException exception) {
@@ -85,13 +95,27 @@ public class LogPanel extends JTextPane {
 		}
 	}
 
-	private void applyDocumentBackground(Color background) {
-		if (!(getDocument() instanceof StyledDocument document) || document.getLength() == 0) {
+	private Color levelColor(Color preferred) {
+		return preferred == null ? getForeground() : preferred;
+	}
+
+	private void rebuildDocument() {
+		if (entries == null || entries.isEmpty() || !(getDocument() instanceof StyledDocument document)) {
 			return;
 		}
-		SimpleAttributeSet style = new SimpleAttributeSet();
-		StyleConstants.setBackground(style, background);
-		document.setCharacterAttributes(0, document.getLength(), style, false);
+		try {
+			document.remove(0, document.getLength());
+		}
+		catch (BadLocationException exception) {
+			LOGGER.warn("Unable to refresh the IDE log panel colors.", exception);
+			return;
+		}
+		for (LogEntry entry : entries) {
+			insertEntry(entry);
+		}
+	}
+
+	private record LogEntry(String text, String level, Color color) {
 	}
 
 }

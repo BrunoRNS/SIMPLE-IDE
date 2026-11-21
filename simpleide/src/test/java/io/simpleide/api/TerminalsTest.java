@@ -1,9 +1,9 @@
 package io.simpleide.api;
 
+import javax.swing.SwingUtilities;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
-
-import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Test;
 
 /**

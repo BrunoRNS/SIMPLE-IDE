@@ -7,20 +7,25 @@ import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.ui.icon.MaterialIcons;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
-import java.awt.FlowLayout;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 import javax.swing.JLabel;
+import javax.swing.Icon;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
+import javax.swing.JComponent;
 import javax.swing.SwingConstants;
+import javax.swing.UIManager;
+import java.awt.Component;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +43,7 @@ import org.slf4j.LoggerFactory;
  * Covered by {@code EditorManagerTest}.
  *
  * @author LuisOtavio13
- * @since v1.0.0beta
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
  */
@@ -262,6 +267,30 @@ public class EditorManager {
 	}
 
 	/**
+	 * Saves every modified editor before application shutdown.
+	 * @return {@code true} when every modified file was saved successfully
+	 */
+	public boolean saveAllModifiedFiles() {
+		boolean saved = true;
+		for (EditorTab tab : openedEditors.values()) {
+			boolean changed = tab.isEdit()
+					|| !java.util.Objects.equals(tab.getFile().getCode().toString(), tab.getEditor().getText());
+			if (!changed) {
+				continue;
+			}
+			try {
+				tab.save();
+			}
+			catch (IOException error) {
+				saved = false;
+				LOGGER.error("Unable to save modified file during application shutdown: {}", tab.getFile().getPath(),
+						error);
+			}
+		}
+		return saved;
+	}
+
+	/**
 	 * Returns the tab that has a path open.
 	 * @param path normalized source path
 	 * @return the matching tab, or {@code null}
@@ -278,10 +307,62 @@ public class EditorManager {
 		jTabbedPane.setSelectedComponent(tab);
 	}
 
+	/** Refreshes file icons after a theme or global font-size change. */
+	public static void refreshFileIcons() {
+		EditorManager manager = instance;
+		if (manager == null || manager.jTabbedPane == null) {
+			return;
+		}
+		java.awt.Color tabBackground = UIManager.getColor("TabbedPane.background");
+		java.awt.Color tabForeground = UIManager.getColor("TabbedPane.foreground");
+		if (tabBackground != null) {
+			manager.jTabbedPane.setBackground(tabBackground);
+		}
+		if (tabForeground != null) {
+			manager.jTabbedPane.setForeground(tabForeground);
+		}
+		int selectedIndex = manager.jTabbedPane.getSelectedIndex();
+		for (int tabIndex = 0; tabIndex < manager.jTabbedPane.getTabCount(); tabIndex++) {
+			Component page = manager.jTabbedPane.getComponentAt(tabIndex);
+			if (!(page instanceof EditorTab tab)) {
+				if (page instanceof JComponent component && tabBackground != null) {
+					component.setBackground(tabBackground);
+					component.setOpaque(true);
+				}
+				continue;
+			}
+			Icon icon = MaterialIcons.forFile(tab.getFile().getPath());
+			tab.getEditor().refreshUiFont();
+			manager.jTabbedPane.setIconAt(tabIndex, icon);
+			tab.getButtonExit().refreshIconSize();
+			Component header = manager.jTabbedPane.getTabComponentAt(tabIndex);
+			if (header instanceof JPanel panel && panel.getComponentCount() > 0
+					&& panel.getComponent(0) instanceof JLabel label) {
+				label.setIcon(icon);
+				label.setForeground(tabForeground(tabIndex == selectedIndex));
+				tab.getButtonExit().setForeground(tabForeground(tabIndex == selectedIndex));
+				panel.revalidate();
+				panel.repaint();
+			}
+		}
+	}
+
+	private static java.awt.Color tabForeground(boolean selected) {
+		java.awt.Color foreground = UIManager
+			.getColor(selected ? "TabbedPane.selectedForeground" : "TabbedPane.foreground");
+		return foreground != null ? foreground : UIManager.getColor("Label.foreground");
+	}
+
 	private JPanel createTabHeader(EditorTab tab) {
-		JPanel header = new JPanel(new FlowLayout(FlowLayout.LEADING, 4, 0));
+		JPanel header = new JPanel();
+		header.setLayout(new javax.swing.BoxLayout(header, javax.swing.BoxLayout.LINE_AXIS));
 		header.setOpaque(false);
-		header.add(new JLabel(tab.getName(), tab.getFileIcon(), SwingConstants.LEADING));
+		JLabel fileLabel = new JLabel(tab.getName(), tab.getFileIcon(), SwingConstants.LEADING);
+		fileLabel.setAlignmentY(Component.CENTER_ALIGNMENT);
+		fileLabel.setForeground(tabForeground(true));
+		tab.getButtonExit().setAlignmentY(Component.CENTER_ALIGNMENT);
+		tab.getButtonExit().setForeground(tabForeground(true));
+		header.add(fileLabel);
 		header.add(tab.getButtonExit());
 		return header;
 	}
@@ -329,6 +410,9 @@ public class EditorManager {
 			if (error instanceof CompletionException && error.getCause() != null) {
 				cause = error.getCause();
 			}
+			if (cause instanceof CancellationException) {
+				return;
+			}
 
 			LOGGER.error("LSP connection failed for {}.", tab.getFile().getPath(), cause);
 
@@ -354,6 +438,23 @@ public class EditorManager {
 
 	private void configJTabbedPane() {
 		this.jTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
+		this.jTabbedPane.addChangeListener(event -> refreshTabHeaderColors());
+	}
+
+	private void refreshTabHeaderColors() {
+		int selectedIndex = jTabbedPane.getSelectedIndex();
+		for (int tabIndex = 0; tabIndex < jTabbedPane.getTabCount(); tabIndex++) {
+			Component header = jTabbedPane.getTabComponentAt(tabIndex);
+			if (!(header instanceof JPanel panel)) {
+				continue;
+			}
+			java.awt.Color foreground = tabForeground(tabIndex == selectedIndex);
+			for (Component child : panel.getComponents()) {
+				if (foreground != null) {
+					child.setForeground(foreground);
+				}
+			}
+		}
 	}
 
 	private void removeWelcomeScreen() {

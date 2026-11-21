@@ -21,7 +21,7 @@ x86 binary. `Terminals.isSupported()` returns `false` on unknown platforms.
 
 All Linux binaries are linked against GNU glibc and require glibc 2.28 or newer.
 Alpine Linux and other musl-based distributions are not supported. See
-[Linux compatibility](../reference/LINUX.md) for the full distribution list.
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux) for the full distribution list.
 
 ## Create a terminal
 
@@ -122,7 +122,7 @@ platform directory contains:
 - `README.txt` with version, format, provenance and build notes.
 
 `BusyBoxPlatform` maps `LangPlatform` to the resource path and extracts the
-binary. See [BusyBox third-party notes](../third-party/BUSYBOX.md) before
+binary. See [BusyBox third-party notes](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-BusyBox) before
 replacing a binary.
 
 ## Security
@@ -133,7 +133,7 @@ replacing a binary.
 - Do not run untrusted commands in the embedded terminal unless the host
   application sandboxes the process.
 - On macOS the binary is not signed or notarized; Gatekeeper may affect a
-  packaged app that launches it. See [Build and packaging](../build/MAKEFILE.md).
+  packaged app that launches it. See [Build and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile).
 
 ## Troubleshooting
 

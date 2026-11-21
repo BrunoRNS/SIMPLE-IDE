@@ -1,12 +1,14 @@
 package io.simpleide.ui.menubar.menus;
 
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.ui.menubar.ThemeManager;
 import javax.swing.ButtonGroup;
 import javax.swing.JMenu;
 import javax.swing.JRadioButtonMenuItem;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.ui.menubar.ThemeManager;
 
 /**
  * Radio menu that selects the application theme.
@@ -29,7 +31,9 @@ public final class ThemeMenu extends JMenu {
 
 	protected JRadioButtonMenuItem light;
 
-	protected JRadioButtonMenuItem darcula;
+	protected JRadioButtonMenuItem dracula;
+
+	protected JRadioButtonMenuItem draculaLight;
 
 	protected JRadioButtonMenuItem brown;
 
@@ -50,7 +54,8 @@ public final class ThemeMenu extends JMenu {
 	protected void configureMenu() {
 		add(dark);
 		add(light);
-		add(darcula);
+		add(dracula);
+		add(draculaLight);
 		add(brown);
 		add(brownLight);
 	}
@@ -60,14 +65,16 @@ public final class ThemeMenu extends JMenu {
 
 		light = new JRadioButtonMenuItem("Light");
 		dark = new JRadioButtonMenuItem("Dark");
-		darcula = new JRadioButtonMenuItem("Darcula");
+		dracula = new JRadioButtonMenuItem("Dracula");
+		draculaLight = new JRadioButtonMenuItem("Dracula Light");
 		brown = new JRadioButtonMenuItem("Brown");
 		brownLight = new JRadioButtonMenuItem("Brown Light");
 		dark.setSelected(true);
 
 		buttonGroup.add(light);
 		buttonGroup.add(dark);
-		buttonGroup.add(darcula);
+		buttonGroup.add(dracula);
+		buttonGroup.add(draculaLight);
 		buttonGroup.add(brown);
 		buttonGroup.add(brownLight);
 	}
@@ -83,9 +90,14 @@ public final class ThemeMenu extends JMenu {
 			ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DARK);
 		}));
 
-		darcula.addActionListener(new ActionNode(e -> {
-			LOGGER.info("Set Darcula theme");
+		dracula.addActionListener(new ActionNode(e -> {
+			LOGGER.info("Set Dracula theme");
 			ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DRACULA);
+		}));
+
+		draculaLight.addActionListener(new ActionNode(e -> {
+			LOGGER.info("Set Dracula Light theme");
+			ThemeManager.getInstance().setTheme(ThemeManager.ThemeType.DRACULA_LIGHT);
 		}));
 
 		brown.addActionListener(new ActionNode(e -> {

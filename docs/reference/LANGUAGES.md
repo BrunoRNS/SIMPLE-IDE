@@ -76,4 +76,4 @@ compiled to a temporary executable by `mcs` and run with Mono. Build artifacts
 are removed when the language process finishes.
 
 For editor language-server features and per-platform LSP availability, see
-[`LSP.md`](LSP.md).
+[`LSP.md`](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-LSP).

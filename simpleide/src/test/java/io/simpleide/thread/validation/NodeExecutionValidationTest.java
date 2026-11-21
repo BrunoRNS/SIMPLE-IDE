@@ -1,13 +1,15 @@
 package io.simpleide.thread.validation;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertNull;
-
-import io.simpleide.thread.nodes.NodePattern;
 import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.swing.SwingUtilities;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Tests {@link io.simpleide.thread.validation.NodeExecutionValidation}.

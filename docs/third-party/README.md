@@ -8,10 +8,10 @@ license applies.
 
 | How the code reaches you | What it is | License summary | Details |
 | --- | --- | --- | --- |
-| Declared in `pom.xml` (compiled into the fat JAR) | Runtime and test libraries | Apache 2.0, BSD 3-Clause, EPL 2.0, EDL 1.0, LGPL dual-licensed | [Maven dependencies](MAVEN.md) |
-| Bundled inside the JAR resources | BusyBox binaries per platform, plus their source archives and license texts | GPLv2 | [Bundled BusyBox](BUSYBOX.md) |
-| Downloaded at runtime by the LSP installer | Language servers, extracted into `~/.simpleide/lsp/` | Each server has its own license, recorded in the download registry | [Runtime downloads](RUNTIME.md) |
-| External programs you install yourself | `javac`, `kotlinc`, `node`, `python3`, `gcc`, `mono`, `go`, `rustc` and other toolchains | Your own installation; Simple IDE never bundles them | [Runtime downloads](RUNTIME.md) |
+| Declared in `pom.xml` (compiled into the fat JAR) | Runtime and test libraries | Apache 2.0, BSD 3-Clause, EPL 2.0, EDL 1.0, LGPL dual-licensed | [Maven dependencies](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Maven) |
+| Bundled inside the JAR resources | BusyBox binaries per platform, plus their source archives and license texts | GPLv2 | [Bundled BusyBox](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-BusyBox) |
+| Downloaded at runtime by the LSP installer | Language servers, extracted into `~/.simpleide/lsp/` | Each server has its own license, recorded in the download registry | [Runtime downloads](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime) |
+| External programs you install yourself | `javac`, `kotlinc`, `node`, `python3`, `gcc`, `mono`, `go`, `rustc` and other toolchains | Your own installation; Simple IDE never bundles them | [Runtime downloads](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime) |
 
 ## Why this matters
 
@@ -47,4 +47,4 @@ license applies.
 
 The bundled Linux BusyBox binaries and the bundled JDK require GNU glibc 2.28
 or newer. Alpine Linux and other musl-based distributions are not supported.
-See [Linux compatibility](../reference/LINUX.md).
+See [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).

@@ -1,5 +1,7 @@
 # SIMPLE-IDE
 
+<p align="center"><img src="assets/simpleide_icon.png" alt="SIMPLE-IDE app icon" width="180" /></p>
+
 A simple, lightweight, extensible IDE written in Java Swing — usable as a
 standalone editor or as a component toolkit for building bigger, more specific
 IDEs.
@@ -20,14 +22,14 @@ IDEs.
 | ![Home page, default dark theme](docs/screenshots/simpleide-homepage-default-dark-v1.0.0beta.png) | ![Autocomplete, light theme, Java](docs/screenshots/simpleide-lighttheme-autocomplete-javalang-v1.0.0beta.png) |
 | ![Embedded terminal, Dracula theme](docs/screenshots/simpleide-draculatheme-terminal-v1.0.0beta.png) | ![Opened editor, dark theme](docs/screenshots/simpleide-nolangfileopenededitor-dark-v1.0.0beta.png) |
 
-More pictures and what each one shows: [Screenshots showcase](docs/screenshots/README.md).
+More pictures and what each one shows: [Screenshots showcase](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Screenshots).
 
 ## Where it fits
 
 Simple IDE is part of a planned architecture meant to be **integrated into
 larger, more specific IDEs**: every subsystem (editor, terminal, threading,
 language runner, LSP client) can be embedded independently through the public
-API in [`io.simpleide.api`](docs/api/README.md). It also works perfectly well
+API in [`io.simpleide.api`](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API). It also works perfectly well
 **on its own** as a complete desktop editor.
 
 - Standalone: a fast, small editor with run support for 10 languages and a
@@ -81,7 +83,7 @@ SimpleIDE.launch();
 ```
 
 Prefer no repository setup? Download the release JAR and install it locally —
-see [Artifacts and imports](docs/api/artifacts.md). To consume only the
+see [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts). To consume only the
 compiler module use the `simplebytecode-compiler` artifact.
 
 ### Fat JAR / package (advanced users)
@@ -102,14 +104,14 @@ Beta versions (e.g. `1.0.0beta`) are published as pre-releases.
 Linux builds require a GNU/Linux distribution with **glibc 2.28 or newer**
 (Debian 10+, Ubuntu 18.10+, Fedora 29+, RHEL 8+). Alpine Linux and other
 musl-based distributions are not supported. See
-[Linux compatibility](docs/reference/LINUX.md).
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 Windows builds require **Windows 10** on `x86` and `x64`, and **Windows 11** on
 `arm64`. macOS builds require **Big Sur (11.0)** on `x64` and `arm64`; the
 release `.dmg` is built with JDK 17. Packages built with JDK 21, 25 and 27
 require macOS 12, 14 and 15 respectively. See
-[Windows compatibility](docs/reference/WINDOWS.md) and
-[macOS compatibility](docs/reference/MACOS.md).
+[Windows compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Windows) and
+[macOS compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-macOS).
 
 ### From source (super advanced users / developers)
 
@@ -123,7 +125,7 @@ make pkg          # jpackage app image for this OS/arch
 
 Without Make, use the wrapper (`mvnw.cmd` on Windows): `./mvnw -DskipTests
 package`. Development workflow, branch model and tests:
-[Contributing](docs/development/CONTRIBUTING.md).
+[Contributing](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Contributing).
 
 ## Features
 
@@ -147,25 +149,27 @@ Maintainers:
 | Luis Otávio | [@LuisOtavio13](https://github.com/LuisOtavio13) & [@luisotavio15](https://github.com/luisotavio15) | <roberdoogarcia@gmail.com> |
 
 Everyone else is welcome as a **collaborator**: open an issue or a pull
-request and you are in. See [Contributing](docs/development/CONTRIBUTING.md)
+request and you are in. See [Contributing](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Contributing)
 for the process.
 
 ## Documentation
 
-- [Documentation index](docs/README.md)
-- [API reference and integration guide](docs/api/README.md)
-- [Languages](docs/reference/LANGUAGES.md) ·
-  [LSP](docs/reference/LSP.md) ·
-  [Threading](docs/reference/THREADMASTER.md)
-- [Linux](docs/reference/LINUX.md) · [Windows](docs/reference/WINDOWS.md) ·
-  [macOS](docs/reference/MACOS.md)
-- [Build, test and packaging](docs/build/MAKEFILE.md) ·
-  [Releases](docs/build/RELEASES.md)
-- [Third-party dependencies and licenses](docs/third-party/README.md)
+The complete guides and API reference are published in the [SIMPLE-IDE Wiki](https://github.com/BrunoRNS/SIMPLE-IDE/wiki).
+
+- [Documentation index](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Home)
+- [API reference and integration guide](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API)
+- [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages) ·
+  [LSP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-LSP) ·
+  [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-ThreadMaster)
+- [Linux](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux) · [Windows](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Windows) ·
+  [macOS](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-macOS)
+- [Build, test and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile) ·
+  [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Releases)
+- [Third-party dependencies and licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party)
 
 ## License
 
 Simple IDE is licensed under the [BSD 3-Clause License](LICENSE). Bundled
 components keep their own licenses — notably BusyBox (GPLv2, with source
 archives bundled) and the Maven libraries listed in the
-[license inventory](docs/third-party/LICENSES.md).
+[license inventory](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses).

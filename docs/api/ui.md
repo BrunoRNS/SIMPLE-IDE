@@ -7,7 +7,7 @@ itself, but a few are useful when embedding Simple IDE components.
 ## Themes
 
 `io.simpleide.ui.menubar.ThemeManager` applies a FlatLaf look and feel and an
-RSyntaxTextArea theme. See [Menu bar and themes](ui/menubar.md) for the menu
+RSyntaxTextArea theme. See [Menu bar and themes](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Menubar) for the menu
 structure and theme table.
 
 ```java
@@ -29,6 +29,7 @@ Available themes:
 | `LIGHT` | FlatLightLaf | `default.xml` plus readable syntax overrides |
 | `DARK` | FlatDarkLaf | `dark.xml` plus readable syntax overrides |
 | `DRACULA` | Flat properties | `dracula.xml` with Dracula palette |
+| `DRACULA_LIGHT` | Flat properties | `default.xml` with light Dracula palette |
 | `BROWN` | Flat properties | dark palette with brown accents |
 | `BROWN_LIGHT` | Flat properties | light palette with brown accents |
 
@@ -39,9 +40,16 @@ tracks an editor so later theme changes apply to it. Call
 Theme changes run on the EDT through `ThreadMaster`. The manager is a singleton
 and reads bundled resources. It is not headless-safe because it updates windows.
 
+For the complete application, `SimpleIDE.launch(args)` loads bundled look-and-feel
+properties, editor themes, palettes and per-theme welcome SVGs from the fat JAR.
+When constructing a custom frame, include the Simple IDE resources and runtime
+dependencies on the classpath, then register the frame and editors with
+`ThemeManager` before calling `setTheme`. See [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts)
+for packaging details.
+
 ## Popups
 
-The popup classes wrap modal dialogs. See [Popups](ui/popups.md) for lifecycle,
+The popup classes wrap modal dialogs. See [Popups](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Popups) for lifecycle,
 threading and callback details:
 
 | Class | Purpose |
@@ -75,7 +83,7 @@ new InputPopUP("Name", "Enter a name", parent, value -> System.out.println(value
 ## File tree
 
 The `io.simpleide.ui.treefile` package contains the project tree model. See
-[Project file tree](ui/file-tree.md) for the full model, watcher and context
+[Project file tree](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-File-Tree) for the full model, watcher and context
 actions:
 
 | Class | Purpose |

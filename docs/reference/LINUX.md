@@ -109,6 +109,6 @@ actions cannot run in a 32-bit container and the JDK cannot run on musl.
 
 - [Oracle JDK 27 certified system configurations](https://www.oracle.com/java/technologies/javase/products-doc-jdk27certconfig.html)
 - [Oracle JDK 27 installation guide for Linux](https://docs.oracle.com/en/java/javase/27/install/installation-jdk-linux-platforms.html)
-- [Bundled BusyBox](../third-party/BUSYBOX.md)
-- [Terminal API](../api/terminal.md)
-- [Build and test with Make](../build/MAKEFILE.md)
+- [Bundled BusyBox](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-BusyBox)
+- [Terminal API](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Terminal)
+- [Build and test with Make](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile)

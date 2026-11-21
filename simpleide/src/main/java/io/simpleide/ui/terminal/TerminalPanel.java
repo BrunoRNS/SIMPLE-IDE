@@ -1,19 +1,22 @@
 package io.simpleide.ui.terminal;
 
-import com.formdev.flatlaf.extras.FlatSVGIcon;
-import com.jediterm.terminal.TtyConnector;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.math.BigInteger;
 import java.util.LinkedHashMap;
 import java.util.Map;
+
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
 import javax.swing.UIManager;
+
+import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.jediterm.terminal.TtyConnector;
 
 /**
  * Panel that hosts the tabbed terminal views and their add and close buttons.
@@ -27,14 +30,13 @@ import javax.swing.UIManager;
  * Covered by {@code TerminalPanelTest}.
  *
  * @author BrunoRNS
- * @since v1.0.0beta
+ * @since v1.1.0
  */
 public final class TerminalPanel extends JPanel {
 
 	static final int MAX_TABS = 5;
 
-	private static final double MIN_ICON_CONTRAST = 4.5;
-
+	@SuppressWarnings("unused")
 	private static final Color ICON_ACCENT = new Color(0x6E7781);
 
 	private final JTabbedPane terminalTabs = new JTabbedPane();
@@ -66,41 +68,80 @@ public final class TerminalPanel extends JPanel {
 		closeButton.setMaximumSize(buttonSize);
 		closeButton.getAccessibleContext().setAccessibleName("Close selected terminal");
 		closeButton.setEnabled(false);
+		this.applyThemeToActionButton(addButton);
+		this.applyThemeToActionButton(closeButton);
 
 		actions.add(addButton);
 		actions.add(closeButton);
-		add(terminalTabs, BorderLayout.CENTER);
-		add(actions, BorderLayout.EAST);
+		this.add(terminalTabs, BorderLayout.CENTER);
+		this.add(actions, BorderLayout.EAST);
 	}
 
-	private static FlatSVGIcon createActionIcon(String resource) {
-		return new FlatSVGIcon(resource, 20, 20).setColorFilter(new FlatSVGIcon.ColorFilter((component, color) -> {
-			Color background = getIconBackground(component);
-			if (ICON_ACCENT.equals(color)) {
-				Color foreground = UIManager.getColor("Button.foreground");
-				if (foreground == null && component != null) {
-					foreground = component.getForeground();
-				}
-				return getAccessibleIconForeground(foreground, background);
+	@Override
+	public void updateUI() {
+		super.updateUI();
+		if (terminalTabs != null) {
+			Color background = UIManager.getColor("TabbedPane.background");
+			Color foreground = UIManager.getColor("TabbedPane.foreground");
+			Color panelBackground = UIManager.getColor("Panel.background");
+			if (background != null) {
+				terminalTabs.setBackground(background);
 			}
-			if (Color.WHITE.equals(color)) {
-				return background;
+			if (panelBackground != null) {
+				setBackground(panelBackground);
 			}
-			return color;
-		}));
-	}
-
-	static Color getAccessibleIconForeground(Color preferred, Color background) {
-		Color effectiveBackground = background == null ? Color.WHITE : background;
-		Color effectiveForeground = preferred == null ? Color.DARK_GRAY : preferred;
-		if (contrastRatio(effectiveForeground, effectiveBackground) >= MIN_ICON_CONTRAST) {
-			return effectiveForeground;
+			if (foreground != null) {
+				terminalTabs.setForeground(foreground);
+			}
 		}
-		return contrastRatio(Color.BLACK, effectiveBackground) >= contrastRatio(Color.WHITE, effectiveBackground)
-				? Color.BLACK : Color.WHITE;
+		if (addButton != null) {
+			applyThemeToActionButton(addButton);
+			addButton.setIcon(createActionIcon("io/simpleide/ui/terminal/terminal-add.svg"));
+		}
+		if (closeButton != null) {
+			applyThemeToActionButton(closeButton);
+			closeButton.setIcon(createActionIcon("io/simpleide/ui/terminal/terminal-close.svg"));
+		}
 	}
 
-	private static Color getIconBackground(Component component) {
+	void applyThemeToActionButton(JButton button) {
+		button.putClientProperty("JButton.buttonType", "roundRect");
+		Color background = UIManager.getColor("Button.background");
+		Color foreground = UIManager.getColor("Button.foreground");
+		if (background != null) {
+			button.setBackground(background);
+		}
+		if (foreground != null) {
+			button.setForeground(foreground);
+		}
+	}
+
+	FlatSVGIcon createActionIcon(String resource) {
+		Font font = UIManager.getFont("Menu.font");
+		if (font == null) {
+			font = UIManager.getFont("Label.font");
+		}
+		int iconSize = Math.max(18, font == null ? 18 : font.getSize());
+		return new FlatSVGIcon(resource, iconSize, iconSize)
+			.setColorFilter(new FlatSVGIcon.ColorFilter((component, color) -> {
+				if (ICON_ACCENT.equals(color)) {
+					Color foreground = UIManager.getColor("Button.foreground");
+					if (foreground == null && component != null) {
+						foreground = component.getForeground();
+					}
+					if (foreground == null) {
+						foreground = UIManager.getColor("Label.foreground");
+					}
+					return foreground == null ? Color.GRAY : foreground;
+				}
+				if (Color.WHITE.equals(color)) {
+					return this.getIconBackground(component);
+				}
+				return color;
+			}));
+	}
+
+	Color getIconBackground(Component component) {
 		Color background = component == null ? null : component.getBackground();
 		if (background == null) {
 			background = UIManager.getColor("Button.background");
@@ -109,36 +150,6 @@ public final class TerminalPanel extends JPanel {
 			background = UIManager.getColor("Panel.background");
 		}
 		return background == null ? Color.WHITE : background;
-	}
-
-	private static double contrastRatio(Color foreground, Color background) {
-		Color opaqueBackground = composite(background, Color.WHITE);
-		Color opaqueForeground = composite(foreground, opaqueBackground);
-		double foregroundLuminance = relativeLuminance(opaqueForeground);
-		double backgroundLuminance = relativeLuminance(opaqueBackground);
-		double lighter = Math.max(foregroundLuminance, backgroundLuminance);
-		double darker = Math.min(foregroundLuminance, backgroundLuminance);
-		return (lighter + 0.05) / (darker + 0.05);
-	}
-
-	private static Color composite(Color color, Color background) {
-		if (color.getAlpha() == 255) {
-			return color;
-		}
-		double alpha = color.getAlpha() / 255.0;
-		return new Color((int) Math.round(color.getRed() * alpha + background.getRed() * (1 - alpha)),
-				(int) Math.round(color.getGreen() * alpha + background.getGreen() * (1 - alpha)),
-				(int) Math.round(color.getBlue() * alpha + background.getBlue() * (1 - alpha)));
-	}
-
-	private static double relativeLuminance(Color color) {
-		return 0.2126 * linearize(color.getRed()) + 0.7152 * linearize(color.getGreen())
-				+ 0.0722 * linearize(color.getBlue());
-	}
-
-	private static double linearize(int channel) {
-		double normalized = channel / 255.0;
-		return normalized <= 0.04045 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
 	}
 
 	void setActions(Runnable addAction, Runnable closeAction) {

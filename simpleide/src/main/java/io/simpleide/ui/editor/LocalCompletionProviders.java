@@ -2,6 +2,7 @@ package io.simpleide.ui.editor;
 
 import java.util.List;
 import java.util.Map;
+
 import org.fife.ui.autocomplete.BasicCompletion;
 import org.fife.ui.autocomplete.CompletionProvider;
 import org.fife.ui.autocomplete.DefaultCompletionProvider;

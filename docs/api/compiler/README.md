@@ -11,7 +11,7 @@ for JVM languages and can be consumed on its own.
 | `simplebytecode-compiler` | Compiler, runners and no shaded dependencies | You already manage Groovy and Kotlin |
 | `simplebytecode-compiler` `jar-with-dependencies` | Compiler plus Groovy and Kotlin runtime | Running the compiler standalone |
 
-See [Artifacts and imports](../artifacts.md) for installation details.
+See [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts) for installation details.
 
 ## Command line
 
@@ -81,8 +81,8 @@ be compiled. No class files are written to disk.
 | Groovy | `.groovy`, `.gvy`, `.gy`, `.gsh` |
 
 The IDE adds the compiled languages C, C++, C#, Go and Rust through external
-toolchains; for those, see [Languages](../languages.md) and the
-[language reference](../../reference/LANGUAGES.md).
+toolchains; for those, see [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages) and the
+[language reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages).
 
 ## Threading and resources
 

@@ -154,7 +154,17 @@ others. The table below shows the entry point and the effects.
 | Terminal only | `Terminals.panel()` + controller | Yes | Yes |
 | Full application | `SimpleIDE.launch()` | Yes | Yes |
 
-See [Isolated modules](isolated-modules.md) for exact imports and caveats.
+See [Isolated modules](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Isolated-Modules) for exact imports and caveats.
+
+### Themes and application resources
+
+`SimpleIDE.launch(args)` loads bundled look-and-feel properties, RSyntaxTextArea
+editor themes, palettes, SVG welcome logos and the application PNG icon from the
+application artifact. For a custom Swing integration, the application artifact
+and its runtime dependencies must remain on the classpath; register windows and
+editors with `io.simpleide.ui.menubar.ThemeManager` to apply or change themes.
+Available values include `LIGHT`, `DARK`, `DRACULA`, `DRACULA_LIGHT`, `BROWN`
+and `BROWN_LIGHT`. See [UI helpers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI) for usage and lifecycle details.
 
 ## Only RSyntaxTextArea
 
@@ -181,7 +191,7 @@ editor.setSyntaxStyle(TypeFile.JAVA);
 
 - Simple IDE code is BSD 3-Clause.
 - The fat JAR contains dependencies with their own licenses, including LGPL,
-  EPL and Apache 2.0 components. See [Third-party licenses](../third-party/LICENSES.md).
+  EPL and Apache 2.0 components. See [Third-party licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses).
 - Embedded BusyBox binaries are GPLv2 programs, not linked Java code. The
   corresponding source archives are bundled in the JAR resources. If you
   redistribute the fat JAR or a jpackage image, keep those resources and

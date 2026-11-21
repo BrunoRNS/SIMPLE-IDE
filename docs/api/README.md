@@ -7,26 +7,26 @@ not cover a use case.
 
 ## Contents
 
-- [Getting started](getting-started.md) — add the dependency and run the first
+- [Getting started](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Getting-Started) — add the dependency and run the first
   integration.
-- [Artifacts and imports](artifacts.md) — release JAR, JitPack and manual
+- [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts) — release JAR, JitPack and manual
   installation.
-- [Isolated modules](isolated-modules.md) — use only one subsystem.
-- [Standalone RSyntaxTextArea](rsyntax.md) — editor without threads or LSP.
-- [Embedded editor](editor.md) — search, line numbers, local completion and LSP.
-- [Threading](threading.md) — EDT tasks, background tasks and managed pools.
-- [Languages](languages.md) — discovery, execution, input and output.
-- [Language Server Protocol](lsp.md) — server discovery, installation and use.
-- [Terminal](terminal.md) — embedded BusyBox terminal.
-- [UI helpers](ui.md) — popups, icons, themes and layouts.
-- [Application bootstrap and frame](ui/application.md) — `MainFrame`, layout helpers and startup.
-- [Logging console](ui/logging.md) — Swing log panel and Logback appender.
-- [Popups](ui/popups.md) — info, success, warning, error and input dialogs.
-- [Menu bar and themes](ui/menubar.md) — File, Settings and Help menus, theme manager.
-- [Project file tree](ui/file-tree.md) — tree model, icons, context actions and watcher.
-- [Shared utilities](util/utilities.md) — files, resources, `PATH` lookup, map conversion.
-- [Bytecode compiler](compiler/README.md) — standalone Java, Kotlin and Groovy execution.
-- [Examples](examples.md) — complete copy-paste examples.
+- [Isolated modules](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Isolated-Modules) — use only one subsystem.
+- [Standalone RSyntaxTextArea](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-RSyntax) — editor without threads or LSP.
+- [Embedded editor](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor) — search, line numbers, local completion and LSP.
+- [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading) — EDT tasks, background tasks and managed pools.
+- [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages) — discovery, execution, input and output.
+- [Language Server Protocol](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP) — server discovery, installation and use.
+- [Terminal](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Terminal) — embedded BusyBox terminal.
+- [UI helpers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI) — popups, icons, themes and layouts.
+- [Application bootstrap and frame](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Application) — `MainFrame`, layout helpers and startup.
+- [Logging console](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Logging) — Swing log panel and Logback appender.
+- [Popups](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Popups) — info, success, warning, error and input dialogs.
+- [Menu bar and themes](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Menubar) — File, Settings and Help menus, theme manager.
+- [Project file tree](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-File-Tree) — tree model, icons, context actions and watcher.
+- [Shared utilities](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Utilities) — files, resources, `PATH` lookup, map conversion.
+- [Bytecode compiler](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Compiler) — standalone Java, Kotlin and Groovy execution.
+- [Examples](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Examples) — complete copy-paste examples.
 
 ## API at a glance
 
@@ -89,8 +89,8 @@ through Swing's event queue, and background nodes run on a small managed worker
 pool. Registering a node does not necessarily run it immediately; `initialize()`
 starts the tree, and later registrations are scheduled as they arrive. The
 manager has a bounded queue and a small worker count, so a task must not wait for
-another task in the same pool to finish. See [Threading](threading.md) and
-[THREADMASTER.md](../reference/THREADMASTER.md).
+another task in the same pool to finish. See [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading) and
+[THREADMASTER.md](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-ThreadMaster).
 
 ## Lifecycle summary
 

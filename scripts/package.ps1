@@ -15,6 +15,7 @@ $properties = Join-Path $rootDir "simpleide\src\main\resources\simpleide.propert
 $fatJar = Join-Path $rootDir "simpleide\target\simpleide.jar"
 $pkgDir = Join-Path $rootDir "simpleide\target\pkg"
 $inputDir = Join-Path $rootDir "simpleide\target\jpackage-input"
+$iconDir = Join-Path $rootDir "assets\icons"
 
 if (-not (Test-Path $fatJar)) {
     throw "$fatJar was not found. Run 'make jar' first."
@@ -52,6 +53,11 @@ if ($validOs -notcontains $os) {
 }
 if ($validArch -notcontains $arch) {
     throw "Unsupported jpackage architecture: $arch"
+}
+
+$iconPath = Join-Path $iconDir "simpleide_icon.ico"
+if (-not (Test-Path $iconPath)) {
+    throw "The jpackage icon for Windows is missing: $iconPath"
 }
 
 if ($pkgType) {
@@ -111,6 +117,7 @@ $jpackageArgs += @(
     "--vendor", "SimpleIDE",
     "--description", "SimpleIDE",
     "--copyright", "BSD-3-Clause",
+    "--icon", $iconPath,
     "--java-options", "-Dfile.encoding=UTF-8",
     "--jlink-options", "--strip-debug --no-man-pages --no-header-files"
 )

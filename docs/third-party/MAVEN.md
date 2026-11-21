@@ -4,6 +4,13 @@ Every library compiled into the Simple IDE fat JAR is declared in a `pom.xml`.
 Simple IDE is built with Maven; the wrapper (`mvnw`) downloads all of these
 dependencies automatically, so no dependency is fetched at application runtime.
 
+On 32-bit Linux only, if `mvnw` returns an error, the launcher downloads the
+Apache Maven 3.9.16 binary archive with `wget`, extracts it under
+`~/.m2/fallback/apache-maven-3.9.16`, adds its `bin` directory to `PATH`, and
+retries the original Maven arguments with `mvn`. Other platforms continue to use
+the Maven Wrapper without this fallback. The fallback requires `wget`, `tar`,
+and Java on `PATH` (or `JAVA_HOME`).
+
 ## Runtime dependencies (simpleide module)
 
 | Library | Version | License | Purpose |
@@ -22,6 +29,8 @@ dependencies automatically, so no dependency is fetched at application runtime.
 | `jakarta.json:jakarta.json-api` | 2.1.3 | EDL 1.0 (BSD 3-Clause) | Jakarta JSON API |
 | `org.eclipse.parsson:parsson` | 1.1.7 | EDL 1.0 (BSD 3-Clause) | Jakarta JSON provider implementation |
 | `org.rauschig:jarchivelib` | 1.2.0 | Apache 2.0 | Extraction of bundled archives (BusyBox, LSP servers) |
+| `com.github.hypfvieh:dbus-java-core` | 5.1.1 | MIT | Linux StatusNotifierItem tray integration on Wayland desktops |
+| `com.github.hypfvieh:dbus-java-transport-jnr-unixsocket` | 5.1.1 | MIT | D-Bus session transport for Linux tray registration |
 
 ## Runtime dependencies (simplebytecode-compiler module)
 
@@ -61,7 +70,7 @@ module. Compare the result with the tables above when you upgrade a version.
 
 See also:
 
-- [Third-party overview](README.md)
-- [Bundled BusyBox](BUSYBOX.md)
-- [Runtime downloads](RUNTIME.md)
-- [License inventory](LICENSES.md)
+- [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party)
+- [Bundled BusyBox](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-BusyBox)
+- [Runtime downloads](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime)
+- [License inventory](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses)

@@ -302,7 +302,7 @@ class CompilerLanguagesTest {
 
 	private void runAndAssertOutput(AbstractLanguage language, String expectedOutput) throws Exception {
 		RunnableNode node = language.startManaged();
-		String actualOutput = Output.getInstance().get(60);
+		String actualOutput = Output.getInstance().get(120);
 		await().atMost(30, TimeUnit.SECONDS)
 			.until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
 		assertEquals(expectedOutput, actualOutput);

@@ -20,6 +20,11 @@ Direct Maven:
 ./mvnw -pl simpleide -am test
 ```
 
+On 32-bit Linux only, a failed `mvnw` invocation falls back to Apache Maven
+3.9.16 downloaded from the Apache distribution mirror with `wget`; the same
+arguments are retried using the downloaded `mvn` command. All other systems use
+the wrapper normally.
+
 The build uses JDK 17+, with CI covering 17, 21, 25 and 27. `simpleide` configures
 Surefire with `--enable-native-access=ALL-UNNAMED` for JNA/pty4j on newer JDKs.
 

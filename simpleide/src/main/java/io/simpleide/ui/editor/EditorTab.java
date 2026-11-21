@@ -1,24 +1,16 @@
 package io.simpleide.ui.editor;
 
-import io.simpleide.frame.popup.ErrorPopUP;
-import io.simpleide.frame.popup.utils.ErrorTypePopUp;
-import io.simpleide.lsp.client.LspClient;
-import io.simpleide.lsp.client.LspEditorSupport;
-import io.simpleide.lsp.core.Document;
-import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
-import io.simpleide.ui.treefile.File;
-import io.simpleide.utils.ResourceUtil;
-import io.simpleide.utils.service.FileService;
 import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+
 import javax.swing.Icon;
-import javax.swing.ImageIcon;
 import javax.swing.JPanel;
 import javax.swing.text.BadLocationException;
+
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.Position;
@@ -33,6 +25,15 @@ import org.fife.ui.autocomplete.CompletionProvider;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.lsp.client.LspClient;
+import io.simpleide.lsp.client.LspEditorSupport;
+import io.simpleide.lsp.core.Document;
+import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
+import io.simpleide.ui.treefile.File;
+import io.simpleide.utils.service.FileService;
 
 /**
  * Editor tab combining an {@link Editor}, a search panel and save tracking.
@@ -276,30 +277,7 @@ public class EditorTab extends JPanel {
 	 * @return the type icon, or {@code null} when the type has no icon
 	 */
 	public Icon getFileIcon() {
-		// TODO: Move icon selection into per-language metadata.
-		String iconName = switch (file.getTypeFile()) {
-			case JAVA -> "java.png";
-			case CSHARP -> null;
-			case GROOVY -> "groovy.png";
-			case KOTLIN -> "kotlin.png";
-			case JAVASCRIPT -> "javascript.png";
-			case PYTHON -> "python.png";
-			case CPP -> "cpp.png";
-			case C -> "c.png";
-			case TXT, BINARY -> null;
-			default -> null;
-		};
-		if (iconName == null) {
-			return null;
-		}
-
-		try {
-			return new ImageIcon(ResourceUtil.getResourcePath("io.simpleide.icon", iconName).toString());
-		}
-		catch (IOException exception) {
-			LOGGER.warn("Unable to load file icon {}; using the default icon.", iconName, exception);
-			return null;
-		}
+		return io.simpleide.ui.icon.MaterialIcons.forFile(file.getPath());
 	}
 
 	/**
@@ -370,7 +348,7 @@ public class EditorTab extends JPanel {
 		if (provider == null) {
 			return;
 		}
-		AutoCompletion autoCompletion = new AutoCompletion(provider);
+		AutoCompletion autoCompletion = new io.simpleide.lsp.client.LspAutoCompletion(editor, provider);
 		autoCompletion.setAutoActivationEnabled(true);
 		autoCompletion.setAutoActivationDelay(300);
 		autoCompletion.install(editor);
@@ -403,6 +381,12 @@ public class EditorTab extends JPanel {
 
 	private void onDocumentChanged() {
 		if (closed) {
+			return;
+		}
+		if (java.util.Objects.equals(file.getCode().toString(), editor.getText())) {
+			this.isEdit = false;
+			document.setModified(false);
+			this.buttonExit.setNotEdited();
 			return;
 		}
 		this.isEdit = true;
