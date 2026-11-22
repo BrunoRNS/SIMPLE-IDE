@@ -2,6 +2,7 @@ package io.simpleide.thread.nodes.edt.listeners;
 
 import java.util.function.Consumer;
 
+import javax.swing.SwingUtilities;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.ExpandVetoException;
@@ -60,7 +61,12 @@ public final class TreeWillExpandNode extends EDTNode implements TreeWillExpandL
 		if (handler == null) {
 			return;
 		}
-		ThreadMaster.getInstance().executeOnEDT(() -> handler.accept(event));
+		if (SwingUtilities.isEventDispatchThread()) {
+			handler.accept(event);
+		}
+		else {
+			ThreadMaster.getInstance().executeOnEDT(() -> handler.accept(event));
+		}
 	}
 
 }
