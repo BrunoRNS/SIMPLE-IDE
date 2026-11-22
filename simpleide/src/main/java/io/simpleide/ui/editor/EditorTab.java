@@ -8,7 +8,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.swing.Icon;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JProgressBar;
+import javax.swing.SwingConstants;
 import javax.swing.text.BadLocationException;
 
 import org.eclipse.lsp4j.Location;
@@ -26,6 +29,9 @@ import org.fife.ui.rtextarea.RTextScrollPane;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.api.HexEditor;
+import io.simpleide.api.ImageViewer;
+import io.simpleide.api.LargeTextViewer;
 import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.lsp.client.LspClient;
@@ -36,7 +42,8 @@ import io.simpleide.ui.treefile.File;
 import io.simpleide.utils.service.FileService;
 
 /**
- * Editor tab combining an {@link Editor}, a search panel and save tracking.
+ * File tab showing editable text, an image viewer, or a binary hex editor with shared
+ * save tracking.
  *
  * <p>
  * The tab loads a file into the editor, enables line numbers, marks itself edited when
@@ -58,11 +65,17 @@ public class EditorTab extends JPanel {
 
 	private static final AtomicBoolean JAVA_JRE_CLASS_SOURCE_REGISTERED = new AtomicBoolean();
 
-	private final Editor editor;
+	private Editor editor;
+
+	private ImageViewer imageViewer;
+
+	private HexEditor hexEditor;
+
+	private LargeTextViewer largeTextViewer;
 
 	private final Document document;
 
-	private final EditorSearchPanel searchPanel;
+	private EditorSearchPanel searchPanel;
 
 	private final FileService fileService = new FileService();
 
@@ -80,7 +93,7 @@ public class EditorTab extends JPanel {
 
 	private final File file;
 
-	private final RTextScrollPane scrollPane;
+	private RTextScrollPane scrollPane;
 
 	private final String name;
 
@@ -88,25 +101,109 @@ public class EditorTab extends JPanel {
 
 	private DocumentNode documentNode;
 
+	private volatile boolean loading;
+
 	/**
-	 * Creates a tab for a file and its LSP document.
+	 * Creates a tab for a file and its document metadata.
 	 * @param file file shown in the tab
 	 * @param document document metadata tracked by the language server manager
 	 */
 	public EditorTab(File file, Document document) {
-		this.editor = new Editor();
-		this.searchPanel = new EditorSearchPanel(editor);
 		this.isEdit = false;
 		this.file = file;
 		this.document = document;
 		this.name = file.getName();
-		this.scrollPane = new RTextScrollPane(editor);
 		this.buttonExit = new ButtonExit(this);
 		setLayout(new BorderLayout());
-		add(searchPanel, BorderLayout.NORTH);
-		add(this.scrollPane, BorderLayout.CENTER);
-		editor.loadFile(file);
-		configIsEdit();
+		if (file.isContentLoaded()) {
+			showLoadedContent();
+		}
+		else {
+			showLoading();
+		}
+	}
+
+	/** Returns whether this tab is waiting for its file content to load. */
+	public boolean isLoading() {
+		return loading;
+	}
+
+	/** Returns whether this tab has already been closed. */
+	public boolean isClosed() {
+		return closed;
+	}
+
+	public final void showLoadedContent() {
+		if (closed) {
+			return;
+		}
+		if (!file.isContentLoaded()) {
+			throw new IllegalStateException("File content is not loaded.");
+		}
+		loading = false;
+		removeAll();
+		editor = null;
+		imageViewer = null;
+		hexEditor = null;
+		largeTextViewer = null;
+		searchPanel = null;
+		scrollPane = null;
+		switch (file.getContentKind()) {
+			case IMAGE -> {
+				imageViewer = new ImageViewer(file.getImageContent(), file.getImageWidth(), file.getImageHeight());
+				add(imageViewer, BorderLayout.CENTER);
+			}
+			case BINARY -> {
+				try {
+					hexEditor = new HexEditor(file.getPath());
+				}
+				catch (IOException error) {
+					throw new java.io.UncheckedIOException("Unable to open binary file " + file.getPath(), error);
+				}
+				hexEditor.setChangeListener(this::onBinaryChanged);
+				add(hexEditor, BorderLayout.CENTER);
+			}
+			case TEXT -> {
+				if (file.isLargeContent()) {
+					largeTextViewer = new LargeTextViewer(file.getPath(), file.getFileSize());
+					add(largeTextViewer, BorderLayout.CENTER);
+					break;
+				}
+				editor = new Editor();
+				searchPanel = new EditorSearchPanel(editor);
+				scrollPane = new RTextScrollPane(editor);
+				add(searchPanel, BorderLayout.NORTH);
+				add(scrollPane, BorderLayout.CENTER);
+				editor.loadFile(file);
+				configIsEdit();
+			}
+		}
+		revalidate();
+		repaint();
+	}
+
+	void showLoadError(Throwable error) {
+		if (closed) {
+			return;
+		}
+		loading = false;
+		removeAll();
+		add(new JLabel("Unable to load " + file.getName() + ": " + error.getMessage(), SwingConstants.CENTER),
+				BorderLayout.CENTER);
+		revalidate();
+		repaint();
+	}
+
+	private void showLoading() {
+		loading = true;
+		JPanel status = new JPanel(new BorderLayout(0, 8));
+		status.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 12, 12, 12));
+		JLabel label = new JLabel("Loading " + file.getName() + "...", SwingConstants.CENTER);
+		JProgressBar progress = new JProgressBar();
+		progress.setIndeterminate(true);
+		status.add(label, BorderLayout.CENTER);
+		status.add(progress, BorderLayout.SOUTH);
+		add(status, BorderLayout.CENTER);
 	}
 
 	/**
@@ -144,14 +241,36 @@ public class EditorTab extends JPanel {
 
 	/**
 	 * Returns the text area of this tab.
-	 * @return the editor component
+	 * @return the editor component, or {@code null} while loading and for image/binary
+	 * tabs
 	 */
 	public Editor getEditor() {
 		return editor;
 	}
 
+	/**
+	 * Returns the image viewer when this tab displays an image, otherwise {@code null}.
+	 */
+	public ImageViewer getImageViewer() {
+		return imageViewer;
+	}
+
+	/**
+	 * Returns the hex editor when this tab displays binary data, otherwise {@code null}.
+	 */
+	public HexEditor getHexEditor() {
+		return hexEditor;
+	}
+
+	/** Returns the paged, read-only view for large text files, otherwise {@code null}. */
+	public LargeTextViewer getLargeTextViewer() {
+		return largeTextViewer;
+	}
+
 	void showSearchPanel(boolean showReplacement) {
-		searchPanel.open(showReplacement);
+		if (searchPanel != null) {
+			searchPanel.open(showReplacement);
+		}
 	}
 
 	/**
@@ -176,7 +295,7 @@ public class EditorTab extends JPanel {
 	 * no-op when support is already active.
 	 */
 	public void enableLocalLanguageSupport() {
-		if (closed || lspSupport != null || hasLocalLanguageSupport()) {
+		if (closed || editor == null || lspSupport != null || hasLocalLanguageSupport()) {
 			return;
 		}
 		if (!GraphicsEnvironment.isHeadless()) {
@@ -297,6 +416,22 @@ public class EditorTab extends JPanel {
 	 * @throws IOException when the file cannot be written
 	 */
 	public void save() throws IOException {
+		if (loading) {
+			throw new IOException("File is still loading: " + file.getPath());
+		}
+		if (largeTextViewer != null) {
+			throw new IOException("Large text files are open in a read-only paged view: " + file.getPath());
+		}
+		if (hexEditor != null) {
+			hexEditor.save(file.getPath());
+			buttonExit.setNotEdited();
+			isEdit = false;
+			document.setModified(false);
+			return;
+		}
+		if (editor == null) {
+			return;
+		}
 		String content = editor.getText();
 		try {
 			fileService.saveFile(file.getPath(), content);
@@ -332,8 +467,24 @@ public class EditorTab extends JPanel {
 			return;
 		}
 		closed = true;
+		loading = false;
 		if (lspSupport != null) {
 			lspSupport.close();
+		}
+		if (largeTextViewer != null) {
+			largeTextViewer.close();
+		}
+		if (imageViewer != null) {
+			imageViewer.releaseImage();
+			file.releaseImageContent();
+		}
+		if (hexEditor != null) {
+			try {
+				hexEditor.close();
+			}
+			catch (IOException error) {
+				LOGGER.warn("Unable to release HEX editor resources for {}.", file.getPath(), error);
+			}
 		}
 		unregisterLocalLanguageSupport();
 		if (documentNode != null) {
@@ -377,6 +528,20 @@ public class EditorTab extends JPanel {
 		documentNode = new DocumentNode(this::onDocumentChanged);
 		editor.getDocument().addDocumentListener(documentNode);
 		scrollPane.setLineNumbersEnabled(true);
+	}
+
+	private void onBinaryChanged() {
+		if (closed) {
+			return;
+		}
+		isEdit = hexEditor.isModified();
+		document.setModified(isEdit);
+		if (isEdit) {
+			buttonExit.setEdited();
+		}
+		else {
+			buttonExit.setNotEdited();
+		}
 	}
 
 	private void onDocumentChanged() {

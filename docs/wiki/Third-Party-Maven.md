@@ -15,6 +15,8 @@ and Java on `PATH` (or `JAVA_HOME`).
 
 | Library | Version | License | Purpose |
 | --- | --- | --- | --- |
+| `com.twelvemonkeys.imageio:imageio-*` | 3.15.3 | BSD 3-Clause | ImageIO readers for additional raster, vector and document image formats |
+| `org.apache.xmlgraphics:batik-*` | 1.19 | Apache 2.0 | SVG decoding for the TwelveMonkeys ImageIO Batik plugin |
 | `com.fifesoft:rsyntaxtextarea` | 3.6.3 | BSD 3-Clause | Syntax highlighting text editor |
 | `com.fifesoft:languagesupport` | 3.4.1 | BSD 3-Clause | Local completion and code-folding support |
 | `com.fifesoft:autocomplete` | 3.3.3 | BSD 3-Clause | Completion popup framework |

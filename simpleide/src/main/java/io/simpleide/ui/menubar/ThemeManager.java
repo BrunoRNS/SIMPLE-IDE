@@ -40,6 +40,7 @@ import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
 
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.api.HexEditor;
 import io.simpleide.ui.SyntaxPalette;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
@@ -71,6 +72,8 @@ public final class ThemeManager {
 	private ThemeType currentTheme = ThemeType.DARK;
 
 	private final List<Editor> editors = new ArrayList<>();
+
+	private final List<HexEditor> hexEditors = new ArrayList<>();
 
 	private ThemeManager() {
 	}
@@ -152,6 +155,22 @@ public final class ThemeManager {
 		editors.remove(editor);
 	}
 
+	/** Tracks an HEX editor and applies the current palette to it. */
+	public void register(HexEditor editor) {
+		if (editor == null) {
+			return;
+		}
+		if (!hexEditors.contains(editor)) {
+			hexEditors.add(editor);
+		}
+		ThreadMaster.getInstance().executeOnEDT(() -> editor.applyTheme(currentPalette()));
+	}
+
+	/** Stops tracking an HEX editor that is being discarded. */
+	public void unregister(HexEditor editor) {
+		hexEditors.remove(editor);
+	}
+
 	/**
 	 * Selects a theme and applies it to all windows and registered editors.
 	 * @param newTheme theme to apply
@@ -178,6 +197,11 @@ public final class ThemeManager {
 			for (Editor registeredEditor : editors) {
 				if (registeredEditor != null) {
 					applyEditorTheme(registeredEditor, theme);
+				}
+			}
+			for (HexEditor hexEditor : hexEditors) {
+				if (hexEditor != null) {
+					hexEditor.applyTheme(ThemePalette.of(theme));
 				}
 			}
 		});
