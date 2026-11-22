@@ -1,5 +1,15 @@
 package io.simpleide.api;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
+import javax.swing.JComponent;
+
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.core.Document;
@@ -8,14 +18,6 @@ import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorTab;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.TypeFile;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
-import javax.swing.JComponent;
 
 /**
  * A standalone editor tab that can be embedded in any Swing container.

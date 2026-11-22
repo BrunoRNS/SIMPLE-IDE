@@ -1,7 +1,7 @@
 package io.simpleide.lsp.client;
 
-import io.simpleide.thread.ThreadMaster;
 import java.util.List;
+
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Position;
@@ -12,6 +12,8 @@ import org.fife.ui.rsyntaxtextarea.parser.DefaultParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.DefaultParserNotice;
 import org.fife.ui.rsyntaxtextarea.parser.ParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.ParserNotice;
+
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * RSyntaxTextArea parser that renders LSP diagnostics as editor notices.

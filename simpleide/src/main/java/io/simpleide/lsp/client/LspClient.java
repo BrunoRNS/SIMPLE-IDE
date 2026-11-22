@@ -1,9 +1,5 @@
 package io.simpleide.lsp.client;
 
-import io.simpleide.SimpleIDEVersion;
-import io.simpleide.thread.ManagedThreadPool;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -22,6 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.ClientInfo;
 import org.eclipse.lsp4j.CompletionCapabilities;
@@ -69,6 +66,11 @@ import org.eclipse.lsp4j.services.LanguageClient;
 import org.eclipse.lsp4j.services.LanguageServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.SimpleIDEVersion;
+import io.simpleide.thread.ManagedThreadPool;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
  * LSP4J client that manages one language server subprocess.

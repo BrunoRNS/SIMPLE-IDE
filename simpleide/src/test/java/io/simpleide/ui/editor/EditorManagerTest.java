@@ -1,8 +1,8 @@
 package io.simpleide.ui.editor;
 
 import java.awt.Font;
-import java.io.IOException;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -17,6 +17,7 @@ import javax.swing.plaf.FontUIResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+
 import org.fife.ui.autocomplete.Completion;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;

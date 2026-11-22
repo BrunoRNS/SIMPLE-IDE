@@ -1,10 +1,12 @@
 package io.simpleide.ui.terminal;
 
-import io.simpleide.frame.popup.WarningPopUP;
 import java.util.Objects;
 import java.util.function.Consumer;
+
 import javax.swing.JComponent;
 import javax.swing.JOptionPane;
+
+import io.simpleide.frame.popup.WarningPopUP;
 
 /**
  * Warning dialog that asks whether a running terminal process should be forced to exit.

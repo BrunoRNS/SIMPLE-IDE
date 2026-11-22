@@ -233,8 +233,8 @@ public final class CodeViewer {
 
   <dependencies>
     <dependency>
-      <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
-      <artifactId>simpleide</artifactId>
+      <groupId>com.github.BrunoRNS</groupId>
+      <artifactId>SIMPLE-IDE</artifactId>
       <version>v1.0.0beta</version>
     </dependency>
   </dependencies>

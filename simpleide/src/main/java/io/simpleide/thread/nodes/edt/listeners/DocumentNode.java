@@ -1,12 +1,15 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.EDTNode;
 import java.util.Objects;
+
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
  * {@link javax.swing.event.DocumentListener} that coalesces changes into an EDT task.

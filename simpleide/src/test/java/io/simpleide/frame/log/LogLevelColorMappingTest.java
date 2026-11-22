@@ -8,9 +8,9 @@ import javax.swing.UIManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import org.junit.jupiter.api.Test;
 
 import ch.qos.logback.classic.Level;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.frame.log.LogLevelColorMapping}.

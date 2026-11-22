@@ -1,5 +1,11 @@
 package io.simpleide.language.config;
 
+import java.util.List;
+import java.util.Objects;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.compiler.AbstractCompilerLanguage;
 import io.simpleide.language.compiler.CLanguage;
@@ -17,10 +23,6 @@ import io.simpleide.language.jvmbytecode.GroovyLanguage;
 import io.simpleide.language.jvmbytecode.JavaLanguage;
 import io.simpleide.language.jvmbytecode.KotlinLanguage;
 import io.simpleide.utils.OSpathUtil;
-import java.util.List;
-import java.util.Objects;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Installs every language toolchain that is available on the current system.

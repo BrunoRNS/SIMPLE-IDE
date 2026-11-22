@@ -7,6 +7,7 @@ import javax.swing.JList;
 import javax.swing.SwingUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
 import org.eclipse.lsp4j.CompletionItem;
 import org.junit.jupiter.api.Test;
 

@@ -1,8 +1,9 @@
 package io.simpleide.ui.terminal.core.busybox;
 
-import io.simpleide.language.config.LangPlatform;
 import java.io.IOException;
 import java.util.Objects;
+
+import io.simpleide.language.config.LangPlatform;
 
 /**
  * Maps the running platform to the matching embedded BusyBox binary.

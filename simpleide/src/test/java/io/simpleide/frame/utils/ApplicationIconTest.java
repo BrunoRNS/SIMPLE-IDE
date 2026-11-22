@@ -1,7 +1,7 @@
 package io.simpleide.frame.utils;
 
-import java.awt.Image;
 import java.awt.GraphicsEnvironment;
+import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +12,7 @@ import javax.imageio.ImageIO;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
 import org.junit.jupiter.api.Test;
 
 /** Checks runtime and packaged application icon variants for every supported target. */

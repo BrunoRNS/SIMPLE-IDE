@@ -6,6 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
+
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.thread.nodes.NodePattern;

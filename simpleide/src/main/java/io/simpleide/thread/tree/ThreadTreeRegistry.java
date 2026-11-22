@@ -1,8 +1,5 @@
 package io.simpleide.thread.tree;
 
-import io.simpleide.thread.nodes.Node;
-import io.simpleide.thread.nodes.NodePattern;
-import io.simpleide.thread.validation.NodeRegistrationValidation;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -10,6 +7,10 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+
+import io.simpleide.thread.nodes.Node;
+import io.simpleide.thread.nodes.NodePattern;
+import io.simpleide.thread.validation.NodeRegistrationValidation;
 
 /**
  * Thread-safe registry of thread tree nodes keyed by identifier.

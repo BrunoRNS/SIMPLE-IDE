@@ -108,6 +108,14 @@ public class EditorTab extends JPanel {
 
 	private volatile boolean loading;
 
+	private int editorTabSize = 4;
+
+	private boolean editorWordWrap;
+
+	private boolean editorLineNumbers = true;
+
+	private boolean editorShowWhitespace;
+
 	/**
 	 * Creates a tab for a file and its document metadata.
 	 * @param file file shown in the tab
@@ -181,6 +189,7 @@ public class EditorTab extends JPanel {
 				add(scrollPane, BorderLayout.CENTER);
 				editor.loadFile(file);
 				configIsEdit();
+				applyEditorOptions(editorTabSize, editorWordWrap, editorLineNumbers, editorShowWhitespace);
 			}
 		}
 		revalidate();
@@ -422,6 +431,13 @@ public class EditorTab extends JPanel {
 	 * @param showWhitespace whether whitespace characters are painted
 	 */
 	public void applyEditorOptions(int tabSize, boolean wordWrap, boolean lineNumbers, boolean showWhitespace) {
+		editorTabSize = tabSize;
+		editorWordWrap = wordWrap;
+		editorLineNumbers = lineNumbers;
+		editorShowWhitespace = showWhitespace;
+		if (editor == null || scrollPane == null) {
+			return;
+		}
 		editor.setTabSize(tabSize);
 		editor.setLineWrap(wordWrap);
 		scrollPane.setLineNumbersEnabled(lineNumbers);
@@ -589,15 +605,17 @@ public class EditorTab extends JPanel {
 			this.isEdit = false;
 			document.setModified(false);
 			this.buttonExit.setNotEdited();
-			return;
 		}
-		this.isEdit = true;
-		document.setModified(true);
+		else {
+			this.isEdit = true;
+			document.setModified(true);
+			this.buttonExit.setEdited();
+		}
 		document.incrementVersion();
-		this.buttonExit.setEdited();
 		if (lspSupport != null) {
 			lspSupport.documentChanged();
 		}
+		diagnosticsListener.accept(this);
 	}
 
 	private int toOffset(Position position) throws BadLocationException {

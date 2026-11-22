@@ -1,18 +1,20 @@
 package io.simpleide.ui.editor;
 
-import io.simpleide.lsp.LspStatus;
-import io.simpleide.thread.ThreadMaster;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.UIManager;
+
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Status bar that summarizes language server activity.

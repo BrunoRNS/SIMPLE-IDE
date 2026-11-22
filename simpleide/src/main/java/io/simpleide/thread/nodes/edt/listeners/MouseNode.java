@@ -1,13 +1,14 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.EDTNode;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.MouseMotionListener;
 import java.awt.event.MouseWheelEvent;
 import java.awt.event.MouseWheelListener;
 import java.util.function.Consumer;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
  * Mouse listener that routes callbacks through the thread manager.

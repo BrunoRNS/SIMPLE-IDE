@@ -17,8 +17,8 @@ path is JitPack:
 </repositories>
 
 <dependency>
-  <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
-  <artifactId>simpleide</artifactId>
+  <groupId>com.github.BrunoRNS</groupId>
+  <artifactId>SIMPLE-IDE</artifactId>
   <version>v1.0.0beta</version>
 </dependency>
 ```
@@ -31,13 +31,14 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simpleide:v1.0.0beta'
+    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.0.0beta'
 }
 ```
 
-The `simpleide` artifact is the executable fat JAR. It already contains the
-editor, LSP, terminal and language dependencies. You do not need to add
-RSyntaxTextArea, FlatLaf, LSP4J or pty4j separately when you use this artifact.
+The published root artifact brings in the IDE and compiler modules transitively.
+Their runtime dependencies are declared by the modules, so you do not need to add
+RSyntaxTextArea, FlatLaf, LSP4J or pty4j separately. For a standalone executable,
+download the release fat JAR described in [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts).
 
 ## 2. Create a standalone editor
 

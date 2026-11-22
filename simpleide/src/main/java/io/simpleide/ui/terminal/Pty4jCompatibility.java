@@ -1,8 +1,9 @@
 package io.simpleide.ui.terminal;
 
-import com.pty4j.PtyProcessBuilder;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Objects;
+
+import com.pty4j.PtyProcessBuilder;
 
 /**
  * Compatibility helpers for different pty4j versions.

@@ -3,6 +3,7 @@ package io.simpleide.lsp.client;
 import javax.swing.SwingUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Position;
@@ -38,6 +39,24 @@ class LspDiagnosticParserTest {
 			assertThat(notice.getLength()).isEqualTo(2);
 			assertThat(notice.getLevel()).isEqualTo(ParserNotice.Level.ERROR);
 			assertThat(notice.getMessage()).isEqualTo("Unexpected token");
+		});
+	}
+
+	@Test
+	void clearsNoticesWhenDiagnosticsAreRemoved() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			Editor editor = new Editor();
+			editor.setText("first\nsecond");
+			LspDiagnosticParser parser = new LspDiagnosticParser(editor);
+			Diagnostic diagnostic = new Diagnostic(new Range(new Position(1, 1), new Position(1, 3)),
+					"Unexpected token");
+			parser.setDiagnostics(java.util.List.of(diagnostic));
+
+			parser.setDiagnostics(java.util.List.of());
+
+			var result = parser.parse((RSyntaxDocument) editor.getDocument(), editor.getSyntaxEditingStyle());
+			assertThat(parser.getDiagnostics()).isEmpty();
+			assertThat(result.getNotices()).isEmpty();
 		});
 	}
 

@@ -2,10 +2,12 @@ package io.simpleide.settings;
 
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
+
 import javax.swing.KeyStroke;
-import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.settings.IdeSettings} and

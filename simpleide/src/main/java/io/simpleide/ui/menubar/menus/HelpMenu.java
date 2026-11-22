@@ -1,9 +1,8 @@
 package io.simpleide.ui.menubar.menus;
 
-import io.simpleide.SimpleIDEVersion;
-import io.simpleide.frame.popup.InfoPopUP;
 import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
+
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -12,6 +11,9 @@ import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.table.DefaultTableModel;
+
+import io.simpleide.SimpleIDEVersion;
+import io.simpleide.frame.popup.InfoPopUP;
 
 /**
  * Help menu with keyboard shortcuts, machine information and the about dialog.

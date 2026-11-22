@@ -1,14 +1,16 @@
 package io.simpleide.search;
 
-import io.simpleide.search.WorkspaceSearchService.SearchMatch;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import io.simpleide.search.WorkspaceSearchService.SearchMatch;
 
 /**
  * Tests {@link io.simpleide.search.WorkspaceSearchService}.

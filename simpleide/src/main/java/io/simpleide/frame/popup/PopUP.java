@@ -1,12 +1,14 @@
 package io.simpleide.frame.popup;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.NodePattern;
 import java.util.Map;
+
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Base class for managed modal dialogs.

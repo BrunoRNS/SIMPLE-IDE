@@ -1,12 +1,5 @@
 package io.simpleide.lsp.core;
 
-import io.simpleide.lsp.LspStatus;
-import io.simpleide.lsp.client.LspClient;
-import io.simpleide.lsp.client.LspServerStartupException;
-import io.simpleide.lsp.dowload.LspManager;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
-import io.simpleide.utils.JavaRuntime;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,9 +16,18 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
+
 import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.lsp.client.LspClient;
+import io.simpleide.lsp.client.LspServerStartupException;
+import io.simpleide.lsp.dowload.LspManager;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.utils.JavaRuntime;
 
 /**
  * Coordinates language server processes for documents and workspaces.

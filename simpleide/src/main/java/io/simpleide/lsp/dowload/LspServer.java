@@ -1,8 +1,9 @@
 package io.simpleide.lsp.dowload;
 
-import io.simpleide.language.config.LangPlatform;
 import java.util.List;
 import java.util.Map;
+
+import io.simpleide.language.config.LangPlatform;
 
 /**
  * Registry entry describing how to install, version and launch a language server.

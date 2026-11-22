@@ -1,7 +1,42 @@
 package io.simpleide.frame;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
+import java.awt.MenuItem;
+import java.awt.PopupMenu;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
+import java.awt.event.WindowEvent;
+import java.awt.geom.RoundRectangle2D;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.EnumMap;
+import java.util.Map;
+
+import javax.swing.BorderFactory;
+import javax.swing.JFileChooser;
+import javax.swing.JFrame;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JSplitPane;
+import javax.swing.JTabbedPane;
+import javax.swing.UIManager;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.text.BadLocationException;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.TreePath;
+
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
@@ -39,32 +74,6 @@ import io.simpleide.ui.treefile.Directory;
 import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.Tree;
 import io.simpleide.ui.treefile.Watcher;
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.GraphicsEnvironment;
-import java.awt.MenuItem;
-import java.awt.PopupMenu;
-import java.awt.Rectangle;
-import java.awt.SystemTray;
-import java.awt.TrayIcon;
-import java.awt.event.WindowEvent;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.EnumMap;
-import java.util.Map;
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
-import javax.swing.JTabbedPane;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.text.BadLocationException;
-import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.TreePath;
-import org.slf4j.LoggerFactory;
 
 /**
  * Main desktop window of Simple IDE.
@@ -192,12 +201,12 @@ public class MainFrame extends JFrame implements Runnable {
 		setInitialWindowSize();
 		setVisible(true);
 		installTrayIcon();
-		mainSplit.setDividerLocation(activityBar.getPreferredSize().width + SIDEBAR_WIDTH);
+		mainSplit.setDividerLocation(activityBar.getPreferredSize().width + SIDEBAR_WIDTH + 12);
 		editorBottomSplit.setDividerLocation(0.78);
 	}
 
 	private void createSidebar() {
-		explorerPanel = new ExplorerPanel(treePane);
+		explorerPanel = new ExplorerPanel(treePane, this::openFolder);
 		workspaceSearchPanel = new WorkspaceSearchPanel(() -> currentRoot, this::openSearchMatch);
 		settingsPanel = new SettingsPanel();
 
@@ -212,13 +221,29 @@ public class MainFrame extends JFrame implements Runnable {
 	}
 
 	private JPanel createLeftColumn() {
-		JPanel leftColumn = new JPanel(new BorderLayout());
+		JPanel leftColumn = new JPanel(new BorderLayout()) {
+			@Override
+			protected void paintComponent(Graphics graphics) {
+				Graphics2D rounded = (Graphics2D) graphics.create();
+				try {
+					rounded.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+					rounded.setColor(UIManager.getColor("Panel.background"));
+					rounded.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 18, 18));
+				}
+				finally {
+					rounded.dispose();
+				}
+				super.paintComponent(graphics);
+			}
+		};
+		leftColumn.setOpaque(false);
+		leftColumn.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
 		leftColumn.add(activityBar, BorderLayout.WEST);
 		leftColumn.add(sidebarPanel, BorderLayout.CENTER);
 		return leftColumn;
 	}
 
-	private void handleWindowClosing(WindowEvent event) {
+	private void handleWindowClosing(@SuppressWarnings("unused") WindowEvent event) {
 		if (editorManager != null && !editorManager.saveAllModifiedFiles()) {
 			JOptionPane.showMessageDialog(this,
 					"Unable to save one or more modified files. Check the log before closing.", "Save failed",
@@ -238,7 +263,7 @@ public class MainFrame extends JFrame implements Runnable {
 		}
 	}
 
-	private void handleWindowClosed(WindowEvent event) {
+	private void handleWindowClosed(@SuppressWarnings("unused") WindowEvent event) {
 		try {
 			closeWatcher();
 			if (editorManager != null) {

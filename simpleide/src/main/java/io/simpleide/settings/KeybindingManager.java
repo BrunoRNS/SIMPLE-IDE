@@ -1,14 +1,16 @@
 package io.simpleide.settings;
 
-import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
 import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+
 import javax.swing.ActionMap;
 import javax.swing.InputMap;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
+
+import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
 
 /**
  * Installs customizable shortcuts as window-level Swing key bindings.

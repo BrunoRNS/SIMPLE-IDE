@@ -1,4 +1,4 @@
-# SIMPLE-IDE
+<h1 align="center" style="font-size:36;">SIMPLE-IDE</h1>
 
 <p align="center"><img src="assets/simpleide_icon.png" alt="SIMPLE-IDE app icon" width="180" /></p>
 
@@ -11,8 +11,13 @@ IDEs.
 [![Maven](https://img.shields.io/badge/build-maven-c71a36.svg)](https://maven.apache.org/)
 ![Platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-lightgrey.svg)
 [![Release](https://img.shields.io/github/v/release/BrunoRNS/SIMPLE-IDE?include_prereleases)](https://github.com/BrunoRNS/SIMPLE-IDE/releases)
+[![Linux x86 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/linux32.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/linux32.yml)
 [![Linux x64 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/linux64.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/linux64.yml)
+[![Linux ARM64 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/linuxarm.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/linuxarm.yml)
+[![Windows x86 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/windows32.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/windows32.yml)
 [![Windows x64 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/windows64.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/windows64.yml)
+[![Windows ARM64 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/windowsarm.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/windowsarm.yml)
+[![macOS x64 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/macos-intel.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/macos-intel.yml)
 [![macOS ARM64 CI](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/macos-arm.yml/badge.svg?branch=main)](https://github.com/BrunoRNS/SIMPLE-IDE/actions/workflows/macos-arm.yml)
 
 ## Screenshots
@@ -47,7 +52,7 @@ API in [`io.simpleide.api`](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API). It
 
 ### Maven / Gradle (recommended)
 
-Add the JitPack repository and depend on the module you need:
+Add the JitPack repository and depend on the published repository artifact:
 
 ```xml
 <repositories>
@@ -58,8 +63,8 @@ Add the JitPack repository and depend on the module you need:
 </repositories>
 
 <dependency>
-  <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
-  <artifactId>simpleide</artifactId>
+  <groupId>com.github.BrunoRNS</groupId>
+  <artifactId>SIMPLE-IDE</artifactId>
   <version>v1.0.0beta</version>
 </dependency>
 ```
@@ -67,7 +72,7 @@ Add the JitPack repository and depend on the module you need:
 ```groovy
 repositories { maven { url 'https://jitpack.io' } }
 dependencies {
-    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simpleide:v1.0.0beta'
+    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.0.0beta'
 }
 ```
 

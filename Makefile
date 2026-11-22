@@ -20,11 +20,11 @@ build:
 	$(MVNW) -B -DskipTests compile
 
 # Run the complete test suite.
-test:
+test: check-format
 	$(MVNW) -B test
 
 # Run the test suite without tests that require external language toolchains.
-test-nolang:
+test-nolang: check-format
 	$(MVNW) -B -DexcludedGroups=language-tools test
 
 # Package the executable fat JAR. Tests are intentionally not part of this target.
@@ -58,13 +58,15 @@ change-version:
 run: jar
 	java $(JAVA_OPTS) -jar "$(APP_JAR)"
 
-# Apply the Spring Java Format style to every Java source.
+# Apply Spring Java Format and the repository's import ordering to every Java source.
 format:
 	$(MVNW) -B spring-javaformat:apply
+	java scripts/JavaImportFormatter.java --apply
 
-# Fail when any Java source is not formatted according to the Spring Java Format style.
+# Fail when Java sources violate Spring Java Format or the repository's import ordering.
 check-format:
 	$(MVNW) -B spring-javaformat:validate
+	java scripts/JavaImportFormatter.java --check
 
 # Backwards-compatible alias for check-format.
 format-check: check-format
@@ -88,8 +90,8 @@ help:
 	@echo "  make change-version VERSION"
 	@echo "                     Change the project version (asks for confirmation)"
 	@echo "  make run           Launch the executable fat JAR"
-	@echo "  make format        Apply the Spring Java Format style"
-	@echo "  make check-format  Check formatting without changing files"
+	@echo "  make format        Apply Java source and import formatting"
+	@echo "  make check-format  Check Java source and import formatting"
 	@echo "  make format-check  Alias for check-format"
 	@echo "  make verify        Check formatting, run tests and package"
 	@echo "  make clean         Remove generated build and package outputs"

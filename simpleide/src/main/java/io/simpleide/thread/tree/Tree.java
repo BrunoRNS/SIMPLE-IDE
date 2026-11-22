@@ -1,8 +1,9 @@
 package io.simpleide.thread.tree;
 
-import io.simpleide.thread.nodes.NodePattern;
 import java.math.BigInteger;
 import java.util.Map;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Minimal contract for the thread tree.

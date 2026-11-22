@@ -1,11 +1,5 @@
 package io.simpleide.language;
 
-import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
-import io.simpleide.language.exceptions.ProcessFatalException;
-import io.simpleide.language.io.Output;
-import io.simpleide.language.io.holder.InputHolder;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
@@ -13,8 +7,16 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
+import io.simpleide.language.exceptions.ProcessFatalException;
+import io.simpleide.language.io.Output;
+import io.simpleide.language.io.holder.InputHolder;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
  * Base class for executable languages in Simple IDE.

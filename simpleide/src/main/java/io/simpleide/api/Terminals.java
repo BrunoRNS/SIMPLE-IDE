@@ -1,9 +1,10 @@
 package io.simpleide.api;
 
+import java.util.Objects;
+
 import io.simpleide.language.config.LangPlatform;
 import io.simpleide.ui.terminal.BusyBoxTerminalController;
 import io.simpleide.ui.terminal.TerminalPanel;
-import java.util.Objects;
 
 /**
  * Creates embedded BusyBox terminal components.

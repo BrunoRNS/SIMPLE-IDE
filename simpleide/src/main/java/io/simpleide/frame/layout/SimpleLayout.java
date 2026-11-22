@@ -1,6 +1,7 @@
 package io.simpleide.frame.layout;
 
 import java.awt.FlowLayout;
+
 import javax.swing.JComponent;
 
 /**

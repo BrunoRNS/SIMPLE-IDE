@@ -1,11 +1,13 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.EDTNode;
 import java.util.function.Consumer;
+
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.ExpandVetoException;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
  * Tree expansion listener that routes callbacks through the thread manager.

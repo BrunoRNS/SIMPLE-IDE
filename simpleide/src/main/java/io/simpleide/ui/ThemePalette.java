@@ -1,7 +1,8 @@
 package io.simpleide.ui;
 
-import io.simpleide.ui.menubar.ThemeManager;
 import java.awt.Color;
+
+import io.simpleide.ui.menubar.ThemeManager;
 
 /**
  * Complete color palette for one application theme.

@@ -15,39 +15,39 @@ import java.util.Enumeration;
 import java.util.List;
 import java.util.Objects;
 
-import javax.swing.JMenu;
-import javax.swing.BorderFactory;
 import javax.swing.AbstractButton;
+import javax.swing.BorderFactory;
+import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JSpinner;
-import javax.swing.JTextField;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.JTree;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-import javax.swing.JPanel;
-import javax.swing.JTextPane;
 import javax.swing.plaf.FontUIResource;
 
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.FlatPropertiesLaf;
 import org.fife.ui.rsyntaxtextarea.RSyntaxUtilities;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rsyntaxtextarea.TokenTypes;
 import org.fife.ui.rtextarea.Gutter;
 
-import com.formdev.flatlaf.FlatDarkLaf;
-import com.formdev.flatlaf.FlatLightLaf;
-import com.formdev.flatlaf.FlatPropertiesLaf;
-
-import io.simpleide.thread.ThreadMaster;
 import io.simpleide.api.HexEditor;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.SyntaxPalette;
+import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorManager;
@@ -549,15 +549,15 @@ public final class ThemeManager {
 		put(d, "Component.focusColor", alpha(p.accent(), 0x33));
 		put(d, "Component.borderColor", p.border());
 		put(d, "Component.disabledBorderColor", p.border());
-		put(d, "Component.focusedBorderColor", p.focusBorder());
+		put(d, "Component.focusedBorderColor", p.border());
 		put(d, "Component.error.borderColor", syntax.error());
 		put(d, "Component.error.focusedBorderColor", syntax.error());
 		put(d, "Component.warning.borderColor", syntax.string());
 		put(d, "Component.warning.focusedBorderColor", syntax.string());
 		put(d, "Component.success.borderColor", syntax.function());
 		put(d, "Component.success.focusedBorderColor", syntax.function());
-		put(d, "Component.focusWidth", 1);
-		put(d, "Component.innerFocusWidth", 1);
+		put(d, "Component.focusWidth", 0);
+		put(d, "Component.innerFocusWidth", 0);
 		put(d, "Component.borderWidth", 1);
 		put(d, "Component.arc", 12);
 		put(d, "Component.minimumWidth", 0);
@@ -608,7 +608,7 @@ public final class ThemeManager {
 		put(d, "SplitPaneDivider.gripColor", p.mutedForeground());
 		put(d, "SplitPaneDivider.hoverColor", p.accent());
 		put(d, "SplitPaneDivider.pressedColor", p.accent());
-		put(d, "SplitPaneDivider.draggingColor", p.accent());
+		put(d, "SplitPaneDivider.draggingColor", ThemeColors.blend(p.accent(), p.background(), 0.45f));
 		put(d, "SplitPaneDivider.oneTouchArrowColor", p.foreground());
 		put(d, "SplitPaneDivider.oneTouchHoverArrowColor", p.accent());
 		put(d, "SplitPaneDivider.oneTouchPressedArrowColor", p.accent());
@@ -641,20 +641,20 @@ public final class ThemeManager {
 		put(d, "ScrollBar.pressedButtonBackground", p.surface());
 
 		putTextLike(d, "TextField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
-				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.border(),
 				new Insets(2, 6, 2, 6));
 		putTextLike(d, "FormattedTextField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
-				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.border(),
 				new Insets(2, 6, 2, 6));
 		putTextLike(d, "PasswordField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
-				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.border(),
 				new Insets(2, 6, 2, 6));
 		putTextLike(d, "TextArea", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
-				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+				p.foreground(), p.disabledForeground(), p.border(), p.border(), new Insets(2, 6, 2, 6));
 		putTextLike(d, "TextPane", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
-				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+				p.foreground(), p.disabledForeground(), p.border(), p.border(), new Insets(2, 6, 2, 6));
 		putTextLike(d, "EditorPane", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
-				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+				p.foreground(), p.disabledForeground(), p.border(), p.border(), new Insets(2, 6, 2, 6));
 		put(d, "TextField.placeholderForeground", p.mutedForeground());
 		put(d, "FormattedTextField.placeholderForeground", p.mutedForeground());
 		put(d, "PasswordField.placeholderForeground", p.mutedForeground());
@@ -727,10 +727,10 @@ public final class ThemeManager {
 		put(d, "Button.default.hoverBackground", p.buttonHoverBackground());
 		put(d, "Button.default.pressedBackground", p.buttonPressedBackground());
 		put(d, "Button.default.borderColor", p.accent());
-		put(d, "Button.default.focusedBorderColor", p.focusBorder());
+		put(d, "Button.default.focusedBorderColor", p.border());
 		put(d, "Button.borderColor", p.border());
-		put(d, "Button.focusedBorderColor", p.focusBorder());
-		put(d, "Button.hoverBorderColor", p.focusBorder());
+		put(d, "Button.focusedBorderColor", p.border());
+		put(d, "Button.hoverBorderColor", p.border());
 		put(d, "Button.disabledBorderColor", p.border());
 		put(d, "Button.arc", 12);
 		put(d, "Button.borderWidth", 1);
@@ -771,7 +771,7 @@ public final class ThemeManager {
 		put(d, "ComboBox.popupForeground", p.popupForeground());
 		put(d, "ComboBox.arc", 10);
 		put(d, "ComboBox.borderColor", p.border());
-		put(d, "ComboBox.focusedBorderColor", p.focusBorder());
+		put(d, "ComboBox.focusedBorderColor", p.border());
 		put(d, "ComboBox.disabledBorderColor", p.border());
 		put(d, "ComboBox.editableBackground", p.inputBackground());
 		put(d, "ComboBox.focusedBackground", p.inputBackground());
@@ -793,7 +793,7 @@ public final class ThemeManager {
 		put(d, "Spinner.buttonHoverArrowColor", p.accent());
 		put(d, "Spinner.buttonPressedArrowColor", p.accent());
 		put(d, "Spinner.borderColor", p.border());
-		put(d, "Spinner.focusedBorderColor", p.focusBorder());
+		put(d, "Spinner.focusedBorderColor", p.border());
 		put(d, "Spinner.disabledBorderColor", p.border());
 		put(d, "Spinner.arc", 10);
 		put(d, "Spinner.padding", new Insets(2, 6, 2, 6));
@@ -805,7 +805,7 @@ public final class ThemeManager {
 		put(d, "List.selectionForeground", p.selectionForeground());
 		put(d, "List.selectionInactiveBackground", p.inactiveSelectionBackground());
 		put(d, "List.selectionInactiveForeground", p.inactiveSelectionForeground());
-		put(d, "List.cellFocusColor", p.focusBorder());
+		put(d, "List.cellFocusColor", p.selectionBackground());
 		put(d, "List.selectionArc", 8);
 		put(d, "List.selectionInsets", new Insets(2, 4, 2, 4));
 		put(d, "List.cellMargins", new Insets(2, 6, 2, 6));
@@ -821,7 +821,7 @@ public final class ThemeManager {
 		put(d, "Table.showVerticalLines", false);
 		put(d, "Table.intercellSpacing", new java.awt.Dimension(0, 0));
 		put(d, "Table.rowHeight", 22);
-		put(d, "Table.cellFocusColor", p.focusBorder());
+		put(d, "Table.cellFocusColor", p.selectionBackground());
 		put(d, "Table.cellMargins", new Insets(2, 6, 2, 6));
 		put(d, "Table.focusCellBackground", p.background());
 		put(d, "Table.focusCellForeground", p.foreground());
@@ -847,6 +847,7 @@ public final class ThemeManager {
 		put(d, "Tree.selectionInactiveBackground", p.inactiveSelectionBackground());
 		put(d, "Tree.selectionInactiveForeground", p.inactiveSelectionForeground());
 		put(d, "Tree.selectionBorderColor", p.treeSelectionBackground());
+		put(d, "Tree.focusCellHighlightBorder", BorderFactory.createEmptyBorder());
 		put(d, "Tree.hash", p.border());
 		put(d, "Tree.selectionArc", 8);
 		put(d, "Tree.selectionInsets", new Insets(2, 4, 2, 4));

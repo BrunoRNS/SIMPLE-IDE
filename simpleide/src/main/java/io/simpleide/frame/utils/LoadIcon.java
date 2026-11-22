@@ -2,6 +2,7 @@ package io.simpleide.frame.utils;
 
 import java.net.URL;
 import java.util.MissingResourceException;
+
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 

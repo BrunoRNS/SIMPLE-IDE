@@ -1,10 +1,9 @@
 package io.simpleide.ui.menubar.menus;
 
-import io.simpleide.ui.editor.EditorManager;
-import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
 import java.awt.Font;
 import java.awt.Window;
 import java.util.Enumeration;
+
 import javax.swing.JMenu;
 import javax.swing.JSpinner;
 import javax.swing.SpinnerNumberModel;
@@ -12,6 +11,9 @@ import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.plaf.FontUIResource;
+
+import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
+import io.simpleide.ui.editor.EditorManager;
 
 /**
  * Settings menu with the theme selector and a global font size spinner.

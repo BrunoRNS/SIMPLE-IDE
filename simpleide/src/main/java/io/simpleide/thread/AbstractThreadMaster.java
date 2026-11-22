@@ -1,10 +1,5 @@
 package io.simpleide.thread;
 
-import io.simpleide.thread.nodes.NodePattern;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
-import io.simpleide.thread.tree.ThreadTreeRegistry;
-import io.simpleide.thread.tree.Tree;
-import io.simpleide.thread.tree.TreeNode;
 import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
@@ -15,8 +10,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.thread.nodes.NodePattern;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.thread.tree.ThreadTreeRegistry;
+import io.simpleide.thread.tree.Tree;
+import io.simpleide.thread.tree.TreeNode;
 
 /**
  * Base implementation of the process-wide thread manager.

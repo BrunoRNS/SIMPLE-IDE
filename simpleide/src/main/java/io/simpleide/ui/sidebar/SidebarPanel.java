@@ -5,6 +5,7 @@ import java.awt.Dimension;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
+
 import javax.swing.JPanel;
 
 /**

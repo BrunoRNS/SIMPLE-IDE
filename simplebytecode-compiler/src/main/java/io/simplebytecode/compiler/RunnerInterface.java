@@ -1,7 +1,8 @@
 package io.simplebytecode.compiler;
 
-import io.simplebytecode.compiler.utils.FileUtil;
 import java.nio.file.Path;
+
+import io.simplebytecode.compiler.utils.FileUtil;
 
 /**
  * Common contract for language runners that prepare and execute source code.

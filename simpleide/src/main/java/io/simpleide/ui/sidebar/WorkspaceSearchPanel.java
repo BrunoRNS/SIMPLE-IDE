@@ -1,16 +1,9 @@
 package io.simpleide.ui.sidebar;
 
-import io.simpleide.search.WorkspaceSearchService;
-import io.simpleide.search.WorkspaceSearchService.SearchMatch;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.thread.nodes.edt.listeners.MouseNode;
-import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.event.KeyEvent;
 import java.nio.file.Path;
@@ -19,9 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
@@ -35,8 +27,18 @@ import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.search.WorkspaceSearchService;
+import io.simpleide.search.WorkspaceSearchService.SearchMatch;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.MouseNode;
+import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.ui.icon.MaterialIcons;
 
 /**
  * Workspace-wide text search view.
@@ -62,7 +64,7 @@ public final class WorkspaceSearchPanel extends JPanel {
 
 	private final WorkspaceSearchService searchService = new WorkspaceSearchService();
 
-	private final JTextField queryField = new JTextField();
+	private final JTextField queryField = new JTextField(18);
 
 	private final JCheckBox matchCase = new JCheckBox("Match case");
 
@@ -110,31 +112,34 @@ public final class WorkspaceSearchPanel extends JPanel {
 	}
 
 	private void createSearchControls() {
-		JPanel controls = new JPanel();
-		controls.setLayout(new BoxLayout(controls, BoxLayout.Y_AXIS));
+		JPanel controls = new JPanel(new BorderLayout(0, 8));
 		controls.setBorder(BorderFactory.createEmptyBorder(0, 12, 8, 12));
 
+		queryField.putClientProperty("JTextField.placeholderText", "Find in files");
 		queryField.setToolTipText("Text to find in the open folder");
 		queryField.getAccessibleContext().setAccessibleName("Search workspace");
-		queryField.setMaximumSize(new Dimension(Integer.MAX_VALUE, queryField.getPreferredSize().height));
 		queryField.getInputMap().put(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER, 0), "simpleide.workspaceSearch");
 		queryField.getActionMap()
 			.put("simpleide.workspaceSearch", new SwingActionNode("Search workspace", this::startSearch));
-		controls.add(queryField);
-		controls.add(Box.createVerticalStrut(4));
-
-		matchCase.setFocusable(false);
-		controls.add(matchCase);
-		controls.add(Box.createVerticalStrut(4));
 
 		JButton searchButton = new JButton("Search");
+		searchButton.setToolTipText("Search the open folder");
 		searchButton.addActionListener(new ActionNode(event -> startSearch()));
-		searchButton.setAlignmentX(Component.LEFT_ALIGNMENT);
-		controls.add(searchButton);
+		JPanel queryRow = new JPanel(new BorderLayout(8, 0));
+		queryRow.add(queryField, BorderLayout.CENTER);
+		queryRow.add(searchButton, BorderLayout.EAST);
+		controls.add(queryRow, BorderLayout.NORTH);
+
+		matchCase.setFocusable(false);
+		JPanel options = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+		options.add(matchCase);
 
 		statusLabel.setForeground(secondaryForeground());
-		statusLabel.setBorder(BorderFactory.createEmptyBorder(6, 0, 0, 0));
-		controls.add(statusLabel);
+		JPanel footer = new JPanel(new BorderLayout());
+		footer.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+		footer.add(options, BorderLayout.WEST);
+		footer.add(statusLabel, BorderLayout.CENTER);
+		controls.add(footer, BorderLayout.CENTER);
 
 		body.add(controls, BorderLayout.NORTH);
 	}
@@ -260,9 +265,13 @@ public final class WorkspaceSearchPanel extends JPanel {
 				Object userObject = node.getUserObject();
 				if (userObject instanceof Path path) {
 					setText(displayPath(path));
+					setIcon(MaterialIcons.forFile(path));
+					setFont(tree.getFont().deriveFont(Font.BOLD));
 				}
 				else if (userObject instanceof SearchMatch match) {
 					setText(match.line() + ": " + preview(match.lineText()));
+					setIcon(null);
+					setFont(tree.getFont());
 				}
 				else {
 					setText(userObject == null ? "" : userObject.toString());

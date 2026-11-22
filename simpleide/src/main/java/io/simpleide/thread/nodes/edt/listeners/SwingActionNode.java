@@ -1,9 +1,11 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import io.simpleide.thread.ThreadMaster;
 import java.awt.event.ActionEvent;
 import java.util.Objects;
+
 import javax.swing.AbstractAction;
+
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Swing {@link javax.swing.Action} that routes its command through the thread manager.

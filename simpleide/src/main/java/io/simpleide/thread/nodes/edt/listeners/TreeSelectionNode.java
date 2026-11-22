@@ -1,11 +1,13 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.EDTNode;
 import java.util.Objects;
 import java.util.function.Consumer;
+
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
  * Tree selection listener that routes callbacks through the thread manager.

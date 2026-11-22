@@ -1,15 +1,5 @@
 package io.simpleide.ui.terminal;
 
-import com.jediterm.core.util.TermSize;
-import com.jediterm.terminal.ProcessTtyConnector;
-import com.jediterm.terminal.TtyConnector;
-import com.pty4j.PtyProcess;
-import com.pty4j.PtyProcessBuilder;
-import com.pty4j.WinSize;
-import io.simpleide.language.config.LangPlatform;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.terminal.core.busybox.BusyBoxExecutable;
-import io.simpleide.ui.terminal.core.busybox.BusyBoxPlatform;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -24,8 +14,20 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import com.jediterm.core.util.TermSize;
+import com.jediterm.terminal.ProcessTtyConnector;
+import com.jediterm.terminal.TtyConnector;
+import com.pty4j.PtyProcess;
+import com.pty4j.PtyProcessBuilder;
+import com.pty4j.WinSize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.language.config.LangPlatform;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.terminal.core.busybox.BusyBoxExecutable;
+import io.simpleide.ui.terminal.core.busybox.BusyBoxPlatform;
 
 /**
  * One BusyBox shell running in a PTY process.

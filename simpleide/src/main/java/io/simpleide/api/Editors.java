@@ -1,13 +1,15 @@
 package io.simpleide.api;
 
-import io.simpleide.ui.editor.Editor;
-import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TypeFile;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
+
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
+
+import io.simpleide.ui.editor.Editor;
+import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.TypeFile;
 
 /**
  * Creates standalone RSyntaxTextArea-based editors without starting the desktop

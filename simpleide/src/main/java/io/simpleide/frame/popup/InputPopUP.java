@@ -1,6 +1,7 @@
 package io.simpleide.frame.popup;
 
 import java.util.function.Consumer;
+
 import javax.swing.JComponent;
 import javax.swing.JOptionPane;
 

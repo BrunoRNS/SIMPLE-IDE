@@ -1,11 +1,13 @@
 package io.simpleide.language.compiler;
 
-import io.simpleide.utils.OSpathUtil;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
+
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+
+import io.simpleide.utils.OSpathUtil;
 
 /**
  * C# language support built on the Mono compiler and runtime.

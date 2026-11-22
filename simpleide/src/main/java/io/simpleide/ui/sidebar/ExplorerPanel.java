@@ -1,14 +1,21 @@
 package io.simpleide.ui.sidebar;
 
-import io.simpleide.ui.treefile.Tree;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
+import java.awt.Component;
 import java.awt.Font;
+
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.UIManager;
+
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.ui.treefile.Tree;
 
 /**
  * Explorer view hosting the project tree.
@@ -33,13 +40,14 @@ public final class ExplorerPanel extends JPanel {
 
 	private final JScrollPane treePane;
 
-	private final JLabel emptyLabel = new JLabel("No folder opened");
+	private final JPanel emptyState = new JPanel();
 
 	/**
 	 * Creates an explorer that starts without a folder.
 	 * @param treePane scroll pane that will host the project tree
+	 * @param openFolder action that opens the folder chooser
 	 */
-	public ExplorerPanel(JScrollPane treePane) {
+	public ExplorerPanel(JScrollPane treePane, Runnable openFolder) {
 		super();
 		this.treePane = treePane;
 		setLayout(new BorderLayout());
@@ -51,12 +59,41 @@ public final class ExplorerPanel extends JPanel {
 		}
 		add(title, BorderLayout.NORTH);
 
-		emptyLabel.setHorizontalAlignment(JLabel.CENTER);
-		emptyLabel.setBorder(BorderFactory.createEmptyBorder(24, 12, 24, 12));
-		content.add(emptyLabel, EMPTY_CARD);
+		createEmptyState(openFolder);
+		content.add(emptyState, EMPTY_CARD);
 		content.add(treePane, TREE_CARD);
 		add(content, BorderLayout.CENTER);
 		showNoFolder();
+	}
+
+	private void createEmptyState(Runnable openFolder) {
+		emptyState.setLayout(new BoxLayout(emptyState, BoxLayout.Y_AXIS));
+		emptyState.setBorder(BorderFactory.createEmptyBorder(24, 20, 24, 20));
+
+		JLabel title = new JLabel("No folder selected");
+		title.setAlignmentX(Component.CENTER_ALIGNMENT);
+		Font titleFont = UIManager.getFont("Label.font");
+		if (titleFont != null) {
+			title.setFont(titleFont.deriveFont(Font.BOLD, titleFont.getSize2D() + 1f));
+		}
+
+		JLabel description = new JLabel(
+				"<html><div style='text-align:center'>Open a project folder to browse and edit its files.</div></html>");
+		description.setHorizontalAlignment(JLabel.CENTER);
+		description.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+		JButton openButton = new JButton("Open folder");
+		openButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+		openButton.getAccessibleContext().setAccessibleName("Open project folder");
+		openButton.addActionListener(new ActionNode(event -> openFolder.run()));
+
+		emptyState.add(Box.createVerticalGlue());
+		emptyState.add(title);
+		emptyState.add(Box.createVerticalStrut(8));
+		emptyState.add(description);
+		emptyState.add(Box.createVerticalStrut(16));
+		emptyState.add(openButton);
+		emptyState.add(Box.createVerticalGlue());
 	}
 
 	/**

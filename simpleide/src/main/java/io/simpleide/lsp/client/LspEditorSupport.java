@@ -1,13 +1,12 @@
 package io.simpleide.lsp.client;
 
-import io.simpleide.lsp.core.Document;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.editor.Editor;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+
 import javax.swing.text.BadLocationException;
+
 import org.eclipse.lsp4j.CompletionContext;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionList;
@@ -28,6 +27,10 @@ import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.lsp.core.Document;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.editor.Editor;
 
 /**
  * Connects one {@link io.simpleide.ui.editor.Editor} to an LSP client.
@@ -95,6 +98,7 @@ public final class LspEditorSupport implements AutoCloseable {
 			return;
 		}
 
+		diagnosticParser.setDiagnostics(List.of());
 		String currentText = editor.getText();
 		client.didChange(document.getUri(), document.getVersion(), lastSentText, currentText);
 		lastSentText = currentText;

@@ -1,7 +1,8 @@
 package io.simpleide.ui.menubar.menus;
 
-import io.simpleide.settings.IdeSettings;
 import javax.swing.JMenuBar;
+
+import io.simpleide.settings.IdeSettings;
 
 /**
  * Application menu bar containing the File, Settings and Help menus.

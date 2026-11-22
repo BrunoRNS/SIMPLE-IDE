@@ -69,12 +69,13 @@ Add the repository:
 </repositories>
 ```
 
-Depend on the application module:
+Depend on the published repository artifact. It resolves the IDE and compiler
+modules transitively:
 
 ```xml
 <dependency>
-  <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
-  <artifactId>simpleide</artifactId>
+  <groupId>com.github.BrunoRNS</groupId>
+  <artifactId>SIMPLE-IDE</artifactId>
   <version>v1.0.0beta</version>
 </dependency>
 ```
@@ -99,7 +100,7 @@ Gradle examples:
 
 ```groovy
 dependencies {
-    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simpleide:v1.0.0beta'
+    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.0.0beta'
     implementation 'com.github.BrunoRNS.SIMPLE-IDE:simplebytecode-compiler:v1.0.0beta'
 }
 ```
@@ -122,7 +123,7 @@ coordinate is not available:
 
 1. Open the JitPack build log for the tag.
 2. Confirm that the `simpleide` module was built successfully.
-3. Use the root coordinate `com.github.BrunoRNS.SIMPLE-IDE:SIMPLE-IDE:v1.0.0beta`
+3. Use the root coordinate `com.github.BrunoRNS:SIMPLE-IDE:v1.0.0beta`
    or download the release fat JAR and install it manually.
 4. Pin the dependency to a released tag instead of a branch.
 

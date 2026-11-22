@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JButton;
+import javax.swing.JScrollBar;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -18,9 +19,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import org.junit.jupiter.api.Test;
 
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.jediterm.terminal.TtyConnector;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.TerminalPanel}.
@@ -31,11 +33,13 @@ class TerminalPanelTest {
 	void actionIconSvgColorsFollowTheTheme() throws Exception {
 		Object originalForeground = UIManager.get("Button.foreground");
 		Object originalBackground = UIManager.get("Button.background");
+		Object originalPanelBackground = UIManager.get("Panel.background");
 		try {
 			Color foreground = new Color(0xEBDBB2);
 			Color background = new Color(0x3C3836);
 			UIManager.put("Button.foreground", foreground);
 			UIManager.put("Button.background", background);
+			UIManager.put("Panel.background", background);
 
 			SwingUtilities.invokeAndWait(() -> {
 				TerminalPanel panel = new TerminalPanel();
@@ -45,8 +49,8 @@ class TerminalPanelTest {
 					assertThat(button.getForeground()).as("button foreground follows active theme")
 						.isEqualTo(foreground);
 					assertThat(button.getClientProperty("JButton.buttonType"))
-						.as("terminal action buttons use rounded styling")
-						.isEqualTo("roundRect");
+						.as("terminal action buttons do not use rounded styling")
+						.isNull();
 					FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
 					FlatSVGIcon.ColorFilter filter = icon.getColorFilter();
 					assertThat(filter.filter(null, new Color(0x6E7781))).as("accent stroke color")
@@ -59,7 +63,43 @@ class TerminalPanelTest {
 		finally {
 			restoreUiValue("Button.foreground", originalForeground);
 			restoreUiValue("Button.background", originalBackground);
+			restoreUiValue("Panel.background", originalPanelBackground);
 		}
+	}
+
+	@Test
+	void spacesTerminalActionsAndExplainsDisabledStates() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			TerminalPanel panel = new TerminalPanel();
+			List<JButton> buttons = findButtons(panel);
+			assertThat(buttons).hasSize(2);
+			assertThat(buttons.get(0).getParent().getComponent(1).getPreferredSize().height).isEqualTo(8);
+			assertThat(buttons.get(0).getParent().getInsets().left).isEqualTo(8);
+
+			panel.setActionsEnabled(false, false, true);
+
+			assertThat(buttons.get(0).isEnabled()).isFalse();
+			assertThat(buttons.get(0).getToolTipText()).isEqualTo("Cannot add another terminal");
+			assertThat(buttons.get(1).isEnabled()).isFalse();
+			assertThat(buttons.get(1).getToolTipText()).isEqualTo("No terminal selected");
+		});
+	}
+
+	@Test
+	void hidesTerminalScrollbarWithoutRemovingItsScrollModel() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			TerminalView.ThemedTerminalWidget widget = new TerminalView.ThemedTerminalWidget(new StubTtyConnector());
+			try {
+				JScrollBar scrollBar = findScrollBar(widget);
+				assertThat(scrollBar).isNotNull();
+				assertThat(scrollBar.isVisible()).isFalse();
+				assertThat(scrollBar.getPreferredSize().width).isZero();
+				assertThat(scrollBar.getModel()).isNotNull();
+			}
+			finally {
+				widget.close();
+			}
+		});
 	}
 
 	@Test
@@ -168,6 +208,62 @@ class TerminalPanelTest {
 		List<JButton> buttons = new ArrayList<>();
 		collectButtons(component, buttons);
 		return buttons;
+	}
+
+	private static JScrollBar findScrollBar(Component component) {
+		if (component instanceof JScrollBar scrollBar) {
+			return scrollBar;
+		}
+		if (component instanceof Container container) {
+			for (Component child : container.getComponents()) {
+				JScrollBar result = findScrollBar(child);
+				if (result != null) {
+					return result;
+				}
+			}
+		}
+		return null;
+	}
+
+	private static final class StubTtyConnector implements TtyConnector {
+
+		@Override
+		public int read(char[] buffer, int offset, int length) {
+			return -1;
+		}
+
+		@Override
+		public void write(byte[] bytes) {
+		}
+
+		@Override
+		public void write(String string) {
+		}
+
+		@Override
+		public boolean isConnected() {
+			return false;
+		}
+
+		@Override
+		public int waitFor() {
+			return 0;
+		}
+
+		@Override
+		public boolean ready() {
+			return false;
+		}
+
+		@Override
+		public String getName() {
+			return "test";
+		}
+
+		@Override
+		public void close() {
+		}
+
 	}
 
 	private static void collectButtons(Component component, List<JButton> buttons) {

@@ -1,7 +1,8 @@
 package io.simpleide.thread.validation;
 
-import io.simpleide.thread.nodes.NodePattern;
 import java.awt.EventQueue;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Verifies that a node executes on the thread kind it declares.

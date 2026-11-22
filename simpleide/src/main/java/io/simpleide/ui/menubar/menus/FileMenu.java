@@ -1,17 +1,20 @@
 package io.simpleide.ui.menubar.menus;
 
+import java.awt.event.InputEvent;
+import java.awt.event.KeyEvent;
+import java.util.Objects;
+
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
+import javax.swing.KeyStroke;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.simpleide.settings.IdeAction;
 import io.simpleide.settings.IdeSettings;
 import io.simpleide.settings.SettingsService;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
-import java.util.Objects;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.KeyStroke;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * File menu with new file, new folder, open folder, close folder and save items.

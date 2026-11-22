@@ -13,14 +13,15 @@ import javax.swing.UIManager;
 import javax.swing.plaf.FontUIResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
-import io.simpleide.ui.ThemePalette;
-import io.simpleide.ui.ThemeColors;
+import org.junit.jupiter.api.Test;
+
 import io.simpleide.frame.utils.ApplicationIcon;
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.menubar.ThemeManager;
 
 /**

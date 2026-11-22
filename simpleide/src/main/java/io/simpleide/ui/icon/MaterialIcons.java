@@ -13,12 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.Icon;
 import javax.swing.UIManager;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.ui.ThemeColors;
 

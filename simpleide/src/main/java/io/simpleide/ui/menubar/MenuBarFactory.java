@@ -1,7 +1,8 @@
 package io.simpleide.ui.menubar;
 
-import io.simpleide.ui.menubar.menus.IdeMenuBar;
 import javax.swing.JFrame;
+
+import io.simpleide.ui.menubar.menus.IdeMenuBar;
 
 /**
  * Installs the application menu bar on a frame.

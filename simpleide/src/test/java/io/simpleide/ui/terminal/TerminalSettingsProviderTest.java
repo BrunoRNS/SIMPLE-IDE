@@ -6,11 +6,11 @@ import java.util.Objects;
 import javax.swing.UIManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import org.junit.jupiter.api.Test;
 
 import com.jediterm.core.Color;
 import com.jediterm.terminal.TerminalColor;
 import com.jediterm.terminal.TextStyle;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.TerminalSettingsProvider}.

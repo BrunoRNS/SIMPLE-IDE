@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -49,7 +50,7 @@ import io.simpleide.ui.menubar.ThemeManager;
  */
 public final class SettingsPanel extends JPanel {
 
-	private final SettingsService settingsService = SettingsService.getInstance();
+	private final SettingsService settingsService;
 
 	private final JComboBox<ThemeManager.ThemeType> themeBox = new JComboBox<>(ThemeManager.ThemeType.values());
 
@@ -77,7 +78,12 @@ public final class SettingsPanel extends JPanel {
 	 * Creates the settings view from the current stored settings.
 	 */
 	public SettingsPanel() {
+		this(SettingsService.getInstance());
+	}
+
+	SettingsPanel(SettingsService settingsService) {
 		super(new BorderLayout());
+		this.settingsService = Objects.requireNonNull(settingsService, "settingsService");
 		IdeSettings settings = settingsService.getSettings();
 		uiFontSizeSpinner = new JSpinner(new SpinnerNumberModel(settings.getUiFontSize(), 8, 48, 1));
 		editorFontSizeSpinner = new JSpinner(new SpinnerNumberModel(settings.getEditorFontSize(), 8, 72, 1));
@@ -185,26 +191,27 @@ public final class SettingsPanel extends JPanel {
 
 	private void addSection(JPanel form, String title) {
 		JLabel label = new JLabel(title);
-		label.setBorder(BorderFactory.createEmptyBorder(10, 0, 4, 0));
+		label.setBorder(BorderFactory.createEmptyBorder(12, 0, 6, 0));
 		label.setFont(label.getFont().deriveFont(Font.BOLD));
 		form.add(label);
 	}
 
 	private void addRow(JPanel form, String labelText, JComponent component) {
 		JPanel row = new JPanel();
-		row.setLayout(new BoxLayout(row, BoxLayout.X_AXIS));
+		row.setLayout(new BoxLayout(row, BoxLayout.Y_AXIS));
 		row.setAlignmentX(Component.LEFT_ALIGNMENT);
 		if (!labelText.isEmpty()) {
 			JLabel label = new JLabel(labelText);
-			label.setPreferredSize(new Dimension(105, label.getPreferredSize().height));
-			label.setMinimumSize(new Dimension(105, label.getPreferredSize().height));
+			label.setBorder(BorderFactory.createEmptyBorder(0, 0, 4, 0));
+			label.setAlignmentX(Component.LEFT_ALIGNMENT);
 			row.add(label);
 		}
 		component.setAlignmentX(Component.LEFT_ALIGNMENT);
+		component.setMaximumSize(new Dimension(Integer.MAX_VALUE, component.getPreferredSize().height));
 		row.add(component);
-		row.add(Box.createHorizontalGlue());
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
 		form.add(row);
-		form.add(Box.createVerticalStrut(4));
+		form.add(Box.createVerticalStrut(8));
 	}
 
 	private void configureActions() {
@@ -225,6 +232,7 @@ public final class SettingsPanel extends JPanel {
 			return;
 		}
 		settingsService.update(settings -> settings.setTheme(selected.name()));
+		ThemeManager.getInstance().setTheme(selected);
 		feedbackLabel.setText("Theme saved.");
 	}
 

@@ -1,10 +1,11 @@
 package io.simplebytecode.compiler.classloader;
 
-import io.simplebytecode.compiler.RunnerInterface;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Objects;
+
+import io.simplebytecode.compiler.RunnerInterface;
 
 /**
  * Executes Java source compiled in memory.

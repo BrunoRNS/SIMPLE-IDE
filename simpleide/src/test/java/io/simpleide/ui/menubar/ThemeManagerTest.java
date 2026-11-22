@@ -19,26 +19,26 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JSpinner;
-import javax.swing.JTable;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import org.fife.ui.rsyntaxtextarea.TokenTypes;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
+import org.fife.ui.rsyntaxtextarea.TokenTypes;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
-import io.simpleide.frame.log.LogPanel;
 import io.simpleide.api.HexEditor;
+import io.simpleide.frame.log.LogPanel;
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
@@ -226,14 +226,21 @@ class ThemeManagerTest {
 			assertColor("PopupMenu.background", expected.popupBackground(), theme);
 			assertColor("MenuBar.borderColor", expected.border(), theme);
 			assertColor("Component.borderColor", expected.border(), theme);
-			assertColor("Component.focusedBorderColor", ThemePalette.of(theme).focusBorder(), theme);
+			assertColor("Component.focusedBorderColor", expected.border(), theme);
+			assertThat(UIManager.getInt("Component.focusWidth")).as("focus width in %s", theme).isZero();
+			assertThat(UIManager.getInt("Component.innerFocusWidth")).as("inner focus width in %s", theme).isZero();
 			assertColor("Button.borderColor", expected.border(), theme);
 			assertColor("TextField.borderColor", expected.border(), theme);
 			assertColor("PopupMenu.borderColor", expected.border(), theme);
 			assertColor("ToolTip.borderColor", expected.border(), theme);
 			assertColor("Tree.selectionBorderColor", ThemePalette.of(theme).treeSelectionBackground(), theme);
+			assertThat(UIManager.getBorder("Tree.focusCellHighlightBorder").getBorderInsets(null).left)
+				.as("tree focus border in %s", theme)
+				.isZero();
 			assertColor("TabbedPane.underlineColor", ThemePalette.of(theme).tabUnderline(), theme);
 			assertColor("SplitPaneDivider.background", expected.background(), theme);
+			assertColor("SplitPaneDivider.draggingColor",
+					ThemeColors.blend(ThemePalette.of(theme).accent(), expected.background(), 0.45f), theme);
 			assertColor("TextPane.background", expected.background(), theme);
 			assertColor("TextPane.foreground", expected.foreground(), theme);
 			assertColor("EditorPane.background", expected.background(), theme);
@@ -373,7 +380,7 @@ class ThemeManagerTest {
 				.containsExactlyInAnyOrder("Add terminal", "Close selected terminal");
 			for (JButton button : terminalActions) {
 				assertThat(button.getBackground()).as("terminal action button background in %s", theme)
-					.isEqualTo(UIManager.getColor("Button.background"));
+					.isEqualTo(expected.background());
 				assertThat(ThemeColors.contrastRatio(button.getForeground(), button.getBackground()))
 					.as("terminal action icon contrast in %s", theme)
 					.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);

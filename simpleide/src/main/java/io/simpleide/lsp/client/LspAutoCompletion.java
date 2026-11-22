@@ -1,22 +1,25 @@
 package io.simpleide.lsp.client;
 
-import io.simpleide.thread.nodes.edt.listeners.PropertyChangeNode;
-import io.simpleide.ui.editor.Editor;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Window;
 import java.beans.PropertyChangeListener;
 import java.lang.reflect.Method;
 import java.util.List;
+
 import javax.swing.JComponent;
 import javax.swing.JEditorPane;
 import javax.swing.JList;
 import javax.swing.JScrollPane;
 import javax.swing.JViewport;
+
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.fife.ui.autocomplete.Completion;
 import org.fife.ui.autocomplete.CompletionCellRenderer;
 import org.fife.ui.autocomplete.CompletionProvider;
+
+import io.simpleide.thread.nodes.edt.listeners.PropertyChangeNode;
+import io.simpleide.ui.editor.Editor;
 
 /**
  * Auto-completion controller that keeps completion popups consistent with the editor
