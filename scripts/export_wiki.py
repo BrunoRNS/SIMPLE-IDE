@@ -2,9 +2,8 @@
 """Flatten the source documentation into GitHub Wiki page files."""
 
 from pathlib import Path
-import re
-import shutil
 import urllib.parse
+import re
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
