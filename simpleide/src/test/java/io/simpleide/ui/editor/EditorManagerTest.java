@@ -2,11 +2,13 @@ package io.simpleide.ui.editor;
 
 import java.awt.Font;
 import java.io.IOException;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.imageio.ImageIO;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.lsp.core.Document;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.icon.MaterialIcons;
 import io.simpleide.ui.treefile.File;
 
@@ -33,6 +36,7 @@ class EditorManagerTest {
 	static Path root;
 
 	@AfterAll
+	@SuppressWarnings("unused")
 	static void closeLanguageServers() throws Exception {
 		EditorManager manager = EditorManager.getInstance();
 		if (manager != null) {
@@ -108,6 +112,118 @@ class EditorManagerTest {
 				testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize()));
 			}
 		});
+	}
+
+	@Test
+	void opensTabImmediatelyAndLoadsFileOffTheEdt() throws Exception {
+		Path path = Files.writeString(root.resolve("Deferred.txt"), "file content");
+		File file = File.lazy(path);
+		EditorManager manager = EditorManager.getInstance();
+		if (manager == null) {
+			manager = new EditorManager(() -> {
+			}, () -> {
+			}, () -> {
+			});
+		}
+		EditorManager testManager = manager;
+		ThreadMaster.getInstance().initialize();
+
+		SwingUtilities.invokeAndWait(() -> {
+			testManager.openFile(file);
+			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
+			assertThat(tab).isNotNull();
+			assertThat(tab.isLoading()).isTrue();
+			assertThat(testManager.getJTabbedPane().getSelectedComponent()).isSameAs(tab);
+			assertThat(tab.getComponentCount()).isEqualTo(1);
+		});
+
+		await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
+			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
+			assertThat(tab.isLoading()).isFalse();
+			assertThat(tab.getEditor().getText()).isEqualTo("file content");
+		}));
+		SwingUtilities
+			.invokeAndWait(() -> testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize())));
+	}
+
+	@Test
+	void opensLargeTextInThePagedReadOnlyViewer() throws Exception {
+		Path path = root.resolve("Large.txt");
+		String block = "This is a paged text line.\n".repeat(8192);
+		try (var writer = Files.newBufferedWriter(path)) {
+			for (int index = 0; index < 12; index++) {
+				writer.write(block);
+			}
+		}
+		EditorManager manager = EditorManager.getInstance();
+		if (manager == null) {
+			manager = new EditorManager(() -> {
+			}, () -> {
+			}, () -> {
+			});
+		}
+		EditorManager testManager = manager;
+		ThreadMaster.getInstance().initialize();
+
+		SwingUtilities.invokeAndWait(() -> testManager.openFile(File.lazy(path)));
+		await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
+			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
+			assertThat(tab.isLoading()).isFalse();
+			assertThat(tab.getEditor()).isNull();
+			assertThat(tab.getLargeTextViewer()).isNotNull();
+		}));
+		SwingUtilities
+			.invokeAndWait(() -> testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize())));
+	}
+
+	@Test
+	void opensImagesAndBinaryFilesInTheirDedicatedTabs() throws Exception {
+		Path binaryPath = root.resolve("payload.bin");
+		Files.write(binaryPath, new byte[] { 0, 0x41, (byte) 0xff });
+		Path imagePath = root.resolve("picture.png");
+		ImageIO.write(new BufferedImage(12, 8, BufferedImage.TYPE_INT_RGB), "png", imagePath.toFile());
+		Path svgPath = root.resolve("picture.svg");
+		Files.writeString(svgPath,
+				"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"9\" height=\"7\"><rect width=\"9\" height=\"7\" fill=\"red\"/></svg>");
+		EditorManager manager = EditorManager.getInstance();
+		if (manager == null) {
+			manager = new EditorManager(() -> {
+			}, () -> {
+			}, () -> {
+			});
+		}
+		EditorManager testManager = manager;
+
+		SwingUtilities.invokeAndWait(() -> {
+			try {
+				testManager.openFile(new File(binaryPath));
+				EditorTab binaryTab = testManager.getOpenedEditor(binaryPath.toAbsolutePath().normalize());
+				assertThat(binaryTab.getEditor()).isNull();
+				assertThat(binaryTab.getHexEditor()).isNotNull();
+				binaryTab.getHexEditor().setByte(1, 0x42);
+				testManager.saveSelectedFile();
+				assertThat(binaryTab.isEdit()).isFalse();
+
+				testManager.openFile(new File(imagePath));
+				EditorTab imageTab = testManager.getOpenedEditor(imagePath.toAbsolutePath().normalize());
+				assertThat(imageTab.getEditor()).isNull();
+				assertThat(imageTab.getImageViewer().imageWidth()).isEqualTo(12);
+				assertThat(imageTab.getImageViewer().imageHeight()).isEqualTo(8);
+
+				testManager.openFile(new File(svgPath));
+				EditorTab svgTab = testManager.getOpenedEditor(svgPath.toAbsolutePath().normalize());
+				assertThat(svgTab.getImageViewer().imageWidth()).isEqualTo(9);
+				assertThat(svgTab.getImageViewer().imageHeight()).isEqualTo(7);
+
+				testManager.closeTab(binaryTab);
+				testManager.closeTab(imageTab);
+				testManager.closeTab(svgTab);
+			}
+			catch (IOException error) {
+				throw new AssertionError(error);
+			}
+		});
+		assertThat(Files.readAllBytes(binaryPath)).containsExactly((byte) 0, (byte) 0x42, (byte) 0xff);
 	}
 
 	@Test

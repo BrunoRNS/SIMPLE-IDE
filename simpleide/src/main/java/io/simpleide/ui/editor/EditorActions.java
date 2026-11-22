@@ -51,6 +51,9 @@ public final class EditorActions {
 
 	void configure(EditorTab tab) {
 		Editor editor = tab.getEditor();
+		if (editor == null) {
+			return;
+		}
 		bindEditorAction(editor, "simpleide.save", KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK),
 				() -> editorManager.saveTab(tab));
 		bindEditorAction(editor, "simpleide.find", KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK),

@@ -6,6 +6,7 @@ import java.awt.Container;
 import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.image.BufferedImage;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JSpinner;
+import javax.swing.JTable;
 import javax.swing.JTabbedPane;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
@@ -36,6 +38,7 @@ import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
 
 import io.simpleide.frame.log.LogPanel;
+import io.simpleide.api.HexEditor;
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
@@ -84,6 +87,36 @@ class ThemeManagerTest {
 				ThemePalette.of(ThemeManager.ThemeType.DRACULA_LIGHT).background());
 		assertEditorTheme(editor, ThemeManager.ThemeType.BROWN_LIGHT,
 				ThemePalette.of(ThemeManager.ThemeType.BROWN_LIGHT).background());
+	}
+
+	@Test
+	void themeChangesAreAppliedToAlreadyOpenHexEditors() throws Exception {
+		Path path = Files.createTempFile("simpleide-hex-theme-", ".bin");
+		HexEditor hexEditor = null;
+		try {
+			Files.write(path, new byte[] { 0, 0x41 });
+			hexEditor = new HexEditor(path);
+			themeManager.register(hexEditor);
+			JTable table = findComponent(hexEditor, JTable.class);
+			JTable ascii = findTableWithColumns(hexEditor, 1);
+
+			for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
+				themeManager.setTheme(theme);
+				flushEdt();
+				ThemePalette palette = ThemePalette.of(theme);
+				assertThat(table.getBackground()).isEqualTo(palette.background());
+				assertThat(table.getForeground()).isEqualTo(palette.foreground());
+				assertThat(table.getSelectionBackground()).isEqualTo(palette.selectionBackground());
+				assertThat(ascii.getBackground()).isEqualTo(palette.background());
+				assertThat(ascii.getForeground()).isEqualTo(palette.foreground());
+			}
+		}
+		finally {
+			if (hexEditor != null) {
+				themeManager.unregister(hexEditor);
+			}
+			Files.deleteIfExists(path);
+		}
 	}
 
 	@Test
@@ -538,6 +571,37 @@ class ThemeManagerTest {
 				collectButtons(child, buttons);
 			}
 		}
+	}
+
+	private <T extends Component> T findComponent(Container container, Class<T> componentType) {
+		for (Component component : container.getComponents()) {
+			if (componentType.isInstance(component)) {
+				return componentType.cast(component);
+			}
+
+			if (component instanceof Container child) {
+				T found = findComponent(child, componentType);
+				if (found != null) {
+					return found;
+				}
+			}
+		}
+		return null;
+	}
+
+	private JTable findTableWithColumns(Container container, int columns) {
+		for (Component child : container.getComponents()) {
+			if (child instanceof JTable table && table.getColumnCount() == columns) {
+				return table;
+			}
+			if (child instanceof Container nested) {
+				JTable found = findTableWithColumns(nested, columns);
+				if (found != null) {
+					return found;
+				}
+			}
+		}
+		return null;
 	}
 
 	private List<JLabel> collectLabels(Container container) {

@@ -1,5 +1,27 @@
 package io.simpleide.ui.editor;
 
+import java.awt.Component;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletionException;
+import java.util.function.Consumer;
+
+import javax.swing.Icon;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JTabbedPane;
+import javax.swing.SwingConstants;
+import javax.swing.UIManager;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.core.Document;
@@ -7,30 +29,12 @@ import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
-import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.icon.MaterialIcons;
+import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.FileContentKind;
 import io.simpleide.ui.treefile.TypeFile;
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletionException;
-import java.util.function.Consumer;
-import javax.swing.JLabel;
-import javax.swing.Icon;
-import javax.swing.JOptionPane;
-import javax.swing.JPanel;
-import javax.swing.JTabbedPane;
-import javax.swing.JComponent;
-import javax.swing.SwingConstants;
-import javax.swing.UIManager;
-import java.awt.Component;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Owns the editor tab set and the language support attached to it.
@@ -137,7 +141,8 @@ public class EditorManager {
 
 	/**
 	 * Returns the editor of the selected tab.
-	 * @return the selected editor, or {@code null} when the welcome page is selected
+	 * @return the selected text editor, or {@code null} when an image, binary file, or
+	 * welcome page is selected
 	 */
 	public Editor getSelectedEditor() {
 		if (jTabbedPane.getSelectedComponent() instanceof EditorTab tab) {
@@ -194,7 +199,8 @@ public class EditorManager {
 	 *
 	 * <p>
 	 * The file is normalized before lookup. Opening a file also enables local language
-	 * support and asks the language server manager to connect a server for the document.
+	 * support and connects a language server only for readable text files. Images and
+	 * binary files use their dedicated viewers and do not start a language server.
 	 * @param file file to open, ignored when {@code null}
 	 */
 	public void openFile(File file) {
@@ -213,7 +219,18 @@ public class EditorManager {
 
 		Document document = manager.open(path, getLanguageId(file.getTypeFile()));
 
-		EditorTab editorTab = new EditorTab(file, document);
+		EditorTab editorTab;
+		try {
+			editorTab = new EditorTab(file, document);
+		}
+		catch (UncheckedIOException error) {
+			manager.close(document.getUri());
+			LOGGER.error("Unable to open file {} in its content viewer.", path, error.getCause());
+			JOptionPane.showMessageDialog(jTabbedPane,
+					"Unable to open " + file.getName() + ": " + error.getCause().getMessage(), "Unable to open file",
+					JOptionPane.ERROR_MESSAGE);
+			return;
+		}
 		editorTab.applyEditorOptions(editorTabSize, editorWordWrap, editorLineNumbers, editorShowWhitespace);
 		editorTab.setDiagnosticsListener(this::notifyDiagnostics);
 		editorActions.configure(editorTab);
@@ -225,21 +242,12 @@ public class EditorManager {
 		openedEditors.put(path, editorTab);
 		jTabbedPane.setSelectedComponent(editorTab);
 
-		try {
-			editorTab.enableLocalLanguageSupport();
+		if (file.isContentLoaded()) {
+			configureLoadedTab(editorTab, path, true);
 		}
-		catch (RuntimeException | LinkageError error) {
-			LOGGER.error("Unable to initialize local language support for {}; the file remains open.", path, error);
+		else {
+			loadFileInBackground(editorTab, path, true);
 		}
-		try {
-			ThemeManager.getInstance().register(editorTab.getEditor());
-		}
-		catch (RuntimeException error) {
-			LOGGER.error("Unable to apply the editor theme to {}; the file remains open.", path, error);
-		}
-
-		languageServers.connect(document, editorTab::publishDiagnostics)
-			.whenComplete((client, error) -> completeLanguageServerConnection(editorTab, client, error));
 	}
 
 	/**
@@ -258,10 +266,16 @@ public class EditorManager {
 		if (jTabbedPane.getTabCount() == 1 && "Welcome".equals(jTabbedPane.getTitleAt(0))) {
 			jTabbedPane.removeAll();
 		}
-		ThemeManager.getInstance().register(tab.getEditor());
 		jTabbedPane.addTab(tab.getName(), tab.getFileIcon(), tab);
 		jTabbedPane.setTabComponentAt(jTabbedPane.indexOfComponent(tab), createTabHeader(tab));
 		jTabbedPane.setSelectedComponent(tab);
+		Path path = tab.getFile().getPath().toAbsolutePath().normalize();
+		if (tab.getFile().isContentLoaded()) {
+			configureLoadedTab(tab, path, false);
+		}
+		else {
+			loadFileInBackground(tab, path, false);
+		}
 	}
 
 	/**
@@ -274,7 +288,12 @@ public class EditorManager {
 				tab.close();
 				manager.close(tab.getDocument().getUri());
 				languageServers.disconnect(tab.getDocument());
-				ThemeManager.getInstance().unregister(tab.getEditor());
+				if (tab.getEditor() != null) {
+					ThemeManager.getInstance().unregister(tab.getEditor());
+				}
+				if (tab.getHexEditor() != null) {
+					ThemeManager.getInstance().unregister(tab.getHexEditor());
+				}
 			});
 			openedEditors.clear();
 		}
@@ -309,7 +328,12 @@ public class EditorManager {
 		tab.close();
 		manager.close(tab.getDocument().getUri());
 		languageServers.disconnect(tab.getDocument());
-		ThemeManager.getInstance().unregister(tab.getEditor());
+		if (tab.getEditor() != null) {
+			ThemeManager.getInstance().unregister(tab.getEditor());
+		}
+		if (tab.getHexEditor() != null) {
+			ThemeManager.getInstance().unregister(tab.getHexEditor());
+		}
 		openedEditors.remove(path, tab);
 		jTabbedPane.removeTabAt(tabIndex);
 		if (jTabbedPane.getTabCount() == 0) {
@@ -362,8 +386,8 @@ public class EditorManager {
 	public boolean saveAllModifiedFiles() {
 		boolean saved = true;
 		for (EditorTab tab : openedEditors.values()) {
-			boolean changed = tab.isEdit()
-					|| !java.util.Objects.equals(tab.getFile().getCode().toString(), tab.getEditor().getText());
+			boolean changed = tab.isEdit() || (tab.getEditor() != null
+					&& !java.util.Objects.equals(tab.getFile().getCode().toString(), tab.getEditor().getText()));
 			if (!changed) {
 				continue;
 			}
@@ -421,7 +445,9 @@ public class EditorManager {
 				continue;
 			}
 			Icon icon = MaterialIcons.forFile(tab.getFile().getPath());
-			tab.getEditor().refreshUiFont();
+			if (tab.getEditor() != null) {
+				tab.getEditor().refreshUiFont();
+			}
 			manager.jTabbedPane.setIconAt(tabIndex, icon);
 			tab.getButtonExit().refreshIconSize();
 			Component header = manager.jTabbedPane.getTabComponentAt(tabIndex);
@@ -456,6 +482,72 @@ public class EditorManager {
 		return header;
 	}
 
+	private void loadFileInBackground(EditorTab tab, Path path, boolean connectLanguageServer) {
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		try {
+			threadMaster.register(new RunnableNode(() -> {
+				try {
+					tab.getFile().loadContent();
+					threadMaster.executeOnEDT(() -> {
+						if (tab.isClosed() || !isTabAttached(tab, path)) {
+							return;
+						}
+						try {
+							tab.showLoadedContent();
+							configureLoadedTab(tab, path, connectLanguageServer);
+						}
+						catch (RuntimeException | LinkageError error) {
+							LOGGER.error("Unable to initialize the content viewer for {}.", path, error);
+							tab.showLoadError(error);
+						}
+					});
+				}
+				catch (IOException error) {
+					LOGGER.error("Unable to load file {}.", path, error);
+					threadMaster.executeOnEDT(() -> {
+						if (!tab.isClosed() && isTabAttached(tab, path)) {
+							tab.showLoadError(error);
+						}
+					});
+				}
+			}));
+		}
+		catch (RuntimeException error) {
+			LOGGER.error("Unable to schedule loading file {}.", path, error);
+			tab.showLoadError(error);
+		}
+	}
+
+	private void configureLoadedTab(EditorTab tab, Path path, boolean connectLanguageServer) {
+		editorActions.configure(tab);
+		try {
+			tab.enableLocalLanguageSupport();
+		}
+		catch (RuntimeException | LinkageError error) {
+			LOGGER.error("Unable to initialize local language support for {}; the file remains open.", path, error);
+		}
+		try {
+			if (tab.getEditor() != null) {
+				ThemeManager.getInstance().register(tab.getEditor());
+			}
+			if (tab.getHexEditor() != null) {
+				ThemeManager.getInstance().register(tab.getHexEditor());
+			}
+		}
+		catch (RuntimeException error) {
+			LOGGER.error("Unable to apply the current theme to {}; the file remains open.", path, error);
+		}
+		if (connectLanguageServer && tab.getEditor() != null
+				&& tab.getFile().getContentKind() == FileContentKind.TEXT) {
+			languageServers.connect(tab.getDocument(), tab::publishDiagnostics)
+				.whenComplete((client, error) -> completeLanguageServerConnection(tab, client, error));
+		}
+	}
+
+	private boolean isTabAttached(EditorTab tab, Path path) {
+		return openedEditors.get(path) == tab || jTabbedPane.indexOfComponent(tab) >= 0;
+	}
+
 	void saveTab(EditorTab tab) {
 		if (!tab.isEdit()) {
 			return;
@@ -465,6 +557,11 @@ public class EditorManager {
 		}
 		catch (IOException error) {
 			LOGGER.warn("Save failed; keeping unsaved changes for {}.", tab.getFile().getPath());
+			if (tab.getHexEditor() != null) {
+				JOptionPane.showMessageDialog(tab,
+						"Unable to save " + tab.getFile().getName() + ": " + error.getMessage(), "Save failed",
+						JOptionPane.ERROR_MESSAGE);
+			}
 		}
 	}
 

@@ -1,7 +1,6 @@
 package io.simpleide.ui.treefile;
 
 import java.io.IOException;
-import java.nio.charset.MalformedInputException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,13 +20,15 @@ import java.util.stream.Stream;
  * @author LuisOtavio13
  * @since v1.0.0beta
  */
-public final class Directory extends TreeFile {
+public class Directory extends TreeFile {
 
 	private final List<TreeFile> children = new ArrayList<>();
 
-	private boolean childrenLoaded;
+	private volatile boolean childrenLoaded;
 
-	private Directory(Path path, String name, boolean loadImmediately) throws IOException {
+	private volatile boolean loading;
+
+	Directory(Path path, String name, boolean loadImmediately) throws IOException {
 		super(path, name);
 		if (loadImmediately) {
 			loadChildren();
@@ -74,12 +75,21 @@ public final class Directory extends TreeFile {
 		return childrenLoaded;
 	}
 
+	/** Returns whether this directory's child listing is currently being loaded. */
+	public boolean isLoading() {
+		return loading;
+	}
+
+	void setLoading(boolean loading) {
+		this.loading = loading;
+	}
+
 	void loadChildren() throws IOException {
 		if (childrenLoaded) {
 			return;
 		}
 
-		children.addAll(readChildren(getPath()));
+		children.addAll(readChildrenFromDisk());
 		childrenLoaded = true;
 	}
 
@@ -105,13 +115,7 @@ public final class Directory extends TreeFile {
 					loadedChildren.add(new Directory(entry, entry.getFileName().toString(), false));
 				}
 				else {
-					try {
-						loadedChildren.add(new File(entry));
-					}
-					catch (MalformedInputException exception) {
-						loadedChildren
-							.add(new File(entry, entry.getFileName().toString(), TypeFile.BINARY, new StringBuffer()));
-					}
+					loadedChildren.add(File.lazy(entry));
 				}
 			}
 		}

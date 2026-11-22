@@ -1,9 +1,6 @@
 package io.simpleide.ui.treefile;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.listeners.TreeSelectionNode;
-import io.simpleide.thread.nodes.edt.listeners.TreeWillExpandNode;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
+import java.awt.Color;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
@@ -15,14 +12,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.listeners.TreeSelectionNode;
+import io.simpleide.thread.nodes.edt.listeners.TreeWillExpandNode;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
  * Swing tree that displays and edits a project directory hierarchy.
@@ -54,8 +58,8 @@ public class Tree extends JTree {
 	@Override
 	public void updateUI() {
 		super.updateUI();
-		java.awt.Color background = UIManager.getColor("Tree.background");
-		java.awt.Color foreground = UIManager.getColor("Tree.foreground");
+		Color background = UIManager.getColor("Tree.background");
+		Color foreground = UIManager.getColor("Tree.foreground");
 		if (background != null) {
 			setBackground(background);
 		}
@@ -274,29 +278,50 @@ public class Tree extends JTree {
 			return;
 		}
 
+		directory.setLoading(true);
+		node.removeAllChildren();
+		node.add(new DefaultMutableTreeNode("Loading..."));
+		((DefaultTreeModel) getModel()).nodeStructureChanged(node);
+
 		ThreadMaster threadMaster = ThreadMaster.getInstance();
 		try {
 			threadMaster.register(new RunnableNode(() -> {
 				try {
 					directory.loadChildren();
 					threadMaster.executeOnEDT(() -> {
+						loadingDirectories.remove(directory);
+						directory.setLoading(false);
+						if (node.getRoot() != getModel().getRoot()) {
+							return;
+						}
 						node.removeAllChildren();
 						for (TreeFile child : directory.getChildren()) {
 							node.add(createNode(child));
 						}
 						((DefaultTreeModel) getModel()).nodeStructureChanged(node);
-						loadingDirectories.remove(directory);
 					});
 				}
 				catch (IOException exception) {
 					LOGGER.error("Unable to load directory {}.", directory.getPath(), exception);
-					threadMaster.executeOnEDT(() -> loadingDirectories.remove(directory));
+					threadMaster.executeOnEDT(() -> {
+						loadingDirectories.remove(directory);
+						directory.setLoading(false);
+						if (node.getRoot() == getModel().getRoot()) {
+							node.removeAllChildren();
+							node.add(new DefaultMutableTreeNode("Unable to load; collapse and expand to retry"));
+							((DefaultTreeModel) getModel()).nodeStructureChanged(node);
+						}
+					});
 				}
 			}));
 		}
 		catch (RuntimeException exception) {
 			loadingDirectories.remove(directory);
+			directory.setLoading(false);
 			LOGGER.error("Unable to schedule loading directory {}.", directory.getPath(), exception);
+			node.removeAllChildren();
+			node.add(new DefaultMutableTreeNode());
+			((DefaultTreeModel) getModel()).nodeStructureChanged(node);
 		}
 	}
 
