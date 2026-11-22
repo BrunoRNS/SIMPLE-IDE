@@ -1,5 +1,8 @@
 package io.simpleide.ui.menubar.menus;
 
+import io.simpleide.settings.IdeAction;
+import io.simpleide.settings.IdeSettings;
+import io.simpleide.settings.SettingsService;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
@@ -11,11 +14,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * File menu with new file, save, new folder and set-directory items.
+ * File menu with new file, new folder, open folder, close folder and save items.
  *
  * <p>
- * Each item forwards to the callback supplied at construction through an EDT node, so
- * menu work is managed by the thread tree. Save is bound to Ctrl+S.
+ * Items are listed alphabetically. Each item forwards to the callback supplied at
+ * construction through an EDT node, so menu work is managed by the thread tree. Save is
+ * bound to Ctrl+S; the shortcut labels of New File, Open Folder and Close Folder come
+ * from the persistent settings and can be refreshed with
+ * {@link #applySettings(IdeSettings)}.
  *
  * <p>
  * Covered by {@code FileMenuTest}.
@@ -27,55 +33,75 @@ public class FileMenu extends JMenu {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(FileMenu.class);
 
-	private JMenuItem newFile;
+	private JMenuItem closeFolder;
 
-	private JMenuItem saveFile;
+	private JMenuItem newFile;
 
 	private JMenuItem newFolder;
 
-	private JMenuItem setDirectory;
+	private JMenuItem openFolder;
+
+	private JMenuItem saveFile;
 
 	/**
-	 * Creates the file menu.
+	 * Creates the file menu from the stored settings.
 	 * @param createFile action that creates a new file
 	 * @param createFolder action that creates a new folder
-	 * @param setDirectory action that selects the working directory
+	 * @param openFolder action that opens a folder
+	 * @param closeFolder action that closes the open folder
 	 * @param saveFile action that saves the current file
 	 * @throws NullPointerException when any action is {@code null}
 	 */
-	public FileMenu(Runnable createFile, Runnable createFolder, Runnable setDirectory, Runnable saveFile) {
+	public FileMenu(Runnable createFile, Runnable createFolder, Runnable openFolder, Runnable closeFolder,
+			Runnable saveFile) {
 		super("File");
 		Objects.requireNonNull(createFile, "createFile");
 		Objects.requireNonNull(createFolder, "createFolder");
-		Objects.requireNonNull(setDirectory, "setDirectory");
+		Objects.requireNonNull(openFolder, "openFolder");
+		Objects.requireNonNull(closeFolder, "closeFolder");
 		Objects.requireNonNull(saveFile, "saveFile");
 		createItems();
 		configureMenu();
-		configureActions(createFile, createFolder, setDirectory, saveFile);
+		configureActions(createFile, createFolder, openFolder, closeFolder, saveFile);
+		applySettings(SettingsService.getInstance().getSettings());
 		LOGGER.info("Created File menu");
 	}
 
-	private void configureMenu() {
-		add(newFile);
-		add(saveFile);
-		add(newFolder);
-		add(setDirectory);
+	/**
+	 * Refreshes the shortcut labels from the settings.
+	 * @param settings settings containing the configured shortcuts
+	 */
+	public void applySettings(IdeSettings settings) {
+		Objects.requireNonNull(settings, "settings");
+		closeFolder.setAccelerator(IdeAction.parseKeyStroke(settings.keybindingOf(IdeAction.CLOSE_FOLDER)));
+		newFile.setAccelerator(IdeAction.parseKeyStroke(settings.keybindingOf(IdeAction.NEW_FILE)));
+		openFolder.setAccelerator(IdeAction.parseKeyStroke(settings.keybindingOf(IdeAction.OPEN_FOLDER)));
 	}
 
-	private void configureActions(Runnable createFile, Runnable createFolder, Runnable setDirectory,
+	private void configureMenu() {
+		add(closeFolder);
+		add(newFile);
+		add(newFolder);
+		add(openFolder);
+		add(saveFile);
+	}
+
+	private void configureActions(Runnable createFile, Runnable createFolder, Runnable openFolder, Runnable closeFolder,
 			Runnable saveFile) {
-		newFile.addActionListener(new ActionNode(e -> createFile.run()));
-		this.saveFile.addActionListener(new ActionNode(e -> saveFile.run()));
-		newFolder.addActionListener(new ActionNode(e -> createFolder.run()));
-		this.setDirectory.addActionListener(new ActionNode(e -> setDirectory.run()));
+		this.closeFolder.addActionListener(new ActionNode(event -> closeFolder.run()));
+		newFile.addActionListener(new ActionNode(event -> createFile.run()));
+		newFolder.addActionListener(new ActionNode(event -> createFolder.run()));
+		this.openFolder.addActionListener(new ActionNode(event -> openFolder.run()));
+		this.saveFile.addActionListener(new ActionNode(event -> saveFile.run()));
 	}
 
 	private void createItems() {
+		this.closeFolder = new JMenuItem("Close Folder");
 		this.newFile = new JMenuItem("New File");
+		this.newFolder = new JMenuItem("New Folder");
+		this.openFolder = new JMenuItem("Open Folder");
 		this.saveFile = new JMenuItem("Save");
 		this.saveFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
-		this.newFolder = new JMenuItem("New Folder");
-		this.setDirectory = new JMenuItem("Set directory");
 	}
 
 }

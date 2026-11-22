@@ -7,6 +7,7 @@ import com.pty4j.PtyProcess;
 import com.pty4j.PtyProcessBuilder;
 import com.pty4j.WinSize;
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.terminal.core.busybox.BusyBoxExecutable;
 import io.simpleide.ui.terminal.core.busybox.BusyBoxPlatform;
 import java.io.IOException;
@@ -59,13 +60,13 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	private static final AtomicBoolean SHUTDOWN_STARTED = new AtomicBoolean();
 
 	static {
-		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+		ThreadMaster.getInstance().registerShutdownAction("busybox-terminal-sessions", () -> {
 			SHUTDOWN_STARTED.set(true);
 			for (BusyBoxTerminalSession session : ACTIVE_SESSIONS) {
 				session.forceTerminate();
 				session.close(true);
 			}
-		}, "simpleide-busybox-shutdown"));
+		});
 	}
 
 	private final LangPlatform platform;

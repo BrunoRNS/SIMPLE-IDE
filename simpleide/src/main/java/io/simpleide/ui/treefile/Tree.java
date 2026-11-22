@@ -1,6 +1,8 @@
 package io.simpleide.ui.treefile;
 
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.listeners.TreeSelectionNode;
+import io.simpleide.thread.nodes.edt.listeners.TreeWillExpandNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -16,8 +18,6 @@ import java.util.function.Consumer;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-import javax.swing.event.TreeExpansionEvent;
-import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -73,19 +73,10 @@ public class Tree extends JTree {
 		setCellRenderer(new TreeFileCellRenderer());
 		state = new TreeState(root);
 		fileActions = new TreeFileActions(this, state);
-		addTreeSelectionListener(event -> updateState(getSelectionPath()));
+		addTreeSelectionListener(new TreeSelectionNode(event -> updateState(getSelectionPath())));
 		fileActions.installContextMenu();
 		LOGGER.info("Tree state initialized: currentDirectory={}", root.getPath());
-		addTreeWillExpandListener(new TreeWillExpandListener() {
-			@Override
-			public void treeWillExpand(TreeExpansionEvent event) {
-				loadChildren(event.getPath());
-			}
-
-			@Override
-			public void treeWillCollapse(TreeExpansionEvent event) {
-			}
-		});
+		addTreeWillExpandListener(new TreeWillExpandNode().onExpand(event -> loadChildren(event.getPath())));
 	}
 
 	/**

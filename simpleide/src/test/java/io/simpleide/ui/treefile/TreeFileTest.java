@@ -201,27 +201,31 @@ class TreeFileTest {
 			Files.writeString(root.resolve("Main.java"), "class Main {}");
 			Files.writeString(nested.resolve("Helper.java"), "class Helper {}");
 			Directory rootDirectory = new Directory(root);
+			Tree[] treeHolder = new Tree[1];
 
-			SwingUtilities.invokeAndWait(() -> {
-				Tree tree = new Tree(rootDirectory);
-				DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
-				DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
-				DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
+			SwingUtilities.invokeAndWait(() -> treeHolder[0] = new Tree(rootDirectory));
+			flushEdt();
+			Tree tree = treeHolder[0];
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
 
-				tree.setSelectionPath(new TreePath(nestedNode.getPath()));
-				assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
-				assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
-				assertThat(appender.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
-					.contains("selected=" + nested, "currentDirectory=" + nested));
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(nestedNode.getPath())));
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
+			assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
+			assertThat(appender.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+				.contains("selected=" + nested, "currentDirectory=" + nested));
 
-				tree.setSelectionPath(new TreePath(fileNode.getPath()));
-				assertThat(tree.getState().getSelected()).isInstanceOf(File.class);
-				assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isInstanceOf(File.class);
+			assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 
-				tree.clearSelection();
-				assertThat(tree.getState().getSelected()).isNull();
-				assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
-			});
+			SwingUtilities.invokeAndWait(() -> tree.clearSelection());
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isNull();
+			assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 		}
 		finally {
 			Files.deleteIfExists(root.resolve("nested/Helper.java"));
@@ -466,6 +470,12 @@ class TreeFileTest {
 		finally {
 			Files.deleteIfExists(root);
 		}
+	}
+
+	private static void flushEdt() throws Exception {
+		// Selection listeners are dispatched through ThreadMaster; flush the EDT queue.
+		SwingUtilities.invokeAndWait(() -> {
+		});
 	}
 
 	private DefaultMutableTreeNode childNamed(DefaultMutableTreeNode parent, String name) {

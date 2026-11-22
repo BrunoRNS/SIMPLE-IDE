@@ -6,11 +6,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import javax.swing.Icon;
 import javax.swing.JPanel;
 import javax.swing.text.BadLocationException;
 
+import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.Position;
@@ -87,6 +89,9 @@ public class EditorTab extends JPanel {
 	private boolean isEdit;
 
 	private DocumentNode documentNode;
+
+	private Consumer<EditorTab> diagnosticsListener = tab -> {
+	};
 
 	/**
 	 * Creates a tab for a file and its LSP document.
@@ -269,7 +274,39 @@ public class EditorTab extends JPanel {
 	public void publishDiagnostics(PublishDiagnosticsParams params) {
 		if (lspSupport != null) {
 			lspSupport.publishDiagnostics(params);
+			diagnosticsListener.accept(this);
 		}
+	}
+
+	/**
+	 * Returns the diagnostics most recently published for this document.
+	 * @return the current diagnostics, never {@code null}
+	 */
+	public List<Diagnostic> getDiagnostics() {
+		return lspSupport == null ? List.of() : lspSupport.getDiagnostics();
+	}
+
+	/**
+	 * Registers a listener notified when diagnostics for this tab change.
+	 * @param listener listener invoked with this tab, or {@code null} to clear it
+	 */
+	public void setDiagnosticsListener(Consumer<EditorTab> listener) {
+		diagnosticsListener = listener == null ? tab -> {
+		} : listener;
+	}
+
+	/**
+	 * Applies the configurable editor behavior options.
+	 * @param tabSize number of spaces used for a tab
+	 * @param wordWrap whether long lines wrap
+	 * @param lineNumbers whether the line number gutter is shown
+	 * @param showWhitespace whether whitespace characters are painted
+	 */
+	public void applyEditorOptions(int tabSize, boolean wordWrap, boolean lineNumbers, boolean showWhitespace) {
+		editor.setTabSize(tabSize);
+		editor.setLineWrap(wordWrap);
+		scrollPane.setLineNumbersEnabled(lineNumbers);
+		editor.setWhitespaceVisible(showWhitespace);
 	}
 
 	/**

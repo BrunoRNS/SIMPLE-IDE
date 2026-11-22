@@ -3,6 +3,7 @@ package io.simpleide.ui.menubar;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Font;
 import java.awt.Insets;
 import java.awt.Window;
 import java.io.IOException;
@@ -10,7 +11,9 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.Objects;
 
 import javax.swing.JMenu;
 import javax.swing.BorderFactory;
@@ -31,9 +34,12 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import javax.swing.JPanel;
 import javax.swing.JTextPane;
+import javax.swing.plaf.FontUIResource;
 
+import org.fife.ui.rsyntaxtextarea.RSyntaxUtilities;
 import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rsyntaxtextarea.TokenTypes;
+import org.fife.ui.rtextarea.Gutter;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
@@ -69,6 +75,14 @@ public final class ThemeManager {
 	private static final ThemeManager INSTANCE = new ThemeManager();
 
 	private ThemeType currentTheme = ThemeType.DARK;
+
+	private String uiFontFamily = "SansSerif";
+
+	private int uiFontSize = 12;
+
+	private String editorFontFamily = "Monospaced";
+
+	private int editorFontSize = 13;
 
 	private final List<Editor> editors = new ArrayList<>();
 
@@ -159,6 +173,89 @@ public final class ThemeManager {
 	public void setTheme(ThemeType newTheme) {
 		this.currentTheme = newTheme;
 		applyTheme(newTheme);
+	}
+
+	/**
+	 * Stores the interface and editor fonts used by the next theme application.
+	 * @param uiFontFamily interface font family
+	 * @param uiFontSize interface font size in points
+	 * @param editorFontFamily editor font family
+	 * @param editorFontSize editor font size in points
+	 * @return {@code true} when at least one font value changed
+	 */
+	public boolean setFonts(String uiFontFamily, int uiFontSize, String editorFontFamily, int editorFontSize) {
+		String normalizedUiFamily = normalizeFamily(uiFontFamily, "SansSerif");
+		String normalizedEditorFamily = normalizeFamily(editorFontFamily, "Monospaced");
+		int normalizedUiSize = Math.max(8, Math.min(48, uiFontSize));
+		int normalizedEditorSize = Math.max(8, Math.min(72, editorFontSize));
+		boolean changed = !Objects.equals(this.uiFontFamily, normalizedUiFamily) || this.uiFontSize != normalizedUiSize
+				|| !Objects.equals(this.editorFontFamily, normalizedEditorFamily)
+				|| this.editorFontSize != normalizedEditorSize;
+		this.uiFontFamily = normalizedUiFamily;
+		this.uiFontSize = normalizedUiSize;
+		this.editorFontFamily = normalizedEditorFamily;
+		this.editorFontSize = normalizedEditorSize;
+		return changed;
+	}
+
+	/**
+	 * Returns the interface font family.
+	 * @return the configured interface font family
+	 */
+	public String getUiFontFamily() {
+		return uiFontFamily;
+	}
+
+	/**
+	 * Returns the interface font size.
+	 * @return the configured interface font size in points
+	 */
+	public int getUiFontSize() {
+		return uiFontSize;
+	}
+
+	/**
+	 * Returns the editor font family.
+	 * @return the configured editor font family
+	 */
+	public String getEditorFontFamily() {
+		return editorFontFamily;
+	}
+
+	/**
+	 * Returns the editor font size.
+	 * @return the configured editor font size in points
+	 */
+	public int getEditorFontSize() {
+		return editorFontSize;
+	}
+
+	/**
+	 * Reapplies the configured fonts to every window and registered editor.
+	 */
+	public void refreshFonts() {
+		ThreadMaster.getInstance().executeOnEDT(() -> {
+			applyFontDefaults(UIManager.getLookAndFeelDefaults());
+			updateAllWindows();
+			EditorManager.refreshFileIcons();
+			for (Editor registeredEditor : editors) {
+				if (registeredEditor != null) {
+					applyEditorFont(registeredEditor);
+				}
+			}
+		});
+	}
+
+	private static String normalizeFamily(String family, String fallback) {
+		return family == null || family.isBlank() ? fallback : family.trim();
+	}
+
+	private Font uiFont() {
+		return new Font(uiFontFamily, Font.PLAIN, uiFontSize);
+	}
+
+	private Font editorFont() {
+		return new Font(editorFontFamily, Font.PLAIN, editorFontSize);
 	}
 
 	private void applyTheme(ThemeType theme) {
@@ -351,6 +448,7 @@ public final class ThemeManager {
 				editor.setCaretColor(palette.foreground());
 				editor.setBackground(palette.background());
 				editor.setForeground(palette.foreground());
+				applyEditorFont(editor);
 			}
 		}
 		catch (IOException exception) {
@@ -855,6 +953,38 @@ public final class ThemeManager {
 		put(d, "Log.infoForeground", p.foreground());
 		put(d, "Log.warnForeground", syntax.string());
 		put(d, "Log.errorForeground", syntax.error());
+
+		applyFontDefaults(d);
+	}
+
+	private void applyFontDefaults(UIDefaults defaults) {
+		if (defaults == null) {
+			defaults = UIManager.getDefaults();
+		}
+		Font uiFont = uiFont();
+		List<Object> keys = new ArrayList<>();
+		for (Enumeration<Object> enumeration = defaults.keys(); enumeration.hasMoreElements();) {
+			keys.add(enumeration.nextElement());
+		}
+		for (Object key : keys) {
+			Object value = defaults.get(key);
+			if (value instanceof FontUIResource) {
+				defaults.put(key, new FontUIResource(uiFont));
+				UIManager.put(key, new FontUIResource(uiFont));
+			}
+		}
+		FontUIResource editorFont = new FontUIResource(editorFont());
+		put(defaults, "TextArea.font", editorFont);
+		put(defaults, "RSyntaxTextArea.font", editorFont);
+	}
+
+	private void applyEditorFont(Editor editor) {
+		Font font = editorFont();
+		editor.setFont(font);
+		Gutter gutter = RSyntaxUtilities.getGutter(editor);
+		if (gutter != null) {
+			gutter.setLineNumberFont(font);
+		}
 	}
 
 	private void putTextLike(UIDefaults d, String prefix, Color background, Color foreground, Color selectionBackground,

@@ -18,6 +18,8 @@ import javax.swing.UIManager;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.jediterm.terminal.TtyConnector;
 
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+
 /**
  * Panel that hosts the tabbed terminal views and their add and close buttons.
  *
@@ -153,8 +155,8 @@ public final class TerminalPanel extends JPanel {
 	}
 
 	void setActions(Runnable addAction, Runnable closeAction) {
-		addButton.addActionListener(event -> addAction.run());
-		closeButton.addActionListener(event -> closeAction.run());
+		addButton.addActionListener(new ActionNode(event -> addAction.run()));
+		closeButton.addActionListener(new ActionNode(event -> closeAction.run()));
 	}
 
 	void setActionsEnabled(boolean canAdd, boolean canClose, boolean platformSupported) {

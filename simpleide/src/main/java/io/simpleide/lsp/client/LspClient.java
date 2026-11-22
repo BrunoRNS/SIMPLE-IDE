@@ -1,6 +1,7 @@
 package io.simpleide.lsp.client;
 
 import io.simpleide.SimpleIDEVersion;
+import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.BufferedReader;
@@ -16,11 +17,9 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import org.eclipse.lsp4j.ClientCapabilities;
@@ -116,7 +115,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 	private final RunnableNode startupNode;
 
-	private volatile Thread errorReaderThread;
+	private volatile ManagedThreadPool errorReaderPool;
 
 	private volatile ExecutorService lspExecutor;
 
@@ -572,27 +571,33 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	}
 
 	private void startErrorStreamReader(Process serverProcess) {
-		Thread errorReader = new Thread(() -> {
-			try (BufferedReader reader = new BufferedReader(
-					new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
-				String line;
-				while ((line = reader.readLine()) != null) {
-					recentErrorLines.addLast(line);
-					while (recentErrorLines.size() > MAX_RECENT_ERROR_LINES) {
-						recentErrorLines.removeFirst();
+		ManagedThreadPool pool = ThreadMaster.getInstance().createThreadPool("lsp-stderr-" + serverProcess.pid(), 1);
+		errorReaderPool = pool;
+		try {
+			pool.execute(() -> {
+				try (BufferedReader reader = new BufferedReader(
+						new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
+					String line;
+					while ((line = reader.readLine()) != null) {
+						recentErrorLines.addLast(line);
+						while (recentErrorLines.size() > MAX_RECENT_ERROR_LINES) {
+							recentErrorLines.removeFirst();
+						}
+						LOGGER.debug("[LSP server] {}", line);
 					}
-					LOGGER.debug("[LSP server] {}", line);
 				}
-			}
-			catch (IOException error) {
-				if (!closed) {
-					LOGGER.warn("Unable to read language server output.", error);
+				catch (IOException error) {
+					if (!closed) {
+						LOGGER.warn("Unable to read language server output.", error);
+					}
 				}
-			}
-		}, "simpleide-lsp-stderr-" + serverProcess.pid());
-		errorReader.setDaemon(true);
-		errorReaderThread = errorReader;
-		errorReader.start();
+			});
+		}
+		catch (RuntimeException error) {
+			errorReaderPool = null;
+			pool.close();
+			throw error;
+		}
 	}
 
 	private String recentErrorOutput() {
@@ -600,13 +605,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	}
 
 	private ExecutorService createLspExecutor() {
-		AtomicInteger threadNumber = new AtomicInteger();
-		String threadPrefix = "simpleide-lsp-" + runtimeNode.getId() + "-";
-		return Executors.newFixedThreadPool(2, task -> {
-			Thread thread = new Thread(task, threadPrefix + threadNumber.incrementAndGet());
-			thread.setDaemon(true);
-			return thread;
-		});
+		return ThreadMaster.getInstance().createExecutorService(runtimeNode);
 	}
 
 	/**
@@ -809,23 +808,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 			if (timeoutTask != null) {
 				timeoutTask.cancel(false);
 			}
-			boolean wasInterrupted = Thread.interrupted();
-			Thread errorReader = errorReaderThread;
-			errorReaderThread = null;
-			if (errorReader != null && errorReader != Thread.currentThread()) {
-				errorReader.interrupt();
-				try {
-					errorReader.join(250);
-				}
-				catch (InterruptedException error) {
-					wasInterrupted = true;
-				}
-				if (errorReader.isAlive()) {
-					LOGGER.warn("Language server stderr reader did not stop after process shutdown.");
-				}
-			}
-			if (wasInterrupted) {
-				Thread.currentThread().interrupt();
+			ManagedThreadPool stderrPool = errorReaderPool;
+			errorReaderPool = null;
+			if (stderrPool != null) {
+				stderrPool.close();
 			}
 			try {
 				ThreadMaster.getInstance().removeNodeCascade(runtimeNode);

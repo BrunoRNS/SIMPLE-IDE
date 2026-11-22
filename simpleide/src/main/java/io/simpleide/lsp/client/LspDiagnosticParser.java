@@ -49,6 +49,14 @@ public final class LspDiagnosticParser extends AbstractParser {
 	}
 
 	/**
+	 * Returns the diagnostics most recently shown in the editor.
+	 * @return the current diagnostics
+	 */
+	public List<Diagnostic> getDiagnostics() {
+		return diagnostics;
+	}
+
+	/**
 	 * Converts the stored diagnostics into parser notices for one parse pass.
 	 * @param document document being parsed
 	 * @param style syntax style requested by the editor

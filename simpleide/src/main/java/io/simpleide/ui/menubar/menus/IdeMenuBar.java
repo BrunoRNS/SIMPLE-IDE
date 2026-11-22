@@ -1,5 +1,6 @@
 package io.simpleide.ui.menubar.menus;
 
+import io.simpleide.settings.IdeSettings;
 import javax.swing.JMenuBar;
 
 /**
@@ -20,16 +21,27 @@ public class IdeMenuBar extends JMenuBar {
 	 * Creates the menu bar and its menus.
 	 * @param createFile action that creates a new file
 	 * @param createFolder action that creates a new folder
-	 * @param setDirectory action that selects the working directory
+	 * @param openFolder action that opens a folder
+	 * @param closeFolder action that closes the open folder
 	 * @param saveFile action that saves the current file
 	 */
-	public IdeMenuBar(Runnable createFile, Runnable createFolder, Runnable setDirectory, Runnable saveFile) {
-		createItems(createFile, createFolder, setDirectory, saveFile);
+	public IdeMenuBar(Runnable createFile, Runnable createFolder, Runnable openFolder, Runnable closeFolder,
+			Runnable saveFile) {
+		createItems(createFile, createFolder, openFolder, closeFolder, saveFile);
 		addMenus();
 	}
 
-	private void createItems(Runnable createFile, Runnable createFolder, Runnable setDirectory, Runnable saveFile) {
-		fileMenu = new FileMenu(createFile, createFolder, setDirectory, saveFile);
+	/**
+	 * Refreshes the shortcut labels shown in the menus.
+	 * @param settings settings containing the configured shortcuts
+	 */
+	public void applyKeybindings(IdeSettings settings) {
+		fileMenu.applySettings(settings);
+	}
+
+	private void createItems(Runnable createFile, Runnable createFolder, Runnable openFolder, Runnable closeFolder,
+			Runnable saveFile) {
+		fileMenu = new FileMenu(createFile, createFolder, openFolder, closeFolder, saveFile);
 		settingsMenu = new SettingsMenu();
 		helpMenu = new HelpMenu();
 	}

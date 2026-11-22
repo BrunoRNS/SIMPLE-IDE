@@ -133,6 +133,16 @@ public final class MaterialIcons {
 		return INSTANCE.forDirectoryInternal(path, expanded);
 	}
 
+	/**
+	 * Returns a bundled Material icon by its definition name.
+	 * @param iconName icon definition name, such as {@code search}
+	 * @param size icon size in pixels
+	 * @return the requested icon, or the default file icon when the name is unknown
+	 */
+	public static Icon forName(String iconName, int size) {
+		return INSTANCE.load(iconName, Math.max(1, size), isLightTheme(), INSTANCE.defaultFileIcon);
+	}
+
 	private Icon forDirectoryInternal(Path path, boolean expanded) {
 		String name = path == null || path.getFileName() == null ? "" : path.getFileName().toString();
 		boolean light = isLightTheme();

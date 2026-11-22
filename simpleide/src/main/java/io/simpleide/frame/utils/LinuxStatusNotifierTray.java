@@ -9,8 +9,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.swing.SwingUtilities;
-
 import org.freedesktop.dbus.Struct;
 import org.freedesktop.dbus.annotations.DBusBoundProperty;
 import org.freedesktop.dbus.annotations.DBusInterfaceName;
@@ -21,6 +19,8 @@ import org.freedesktop.dbus.connections.impl.DBusConnectionBuilder;
 import org.freedesktop.dbus.exceptions.DBusException;
 import org.freedesktop.dbus.interfaces.DBus;
 import org.freedesktop.dbus.interfaces.DBusInterface;
+
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Linux tray registration for desktops that expose the StatusNotifierItem protocol.
@@ -400,7 +400,7 @@ public final class LinuxStatusNotifierTray implements AutoCloseable {
 		}
 
 		private void invokeActivate() {
-			SwingUtilities.invokeLater(activate);
+			ThreadMaster.getInstance().executeOnEDT(activate);
 		}
 
 	}

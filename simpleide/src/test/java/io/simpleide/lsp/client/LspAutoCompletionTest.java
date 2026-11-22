@@ -20,12 +20,15 @@ class LspAutoCompletionTest {
 	@SuppressWarnings("unchecked")
 	@Test
 	void completionListUsesTheEditorThemeColors() throws Exception {
+		Color background = new Color(0x282A36);
+		Color foreground = new Color(0xF8F8F2);
+		Color selectionBackground = new Color(0x44475A);
+		Color selectionForeground = new Color(0xF8F8F2);
+		Color updatedBackground = new Color(0xFBF1C7);
+		LspAutoCompletion[] completionHolder = new LspAutoCompletion[1];
+
 		SwingUtilities.invokeAndWait(() -> {
 			Editor editor = new Editor();
-			Color background = new Color(0x282A36);
-			Color foreground = new Color(0xF8F8F2);
-			Color selectionBackground = new Color(0x44475A);
-			Color selectionForeground = new Color(0xF8F8F2);
 			editor.setBackground(background);
 			editor.setForeground(foreground);
 			editor.setSelectionColor(selectionBackground);
@@ -35,6 +38,7 @@ class LspAutoCompletionTest {
 			provider.setItems(java.util.List.of(new CompletionItem("println")));
 			var completion = provider.getCompletionByInputText("println").get(0);
 			LspAutoCompletion autoCompletion = new LspAutoCompletion(editor, provider);
+			completionHolder[0] = autoCompletion;
 			JList<Object> list = new JList<>();
 
 			Component row = autoCompletion.getListCellRenderer()
@@ -47,10 +51,14 @@ class LspAutoCompletionTest {
 			assertThat(row.getBackground()).isEqualTo(selectionBackground);
 			assertThat(row.getForeground()).isEqualTo(selectionForeground);
 
-			Color updatedBackground = new Color(0xFBF1C7);
 			editor.setBackground(updatedBackground);
-			assertThat(autoCompletion.getDescWindowColor()).isEqualTo(updatedBackground);
 		});
+
+		// The theme listener is dispatched through ThreadMaster; flush the EDT queue.
+		SwingUtilities.invokeAndWait(() -> {
+		});
+
+		assertThat(completionHolder[0].getDescWindowColor()).isEqualTo(updatedBackground);
 	}
 
 }

@@ -239,6 +239,7 @@ class ThemeManagerTest {
 			}, () -> {
 			}, () -> {
 			}, () -> {
+			}, () -> {
 			});
 			JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, tree, terminal);
 			JPanel welcome = EditorWelcomeScreen.create(() -> {
