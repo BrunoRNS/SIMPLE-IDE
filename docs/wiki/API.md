@@ -33,7 +33,10 @@ not cover a use case.
 | Facade | Responsibility | Starts threads? | Starts Swing? |
 | --- | --- | --- | --- |
 | `io.simpleide.api.Editors` | Creates RSyntaxTextArea-based editors | No | Creates Swing components |
-| `io.simpleide.api.SimpleEditor` | Full editor tab with local support and LSP | Only when LSP starts | Creates Swing components |
+| `io.simpleide.api.SimpleEditor` | Text, paged large-text, image and binary editor tab | Only when LSP starts | Creates Swing components |
+| `io.simpleide.api.ImageViewer` | ImageIO image viewer with zoom and scrolling | No | Creates Swing components |
+| `io.simpleide.api.LargeTextViewer` | Read-only paged viewer for large UTF-8 files | Page reads on demand | Creates Swing components |
+| `io.simpleide.api.HexEditor` | Chunked binary/hex editor with visible ASCII rows | No | Creates Swing components |
 | `io.simpleide.api.Threads` | Manages EDT and background tasks | Yes | No application frame |
 | `io.simpleide.api.Languages` | Language discovery and execution | Yes | No |
 | `io.simpleide.api.Terminals` | BusyBox terminal panel and controller | Yes | Creates Swing components |

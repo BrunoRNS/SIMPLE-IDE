@@ -8,6 +8,8 @@ or a jpackage package, with the license that applies.
 
 | Component | License | Upstream |
 | --- | --- | --- |
+| TwelveMonkeys ImageIO plugins | BSD 3-Clause | <https://github.com/haraldk/TwelveMonkeys> |
+| Apache Batik modules | Apache License 2.0 | <https://xmlgraphics.apache.org/batik/> |
 | rsyntaxtextarea, languagesupport, autocomplete (com.fifesoft) | BSD 3-Clause | <https://github.com/bobbylight/RSyntaxTextArea> |
 | flatlaf, flatlaf-extras (com.formdev) | Apache License 2.0 | <https://github.com/JFormDesigner/FlatLaf> |
 | jackson-databind (com.fasterxml.jackson.core) | Apache License 2.0 | <https://github.com/FasterXML/jackson-databind> |

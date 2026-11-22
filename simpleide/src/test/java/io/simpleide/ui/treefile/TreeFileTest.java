@@ -1,8 +1,10 @@
 package io.simpleide.ui.treefile;
 
 import java.io.IOException;
+import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -11,6 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.Icon;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
+import javax.imageio.ImageIO;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -25,6 +28,7 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.api.LargeTextViewer;
 
 /**
  * Tests {@link io.simpleide.ui.treefile.TreeFile}.
@@ -55,10 +59,14 @@ class TreeFileTest {
 				.orElseThrow();
 
 			assertThat(file.getTypeFile()).isEqualTo(TypeFile.JAVA);
-			assertThat(file.getCode()).hasToString("class Main {}");
+			assertThat(file.isContentLoaded()).isFalse();
+			assertThat(file.getCode()).hasToString("");
 			assertThat(nestedDirectory.areChildrenLoaded()).isFalse();
 			assertThat(nestedDirectory.getChildren()).isEmpty();
 
+			file.loadContent();
+			assertThat(file.isContentLoaded()).isTrue();
+			assertThat(file.getCode()).hasToString("class Main {}");
 			nestedDirectory.loadChildren();
 
 			assertThat(nestedDirectory.getChildren()).extracting(TreeFile::getName).containsExactly("Helper.java");
@@ -69,6 +77,52 @@ class TreeFileTest {
 			Files.deleteIfExists(root.resolve("src/Main.java"));
 			Files.deleteIfExists(root.resolve("src"));
 			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void largeTextIsClassifiedWithoutKeepingTheWholeFileInMemory() throws Exception {
+		Path path = Files.createTempFile("simpleide-large-text-", ".txt");
+		try {
+			String block = "This is a large text file.\n".repeat(8192);
+			try (var writer = Files.newBufferedWriter(path)) {
+				for (int index = 0; index < 12; index++) {
+					writer.write(block);
+				}
+			}
+			File file = File.lazy(path);
+			file.loadContent();
+
+			assertThat(file.getContentKind()).isEqualTo(FileContentKind.TEXT);
+			assertThat(file.isLargeContent()).isTrue();
+			assertThat(file.getCode()).hasToString("");
+			assertThat(file.getFileSize()).isGreaterThan(2L * 1024 * 1024);
+			try (LargeTextViewer viewer = new LargeTextViewer(path, file.getFileSize())) {
+				assertThat(viewer.pageCapacityBytes()).isEqualTo(256 * 1024);
+			}
+		}
+		finally {
+			Files.deleteIfExists(path);
+		}
+	}
+
+	@Test
+	void largeImagesAreDecodedAsBoundedPreviews() throws Exception {
+		Path path = Files.createTempFile("simpleide-large-image-", ".png");
+		try {
+			BufferedImage source = new BufferedImage(1200, 900, BufferedImage.TYPE_INT_RGB);
+			ImageIO.write(source, "png", path.toFile());
+			File file = File.lazy(path);
+			file.loadContent();
+
+			assertThat(file.getContentKind()).isEqualTo(FileContentKind.IMAGE);
+			assertThat(file.getImageWidth()).isEqualTo(1200);
+			assertThat(file.getImageHeight()).isEqualTo(900);
+			assertThat((long) file.getImageContent().getWidth() * file.getImageContent().getHeight())
+				.isLessThanOrEqualTo(1_000_000);
+		}
+		finally {
+			Files.deleteIfExists(path);
 		}
 	}
 
@@ -127,6 +181,7 @@ class TreeFileTest {
 			CountDownLatch childrenLoaded = new CountDownLatch(1);
 			AtomicBoolean modelUpdatedOnEdt = new AtomicBoolean();
 			AtomicReference<Tree> treeReference = new AtomicReference<>();
+			AtomicReference<Directory> nestedDirectoryReference = new AtomicReference<>();
 			ThreadMaster.getInstance().initialize();
 
 			SwingUtilities.invokeAndWait(() -> {
@@ -147,13 +202,17 @@ class TreeFileTest {
 
 					@Override
 					public void treeStructureChanged(TreeModelEvent event) {
-						modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
-						childrenLoaded.countDown();
+						Directory nestedDirectory = nestedDirectoryReference.get();
+						if (nestedDirectory != null && nestedDirectory.areChildrenLoaded()) {
+							modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
+							childrenLoaded.countDown();
+						}
 					}
 				});
 				DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
 				DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
 				Directory nestedDirectory = (Directory) nestedNode.getUserObject();
+				nestedDirectoryReference.set(nestedDirectory);
 
 				assertThat(nestedDirectory.areChildrenLoaded()).isFalse();
 				assertThat(nestedNode.getChildCount()).isEqualTo(1);
@@ -184,6 +243,76 @@ class TreeFileTest {
 			Files.deleteIfExists(root.resolve("nested/deeper"));
 			Files.deleteIfExists(root.resolve("nested/Nested.java"));
 			Files.deleteIfExists(root.resolve("nested"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void loadingDirectoryShowsStatusAndKeepsTheEdtResponsive() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-loading-");
+		Path nested = Files.createDirectory(root.resolve("nested"));
+		CountDownLatch loadStarted = new CountDownLatch(1);
+		CountDownLatch allowLoad = new CountDownLatch(1);
+		CountDownLatch childrenLoaded = new CountDownLatch(1);
+		AtomicReference<Tree> treeReference = new AtomicReference<>();
+		try {
+			Files.writeString(nested.resolve("Nested.java"), "class Nested {}");
+			Directory rootDirectory = new Directory(root);
+			BlockingDirectory blocked = new BlockingDirectory(nested, loadStarted, allowLoad);
+			rootDirectory.replaceChildren(List.of(blocked));
+			ThreadMaster.getInstance().initialize();
+
+			SwingUtilities.invokeAndWait(() -> {
+				Tree tree = new Tree(rootDirectory);
+				treeReference.set(tree);
+				tree.getModel().addTreeModelListener(new TreeModelListener() {
+					@Override
+					public void treeNodesChanged(TreeModelEvent event) {
+					}
+
+					@Override
+					public void treeNodesInserted(TreeModelEvent event) {
+					}
+
+					@Override
+					public void treeNodesRemoved(TreeModelEvent event) {
+					}
+
+					@Override
+					public void treeStructureChanged(TreeModelEvent event) {
+						if (blocked.areChildrenLoaded()) {
+							childrenLoaded.countDown();
+						}
+					}
+				});
+				DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+				DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+				tree.expandPath(new TreePath(nestedNode.getPath()));
+
+				assertThat(blocked.isLoading()).isTrue();
+				assertThat(((DefaultMutableTreeNode) nestedNode.getChildAt(0)).getUserObject()).isEqualTo("Loading...");
+			});
+
+			assertThat(loadStarted.await(10, TimeUnit.SECONDS)).isTrue();
+			CountDownLatch edtResponsive = new CountDownLatch(1);
+			SwingUtilities.invokeLater(edtResponsive::countDown);
+			assertThat(edtResponsive.await(2, TimeUnit.SECONDS)).isTrue();
+
+			allowLoad.countDown();
+			assertThat(childrenLoaded.await(10, TimeUnit.SECONDS)).isTrue();
+			SwingUtilities.invokeAndWait(() -> {
+				assertThat(blocked.isLoading()).isFalse();
+				assertThat(blocked.areChildrenLoaded()).isTrue();
+				Tree tree = treeReference.get();
+				DefaultMutableTreeNode nestedNode = childNamed((DefaultMutableTreeNode) tree.getModel().getRoot(),
+						"nested");
+				assertThat(nestedNode.getChildCount()).isEqualTo(1);
+			});
+		}
+		finally {
+			allowLoad.countDown();
+			Files.deleteIfExists(nested.resolve("Nested.java"));
+			Files.deleteIfExists(nested);
 			Files.deleteIfExists(root);
 		}
 	}
@@ -385,6 +514,9 @@ class TreeFileTest {
 
 			assertThat(directory.getChildren()).hasSize(1);
 			File binary = (File) directory.getChildren().get(0);
+			assertThat(binary.isContentLoaded()).isFalse();
+			binary.loadContent();
+			assertThat(binary.isContentLoaded()).isTrue();
 			assertThat(binary.getTypeFile()).isEqualTo(TypeFile.BINARY);
 			assertThat(binary.getCode()).hasToString("");
 		}
@@ -476,6 +608,35 @@ class TreeFileTest {
 			}
 		}
 		throw new AssertionError("Tree node not found: " + name);
+	}
+
+	private static final class BlockingDirectory extends Directory {
+
+		private final CountDownLatch started;
+
+		private final CountDownLatch release;
+
+		private BlockingDirectory(Path path, CountDownLatch started, CountDownLatch release) throws IOException {
+			super(path, path.getFileName().toString(), false);
+			this.started = started;
+			this.release = release;
+		}
+
+		@Override
+		List<TreeFile> readChildrenFromDisk() throws IOException {
+			started.countDown();
+			try {
+				if (!release.await(10, TimeUnit.SECONDS)) {
+					throw new IOException("Timed out waiting to release directory loading.");
+				}
+			}
+			catch (InterruptedException error) {
+				Thread.currentThread().interrupt();
+				throw new IOException("Directory loading was interrupted.", error);
+			}
+			return super.readChildrenFromDisk();
+		}
+
 	}
 
 }

@@ -27,6 +27,61 @@ frame.setVisible(true);
 The component returned by `component()` is the `EditorTab`. It can be added to a
 `JTabbedPane`, `JSplitPane`, `JPanel` or any other Swing container.
 
+`SimpleEditor.open(path)` uses the same content detection as the desktop IDE:
+UTF-8 text up to 2 MiB uses the regular editor, larger UTF-8 files use the
+read-only, paginated `LargeTextViewer`, ImageIO-readable files use `ImageViewer`,
+and other files use `HexEditor`. For files displayed in another viewer,
+`textArea()` throws `IllegalStateException`; use `imageViewer()`,
+`largeTextViewer()`, or `hexEditor()` as applicable. Language-server and local
+language support methods apply only to regular editable text files.
+
+## Image, large-text, and binary viewers
+
+The public `io.simpleide.api.ImageViewer`, `LargeTextViewer`, and `HexEditor`
+components can also be created directly:
+
+```java
+import io.simpleide.api.HexEditor;
+import io.simpleide.api.ImageViewer;
+import io.simpleide.api.LargeTextViewer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+ImageViewer image = new ImageViewer(Path.of("assets/logo.webp"));
+image.setZoomPercent(150);
+
+Path binaryPath = Path.of("assets/data.bin");
+HexEditor binary = new HexEditor(binaryPath);
+binary.setByte(0, 0x7f);
+if (binary.isModified()) {
+  binary.save(binaryPath);
+}
+
+Path largeTextPath = Path.of("logs/large.log");
+LargeTextViewer largeText = new LargeTextViewer(largeTextPath, Files.size(largeTextPath));
+```
+
+`ImageViewer` uses the JDK ImageIO readers and the TwelveMonkeys ImageIO plugins
+included in the application, as well as Batik for supported vector formats. It
+provides a zoom control and horizontal/vertical scrolling. Decoded images are
+subsampled to at most 1 megapixel while preserving the original dimensions, so
+zooming a very large image enlarges its bounded preview rather than retaining
+the full-resolution raster.
+
+`LargeTextViewer` displays large UTF-8 files in 256 KiB pages. It reads pages on
+demand and is intentionally read-only; `largeTextViewer()` returns it from
+`SimpleEditor`. `HexEditor(Path)` reads through a 64 KiB chunk cache (at most
+four chunks) and the ASCII column renders only visible table rows; non-printable
+bytes appear as `.`. Edits are staged in a temporary disk overlay and written
+when `save(path)` is called. `byteCount()`, `getByte(offset)`,
+`setByte(offset, value)`, `isModified()` and `save(path)` support large files.
+`bytes()` is available only for files up to 16 MiB and otherwise throws
+`IllegalStateException`. Copy and Paste are limited to 1 MiB of clipboard text.
+`HexEditor` implements `AutoCloseable`; call `close()` when discarding a
+file-backed instance to release its file channel and temporary edit overlay.
+Files detected as neither readable text nor an ImageIO-supported image open in
+the hex editor.
+
 ## Methods
 
 | Method | Purpose |
@@ -35,7 +90,10 @@ The component returned by `component()` is the `EditorTab`. It can be added to a
 | `open(Path, Consumer<LspStatus>)` | Open a file and observe LSP lifecycle |
 | `component()` | Return the embeddable `JComponent` |
 | `tab()` | Return the underlying `EditorTab` |
-| `textArea()` | Return the `Editor` (an `RSyntaxTextArea`) |
+| `textArea()` | Return the `Editor`; throws when a specialized viewer is active |
+| `imageViewer()` | Return the image viewer for image files, otherwise `null` |
+| `largeTextViewer()` | Return the paginated read-only viewer for large text, otherwise `null` |
+| `hexEditor()` | Return the hex editor for binary files, otherwise `null` |
 | `document()` | Return the LSP `Document` |
 | `path()` | Return the normalized source path |
 | `enableLocalLanguageSupport()` | Install local completion when no LSP is connected |
@@ -107,9 +165,10 @@ if (editor.isModified()) {
 }
 ```
 
-`save()` writes `textArea().getText()` through the tab's `File` model. It does
-not prompt and does not create parent directories. Handle `IOException` in the
-caller and show an error dialog if needed.
+`save()` writes editable text through the tab's `File` model. It does not prompt
+and does not create parent directories. Large text is read-only and `save()`
+reports that limitation with `IOException`. Handle `IOException` in the caller
+and show an error dialog if needed.
 
 `isModified()` compares the current text with the last saved text. It becomes
 `true` on user edits and `false` after a successful save.
