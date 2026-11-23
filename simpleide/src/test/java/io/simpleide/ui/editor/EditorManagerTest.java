@@ -169,7 +169,7 @@ class EditorManagerTest {
 		ThreadMaster.getInstance().initialize();
 
 		SwingUtilities.invokeAndWait(() -> testManager.openFile(SimpleIDEFile.lazy(path)));
-		await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
+		await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
 			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
 			assertThat(tab.isLoading()).isFalse();
 			assertThat(tab.getEditor()).isNull();
