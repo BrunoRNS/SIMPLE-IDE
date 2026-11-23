@@ -114,10 +114,10 @@ filesystem when running from a source checkout. The terminal panel uses FlatLaf
 SVG icons and adjusts their color for contrast. If you reuse the terminal panel
 with a custom theme, verify the icon contrast with your background colors.
 
-The left activity bar in `io.simpleide.ui.sidebar` contains only Explorer,
-Search and Settings. Its SVGs are organized by theme, state and type under
+The left activity bar in `io.simpleide.ui.sidebar` contains Explorer,
+Search, Source Control and Settings. Its SVGs are organized by theme, state and type under
 `io/simpleide/ui/sidebar/icons/<theme>/<state>/<type>.svg`; each of the six
-themes has idle, hover and selected assets for all three icons.
+themes has idle, hover and selected assets for all four icons.
 `SidebarIconResources` resolves this mapping through `ResourceUtil`. The
 diagnostics Debug Console is a separate `io.simpleide.ui.debug` component hosted
 in the bottom output pane, with severity filters and navigation to a diagnostic's

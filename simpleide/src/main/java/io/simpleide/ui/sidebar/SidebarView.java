@@ -19,6 +19,11 @@ public enum SidebarView {
 	SEARCH("Search"),
 
 	/**
+	 * Source Control status and commit graph.
+	 */
+	GIT("Source Control"),
+
+	/**
 	 * Persistent application settings.
 	 */
 	SETTINGS("Settings");
