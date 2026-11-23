@@ -2,6 +2,7 @@ package io.simpleide.ui.sidebar;
 
 import java.awt.BorderLayout;
 import java.awt.Component;
+import java.awt.ComponentOrientation;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GraphicsEnvironment;
@@ -93,9 +94,10 @@ public final class SettingsPanel extends JPanel {
 		List<JSpinner> lspinners = List.of(uiFontSizeSpinner, editorFontSizeSpinner, tabSizeSpinner);
 
 		for (JSpinner spinner : lspinners) {
+			spinner.setComponentOrientation(ComponentOrientation.RIGHT_TO_LEFT);
 			JComponent editor = spinner.getEditor();
-			if (editor instanceof JSpinner.DefaultEditor) {
-				((JSpinner.DefaultEditor) editor).getTextField().setHorizontalAlignment(JTextField.LEFT);
+			if (editor instanceof JSpinner.DefaultEditor defaultEditor) {
+				defaultEditor.getTextField().setHorizontalAlignment(JTextField.LEFT);
 			}
 		}
 

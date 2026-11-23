@@ -1,6 +1,7 @@
 package io.simpleide.ui.sidebar;
 
 import java.awt.CardLayout;
+import java.awt.Component;
 import java.awt.Dimension;
 import java.util.EnumMap;
 import java.util.Map;
@@ -41,9 +42,9 @@ public final class SidebarPanel extends JPanel {
 	 * @param view view identifier
 	 * @param component component shown for the view
 	 */
-	public void addView(SidebarView view, java.awt.Component component) {
+	public void addView(SidebarView view, Component component) {
 		SidebarView key = Objects.requireNonNull(view, "view");
-		java.awt.Component value = Objects.requireNonNull(component, "component");
+		Component value = Objects.requireNonNull(component, "component");
 		views.put(key, value);
 		add(value, key.name());
 	}

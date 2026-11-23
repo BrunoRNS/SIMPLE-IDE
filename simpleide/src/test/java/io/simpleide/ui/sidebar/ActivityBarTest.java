@@ -14,20 +14,25 @@ import java.util.Map;
 
 import javax.swing.Icon;
 import javax.swing.JButton;
+import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
-import javax.swing.UIManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.formdev.flatlaf.extras.FlatSVGIcon;
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
-import io.simpleide.ui.icon.ThemedSvgIcon;
 import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.ui.sidebar.icons.SidebarIconResources;
+import io.simpleide.ui.sidebar.icons.SidebarIconResources.State;
+import io.simpleide.ui.sidebar.icons.SidebarIconResources.Type;
 
 /**
  * Tests for {@link ActivityBar}.
@@ -37,7 +42,7 @@ import io.simpleide.ui.menubar.ThemeManager;
 class ActivityBarTest {
 
 	@Test
-	void usesTheNineBySixteenIcons() throws Exception {
+	void usesTheMappedSquareSvgIcons() throws Exception {
 		List<Icon> icons = new ArrayList<>();
 		SwingUtilities.invokeAndWait(() -> {
 			for (JButton button : buttons(new ActivityBar())) {
@@ -47,8 +52,8 @@ class ActivityBarTest {
 
 		assertEquals(3, icons.size());
 		for (Icon icon : icons) {
-			assertSame(ThemedSvgIcon.class, icon.getClass());
-			assertEquals(icon.getIconHeight() * 9, icon.getIconWidth() * 16, "9:16 ratio");
+			assertEquals(24, icon.getIconHeight());
+			assertEquals(icon.getIconHeight(), icon.getIconWidth(), "square icon");
 		}
 	}
 
@@ -78,7 +83,7 @@ class ActivityBarTest {
 		assertSame(SidebarView.SEARCH, selected[0]);
 		assertEquals(before[0], after[0]);
 		assertEquals(insets[0], insets[1]);
-		assertSame(icon[0], icon[1]);
+		assertNotSame(icon[0], icon[1]);
 	}
 
 	@Test
@@ -98,26 +103,29 @@ class ActivityBarTest {
 	}
 
 	@Test
-	void hoverAndSelectionTintOnlyTheActivityIcon() throws Exception {
-		boolean[] colorsChanged = new boolean[2];
+	void hoverAndSelectionUseDifferentStaticActivityArtwork() throws Exception {
+		boolean[] statesDiffer = new boolean[2];
 		SwingUtilities.invokeAndWait(() -> {
 			ActivityBar bar = new ActivityBar();
 			JButton explorer = buttons(bar).get(0);
-			Icon icon = explorer.getIcon();
 
 			bar.setSelected(SidebarView.SEARCH);
-			int[] idle = paintIcon(icon, explorer);
+			Icon idleIcon = explorer.getIcon();
+			int[] idle = paintIcon(idleIcon, explorer);
 			explorer.getModel().setRollover(true);
-			int[] hovered = paintIcon(icon, explorer);
+			Icon hoveredIcon = explorer.getIcon();
+			assertNotSame(idleIcon, hoveredIcon);
+			assertNotEquals(dominantOpaqueColor(idleIcon, explorer), dominantOpaqueColor(hoveredIcon, explorer));
+			int[] hovered = paintIcon(hoveredIcon, explorer);
 			explorer.getModel().setRollover(false);
 			bar.setSelected(SidebarView.EXPLORER);
-			int[] selected = paintIcon(icon, explorer);
-			colorsChanged[0] = !Arrays.equals(idle, hovered);
-			colorsChanged[1] = !Arrays.equals(idle, selected);
+			int[] selected = paintIcon(explorer.getIcon(), explorer);
+			statesDiffer[0] = !Arrays.equals(idle, hovered);
+			statesDiffer[1] = !Arrays.equals(idle, selected);
 		});
 
-		assertTrue(colorsChanged[0], "hover changes the icon tint");
-		assertTrue(colorsChanged[1], "selection changes the icon tint");
+		assertTrue(statesDiffer[0], "hover uses different SVG artwork");
+		assertTrue(statesDiffer[1], "selection uses different SVG artwork");
 	}
 
 	@Test
@@ -151,50 +159,21 @@ class ActivityBarTest {
 	}
 
 	@Test
-	void keepsEveryActivityIconContrastedAcrossThemesAndSelections() throws Exception {
-		String[] keys = { "Panel.background", "control", "Tree.background", "Label.foreground", "Panel.foreground",
-				"Component.accentColor", "Component.focusColor" };
-		Map<String, Object> defaults = new HashMap<>();
-		for (String key : keys) {
-			defaults.put(key, UIManager.get(key));
-		}
-
-		try {
-			SwingUtilities.invokeAndWait(() -> {
-				for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
-					ThemePalette palette = ThemePalette.of(theme);
-					UIManager.put("Panel.background", palette.surface());
-					UIManager.put("control", palette.surface());
-					UIManager.put("Tree.background", palette.background());
-					UIManager.put("Label.foreground", palette.foreground());
-					UIManager.put("Panel.foreground", palette.foreground());
-					UIManager.put("Component.accentColor", palette.accent());
-					UIManager.put("Component.focusColor", palette.accent());
-
-					ActivityBar bar = new ActivityBar();
-					List<JButton> activityButtons = buttons(bar);
-					for (SidebarView selectedView : SidebarView.values()) {
-						bar.setSelected(selectedView);
-						for (int index = 0; index < activityButtons.size(); index++) {
-							Color iconColor = dominantOpaqueColor(activityButtons.get(index).getIcon(),
-									activityButtons.get(index));
-							assertTrue(ThemeColors.contrastRatio(iconColor, palette.surface()) >= 3.0d,
-									() -> "icon must contrast in " + theme + " with " + selectedView + " selected");
-						}
-
-						JButton selectedButton = activityButtons.get(selectedView.ordinal());
-						Color selectedColor = dominantOpaqueColor(selectedButton.getIcon(), selectedButton);
-						bar.setSelected(
-								SidebarView.values()[(selectedView.ordinal() + 1) % SidebarView.values().length]);
-						Color idleColor = dominantOpaqueColor(selectedButton.getIcon(), selectedButton);
-						assertFalse(selectedColor.equals(idleColor),
-								() -> "selection should visibly tint " + selectedView + " in " + theme);
-					}
+	void mapsVisibleContrastedArtworkForEveryThemeStateAndType() throws Exception {
+		for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
+			ThemePalette palette = ThemePalette.of(theme);
+			for (State state : State.values()) {
+				for (Type type : Type.values()) {
+					Icon icon = SidebarIconResources.get(theme, state, type);
+					assertTrue(icon instanceof FlatSVGIcon svgIcon && svgIcon.hasFound(),
+							() -> "SVG must load in " + theme + " for " + state + " " + type);
+					Color iconColor = dominantOpaqueColor(icon, new JPanel());
+					assertTrue(ThemeColors.contrastRatio(iconColor, palette.surface()) >= 3.0d,
+							() -> "icon must contrast in " + theme + " for " + state + " " + type);
+					assertTrue(SidebarIconResources.resourcePath(theme, state, type)
+						.endsWith("/" + state.name().toLowerCase() + "/" + type.name().toLowerCase() + ".svg"));
 				}
-			});
-		}
-		finally {
-			SwingUtilities.invokeAndWait(() -> defaults.forEach(ActivityBarTest::restoreUiValue));
+			}
 		}
 	}
 
@@ -233,15 +212,6 @@ class ActivityBarTest {
 			.orElseThrow(() -> new AssertionError("Activity icon should contain visible pixels."));
 		assertTrue(dominant.getValue() > 10, "activity icon should contain a visible stroke");
 		return new Color(dominant.getKey());
-	}
-
-	private static void restoreUiValue(String key, Object value) {
-		if (value == null) {
-			UIManager.getDefaults().remove(key);
-		}
-		else {
-			UIManager.put(key, value);
-		}
 	}
 
 	private static int[] paintIcon(Icon icon, Component component) {

@@ -10,6 +10,7 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -173,6 +174,10 @@ public final class SettingsService {
 			}
 			loaded.normalize();
 			return loaded;
+		}
+		catch (JsonProcessingException error) {
+			LOGGER.warn("Unable to read settings from {}; using defaults.", settingsPath);
+			return new IdeSettings();
 		}
 		catch (IOException | RuntimeException error) {
 			LOGGER.warn("Unable to read settings from {}; using defaults.", settingsPath, error);

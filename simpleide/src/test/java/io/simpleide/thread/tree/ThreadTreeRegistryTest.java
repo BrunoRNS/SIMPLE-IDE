@@ -52,7 +52,7 @@ class ThreadTreeRegistryTest {
 	@Test
 	void implementsTheTreeRegistrationContract() {
 		NodePattern root = new TestPattern(0);
-		Tree tree = new ThreadTreeRegistry(root);
+		ThreadTree tree = new ThreadTreeRegistry(root);
 		RunnableNode node = new RunnableNode(root, () -> {
 		});
 

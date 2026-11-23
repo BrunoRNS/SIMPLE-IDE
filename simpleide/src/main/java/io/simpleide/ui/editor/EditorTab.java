@@ -40,7 +40,7 @@ import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.client.LspEditorSupport;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.utils.service.FileService;
 
 /**
@@ -93,7 +93,7 @@ public class EditorTab extends JPanel {
 
 	private final ButtonExit buttonExit;
 
-	private final File file;
+	private final SimpleIDEFile file;
 
 	private RTextScrollPane scrollPane;
 
@@ -121,7 +121,7 @@ public class EditorTab extends JPanel {
 	 * @param file file shown in the tab
 	 * @param document document metadata tracked by the language server manager
 	 */
-	public EditorTab(File file, Document document) {
+	public EditorTab(SimpleIDEFile file, Document document) {
 		this.isEdit = false;
 		this.file = file;
 		this.document = document;
@@ -249,7 +249,7 @@ public class EditorTab extends JPanel {
 	 * Returns the file displayed by this tab.
 	 * @return the source file
 	 */
-	public File getFile() {
+	public SimpleIDEFile getFile() {
 		return file;
 	}
 

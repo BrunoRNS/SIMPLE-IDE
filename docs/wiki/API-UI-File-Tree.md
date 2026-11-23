@@ -10,26 +10,29 @@ frame and utilities use them, but they are not a stable standalone API.
 | --- | --- |
 | `TreeFile` | Abstract entry with a path and display name |
 | `Directory` | Directory entry with lazily loaded children |
-| `File` | Source file with its `TypeFile` and an in-memory text buffer |
+| `SimpleIDEFile` | Source file with its `TypeFile`, content kind and in-memory text buffer |
 | `TypeFile` | Extension classification used for highlighting, icons and language ids |
 | `TreeState` | Selected entry and current directory |
 
-`File.typeOf(Path)` maps an extension to a `TypeFile`. Known source extensions map
-to Java, C#, Kotlin, Groovy, JavaScript, Go, Rust, Python, C and C++; anything else
-maps to `TXT`. Files that cannot be decoded as UTF-8 become `BINARY` entries with
-empty content.
+`SimpleIDEFile.typeOf(Path)` maps an extension to a `TypeFile`. Known source
+extensions map to Java, C#, Kotlin, Groovy, JavaScript, Go, Rust, Python, C and
+C++; anything else maps to `TXT`. Files that cannot be decoded as UTF-8 become
+`BINARY` entries with empty text content. Image and binary data are kept separate
+from the mutable text buffer, and files discovered in the tree are loaded lazily
+when opened.
 
 ```java
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
 
-TypeFile type = File.typeOf(Path.of("Example.java"));   // TypeFile.JAVA
+TypeFile type = SimpleIDEFile.typeOf(Path.of("Example.java"));   // TypeFile.JAVA
 ```
 
 `Directory` loads children when constructed with `loadImmediately = true`, which
 is what `new Directory(path)` does. Children created from the tree expansions are
 loaded lazily. `refreshDirectory` re-reads a directory from disk and replaces its
-children.
+children. File content metadata is published together as an immutable snapshot so
+readers observe one consistent classification and content state.
 
 ## Swing component
 

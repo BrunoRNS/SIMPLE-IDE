@@ -16,7 +16,7 @@ import io.simpleide.lsp.core.Document;
 import io.simpleide.lsp.core.LanguageServerManager;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorTab;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
 
 /**
@@ -51,7 +51,7 @@ public final class SimpleEditor implements AutoCloseable {
 
 	private SimpleEditor(Path path, Consumer<LspStatus> statusListener) throws IOException {
 		this.path = Objects.requireNonNull(path, "path").toAbsolutePath().normalize();
-		File file = new File(this.path);
+		SimpleIDEFile file = new SimpleIDEFile(this.path);
 		this.document = new Document(this.path, languageIdFor(file.getTypeFile()));
 		try {
 			this.tab = new EditorTab(file, document);
@@ -194,7 +194,7 @@ public final class SimpleEditor implements AutoCloseable {
 		ensureOpen();
 		Path destination = Objects.requireNonNull(target, "target").toAbsolutePath().normalize();
 		Files.writeString(destination, textArea().getText());
-		textArea().loadFile(new File(destination));
+		textArea().loadFile(new SimpleIDEFile(destination));
 	}
 
 	/**

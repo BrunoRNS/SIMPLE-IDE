@@ -139,6 +139,13 @@ not on Swing; `lsp` may depend on `thread` and editor support where necessary.
 - Do not call `ThreadMaster.shutdown()` from a library.
 - Make cancellation observable: check the interrupt flag in loops and do not
   catch `InterruptedException` without restoring it.
+- When related state is read and updated across threads, prefer an immutable
+  record snapshot published through one `volatile` reference or an
+  `AtomicReference`. Read the reference once per operation, and derive updates
+  from the latest snapshot with an atomic update to avoid losing concurrent
+  changes. Defensively copy mutable values held by a snapshot. Keep locks for
+  operations that must serialize access to mutable resources or perform a
+  multi-step critical section; snapshots do not replace those guarantees.
 
 ## Logging
 

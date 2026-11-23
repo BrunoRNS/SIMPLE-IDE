@@ -35,8 +35,8 @@ import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.icon.MaterialIcons;
 import io.simpleide.ui.menubar.ThemeManager;
-import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.FileContentKind;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
 
 /**
@@ -206,7 +206,7 @@ public class EditorManager {
 	 * binary files use their dedicated viewers and do not start a language server.
 	 * @param file file to open, ignored when {@code null}
 	 */
-	public void openFile(File file) {
+	public void openFile(SimpleIDEFile file) {
 		if (file == null) {
 			return;
 		}

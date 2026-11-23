@@ -1,11 +1,14 @@
 package io.simpleide.api;
 
 import java.awt.BorderLayout;
+import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.Toolkit;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -129,13 +132,13 @@ public final class HexEditor extends JPanel implements AutoCloseable {
 		JPanel controls = new JPanel();
 		controls.add(new JButton(new AbstractAction("Copy") {
 			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
+			public void actionPerformed(ActionEvent event) {
 				copySelection();
 			}
 		}));
 		controls.add(new JButton(new AbstractAction("Paste") {
 			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
+			public void actionPerformed(ActionEvent event) {
 				pasteSelection();
 			}
 		}));
@@ -143,14 +146,14 @@ public final class HexEditor extends JPanel implements AutoCloseable {
 		table.getInputMap().put(KeyStroke.getKeyStroke("control C"), "hex.copy");
 		table.getActionMap().put("hex.copy", new AbstractAction() {
 			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
+			public void actionPerformed(ActionEvent event) {
 				copySelection();
 			}
 		});
 		table.getInputMap().put(KeyStroke.getKeyStroke("control V"), "hex.paste");
 		table.getActionMap().put("hex.paste", new AbstractAction() {
 			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
+			public void actionPerformed(ActionEvent event) {
 				pasteSelection();
 			}
 		});
@@ -712,8 +715,8 @@ public final class HexEditor extends JPanel implements AutoCloseable {
 	private static class HexCellRenderer extends DefaultTableCellRenderer {
 
 		@Override
-		public java.awt.Component getTableCellRendererComponent(JTable source, Object value, boolean selected,
-				boolean focused, int row, int column) {
+		public Component getTableCellRendererComponent(JTable source, Object value, boolean selected, boolean focused,
+				int row, int column) {
 			super.getTableCellRendererComponent(source, value, selected, focused, row, column);
 			setHorizontalAlignment(CENTER);
 			return this;
@@ -735,10 +738,10 @@ public final class HexEditor extends JPanel implements AutoCloseable {
 	private static final class AsciiCellRenderer extends DefaultTableCellRenderer {
 
 		@Override
-		public java.awt.Component getTableCellRendererComponent(JTable source, Object value, boolean selected,
-				boolean focused, int row, int column) {
+		public Component getTableCellRendererComponent(JTable source, Object value, boolean selected, boolean focused,
+				int row, int column) {
 			super.getTableCellRendererComponent(source, value, selected, focused, row, column);
-			setFont(new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, source.getFont().getSize()));
+			setFont(new Font(Font.MONOSPACED, Font.PLAIN, source.getFont().getSize()));
 			return this;
 		}
 

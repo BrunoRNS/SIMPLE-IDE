@@ -14,6 +14,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import com.jediterm.core.util.TermSize;
 import com.jediterm.terminal.ProcessTtyConnector;
@@ -77,15 +78,8 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
 	private final AtomicBoolean terminationRequested = new AtomicBoolean();
 
-	private volatile BusyBoxExecutable executable;
-
-	private volatile PtyProcess process;
-
-	private volatile BusyBoxTtyConnector connector;
-
-	private volatile boolean systemShellFallback;
-
-	private volatile boolean busyBoxX86Compatibility;
+	private final AtomicReference<SessionSnapshot> state = new AtomicReference<>(
+			new SessionSnapshot(null, null, null, false, false));
 
 	BusyBoxTerminalSession(LangPlatform platform) {
 		this.platform = platform;
@@ -102,22 +96,24 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 			LangPlatform busyBoxPlatform = BusyBoxPlatform.getCompatiblePlatform(platform,
 					System.getProperty("os.version"));
 			if (busyBoxPlatform != platform) {
-				busyBoxX86Compatibility = true;
+				state.updateAndGet(snapshot -> snapshot.withX86Compatibility(true));
 				LOGGER.info("Windows version {} is below Windows 10; using the x86 BusyBox compatibility binary.",
 						System.getProperty("os.version"));
 			}
 			String[] command = null;
 			Throwable extractionFailure = null;
 			try {
-				executable = BusyBoxPlatform.extract(busyBoxPlatform);
+				BusyBoxExecutable extractedExecutable = BusyBoxPlatform.extract(busyBoxPlatform);
+				state.updateAndGet(snapshot -> snapshot.withExecutable(extractedExecutable));
 				command = busyBoxPlatform == LangPlatform.MACOSAARCH64
-						? new String[] { executable.getPath().toString(), "sh", "-i" }
-						: new String[] { executable.getPath().toString(), "sh" };
+						? new String[] { extractedExecutable.getPath().toString(), "sh", "-i" }
+						: new String[] { extractedExecutable.getPath().toString(), "sh" };
 			}
 			catch (IOException | RuntimeException | LinkageError exception) {
 				extractionFailure = exception;
 			}
-			process = startWithFallback(command, environment, extractionFailure, busyBoxPlatform);
+			PtyProcess startedProcess = startWithFallback(command, environment, extractionFailure, busyBoxPlatform);
+			state.updateAndGet(snapshot -> snapshot.withProcess(startedProcess));
 			LOGGER.info("Terminal shell started: {}.", processDiagnostics());
 
 			ACTIVE_SESSIONS.add(this);
@@ -125,7 +121,9 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 				close(true);
 				return;
 			}
-			connector = new BusyBoxTtyConnector(process, StandardCharsets.UTF_8, getConnectorName());
+			BusyBoxTtyConnector terminalConnector = new BusyBoxTtyConnector(startedProcess, StandardCharsets.UTF_8,
+					getConnectorName());
+			state.updateAndGet(snapshot -> snapshot.withConnector(terminalConnector));
 		}
 		catch (IOException | RuntimeException | LinkageError exception) {
 			LOGGER.error("Terminal shell startup failed: {}.", processDiagnostics(), exception);
@@ -135,12 +133,12 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	}
 
 	boolean isAlive() {
-		PtyProcess activeProcess = process;
+		PtyProcess activeProcess = state.get().process();
 		return activeProcess != null && isProcessAlive(activeProcess);
 	}
 
 	long processId() {
-		PtyProcess activeProcess = process;
+		PtyProcess activeProcess = state.get().process();
 		if (activeProcess == null) {
 			throw new IllegalStateException("BusyBox has not been started.");
 		}
@@ -148,11 +146,11 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	}
 
 	TtyConnector getConnector() {
-		return connector;
+		return state.get().connector();
 	}
 
 	CompletableFuture<Process> onExit() {
-		PtyProcess activeProcess = process;
+		PtyProcess activeProcess = state.get().process();
 		if (activeProcess == null) {
 			throw new IllegalStateException("BusyBox has not been started.");
 		}
@@ -164,11 +162,12 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	}
 
 	String processDiagnostics() {
-		PtyProcess activeProcess = process;
+		SessionSnapshot snapshot = state.get();
+		PtyProcess activeProcess = snapshot.process();
 		String details = "platform=" + platform + ", os=" + System.getProperty("os.name") + ", arch="
 				+ System.getProperty("os.arch") + ", java=" + System.getProperty("java.version")
-				+ ", busyBoxX86Compatibility=" + busyBoxX86Compatibility + ", systemShellFallback="
-				+ systemShellFallback;
+				+ ", busyBoxX86Compatibility=" + snapshot.x86Compatibility() + ", systemShellFallback="
+				+ snapshot.systemShellFallback();
 		if (platform == LangPlatform.MACOSAARCH64) {
 			details += ", osVersion=" + System.getProperty("os.version");
 		}
@@ -191,7 +190,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	}
 
 	String watchDiagnostics() {
-		PtyProcess activeProcess = process;
+		PtyProcess activeProcess = state.get().process();
 		if (activeProcess == null) {
 			return processDiagnostics() + ", descendants=[]";
 		}
@@ -210,7 +209,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
 	void forceTerminate() {
 		terminationRequested.set(true);
-		PtyProcess activeProcess = process;
+		PtyProcess activeProcess = state.get().process();
 		if (activeProcess == null || !isProcessAlive(activeProcess)) {
 			LOGGER.debug("Skipping forced terminal shutdown: {}", processDiagnostics());
 			return;
@@ -247,7 +246,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	 */
 	public void forceTerminateAndWait() {
 		forceTerminate();
-		PtyProcess activeProcess = process;
+		PtyProcess activeProcess = state.get().process();
 		if (activeProcess == null || !isProcessAlive(activeProcess)) {
 			return;
 		}
@@ -276,7 +275,8 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
 	void closeGracefullyAndWait() {
 		terminationRequested.set(true);
-		PtyProcess activeProcess = process;
+		SessionSnapshot snapshot = state.get();
+		PtyProcess activeProcess = snapshot.process();
 		if (activeProcess == null) {
 			LOGGER.info("Skipping graceful terminal shutdown because no process was started: {}.",
 					processDiagnostics());
@@ -298,14 +298,14 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 		}
 		boolean interrupted = Thread.interrupted();
 		try {
-			BusyBoxTtyConnector activeConnector = connector;
+			BusyBoxTtyConnector activeConnector = snapshot.connector();
 			if (activeConnector != null) {
 				try {
 					LOGGER.info("Sending {} to terminal session {} through connector {}.",
-							"windows".equals(platform.getOs()) && systemShellFallback ? "Ctrl-Z" : "EOF",
+							"windows".equals(platform.getOs()) && snapshot.systemShellFallback() ? "Ctrl-Z" : "EOF",
 							activeProcess.pid(), activeConnector.getName());
-					activeConnector
-						.write("windows".equals(platform.getOs()) && systemShellFallback ? "\u001A\r\n" : "\u0004");
+					activeConnector.write("windows".equals(platform.getOs()) && snapshot.systemShellFallback()
+							? "\u001A\r\n" : "\u0004");
 				}
 				catch (IOException exception) {
 					LOGGER.warn("Unable to send EOF to terminal session {}.", activeProcess.pid(), exception);
@@ -366,7 +366,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 			return;
 		}
 
-		PtyProcess activeProcess = process;
+		PtyProcess activeProcess = state.get().process();
 		boolean interrupted = Thread.interrupted();
 		try {
 			if (activeProcess != null && isProcessAlive(activeProcess)) {
@@ -407,7 +407,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
 	private void closeResources() {
 		try {
-			BusyBoxTtyConnector activeConnector = connector;
+			BusyBoxTtyConnector activeConnector = state.get().connector();
 			if (activeConnector != null) {
 				activeConnector.close();
 			}
@@ -416,7 +416,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 			LOGGER.error("Unable to close the BusyBox PTY connector.", exception);
 		}
 		try {
-			BusyBoxExecutable extractedExecutable = executable;
+			BusyBoxExecutable extractedExecutable = state.get().executable();
 			if (extractedExecutable != null) {
 				extractedExecutable.close();
 			}
@@ -519,11 +519,12 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 			closeExecutableForRetry(busyBoxFailure);
 			PtyProcess compatibilityProcess = null;
 			try {
-				executable = BusyBoxPlatform.extract(LangPlatform.WINDOWSX86);
-				compatibilityProcess = startProcess(new String[] { executable.getPath().toString(), "sh" },
+				BusyBoxExecutable extractedExecutable = BusyBoxPlatform.extract(LangPlatform.WINDOWSX86);
+				state.updateAndGet(snapshot -> snapshot.withExecutable(extractedExecutable));
+				compatibilityProcess = startProcess(new String[] { extractedExecutable.getPath().toString(), "sh" },
 						environment);
 				if (!exitedDuringStartup(compatibilityProcess)) {
-					busyBoxX86Compatibility = true;
+					state.updateAndGet(snapshot -> snapshot.withX86Compatibility(true));
 					LOGGER.warn("Using the Windows x86 BusyBox compatibility binary.");
 					return compatibilityProcess;
 				}
@@ -551,7 +552,7 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 			if (exitedDuringStartup(fallback)) {
 				throw new IOException("System shell exited during startup: " + processDiagnostics(fallback));
 			}
-			systemShellFallback = true;
+			state.updateAndGet(snapshot -> snapshot.withSystemShellFallback(true));
 			LOGGER.warn("Using system shell fallback for BusyBox terminal on {}.", platform);
 			return fallback;
 		}
@@ -590,8 +591,8 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	}
 
 	private void closeExecutableForRetry(Throwable failure) {
-		BusyBoxExecutable currentExecutable = executable;
-		executable = null;
+		BusyBoxExecutable currentExecutable = state.updateAndGet(snapshot -> snapshot.withExecutable(null))
+			.executable();
 		if (currentExecutable == null) {
 			return;
 		}
@@ -605,13 +606,39 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	}
 
 	private String getConnectorName() {
-		if (systemShellFallback) {
+		SessionSnapshot snapshot = state.get();
+		if (snapshot.systemShellFallback()) {
 			return "System shell (BusyBox fallback)";
 		}
-		if (busyBoxX86Compatibility) {
+		if (snapshot.x86Compatibility()) {
 			return "BusyBox x86 compatibility build";
 		}
 		return "BusyBox";
+	}
+
+	private record SessionSnapshot(BusyBoxExecutable executable, PtyProcess process, BusyBoxTtyConnector connector,
+			boolean systemShellFallback, boolean x86Compatibility) {
+
+		private SessionSnapshot withExecutable(BusyBoxExecutable executable) {
+			return new SessionSnapshot(executable, process, connector, systemShellFallback, x86Compatibility);
+		}
+
+		private SessionSnapshot withProcess(PtyProcess process) {
+			return new SessionSnapshot(executable, process, connector, systemShellFallback, x86Compatibility);
+		}
+
+		private SessionSnapshot withConnector(BusyBoxTtyConnector connector) {
+			return new SessionSnapshot(executable, process, connector, systemShellFallback, x86Compatibility);
+		}
+
+		private SessionSnapshot withSystemShellFallback(boolean fallback) {
+			return new SessionSnapshot(executable, process, connector, fallback, x86Compatibility);
+		}
+
+		private SessionSnapshot withX86Compatibility(boolean compatibility) {
+			return new SessionSnapshot(executable, process, connector, systemShellFallback, compatibility);
+		}
+
 	}
 
 	private void terminateFailedProcess(PtyProcess failedProcess, Throwable failure) {
@@ -697,7 +724,8 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 	}
 
 	private void cleanupFailedStart(Throwable failure) {
-		PtyProcess activeProcess = process;
+		SessionSnapshot snapshot = state.get();
+		PtyProcess activeProcess = snapshot.process();
 		if (activeProcess != null && isProcessAlive(activeProcess)) {
 			try {
 				ProcessTreeTerminator.terminate(activeProcess, platform);
@@ -708,8 +736,8 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 		}
 		ACTIVE_SESSIONS.remove(this);
 
-		BusyBoxExecutable extractedExecutable = executable;
-		executable = null;
+		BusyBoxExecutable extractedExecutable = state.updateAndGet(current -> current.withExecutable(null))
+			.executable();
 		if (extractedExecutable != null) {
 			try {
 				extractedExecutable.close();

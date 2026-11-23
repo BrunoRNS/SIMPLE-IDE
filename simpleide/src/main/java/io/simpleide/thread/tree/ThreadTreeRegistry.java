@@ -28,7 +28,7 @@ import io.simpleide.thread.validation.NodeRegistrationValidation;
  * @author BrunoRNS
  * @since v1.0.0beta
  */
-public final class ThreadTreeRegistry implements Tree {
+public final class ThreadTreeRegistry implements ThreadTree {
 
 	private final TreeNode root;
 

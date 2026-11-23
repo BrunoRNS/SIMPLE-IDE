@@ -1,10 +1,12 @@
 package io.simpleide.frame;
 
+import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.GraphicsEnvironment;
+import java.awt.Image;
 import java.awt.MenuItem;
 import java.awt.PopupMenu;
 import java.awt.Rectangle;
@@ -13,10 +15,13 @@ import java.awt.SystemTray;
 import java.awt.TrayIcon;
 import java.awt.event.WindowEvent;
 import java.awt.geom.RoundRectangle2D;
+import java.awt.image.BufferedImage;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumMap;
+import java.util.Locale;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
@@ -35,6 +40,7 @@ import javax.swing.tree.TreePath;
 
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
+import org.freedesktop.dbus.exceptions.DBusException;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.frame.layout.MainLayout;
@@ -54,6 +60,7 @@ import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.thread.nodes.edt.listeners.TreeSelectionNode;
 import io.simpleide.thread.nodes.edt.listeners.WindowNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.ui.debug.DebugConsolePanel;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorManager;
 import io.simpleide.ui.editor.EditorTab;
@@ -62,7 +69,6 @@ import io.simpleide.ui.menubar.MenuBarFactory;
 import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.menubar.menus.IdeMenuBar;
 import io.simpleide.ui.sidebar.ActivityBar;
-import io.simpleide.ui.sidebar.DebugConsolePanel;
 import io.simpleide.ui.sidebar.ExplorerPanel;
 import io.simpleide.ui.sidebar.SettingsPanel;
 import io.simpleide.ui.sidebar.SidebarPanel;
@@ -71,8 +77,9 @@ import io.simpleide.ui.sidebar.WorkspaceSearchPanel;
 import io.simpleide.ui.terminal.BusyBoxTerminalController;
 import io.simpleide.ui.terminal.TerminalPanel;
 import io.simpleide.ui.treefile.Directory;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.Tree;
+import io.simpleide.ui.treefile.TreeFileFactory;
 import io.simpleide.ui.treefile.Watcher;
 
 /**
@@ -128,6 +135,8 @@ public class MainFrame extends JFrame implements Runnable {
 	private JSplitPane editorBottomSplit;
 
 	private boolean sidebarVisible = true;
+
+	private int mainSplitDividerSize;
 
 	private final Object trayLock = new Object();
 
@@ -319,8 +328,9 @@ public class MainFrame extends JFrame implements Runnable {
 	private void showSidebarView(SidebarView view) {
 		sidebarPanel.showView(view);
 		activityBar.setSelected(view);
-		sidebarVisible = true;
-		sidebarPanel.setVisible(true);
+		if (!sidebarVisible) {
+			setSidebarVisible(true);
+		}
 		if (view == SidebarView.SEARCH) {
 			workspaceSearchPanel.focusSearchField();
 		}
@@ -329,8 +339,28 @@ public class MainFrame extends JFrame implements Runnable {
 	}
 
 	private void toggleSidebar() {
-		sidebarVisible = !sidebarVisible;
-		sidebarPanel.setVisible(sidebarVisible);
+		setSidebarVisible(!sidebarVisible);
+	}
+
+	private void setSidebarVisible(boolean visible) {
+		sidebarVisible = visible;
+		if (visible) {
+			sidebarPanel.setMinimumSize(new Dimension(180, 0));
+			sidebarPanel.setPreferredSize(new Dimension(SIDEBAR_WIDTH, 0));
+			sidebarPanel.setVisible(true);
+			mainSplit.setDividerSize(mainSplitDividerSize);
+			mainSplit.setDividerLocation(activityBar.getPreferredSize().width + SIDEBAR_WIDTH + 12);
+		}
+		else {
+			mainSplitDividerSize = mainSplit.getDividerSize();
+			sidebarPanel.setVisible(false);
+			sidebarPanel.setMinimumSize(new Dimension(0, 0));
+			sidebarPanel.setPreferredSize(new Dimension(0, 0));
+			mainSplit.setDividerSize(0);
+			mainSplit.setDividerLocation(activityBar.getPreferredSize().width + 12);
+		}
+		mainSplit.revalidate();
+		mainSplit.repaint();
 		sidebarPanel.revalidate();
 		sidebarPanel.repaint();
 	}
@@ -349,15 +379,14 @@ public class MainFrame extends JFrame implements Runnable {
 	private void installTrayIconInBackground() {
 		// Use the full-resolution source so high-density StatusNotifierItem pixmaps are
 		// downscaled instead of being enlarged from the small AWT tray image.
-		java.awt.Image iconImage = ApplicationIcon.loadImage();
+		Image iconImage = ApplicationIcon.loadImage();
 		if (iconImage == null) {
 			logger.warn("The SIMPLE-IDE application icon is missing; no tray icon can be installed.");
 			return;
 		}
 		if (isLinux()) {
 			try {
-				AutoCloseable notifier = LinuxStatusNotifierTray.install((java.awt.image.BufferedImage) iconImage,
-						this::showWindow);
+				AutoCloseable notifier = LinuxStatusNotifierTray.install((BufferedImage) iconImage, this::showWindow);
 				if (notifier != null) {
 					synchronized (trayLock) {
 						if (!trayDisposed) {
@@ -370,14 +399,14 @@ public class MainFrame extends JFrame implements Runnable {
 					return;
 				}
 			}
-			catch (org.freedesktop.dbus.exceptions.DBusException | RuntimeException error) {
+			catch (DBusException | RuntimeException error) {
 				logger.warn("Unable to register SIMPLE-IDE with the Linux StatusNotifierWatcher; trying AWT.", error);
 			}
 		}
 		installAwtTrayIcon(iconImage);
 	}
 
-	private void installAwtTrayIcon(java.awt.Image iconImage) {
+	private void installAwtTrayIcon(Image iconImage) {
 		try {
 			if (!SystemTray.isSupported()) {
 				logger.warn("This desktop does not expose a compatible system tray for SIMPLE-IDE.");
@@ -405,7 +434,7 @@ public class MainFrame extends JFrame implements Runnable {
 			}
 			tray.remove(icon);
 		}
-		catch (java.awt.AWTException | RuntimeException error) {
+		catch (AWTException | RuntimeException error) {
 			logger.warn("Unable to add SIMPLE-IDE to the system tray.", error);
 		}
 	}
@@ -457,7 +486,7 @@ public class MainFrame extends JFrame implements Runnable {
 	}
 
 	private boolean isLinux() {
-		return System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("linux");
+		return System.getProperty("os.name", "").toLowerCase(Locale.ROOT).contains("linux");
 	}
 
 	private void setInitialWindowSize() {
@@ -529,7 +558,8 @@ public class MainFrame extends JFrame implements Runnable {
 			return;
 		}
 		Object selectedNode = selectedPath.getLastPathComponent();
-		if (selectedNode instanceof DefaultMutableTreeNode node && node.getUserObject() instanceof File selectedFile) {
+		if (selectedNode instanceof DefaultMutableTreeNode node
+				&& node.getUserObject() instanceof SimpleIDEFile selectedFile) {
 			editorManager.openFile(selectedFile);
 		}
 	}
@@ -582,7 +612,7 @@ public class MainFrame extends JFrame implements Runnable {
 
 		JFileChooser chooser = new JFileChooser();
 		chooser.setDialogTitle("New File");
-		chooser.setSelectedFile(new java.io.File("untitled.txt"));
+		chooser.setSelectedFile(new File("untitled.txt"));
 		if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
 			return;
 		}
@@ -604,7 +634,7 @@ public class MainFrame extends JFrame implements Runnable {
 						Files.createDirectories(parent);
 					}
 					Files.writeString(path, "");
-					File file = new File(path);
+					SimpleIDEFile file = new SimpleIDEFile(path);
 					threadMaster.executeOnEDT(() -> {
 						if (parent != null && (currentRoot == null || !path.startsWith(currentRoot))) {
 							loadFolder(parent);
@@ -639,7 +669,7 @@ public class MainFrame extends JFrame implements Runnable {
 		try {
 			threadMaster.register(new RunnableNode(() -> {
 				try {
-					File file = new File(path);
+					SimpleIDEFile file = new SimpleIDEFile(path);
 					threadMaster.executeOnEDT(() -> {
 						editorManager.openFile(file);
 						EditorTab tab = editorManager.getOpenedEditor(path.toAbsolutePath().normalize());
@@ -691,6 +721,89 @@ public class MainFrame extends JFrame implements Runnable {
 	private void configureTerminalLoggers() {
 		((Logger) LoggerFactory.getLogger("com.jediterm")).setLevel(Level.INFO);
 		((Logger) LoggerFactory.getLogger("com.pty4j")).setLevel(Level.INFO);
+	}
+
+	/**
+	 * Loads the project tree directly into the given scroll pane.
+	 *
+	 * <p>
+	 * Legacy v1.0.0beta implementation kept for source compatibility with code that
+	 * reflected on or copied this private helper. New code must use {@link #openFolder()}
+	 * or {@link #loadFolder(Path)}, which also update the explorer panel, the current
+	 * root and the sidebar state.
+	 * @param treePane scroll pane that receives the tree
+	 * @deprecated since v1.1.0, use {@link #loadFolder(Path)} instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private void loadTree(JScrollPane treePane) {
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				Directory root = TreeFileFactory.loadRootDirectory();
+				threadMaster.executeOnEDT(() -> {
+					tree = new Tree(root);
+					tree.setRootChangeListener(this::updateWatcherRoot);
+					updateWatcherRoot(root);
+					tree.addTreeSelectionListener(event -> {
+						TreePath selectedPath = event.getNewLeadSelectionPath();
+						if (selectedPath == null) {
+							return;
+						}
+						Object selectedNode = selectedPath.getLastPathComponent();
+						if (selectedNode instanceof DefaultMutableTreeNode node
+								&& node.getUserObject() instanceof SimpleIDEFile selectedFile) {
+							editorManager.openFile(selectedFile);
+						}
+					});
+					treePane.setViewportView(tree);
+					treePane.revalidate();
+					treePane.repaint();
+				});
+			}
+			catch (IOException exception) {
+				logger.error("Unable to load the project tree.", exception);
+			}
+		}));
+	}
+
+	/**
+	 * Opens a directory chooser and replaces the project root.
+	 *
+	 * <p>
+	 * Legacy v1.0.0beta implementation kept for source compatibility. New code must use
+	 * {@link #openFolder()}, which also updates the explorer panel, the current root and
+	 * the sidebar state.
+	 * @deprecated since v1.1.0, use {@link #openFolder()} instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private void setDirectory() {
+		if (tree == null) {
+			new InfoPopUP("Information", "The project tree is still loading.", getRootPane()).startManaged();
+			return;
+		}
+
+		JFileChooser chooser = new JFileChooser(tree.getState().getCurrentDirectory().getPath().toFile());
+		chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+		if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+			return;
+		}
+
+		Path path = chooser.getSelectedFile().toPath();
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				Directory root = new Directory(path);
+				threadMaster.executeOnEDT(() -> tree.setRoot(root));
+			}
+			catch (IOException exception) {
+				logger.error("Unable to load project directory {}.", path, exception);
+				threadMaster.executeOnEDT(
+						() -> new ErrorPopUP(exception.getMessage(), getRootPane(), ErrorTypePopUp.INTERNAL_ERROR)
+							.startManaged());
+			}
+		}));
 	}
 
 }

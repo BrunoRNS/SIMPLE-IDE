@@ -25,7 +25,7 @@ import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.MouseNode;
 import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 
 /**
  * Keyboard and mouse actions shared by editor tabs.
@@ -156,7 +156,7 @@ public final class EditorActions {
 			Path path = Path.of(uri).toAbsolutePath().normalize();
 			EditorTab targetTab = editorManager.getOpenedEditor(path);
 			if (targetTab == null) {
-				editorManager.openFile(new File(path));
+				editorManager.openFile(new SimpleIDEFile(path));
 				targetTab = editorManager.getOpenedEditor(path);
 			}
 			if (targetTab != null) {

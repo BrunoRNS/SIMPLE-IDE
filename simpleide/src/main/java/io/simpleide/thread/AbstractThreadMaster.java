@@ -16,8 +16,8 @@ import org.slf4j.LoggerFactory;
 
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.thread.tree.ThreadTree;
 import io.simpleide.thread.tree.ThreadTreeRegistry;
-import io.simpleide.thread.tree.Tree;
 import io.simpleide.thread.tree.TreeNode;
 
 /**
@@ -36,7 +36,7 @@ import io.simpleide.thread.tree.TreeNode;
  * @author BrunoRNS
  * @since v1.0.0beta
  */
-public abstract class AbstractThreadMaster implements Tree {
+public abstract class AbstractThreadMaster implements ThreadTree {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(AbstractThreadMaster.class);
 

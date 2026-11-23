@@ -2,14 +2,19 @@ package io.simpleide.ui.treefile;
 
 import java.awt.Color;
 import java.awt.Component;
+import java.io.IOException;
+import java.util.EnumMap;
+import java.util.Map;
 
 import javax.swing.Icon;
+import javax.swing.ImageIcon;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.icon.MaterialIcons;
+import io.simpleide.utils.ResourceUtil;
 
 /**
  * Tree cell renderer that draws folders and per-language file icons.
@@ -59,6 +64,51 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 		setBorderSelectionColor(selectionBackground == null ? treeBackground : selectionBackground);
 		setForeground(selected ? selectionForeground : treeForeground);
 		setOpaque(false);
+	}
+
+	/**
+	 * Loads the legacy per-language file icon from the {@code io.simpleide.icon} package.
+	 *
+	 * <p>
+	 * This helper and the old PNG files are kept only for legacy integrations built
+	 * against v1.0.0beta. New code must use
+	 * {@link MaterialIcons#forFile(java.nio.file.Path)} and
+	 * {@link MaterialIcons#forDirectory(java.nio.file.Path, boolean)}.
+	 * @param fileName icon file name, for example {@code "java.png"}
+	 * @return the loaded icon
+	 * @throws IllegalStateException when the icon cannot be loaded
+	 * @deprecated since v1.1.0, use {@link MaterialIcons} instead; the old PNG icons are
+	 * shipped only for legacy systems
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private static Icon loadIcon(String fileName) {
+		try {
+			return new ImageIcon(ResourceUtil.getResourcePath("io.simpleide.icon", fileName).toString());
+		}
+		catch (IOException exception) {
+			throw new IllegalStateException("Unable to load file icon: " + fileName, exception);
+		}
+	}
+
+	/**
+	 * Builds the legacy per-language icon map used by v1.0.0beta.
+	 * @return the legacy icon map
+	 * @deprecated since v1.1.0, use {@link MaterialIcons#forFile(java.nio.file.Path)}
+	 * instead; this map is kept only for legacy systems
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private static Map<TypeFile, Icon> loadFileIcons() {
+		Map<TypeFile, Icon> icons = new EnumMap<>(TypeFile.class);
+		icons.put(TypeFile.JAVA, loadIcon("java.png"));
+		icons.put(TypeFile.GROOVY, loadIcon("groovy.png"));
+		icons.put(TypeFile.KOTLIN, loadIcon("kotlin.png"));
+		icons.put(TypeFile.JAVASCRIPT, loadIcon("javascript.png"));
+		icons.put(TypeFile.PYTHON, loadIcon("python.png"));
+		icons.put(TypeFile.CPP, loadIcon("cpp.png"));
+		icons.put(TypeFile.C, loadIcon("c.png"));
+		return icons;
 	}
 
 }

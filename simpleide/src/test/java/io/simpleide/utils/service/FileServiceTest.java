@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.ui.treefile.Directory;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TreeFile;
 
 /**
@@ -40,7 +40,7 @@ class FileServiceTest {
 
 		TreeFile created = fileService.createNewFile(parent, "Main.java", false);
 
-		assertThat(created).isInstanceOf(File.class);
+		assertThat(created).isInstanceOf(SimpleIDEFile.class);
 		assertThat(created.getPath()).isEqualTo(root.resolve("Main.java"));
 		assertThat(Files.exists(created.getPath())).isTrue();
 	}

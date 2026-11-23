@@ -3,6 +3,8 @@ package io.simpleide.ui.sidebar;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Objects;
@@ -13,11 +15,13 @@ import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JPanel;
-import javax.swing.UIManager;
 
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.ui.ThemeColors;
-import io.simpleide.ui.icon.ThemedSvgIcon;
+import io.simpleide.ui.ThemePalette;
+import io.simpleide.ui.menubar.ThemeManager;
+import io.simpleide.ui.sidebar.icons.SidebarIconResources;
+import io.simpleide.ui.sidebar.icons.SidebarIconResources.State;
+import io.simpleide.ui.sidebar.icons.SidebarIconResources.Type;
 
 /**
  * Vertical activity bar that switches the left sidebar view.
@@ -29,9 +33,8 @@ import io.simpleide.ui.icon.ThemedSvgIcon;
  * is selected; showing, hiding and replacing the view is handled by the sidebar owner.
  *
  * <p>
- * The buttons use the bundled 9:16 SVG artwork, centred inside fixed-size buttons so the
- * selected state only changes colours: the icon of the selected view is painted with the
- * theme accent colour while every other icon keeps a readable theme foreground.
+ * Each button loads a dedicated SVG for the active theme and its idle, hover or selected
+ * state. The selected view also receives a subtle background and an accent marker.
  *
  * @author BrunoRNS
  * @since v1.1.0
@@ -43,10 +46,6 @@ public final class ActivityBar extends JPanel {
 	private static final int BUTTON_WIDTH = 42;
 
 	private static final int BUTTON_HEIGHT = 52;
-
-	private static final int ICON_HEIGHT = 48;
-
-	private static final String ICON_PACKAGE = "io.simpleide.icon";
 
 	private final Map<SidebarView, ActivityButton> buttons = new EnumMap<>(SidebarView.class);
 
@@ -64,10 +63,10 @@ public final class ActivityBar extends JPanel {
 		setMinimumSize(new Dimension(BAR_WIDTH, 0));
 		setBorder(BorderFactory.createEmptyBorder(4, 3, 4, 3));
 
-		addButton(SidebarView.EXPLORER, "simpleide-explorer-9x16.svg", "Explorer");
-		addButton(SidebarView.SEARCH, "simpleide-search-9x16.svg", "Search");
+		addButton(SidebarView.EXPLORER, Type.EXPLORER, "Explorer");
+		addButton(SidebarView.SEARCH, Type.SEARCH, "Search");
 		add(Box.createVerticalGlue());
-		addButton(SidebarView.SETTINGS, "simpleide-settings-9x16.svg", "Settings");
+		addButton(SidebarView.SETTINGS, Type.SETTINGS, "Settings");
 		refreshSelection();
 	}
 
@@ -101,17 +100,18 @@ public final class ActivityBar extends JPanel {
 	 * Reapplies the colors of the current theme to the view buttons.
 	 */
 	public void refreshTheme() {
-		refreshSelection();
+		ThemeManager.ThemeType theme = ThemeManager.getInstance().getCurrentTheme();
+		buttons.values().forEach(button -> button.setTheme(theme));
 		repaint();
 	}
 
-	private void addButton(SidebarView view, String iconFile, String tooltip) {
-		ActivityButton button = new ActivityButton();
-		button.setIcon(new ThemedSvgIcon(ICON_PACKAGE, iconFile, ICON_HEIGHT, () -> iconColor(view, button)));
+	private void addButton(SidebarView view, Type type, String tooltip) {
+		ActivityButton button = new ActivityButton(type, ThemeManager.getInstance().getCurrentTheme());
 		button.setToolTipText(tooltip);
 		button.getAccessibleContext().setAccessibleName(tooltip);
 		button.setFocusable(false);
 		button.setContentAreaFilled(false);
+		button.setRolloverEnabled(true);
 		button.setOpaque(false);
 		button.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 2));
 		button.setAlignmentX(CENTER_ALIGNMENT);
@@ -119,6 +119,7 @@ public final class ActivityBar extends JPanel {
 		button.setMinimumSize(new Dimension(BUTTON_WIDTH, BUTTON_HEIGHT));
 		button.setMaximumSize(new Dimension(BUTTON_WIDTH, BUTTON_HEIGHT));
 		button.addActionListener(new ActionNode(event -> selectionListener.accept(view)));
+		button.getModel().addChangeListener(event -> button.refreshIcon());
 		buttons.put(view, button);
 		add(button);
 	}
@@ -130,42 +131,68 @@ public final class ActivityBar extends JPanel {
 		}
 	}
 
-	private Color iconColor(SidebarView view, ActivityButton button) {
-		Color background = ThemeColors.ui("Panel.background", "control", "Tree.background");
-		if (background == null) {
-			background = button.getBackground();
-		}
-		if (background == null) {
-			background = Color.DARK_GRAY;
-		}
-		Color foreground = ThemeColors.ui("Label.foreground", "Panel.foreground");
-		if (foreground == null) {
-			foreground = ThemeColors.isLight(background) ? Color.BLACK : Color.WHITE;
-		}
-		if (view == selectedView) {
-			Color accent = ThemeColors.ui("Component.accentColor", "Component.focusColor");
-			return ThemeColors.readable(accent == null ? foreground : accent, background,
-					ThemeColors.MIN_LARGE_TEXT_CONTRAST);
-		}
-		Color iconColor = button.getModel().isRollover() ? foreground : ThemeColors.blend(foreground, background, 0.3f);
-		return ThemeColors.readable(iconColor, background, ThemeColors.MIN_LARGE_TEXT_CONTRAST);
-	}
-
 	@Override
 	protected void paintComponent(Graphics graphics) {
-		Color background = UIManager.getColor("Panel.background");
-		if (background != null) {
-			graphics.setColor(background);
-			graphics.fillRect(0, 0, getWidth(), getHeight());
-		}
+		Color background = ThemePalette.of(ThemeManager.getInstance().getCurrentTheme()).surface();
+		graphics.setColor(background);
+		graphics.fillRect(0, 0, getWidth(), getHeight());
 		super.paintComponent(graphics);
 	}
 
-	/** Button whose only changing visual state is its icon tint. */
 	private final class ActivityButton extends JButton {
 
+		private final Type type;
+
+		private ThemeManager.ThemeType theme;
+
+		private boolean selected;
+
+		ActivityButton(Type type, ThemeManager.ThemeType theme) {
+			this.type = type;
+			this.theme = theme;
+			refreshIcon();
+		}
+
 		void setSelectedState(boolean selected) {
+			this.selected = selected;
 			getAccessibleContext().setAccessibleDescription(selected ? "Selected" : null);
+			refreshIcon();
+		}
+
+		void setTheme(ThemeManager.ThemeType theme) {
+			this.theme = theme;
+			refreshIcon();
+		}
+
+		void refreshIcon() {
+			State state = selected ? State.SELECTED : getModel().isRollover() ? State.HOVER : State.IDLE;
+			setIcon(SidebarIconResources.get(theme, state, type));
+			repaint();
+		}
+
+		@Override
+		protected void paintComponent(Graphics graphics) {
+			Graphics2D g = (Graphics2D) graphics.create();
+			try {
+				g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+				ThemePalette palette = ThemePalette.of(theme);
+				if (selected) {
+					g.setColor(new Color(palette.accent().getRed(), palette.accent().getGreen(),
+							palette.accent().getBlue(), 24));
+					g.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 10, 10);
+					g.setColor(palette.accent());
+					g.fillRoundRect(0, 15, 3, getHeight() - 30, 3, 3);
+				}
+				else if (getModel().isRollover()) {
+					Color foreground = palette.foreground();
+					g.setColor(new Color(foreground.getRed(), foreground.getGreen(), foreground.getBlue(), 16));
+					g.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 10, 10);
+				}
+			}
+			finally {
+				g.dispose();
+			}
+			super.paintComponent(graphics);
 		}
 
 	}

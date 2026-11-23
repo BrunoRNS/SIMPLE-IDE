@@ -134,19 +134,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 	private volatile boolean closed;
 
-	private volatile TextDocumentSyncKind synchronizationKind = TextDocumentSyncKind.None;
-
-	private volatile boolean openCloseSupported;
-
-	private volatile boolean completionSupported;
-
-	private volatile boolean definitionSupported;
-
-	private volatile boolean saveSupported;
-
-	private volatile boolean saveIncludeText;
-
-	private volatile boolean formattingSupported;
+	private volatile ServerCapabilitiesSnapshot serverCapabilities = ServerCapabilitiesSnapshot.NONE;
 
 	/**
 	 * Creates a client without extra environment variables.
@@ -325,7 +313,8 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didOpen(TextDocumentItem document) {
 		sendNotification("didOpen", () -> {
-			if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
+			ServerCapabilitiesSnapshot capabilities = serverCapabilities;
+			if (capabilities.synchronizationKind() != TextDocumentSyncKind.None && capabilities.openCloseSupported()) {
 				server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(document));
 			}
 		});
@@ -340,6 +329,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didChange(String uri, int version, String previousText, String text) {
 		sendNotification("didChange", () -> {
+			TextDocumentSyncKind synchronizationKind = serverCapabilities.synchronizationKind();
 			if (synchronizationKind == TextDocumentSyncKind.None || previousText.equals(text)) {
 				return;
 			}
@@ -359,7 +349,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 * @return a future with the formatting edits, or an empty list when unsupported
 	 */
 	public CompletableFuture<List<? extends TextEdit>> formatting(DocumentFormattingParams params) {
-		return initialized.thenCompose(ignored -> formattingSupported
+		return initialized.thenCompose(ignored -> serverCapabilities.formattingSupported()
 				? server.getTextDocumentService().formatting(params) : CompletableFuture.completedFuture(List.of()));
 	}
 
@@ -369,7 +359,8 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didClose(String uri) {
 		sendNotification("didClose", () -> {
-			if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
+			ServerCapabilitiesSnapshot capabilities = serverCapabilities;
+			if (capabilities.synchronizationKind() != TextDocumentSyncKind.None && capabilities.openCloseSupported()) {
 				server.getTextDocumentService()
 					.didClose(new DidCloseTextDocumentParams(new TextDocumentIdentifier(uri)));
 			}
@@ -383,10 +374,11 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didSave(String uri, String text) {
 		sendNotification("didSave", () -> {
-			if (saveSupported) {
+			ServerCapabilitiesSnapshot capabilities = serverCapabilities;
+			if (capabilities.saveSupported()) {
 				server.getTextDocumentService()
 					.didSave(new DidSaveTextDocumentParams(new TextDocumentIdentifier(uri),
-							saveIncludeText ? text : null));
+							capabilities.saveIncludeText() ? text : null));
 			}
 		});
 	}
@@ -405,9 +397,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 * @return a future with either a completion list or an array of items
 	 */
 	public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(CompletionParams params) {
-		return initialized
-			.thenCompose(ignored -> completionSupported ? server.getTextDocumentService().completion(params)
-					: CompletableFuture.completedFuture(Either.forLeft(List.of())));
+		return initialized.thenCompose(
+				ignored -> serverCapabilities.completionSupported() ? server.getTextDocumentService().completion(params)
+						: CompletableFuture.completedFuture(Either.forLeft(List.of())));
 	}
 
 	/**
@@ -417,9 +409,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definition(
 			DefinitionParams params) {
-		return initialized
-			.thenCompose(ignored -> definitionSupported ? server.getTextDocumentService().definition(params)
-					: CompletableFuture.completedFuture(Either.forLeft(List.of())));
+		return initialized.thenCompose(
+				ignored -> serverCapabilities.definitionSupported() ? server.getTextDocumentService().definition(params)
+						: CompletableFuture.completedFuture(Either.forLeft(List.of())));
 	}
 
 	@SuppressWarnings("deprecation")
@@ -462,13 +454,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 				if (result == null || result.getCapabilities() == null) {
 					throw new IllegalStateException("Language server returned no capabilities.");
 				}
-				synchronizationKind = getSynchronizationKind(result);
-				openCloseSupported = hasOpenCloseSupport(result);
-				completionSupported = result.getCapabilities().getCompletionProvider() != null;
-				definitionSupported = hasDefinitionSupport(result);
-				saveSupported = hasSaveSupport(result);
-				formattingSupported = hasFormattingSupport(result);
-				saveIncludeText = shouldIncludeTextOnSave(result);
+				serverCapabilities = new ServerCapabilitiesSnapshot(getSynchronizationKind(result),
+						hasOpenCloseSupport(result), result.getCapabilities().getCompletionProvider() != null,
+						hasDefinitionSupport(result), hasSaveSupport(result), shouldIncludeTextOnSave(result),
+						hasFormattingSupport(result));
 				server.initialized(new InitializedParams());
 				initialized.complete(null);
 				LOGGER.info("Language server initialized for workspace {}.",
@@ -541,6 +530,15 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 		Either<Boolean, DefinitionOptions> provider = result.getCapabilities().getDefinitionProvider();
 		return provider != null
 				&& (provider.isLeft() ? Boolean.TRUE.equals(provider.getLeft()) : provider.getRight() != null);
+	}
+
+	private record ServerCapabilitiesSnapshot(TextDocumentSyncKind synchronizationKind, boolean openCloseSupported,
+			boolean completionSupported, boolean definitionSupported, boolean saveSupported, boolean saveIncludeText,
+			boolean formattingSupported) {
+
+		private static final ServerCapabilitiesSnapshot NONE = new ServerCapabilitiesSnapshot(TextDocumentSyncKind.None,
+				false, false, false, false, false, false);
+
 	}
 
 	private Position getEndPosition(String text) {

@@ -45,6 +45,13 @@ public final class TerminalPanel extends JPanel {
 	@SuppressWarnings("unused")
 	private static final Color ICON_ACCENT = new Color(0x6E7781);
 
+	/**
+	 * Minimum WCAG contrast ratio used by the deprecated legacy icon helpers.
+	 * @deprecated since v1.1.0, use {@link ThemeColors#MIN_LARGE_TEXT_CONTRAST} instead
+	 */
+	@Deprecated
+	private static final double MIN_ICON_CONTRAST = 4.5;
+
 	private final JTabbedPane terminalTabs = new JTabbedPane();
 
 	private final JButton addButton = new TerminalActionButton();
@@ -235,6 +242,99 @@ public final class TerminalPanel extends JPanel {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Returns a foreground color that stays readable on the given background.
+	 *
+	 * <p>
+	 * Legacy helper kept for code written against v1.0.0beta. New code must use
+	 * {@link ThemeColors#readable(Color, Color, double)} with
+	 * {@link ThemeColors#MIN_LARGE_TEXT_CONTRAST}.
+	 * @param preferred preferred foreground color
+	 * @param background background color behind the icon
+	 * @return a readable foreground color
+	 * @deprecated since v1.1.0, use
+	 * {@code ThemeColors.readable(preferred, background, ThemeColors.MIN_LARGE_TEXT_CONTRAST)}
+	 * instead
+	 */
+	@Deprecated
+	static Color getAccessibleIconForeground(Color preferred, Color background) {
+		Color effectiveBackground = background == null ? Color.WHITE : background;
+		Color effectiveForeground = preferred == null ? Color.DARK_GRAY : preferred;
+		if (contrastRatio(effectiveForeground, effectiveBackground) >= MIN_ICON_CONTRAST) {
+			return effectiveForeground;
+		}
+		return contrastRatio(Color.BLACK, effectiveBackground) >= contrastRatio(Color.WHITE, effectiveBackground)
+				? Color.BLACK : Color.WHITE;
+	}
+
+	/**
+	 * Calculates the WCAG contrast ratio, compositing translucent colors over white.
+	 * @param foreground foreground color
+	 * @param background background color
+	 * @return the contrast ratio between the two colors
+	 * @deprecated since v1.1.0, use {@link ThemeColors#contrastRatio(Color, Color)}
+	 * instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private static double contrastRatio(Color foreground, Color background) {
+		Color opaqueBackground = composite(background, Color.WHITE);
+		Color opaqueForeground = composite(foreground, opaqueBackground);
+		double foregroundLuminance = relativeLuminance(opaqueForeground);
+		double backgroundLuminance = relativeLuminance(opaqueBackground);
+		double lighter = Math.max(foregroundLuminance, backgroundLuminance);
+		double darker = Math.min(foregroundLuminance, backgroundLuminance);
+		return (lighter + 0.05) / (darker + 0.05);
+	}
+
+	/**
+	 * Composites a translucent color over an opaque background.
+	 * @param color color to composite
+	 * @param background opaque background color
+	 * @return the resulting opaque color
+	 * @deprecated since v1.1.0, use {@link ThemeColors#blend(Color, Color, float)}
+	 * instead; that method takes an explicit blend ratio instead of the alpha channel
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private static Color composite(Color color, Color background) {
+		if (color.getAlpha() == 255) {
+			return color;
+		}
+		double alpha = color.getAlpha() / 255.0;
+		return new Color((int) Math.round(color.getRed() * alpha + background.getRed() * (1 - alpha)),
+				(int) Math.round(color.getGreen() * alpha + background.getGreen() * (1 - alpha)),
+				(int) Math.round(color.getBlue() * alpha + background.getBlue() * (1 - alpha)));
+	}
+
+	/**
+	 * Returns the relative luminance of a color.
+	 * @param color color to inspect
+	 * @return luminance between {@code 0} and {@code 1}
+	 * @deprecated since v1.1.0, use {@link ThemeColors#relativeLuminance(Color)} instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private static double relativeLuminance(Color color) {
+		return 0.2126 * linearize(color.getRed()) + 0.7152 * linearize(color.getGreen())
+				+ 0.0722 * linearize(color.getBlue());
+	}
+
+	/**
+	 * Converts a color channel to linear RGB.
+	 * @param channel channel value between {@code 0} and {@code 255}
+	 * @return the linearized channel
+	 * @deprecated since v1.1.0, the linearization helper moved into {@link ThemeColors}
+	 * and is internal to that class; use {@link ThemeColors#relativeLuminance(Color)} for
+	 * luminance calculations
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private static double linearize(int channel) {
+		double normalized = channel / 255.0;
+		return normalized <= 0.04045 ? normalized / 12.92 : Math.pow((normalized + 0.055) / 1.055, 2.4);
 	}
 
 	private static final class TerminalActionButton extends JButton {

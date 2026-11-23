@@ -11,7 +11,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 
 import io.simpleide.ui.treefile.Directory;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TreeFile;
 
 /**
@@ -104,7 +104,7 @@ public class FileService {
 		}
 
 		Files.createFile(path);
-		return new File(path);
+		return new SimpleIDEFile(path);
 	}
 
 	private Path parseName(String name) {

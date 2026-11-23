@@ -48,7 +48,7 @@ class TreeFileTest {
 			Directory directory = new Directory(source);
 
 			assertThat(directory.getChildren()).hasSize(2);
-			File file = (File) directory.getChildren()
+			SimpleIDEFile file = (SimpleIDEFile) directory.getChildren()
 				.stream()
 				.filter(child -> child.getName().equals("Main.java"))
 				.findFirst()
@@ -91,7 +91,7 @@ class TreeFileTest {
 					writer.write(block);
 				}
 			}
-			File file = File.lazy(path);
+			SimpleIDEFile file = SimpleIDEFile.lazy(path);
 			file.loadContent();
 
 			assertThat(file.getContentKind()).isEqualTo(FileContentKind.TEXT);
@@ -113,7 +113,7 @@ class TreeFileTest {
 		try {
 			BufferedImage source = new BufferedImage(1200, 900, BufferedImage.TYPE_INT_RGB);
 			ImageIO.write(source, "png", path.toFile());
-			File file = File.lazy(path);
+			SimpleIDEFile file = SimpleIDEFile.lazy(path);
 			file.loadContent();
 
 			assertThat(file.getContentKind()).isEqualTo(FileContentKind.IMAGE);
@@ -349,7 +349,7 @@ class TreeFileTest {
 
 			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
 			flushEdt();
-			assertThat(tree.getState().getSelected()).isInstanceOf(File.class);
+			assertThat(tree.getState().getSelected()).isInstanceOf(SimpleIDEFile.class);
 			assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 
 			SwingUtilities.invokeAndWait(() -> tree.clearSelection());
@@ -518,7 +518,7 @@ class TreeFileTest {
 			Directory directory = new Directory(root);
 
 			assertThat(directory.getChildren()).hasSize(1);
-			File binary = (File) directory.getChildren().get(0);
+			SimpleIDEFile binary = (SimpleIDEFile) directory.getChildren().get(0);
 			assertThat(binary.isContentLoaded()).isFalse();
 			binary.loadContent();
 			assertThat(binary.isContentLoaded()).isTrue();
@@ -546,16 +546,16 @@ class TreeFileTest {
 			Path groovyPath = Files.writeString(root.resolve("Main.groovy"), "class Main {}");
 			Path goPath = Files.writeString(root.resolve("main.go"), "package main");
 
-			assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
-			assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
-			assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
-			assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
-			assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
-			assertThat(new File(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
-			assertThat(new File(javaPath).getTypeFile()).isEqualTo(TypeFile.JAVA);
-			assertThat(new File(csharpPath).getTypeFile()).isEqualTo(TypeFile.CSHARP);
-			assertThat(new File(groovyPath).getTypeFile()).isEqualTo(TypeFile.GROOVY);
-			assertThat(new File(goPath).getTypeFile()).isEqualTo(TypeFile.GO);
+			assertThat(new SimpleIDEFile(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
+			assertThat(new SimpleIDEFile(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
+			assertThat(new SimpleIDEFile(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
+			assertThat(new SimpleIDEFile(cPath).getTypeFile()).isEqualTo(TypeFile.C);
+			assertThat(new SimpleIDEFile(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
+			assertThat(new SimpleIDEFile(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
+			assertThat(new SimpleIDEFile(javaPath).getTypeFile()).isEqualTo(TypeFile.JAVA);
+			assertThat(new SimpleIDEFile(csharpPath).getTypeFile()).isEqualTo(TypeFile.CSHARP);
+			assertThat(new SimpleIDEFile(groovyPath).getTypeFile()).isEqualTo(TypeFile.GROOVY);
+			assertThat(new SimpleIDEFile(goPath).getTypeFile()).isEqualTo(TypeFile.GO);
 		}
 		finally {
 			Files.deleteIfExists(root.resolve("script.PY"));
@@ -582,9 +582,9 @@ class TreeFileTest {
 			JTree tree = new JTree();
 			DefaultMutableTreeNode directoryNode = new DefaultMutableTreeNode(directory);
 			DefaultMutableTreeNode javaNode = new DefaultMutableTreeNode(
-					new File(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
+					new SimpleIDEFile(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
 			DefaultMutableTreeNode pythonNode = new DefaultMutableTreeNode(
-					new File(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
+					new SimpleIDEFile(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
 
 			renderer.getTreeCellRendererComponent(tree, directoryNode, false, false, false, 0, false);
 			Icon closedFolderIcon = renderer.getIcon();

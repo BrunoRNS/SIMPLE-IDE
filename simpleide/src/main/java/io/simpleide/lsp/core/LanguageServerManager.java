@@ -16,6 +16,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -344,9 +345,8 @@ public final class LanguageServerManager implements AutoCloseable {
 
 		private final NodePattern startupNode;
 
-		private volatile LspClient activeClient;
-
-		private volatile boolean startupFinished;
+		private final AtomicReference<ServerEntrySnapshot> state = new AtomicReference<>(
+				new ServerEntrySnapshot(null, false));
 
 		private ServerEntry(String languageId, Path root, Map<String, String> environment, String statusId) {
 			this.languageId = languageId;
@@ -387,7 +387,7 @@ public final class LanguageServerManager implements AutoCloseable {
 				client.completeExceptionally(error);
 			}
 			finally {
-				startupFinished = true;
+				state.updateAndGet(snapshot -> new ServerEntrySnapshot(snapshot.activeClient(), true));
 			}
 		}
 
@@ -413,7 +413,7 @@ public final class LanguageServerManager implements AutoCloseable {
 				return;
 			}
 
-			activeClient = lspClient;
+			state.updateAndGet(snapshot -> new ServerEntrySnapshot(lspClient, snapshot.startupFinished()));
 			if (closed) {
 				closeActiveClient();
 				client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
@@ -488,24 +488,28 @@ public final class LanguageServerManager implements AutoCloseable {
 		}
 
 		private void closeActiveClient() {
-			LspClient current = activeClient;
-			activeClient = null;
+			LspClient current = state
+				.updateAndGet(snapshot -> new ServerEntrySnapshot(null, snapshot.startupFinished()))
+				.activeClient();
 			if (current != null) {
 				current.close();
 			}
 		}
 
 		private LspClient activeClient() {
-			return activeClient;
+			return state.get().activeClient();
 		}
 
 		private void onStartupNodeClosed() {
-			if (!startupFinished) {
+			if (!state.get().startupFinished()) {
 				if (!client.isDone()) {
 					client.completeExceptionally(new CancellationException("Language server startup was cancelled."));
 				}
 				closeActiveClient();
 			}
+		}
+
+		private record ServerEntrySnapshot(LspClient activeClient, boolean startupFinished) {
 		}
 
 	}

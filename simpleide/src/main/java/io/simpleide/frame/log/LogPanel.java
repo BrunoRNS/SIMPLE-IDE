@@ -118,6 +118,29 @@ public class LogPanel extends JTextPane {
 		}
 	}
 
+	/**
+	 * Applies a background color directly to the characters already present in the log
+	 * document.
+	 *
+	 * <p>
+	 * This method is kept for legacy integrations that called it directly. New code must
+	 * let {@link #rebuildDocument()} re-render the stored entries with the active theme,
+	 * which also keeps the entry colors consistent.
+	 * @param background background color to apply
+	 * @deprecated since v1.1.0, use the themed look and feel together with
+	 * {@link #rebuildDocument()} instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private void applyDocumentBackground(Color background) {
+		if (!(getDocument() instanceof StyledDocument document) || document.getLength() == 0) {
+			return;
+		}
+		SimpleAttributeSet style = new SimpleAttributeSet();
+		StyleConstants.setBackground(style, background);
+		document.setCharacterAttributes(0, document.getLength(), style, false);
+	}
+
 	private record LogEntry(String text, String level, Color color) {
 	}
 

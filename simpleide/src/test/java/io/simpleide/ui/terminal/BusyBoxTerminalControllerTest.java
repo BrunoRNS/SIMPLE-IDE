@@ -6,6 +6,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.JButton;
 import javax.swing.JTabbedPane;
@@ -121,7 +123,7 @@ class BusyBoxTerminalControllerTest {
 
 		BusyBoxTerminalSession session = terminalStates(controller).get(0).session;
 		NeverEndingPtyProcess stuckProcess = new NeverEndingPtyProcess();
-		setField(session, "process", stuckProcess);
+		setSnapshotValue(session, "withProcess", PtyProcess.class, stuckProcess);
 
 		CountDownLatch closeActionReturned = new CountDownLatch(1);
 		SwingUtilities.invokeLater(() -> {
@@ -146,10 +148,14 @@ class BusyBoxTerminalControllerTest {
 		assertTrue(closed.await(5, TimeUnit.SECONDS));
 	}
 
-	private static void setField(Object target, String name, Object value) throws Exception {
-		Field field = target.getClass().getDeclaredField(name);
-		field.setAccessible(true);
-		field.set(target, value);
+	private static void setSnapshotValue(Object target, String updaterName, Class<?> valueType, Object value)
+			throws Exception {
+		Object snapshot = snapshot(target);
+		Method updater = snapshot.getClass().getDeclaredMethod(updaterName, valueType);
+		updater.setAccessible(true);
+		AtomicReference<?> state = getState(target);
+		Method set = AtomicReference.class.getMethod("set", Object.class);
+		set.invoke(state, updater.invoke(snapshot, value));
 	}
 
 	private static void awaitEdtIdle() throws Exception {
@@ -249,18 +255,29 @@ class BusyBoxTerminalControllerTest {
 			Map<?, ?> tabs = (Map<?, ?>) tabsField.get(controller);
 			List<TerminalState> states = new ArrayList<>();
 			for (Object tab : tabs.values()) {
-				Field sessionField = tab.getClass().getDeclaredField("session");
-				Field launchCompleteField = tab.getClass().getDeclaredField("launchComplete");
-				sessionField.setAccessible(true);
-				launchCompleteField.setAccessible(true);
-				states.add(new TerminalState((BusyBoxTerminalSession) sessionField.get(tab),
-						launchCompleteField.getBoolean(tab)));
+				Object snapshot = snapshot(tab);
+				Method session = snapshot.getClass().getDeclaredMethod("session");
+				Method launchComplete = snapshot.getClass().getDeclaredMethod("launchComplete");
+				session.setAccessible(true);
+				launchComplete.setAccessible(true);
+				states.add(new TerminalState((BusyBoxTerminalSession) session.invoke(snapshot),
+						(boolean) launchComplete.invoke(snapshot)));
 			}
 			return states;
 		}
 		catch (ReflectiveOperationException exception) {
 			throw new AssertionError("Unable to inspect terminal session state.", exception);
 		}
+	}
+
+	private static Object snapshot(Object target) throws ReflectiveOperationException {
+		return getState(target).get();
+	}
+
+	private static AtomicReference<?> getState(Object target) throws ReflectiveOperationException {
+		Field stateField = target.getClass().getDeclaredField("state");
+		stateField.setAccessible(true);
+		return (AtomicReference<?>) stateField.get(target);
 	}
 
 	private record TerminalState(BusyBoxTerminalSession session, boolean launchComplete) {
