@@ -1,12 +1,13 @@
 package io.simpleide.api;
 
+import java.util.Objects;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
-import java.util.Objects;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Small facade over {@link ThreadMaster}.

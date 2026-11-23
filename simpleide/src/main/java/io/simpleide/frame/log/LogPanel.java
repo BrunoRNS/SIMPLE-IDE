@@ -1,17 +1,20 @@
 package io.simpleide.frame.log;
 
-import io.simpleide.thread.ThreadMaster;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.swing.JTextPane;
 import javax.swing.UIManager;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Read-only text pane that displays colored log entries for the application.
@@ -113,6 +116,29 @@ public class LogPanel extends JTextPane {
 		for (LogEntry entry : entries) {
 			insertEntry(entry);
 		}
+	}
+
+	/**
+	 * Applies a background color directly to the characters already present in the log
+	 * document.
+	 *
+	 * <p>
+	 * This method is kept for legacy integrations that called it directly. New code must
+	 * let {@link #rebuildDocument()} re-render the stored entries with the active theme,
+	 * which also keeps the entry colors consistent.
+	 * @param background background color to apply
+	 * @deprecated since v1.1.0, use the themed look and feel together with
+	 * {@link #rebuildDocument()} instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private void applyDocumentBackground(Color background) {
+		if (!(getDocument() instanceof StyledDocument document) || document.getLength() == 0) {
+			return;
+		}
+		SimpleAttributeSet style = new SimpleAttributeSet();
+		StyleConstants.setBackground(style, background);
+		document.setCharacterAttributes(0, document.getLength(), style, false);
 	}
 
 	private record LogEntry(String text, String level, Color color) {

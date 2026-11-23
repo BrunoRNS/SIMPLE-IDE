@@ -1,6 +1,5 @@
 package io.simpleide.lsp.dowload;
 
-import io.simpleide.lsp.LspStatus;
 import java.io.IOException;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -19,10 +18,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+
 import org.rauschig.jarchivelib.Archiver;
 import org.rauschig.jarchivelib.ArchiverFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.lsp.LspStatus;
 
 /**
  * Downloads, extracts and installs language servers into the user directory.

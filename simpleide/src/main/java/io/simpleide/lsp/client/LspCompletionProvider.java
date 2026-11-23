@@ -2,8 +2,10 @@ package io.simpleide.lsp.client;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
+
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.InsertReplaceEdit;
 import org.eclipse.lsp4j.Position;

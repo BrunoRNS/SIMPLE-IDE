@@ -3,6 +3,7 @@ package io.simpleide.thread;
 import java.awt.EventQueue;
 import java.math.BigInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import org.slf4j.Logger;
@@ -35,11 +36,7 @@ public final class ManagedTask implements Runnable {
 
 	private final AtomicBoolean closed = new AtomicBoolean();
 
-	private volatile boolean cancelled;
-
-	private volatile boolean running;
-
-	private volatile Thread runner;
+	private final AtomicReference<TaskSnapshot> state = new AtomicReference<>(new TaskSnapshot(false, false, null));
 
 	ManagedTask(NodePattern node, Consumer<ManagedTask> onFinished) {
 		this.node = node;
@@ -51,7 +48,7 @@ public final class ManagedTask implements Runnable {
 	}
 
 	boolean isRunning() {
-		return running;
+		return state.get().running();
 	}
 
 	@Override
@@ -59,11 +56,10 @@ public final class ManagedTask implements Runnable {
 		if (!started.compareAndSet(false, true)) {
 			return;
 		}
-		runner = Thread.currentThread();
-		running = true;
+		state.updateAndGet(snapshot -> snapshot.withExecution(true, Thread.currentThread()));
 		try {
 			NodeExecutionValidation.INSTANCE.validate(node);
-			if (!cancelled) {
+			if (!state.get().cancelled()) {
 				Runnable action = node.onStart();
 				if (action != null) {
 					action.run();
@@ -75,16 +71,15 @@ public final class ManagedTask implements Runnable {
 			throw exception;
 		}
 		finally {
-			running = false;
-			runner = null;
+			state.updateAndGet(snapshot -> snapshot.withExecution(false, null));
 			closeOnce();
 			onFinished.accept(this);
 		}
 	}
 
 	void cancel(Runnable removeFromQueue) {
-		cancelled = true;
-		Thread currentRunner = runner;
+		TaskSnapshot snapshot = state.updateAndGet(current -> current.withCancelled());
+		Thread currentRunner = snapshot.runner();
 		if (currentRunner != null && !node.isEDT() && currentRunner != Thread.currentThread()) {
 			currentRunner.interrupt();
 		}
@@ -94,6 +89,18 @@ public final class ManagedTask implements Runnable {
 			}
 			closeOnce();
 		}
+	}
+
+	private record TaskSnapshot(boolean cancelled, boolean running, Thread runner) {
+
+		private TaskSnapshot withCancelled() {
+			return new TaskSnapshot(true, running, runner);
+		}
+
+		private TaskSnapshot withExecution(boolean running, Thread runner) {
+			return new TaskSnapshot(cancelled, running, runner);
+		}
+
 	}
 
 	private void closeOnce() {

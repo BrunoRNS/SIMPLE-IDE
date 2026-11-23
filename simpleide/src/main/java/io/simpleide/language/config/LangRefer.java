@@ -1,7 +1,8 @@
 package io.simpleide.language.config;
 
-import io.simpleide.language.AbstractLanguage;
 import java.util.Objects;
+
+import io.simpleide.language.AbstractLanguage;
 
 /**
  * Holds the language class associated with one or more file extensions.

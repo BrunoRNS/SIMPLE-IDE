@@ -1,11 +1,5 @@
 package io.simpleide.ui.treefile;
 
-import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
-import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
-import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
-
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.IOException;
 import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.FileSystems;
@@ -25,8 +19,16 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static java.nio.file.StandardWatchEventKinds.ENTRY_CREATE;
+import static java.nio.file.StandardWatchEventKinds.ENTRY_DELETE;
+import static java.nio.file.StandardWatchEventKinds.OVERFLOW;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
  * Watches a project directory and refreshes the tree on file system changes.

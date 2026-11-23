@@ -1,6 +1,7 @@
 package io.simpleide.language.jvmbytecode;
 
 import java.nio.file.Path;
+
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 
 /**

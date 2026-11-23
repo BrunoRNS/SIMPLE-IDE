@@ -3,6 +3,7 @@ package io.simpleide.language.compiler;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 
 /**

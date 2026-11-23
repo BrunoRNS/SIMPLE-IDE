@@ -1,9 +1,10 @@
 package io.simpleide.language.io;
 
-import io.simpleide.language.io.holder.OutputHolder;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+
+import io.simpleide.language.io.holder.OutputHolder;
 
 /**
  * Thread-safe queue of lines published by a running language process.

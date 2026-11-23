@@ -1,6 +1,5 @@
 package io.simpleide.ui.treefile;
 
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.nio.file.Path;
@@ -22,6 +21,7 @@ import io.simpleide.frame.popup.InputPopUP;
 import io.simpleide.frame.popup.WarningPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.MouseNode;
 import io.simpleide.utils.service.FileService;
 
 /**
@@ -45,44 +45,39 @@ public final class TreeFileActions {
 
 	private final FileService fileService = new FileService();
 
+	private JPopupMenu contextMenu;
+
+	private JMenuItem renameItem;
+
+	private JMenuItem deleteItem;
+
 	TreeFileActions(Tree tree, TreeState state) {
 		this.tree = tree;
 		this.state = state;
 	}
 
-	@SuppressWarnings("unused")
 	void installContextMenu() {
-		JPopupMenu menu = new JPopupMenu();
-		JMenuItem newFile = addMenuItem(menu, "New file", this::promptCreateFile);
-		JMenuItem newFolder = addMenuItem(menu, "New folder", this::promptCreateDirectory);
-		JMenuItem rename = addMenuItem(menu, "Rename", this::promptRename);
-		JMenuItem delete = addMenuItem(menu, "Delete", this::promptDelete);
+		contextMenu = new JPopupMenu();
+		addMenuItem(contextMenu, "New file", this::promptCreateFile);
+		addMenuItem(contextMenu, "New folder", this::promptCreateDirectory);
+		renameItem = addMenuItem(contextMenu, "Rename", this::promptRename);
+		deleteItem = addMenuItem(contextMenu, "Delete", this::promptDelete);
 
-		tree.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mousePressed(MouseEvent event) {
-				showPopup(event);
-			}
+		tree.addMouseListener(new MouseNode().onPress(this::showPopup).onRelease(this::showPopup));
+	}
 
-			@Override
-			public void mouseReleased(MouseEvent event) {
-				showPopup(event);
-			}
+	private void showPopup(MouseEvent event) {
+		if (!event.isPopupTrigger() || contextMenu == null) {
+			return;
+		}
 
-			private void showPopup(MouseEvent event) {
-				if (!event.isPopupTrigger()) {
-					return;
-				}
-
-				TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
-				if (clickedPath != null) {
-					tree.setSelectionPath(clickedPath);
-				}
-				updateMenuActions(rename, delete);
-				SwingUtilities.updateComponentTreeUI(menu);
-				menu.show(event.getComponent(), event.getX(), event.getY());
-			}
-		});
+		TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
+		if (clickedPath != null) {
+			tree.setSelectionPath(clickedPath);
+		}
+		updateMenuActions(renameItem, deleteItem);
+		SwingUtilities.updateComponentTreeUI(contextMenu);
+		contextMenu.show(event.getComponent(), event.getX(), event.getY());
 	}
 
 	void createNewFile() {

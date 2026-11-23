@@ -9,7 +9,7 @@ import javax.swing.UIManager;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
 
 /**
@@ -62,7 +62,7 @@ public class Editor extends RSyntaxTextArea {
 	 * Loads a source file into the editor and moves the caret to the start.
 	 * @param file file to read, must not be {@code null}
 	 */
-	public void loadFile(File file) {
+	public void loadFile(SimpleIDEFile file) {
 		Objects.requireNonNull(file, "file");
 		applyUiFont();
 		setSyntaxEditingStyle(syntaxStyleForFile(file.getName(), file.getTypeFile()));

@@ -3,6 +3,7 @@ package io.simpleide.ui.menubar;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
+import java.awt.Font;
 import java.awt.Insets;
 import java.awt.Window;
 import java.io.IOException;
@@ -10,38 +11,43 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.List;
+import java.util.Objects;
 
-import javax.swing.JMenu;
-import javax.swing.BorderFactory;
 import javax.swing.AbstractButton;
+import javax.swing.BorderFactory;
+import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JSpinner;
-import javax.swing.JTextField;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTextField;
+import javax.swing.JTextPane;
 import javax.swing.JTree;
 import javax.swing.JViewport;
 import javax.swing.SwingUtilities;
 import javax.swing.UIDefaults;
 import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
-import javax.swing.JPanel;
-import javax.swing.JTextPane;
-
-import org.fife.ui.rsyntaxtextarea.Theme;
-import org.fife.ui.rsyntaxtextarea.TokenTypes;
+import javax.swing.plaf.FontUIResource;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
+import org.fife.ui.rsyntaxtextarea.RSyntaxUtilities;
+import org.fife.ui.rsyntaxtextarea.Theme;
+import org.fife.ui.rsyntaxtextarea.TokenTypes;
+import org.fife.ui.rtextarea.Gutter;
 
-import io.simpleide.thread.ThreadMaster;
 import io.simpleide.api.HexEditor;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.SyntaxPalette;
+import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorManager;
@@ -70,6 +76,14 @@ public final class ThemeManager {
 	private static final ThemeManager INSTANCE = new ThemeManager();
 
 	private ThemeType currentTheme = ThemeType.DARK;
+
+	private String uiFontFamily = "SansSerif";
+
+	private int uiFontSize = 12;
+
+	private String editorFontFamily = "Monospaced";
+
+	private int editorFontSize = 13;
 
 	private final List<Editor> editors = new ArrayList<>();
 
@@ -178,6 +192,89 @@ public final class ThemeManager {
 	public void setTheme(ThemeType newTheme) {
 		this.currentTheme = newTheme;
 		applyTheme(newTheme);
+	}
+
+	/**
+	 * Stores the interface and editor fonts used by the next theme application.
+	 * @param uiFontFamily interface font family
+	 * @param uiFontSize interface font size in points
+	 * @param editorFontFamily editor font family
+	 * @param editorFontSize editor font size in points
+	 * @return {@code true} when at least one font value changed
+	 */
+	public boolean setFonts(String uiFontFamily, int uiFontSize, String editorFontFamily, int editorFontSize) {
+		String normalizedUiFamily = normalizeFamily(uiFontFamily, "SansSerif");
+		String normalizedEditorFamily = normalizeFamily(editorFontFamily, "Monospaced");
+		int normalizedUiSize = Math.max(8, Math.min(48, uiFontSize));
+		int normalizedEditorSize = Math.max(8, Math.min(72, editorFontSize));
+		boolean changed = !Objects.equals(this.uiFontFamily, normalizedUiFamily) || this.uiFontSize != normalizedUiSize
+				|| !Objects.equals(this.editorFontFamily, normalizedEditorFamily)
+				|| this.editorFontSize != normalizedEditorSize;
+		this.uiFontFamily = normalizedUiFamily;
+		this.uiFontSize = normalizedUiSize;
+		this.editorFontFamily = normalizedEditorFamily;
+		this.editorFontSize = normalizedEditorSize;
+		return changed;
+	}
+
+	/**
+	 * Returns the interface font family.
+	 * @return the configured interface font family
+	 */
+	public String getUiFontFamily() {
+		return uiFontFamily;
+	}
+
+	/**
+	 * Returns the interface font size.
+	 * @return the configured interface font size in points
+	 */
+	public int getUiFontSize() {
+		return uiFontSize;
+	}
+
+	/**
+	 * Returns the editor font family.
+	 * @return the configured editor font family
+	 */
+	public String getEditorFontFamily() {
+		return editorFontFamily;
+	}
+
+	/**
+	 * Returns the editor font size.
+	 * @return the configured editor font size in points
+	 */
+	public int getEditorFontSize() {
+		return editorFontSize;
+	}
+
+	/**
+	 * Reapplies the configured fonts to every window and registered editor.
+	 */
+	public void refreshFonts() {
+		ThreadMaster.getInstance().executeOnEDT(() -> {
+			applyFontDefaults(UIManager.getLookAndFeelDefaults());
+			updateAllWindows();
+			EditorManager.refreshFileIcons();
+			for (Editor registeredEditor : editors) {
+				if (registeredEditor != null) {
+					applyEditorFont(registeredEditor);
+				}
+			}
+		});
+	}
+
+	private static String normalizeFamily(String family, String fallback) {
+		return family == null || family.isBlank() ? fallback : family.trim();
+	}
+
+	private Font uiFont() {
+		return new Font(uiFontFamily, Font.PLAIN, uiFontSize);
+	}
+
+	private Font editorFont() {
+		return new Font(editorFontFamily, Font.PLAIN, editorFontSize);
 	}
 
 	private void applyTheme(ThemeType theme) {
@@ -375,6 +472,7 @@ public final class ThemeManager {
 				editor.setCaretColor(palette.foreground());
 				editor.setBackground(palette.background());
 				editor.setForeground(palette.foreground());
+				applyEditorFont(editor);
 			}
 		}
 		catch (IOException exception) {
@@ -451,15 +549,15 @@ public final class ThemeManager {
 		put(d, "Component.focusColor", alpha(p.accent(), 0x33));
 		put(d, "Component.borderColor", p.border());
 		put(d, "Component.disabledBorderColor", p.border());
-		put(d, "Component.focusedBorderColor", p.focusBorder());
+		put(d, "Component.focusedBorderColor", p.border());
 		put(d, "Component.error.borderColor", syntax.error());
 		put(d, "Component.error.focusedBorderColor", syntax.error());
 		put(d, "Component.warning.borderColor", syntax.string());
 		put(d, "Component.warning.focusedBorderColor", syntax.string());
 		put(d, "Component.success.borderColor", syntax.function());
 		put(d, "Component.success.focusedBorderColor", syntax.function());
-		put(d, "Component.focusWidth", 1);
-		put(d, "Component.innerFocusWidth", 1);
+		put(d, "Component.focusWidth", 0);
+		put(d, "Component.innerFocusWidth", 0);
 		put(d, "Component.borderWidth", 1);
 		put(d, "Component.arc", 12);
 		put(d, "Component.minimumWidth", 0);
@@ -510,7 +608,7 @@ public final class ThemeManager {
 		put(d, "SplitPaneDivider.gripColor", p.mutedForeground());
 		put(d, "SplitPaneDivider.hoverColor", p.accent());
 		put(d, "SplitPaneDivider.pressedColor", p.accent());
-		put(d, "SplitPaneDivider.draggingColor", p.accent());
+		put(d, "SplitPaneDivider.draggingColor", ThemeColors.blend(p.accent(), p.background(), 0.45f));
 		put(d, "SplitPaneDivider.oneTouchArrowColor", p.foreground());
 		put(d, "SplitPaneDivider.oneTouchHoverArrowColor", p.accent());
 		put(d, "SplitPaneDivider.oneTouchPressedArrowColor", p.accent());
@@ -543,20 +641,20 @@ public final class ThemeManager {
 		put(d, "ScrollBar.pressedButtonBackground", p.surface());
 
 		putTextLike(d, "TextField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
-				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.border(),
 				new Insets(2, 6, 2, 6));
 		putTextLike(d, "FormattedTextField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
-				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.border(),
 				new Insets(2, 6, 2, 6));
 		putTextLike(d, "PasswordField", p.inputBackground(), p.inputForeground(), p.selectionBackground(),
-				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.focusBorder(),
+				p.selectionForeground(), p.inputForeground(), p.disabledForeground(), p.border(), p.border(),
 				new Insets(2, 6, 2, 6));
 		putTextLike(d, "TextArea", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
-				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+				p.foreground(), p.disabledForeground(), p.border(), p.border(), new Insets(2, 6, 2, 6));
 		putTextLike(d, "TextPane", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
-				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+				p.foreground(), p.disabledForeground(), p.border(), p.border(), new Insets(2, 6, 2, 6));
 		putTextLike(d, "EditorPane", p.background(), p.foreground(), p.selectionBackground(), p.selectionForeground(),
-				p.foreground(), p.disabledForeground(), p.border(), p.focusBorder(), new Insets(2, 6, 2, 6));
+				p.foreground(), p.disabledForeground(), p.border(), p.border(), new Insets(2, 6, 2, 6));
 		put(d, "TextField.placeholderForeground", p.mutedForeground());
 		put(d, "FormattedTextField.placeholderForeground", p.mutedForeground());
 		put(d, "PasswordField.placeholderForeground", p.mutedForeground());
@@ -629,10 +727,10 @@ public final class ThemeManager {
 		put(d, "Button.default.hoverBackground", p.buttonHoverBackground());
 		put(d, "Button.default.pressedBackground", p.buttonPressedBackground());
 		put(d, "Button.default.borderColor", p.accent());
-		put(d, "Button.default.focusedBorderColor", p.focusBorder());
+		put(d, "Button.default.focusedBorderColor", p.border());
 		put(d, "Button.borderColor", p.border());
-		put(d, "Button.focusedBorderColor", p.focusBorder());
-		put(d, "Button.hoverBorderColor", p.focusBorder());
+		put(d, "Button.focusedBorderColor", p.border());
+		put(d, "Button.hoverBorderColor", p.border());
 		put(d, "Button.disabledBorderColor", p.border());
 		put(d, "Button.arc", 12);
 		put(d, "Button.borderWidth", 1);
@@ -673,7 +771,7 @@ public final class ThemeManager {
 		put(d, "ComboBox.popupForeground", p.popupForeground());
 		put(d, "ComboBox.arc", 10);
 		put(d, "ComboBox.borderColor", p.border());
-		put(d, "ComboBox.focusedBorderColor", p.focusBorder());
+		put(d, "ComboBox.focusedBorderColor", p.border());
 		put(d, "ComboBox.disabledBorderColor", p.border());
 		put(d, "ComboBox.editableBackground", p.inputBackground());
 		put(d, "ComboBox.focusedBackground", p.inputBackground());
@@ -695,7 +793,7 @@ public final class ThemeManager {
 		put(d, "Spinner.buttonHoverArrowColor", p.accent());
 		put(d, "Spinner.buttonPressedArrowColor", p.accent());
 		put(d, "Spinner.borderColor", p.border());
-		put(d, "Spinner.focusedBorderColor", p.focusBorder());
+		put(d, "Spinner.focusedBorderColor", p.border());
 		put(d, "Spinner.disabledBorderColor", p.border());
 		put(d, "Spinner.arc", 10);
 		put(d, "Spinner.padding", new Insets(2, 6, 2, 6));
@@ -707,7 +805,7 @@ public final class ThemeManager {
 		put(d, "List.selectionForeground", p.selectionForeground());
 		put(d, "List.selectionInactiveBackground", p.inactiveSelectionBackground());
 		put(d, "List.selectionInactiveForeground", p.inactiveSelectionForeground());
-		put(d, "List.cellFocusColor", p.focusBorder());
+		put(d, "List.cellFocusColor", p.selectionBackground());
 		put(d, "List.selectionArc", 8);
 		put(d, "List.selectionInsets", new Insets(2, 4, 2, 4));
 		put(d, "List.cellMargins", new Insets(2, 6, 2, 6));
@@ -723,7 +821,7 @@ public final class ThemeManager {
 		put(d, "Table.showVerticalLines", false);
 		put(d, "Table.intercellSpacing", new java.awt.Dimension(0, 0));
 		put(d, "Table.rowHeight", 22);
-		put(d, "Table.cellFocusColor", p.focusBorder());
+		put(d, "Table.cellFocusColor", p.selectionBackground());
 		put(d, "Table.cellMargins", new Insets(2, 6, 2, 6));
 		put(d, "Table.focusCellBackground", p.background());
 		put(d, "Table.focusCellForeground", p.foreground());
@@ -749,6 +847,7 @@ public final class ThemeManager {
 		put(d, "Tree.selectionInactiveBackground", p.inactiveSelectionBackground());
 		put(d, "Tree.selectionInactiveForeground", p.inactiveSelectionForeground());
 		put(d, "Tree.selectionBorderColor", p.treeSelectionBackground());
+		put(d, "Tree.focusCellHighlightBorder", BorderFactory.createEmptyBorder());
 		put(d, "Tree.hash", p.border());
 		put(d, "Tree.selectionArc", 8);
 		put(d, "Tree.selectionInsets", new Insets(2, 4, 2, 4));
@@ -879,6 +978,38 @@ public final class ThemeManager {
 		put(d, "Log.infoForeground", p.foreground());
 		put(d, "Log.warnForeground", syntax.string());
 		put(d, "Log.errorForeground", syntax.error());
+
+		applyFontDefaults(d);
+	}
+
+	private void applyFontDefaults(UIDefaults defaults) {
+		if (defaults == null) {
+			defaults = UIManager.getDefaults();
+		}
+		Font uiFont = uiFont();
+		List<Object> keys = new ArrayList<>();
+		for (Enumeration<Object> enumeration = defaults.keys(); enumeration.hasMoreElements();) {
+			keys.add(enumeration.nextElement());
+		}
+		for (Object key : keys) {
+			Object value = defaults.get(key);
+			if (value instanceof FontUIResource) {
+				defaults.put(key, new FontUIResource(uiFont));
+				UIManager.put(key, new FontUIResource(uiFont));
+			}
+		}
+		FontUIResource editorFont = new FontUIResource(editorFont());
+		put(defaults, "TextArea.font", editorFont);
+		put(defaults, "RSyntaxTextArea.font", editorFont);
+	}
+
+	private void applyEditorFont(Editor editor) {
+		Font font = editorFont();
+		editor.setFont(font);
+		Gutter gutter = RSyntaxUtilities.getGutter(editor);
+		if (gutter != null) {
+			gutter.setLineNumberFont(font);
+		}
 	}
 
 	private void putTextLike(UIDefaults d, String prefix, Color background, Color foreground, Color selectionBackground,
@@ -941,6 +1072,246 @@ public final class ThemeManager {
 
 	private static Color alpha(Color color, int alpha) {
 		return new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha);
+	}
+
+	/**
+	 * Applies the readable v1.0.0beta syntax colors for a theme.
+	 *
+	 * <p>
+	 * Legacy implementation kept for code written against v1.0.0beta. New code must use
+	 * {@link #applySyntaxPalette(Theme, SyntaxPalette)} with the palette returned by
+	 * {@link ThemePalette#syntax()}.
+	 * @param editorTheme editor theme to update
+	 * @param theme active IDE theme
+	 * @deprecated since v1.1.0, use {@link #applySyntaxPalette(Theme, SyntaxPalette)}
+	 * instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private void applyReadableSyntaxColors(Theme editorTheme, ThemeType theme) {
+		Color comments;
+		Color keywords;
+		Color types;
+		Color functions;
+		Color strings;
+		Color numbers;
+		Color punctuation;
+		Color commentKeywords;
+		Color identifiers;
+		Color variables;
+		Color annotations;
+		Color regexes;
+		Color booleans;
+		Color errors;
+		Color markupTags;
+		Color markupAttributes;
+		Color markupValues;
+		Color markupOther;
+
+		if (null == theme) {
+			comments = new Color(0x8FA39A);
+			keywords = new Color(0xF08A9B);
+			types = new Color(0x9CCB8A);
+			functions = new Color(0x83C5E8);
+			strings = new Color(0xE4C07A);
+			numbers = new Color(0xC6A0F6);
+			punctuation = new Color(0xD5DCE5);
+			commentKeywords = new Color(0xE4C07A);
+			identifiers = new Color(0xD5DCE5);
+			variables = new Color(0x83C5E8);
+			annotations = new Color(0xF08A9B);
+			regexes = new Color(0xE4C07A);
+			booleans = new Color(0xC6A0F6);
+			errors = new Color(0xF08A9B);
+			markupTags = new Color(0xF08A9B);
+			markupAttributes = new Color(0x9CCB8A);
+			markupValues = new Color(0xE4C07A);
+			markupOther = new Color(0x83C5E8);
+		}
+		else
+			switch (theme) {
+				case LIGHT -> {
+					comments = new Color(0x687A64);
+					keywords = new Color(0xA13D63);
+					types = new Color(0x246C72);
+					functions = new Color(0x315FA3);
+					strings = new Color(0x8A5A00);
+					numbers = new Color(0x7952A3);
+					punctuation = new Color(0x81511D);
+					commentKeywords = new Color(0x8A5A00);
+					identifiers = new Color(0x315FA3);
+					variables = new Color(0x246C72);
+					annotations = new Color(0xA13D63);
+					regexes = new Color(0x7952A3);
+					booleans = new Color(0x7952A3);
+					errors = new Color(0xB00020);
+					markupTags = new Color(0xA13D63);
+					markupAttributes = new Color(0x246C72);
+					markupValues = new Color(0x8A5A00);
+					markupOther = new Color(0x7952A3);
+				}
+				case BROWN -> {
+					comments = new Color(0x928374);
+					keywords = new Color(0xFB4934);
+					types = new Color(0xFABD2F);
+					functions = new Color(0xB8BB26);
+					strings = new Color(0xB8BB26);
+					numbers = new Color(0xD3869B);
+					punctuation = new Color(0xEBDBB2);
+					commentKeywords = new Color(0xFE8019);
+					identifiers = new Color(0x83A598);
+					variables = new Color(0x8EC07C);
+					annotations = new Color(0xFE8019);
+					regexes = new Color(0x83A598);
+					booleans = new Color(0xD3869B);
+					errors = new Color(0xFB4934);
+					markupTags = new Color(0xFB4934);
+					markupAttributes = new Color(0xFABD2F);
+					markupValues = new Color(0xB8BB26);
+					markupOther = new Color(0x83A598);
+				}
+				case BROWN_LIGHT -> {
+					comments = new Color(0xA89984);
+					keywords = new Color(0x9D0006);
+					types = new Color(0xB57614);
+					functions = new Color(0x79740E);
+					strings = new Color(0x79740E);
+					numbers = new Color(0x8F3F71);
+					punctuation = new Color(0x3C3836);
+					commentKeywords = new Color(0xAF3A03);
+					identifiers = new Color(0x076678);
+					variables = new Color(0x427B58);
+					annotations = new Color(0xAF3A03);
+					regexes = new Color(0x076678);
+					booleans = new Color(0x8F3F71);
+					errors = new Color(0x9D0006);
+					markupTags = new Color(0x9D0006);
+					markupAttributes = new Color(0xB57614);
+					markupValues = new Color(0x79740E);
+					markupOther = new Color(0x076678);
+				}
+				default -> {
+					comments = new Color(0x8FA39A);
+					keywords = new Color(0xF08A9B);
+					types = new Color(0x9CCB8A);
+					functions = new Color(0x83C5E8);
+					strings = new Color(0xE4C07A);
+					numbers = new Color(0xC6A0F6);
+					punctuation = new Color(0xD5DCE5);
+					commentKeywords = new Color(0xE4C07A);
+					identifiers = new Color(0xD5DCE5);
+					variables = new Color(0x83C5E8);
+					annotations = new Color(0xF08A9B);
+					regexes = new Color(0xE4C07A);
+					booleans = new Color(0xC6A0F6);
+					errors = new Color(0xF08A9B);
+					markupTags = new Color(0xF08A9B);
+					markupAttributes = new Color(0x9CCB8A);
+					markupValues = new Color(0xE4C07A);
+					markupOther = new Color(0x83C5E8);
+				}
+			}
+
+		setForeground(editorTheme, comments, TokenTypes.COMMENT_EOL, TokenTypes.COMMENT_MULTILINE,
+				TokenTypes.COMMENT_DOCUMENTATION);
+		setForeground(editorTheme, commentKeywords, TokenTypes.COMMENT_KEYWORD, TokenTypes.COMMENT_MARKUP);
+		setForeground(editorTheme, keywords, TokenTypes.RESERVED_WORD, TokenTypes.RESERVED_WORD_2);
+		setForeground(editorTheme, types, TokenTypes.DATA_TYPE);
+		setForeground(editorTheme, functions, TokenTypes.FUNCTION);
+		setForeground(editorTheme, identifiers, TokenTypes.IDENTIFIER);
+		setForeground(editorTheme, variables, TokenTypes.VARIABLE);
+		setForeground(editorTheme, strings, TokenTypes.LITERAL_STRING_DOUBLE_QUOTE, TokenTypes.LITERAL_CHAR,
+				TokenTypes.LITERAL_BACKQUOTE);
+		setForeground(editorTheme, numbers, TokenTypes.LITERAL_NUMBER_DECIMAL_INT, TokenTypes.LITERAL_NUMBER_FLOAT,
+				TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
+		setForeground(editorTheme, booleans, TokenTypes.LITERAL_BOOLEAN);
+		setForeground(editorTheme, annotations, TokenTypes.ANNOTATION);
+		setForeground(editorTheme, regexes, TokenTypes.REGEX);
+		setForeground(editorTheme, errors, TokenTypes.ERROR_IDENTIFIER, TokenTypes.ERROR_NUMBER_FORMAT,
+				TokenTypes.ERROR_STRING_DOUBLE, TokenTypes.ERROR_CHAR);
+		setForeground(editorTheme, markupTags, TokenTypes.MARKUP_TAG_DELIMITER, TokenTypes.MARKUP_TAG_NAME,
+				TokenTypes.MARKUP_PROCESSING_INSTRUCTION, TokenTypes.MARKUP_CDATA_DELIMITER);
+		setForeground(editorTheme, markupAttributes, TokenTypes.MARKUP_TAG_ATTRIBUTE);
+		setForeground(editorTheme, markupValues, TokenTypes.MARKUP_TAG_ATTRIBUTE_VALUE);
+		setForeground(editorTheme, markupOther, TokenTypes.MARKUP_DTD, TokenTypes.MARKUP_ENTITY_REFERENCE,
+				TokenTypes.MARKUP_CDATA);
+		setForeground(editorTheme, comments, TokenTypes.MARKUP_COMMENT);
+		setForeground(editorTheme, punctuation, TokenTypes.OPERATOR, TokenTypes.SEPARATOR, TokenTypes.PREPROCESSOR);
+		applyDistinctSyntaxColors(editorTheme, theme);
+	}
+
+	/**
+	 * Applies the v1.0.0beta theme-specific syntax overrides.
+	 *
+	 * <p>
+	 * Legacy implementation kept for code written against v1.0.0beta. New code must use
+	 * {@link #applySyntaxPalette(Theme, SyntaxPalette)}, which reads the same overrides
+	 * from {@link ThemePalette#syntax()}.
+	 * @param editorTheme editor theme to update
+	 * @param theme active IDE theme
+	 * @deprecated since v1.1.0, use {@link #applySyntaxPalette(Theme, SyntaxPalette)}
+	 * instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private void applyDistinctSyntaxColors(Theme editorTheme, ThemeType theme) {
+		if (theme == ThemeType.BROWN) {
+			setForeground(editorTheme, new Color(0xA89984), TokenTypes.COMMENT_MULTILINE);
+			setForeground(editorTheme, new Color(0xBDAE93), TokenTypes.COMMENT_DOCUMENTATION);
+			setForeground(editorTheme, new Color(0xFE8019), TokenTypes.COMMENT_MARKUP);
+			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.RESERVED_WORD_2);
+			setForeground(editorTheme, new Color(0xE0A577), TokenTypes.LITERAL_NUMBER_FLOAT);
+			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
+			setForeground(editorTheme, new Color(0xFE8019), TokenTypes.LITERAL_CHAR);
+			setForeground(editorTheme, new Color(0x83A598), TokenTypes.LITERAL_BACKQUOTE);
+			setForeground(editorTheme, new Color(0xFE8019), TokenTypes.ERROR_NUMBER_FORMAT);
+			setForeground(editorTheme, new Color(0xFB4934), TokenTypes.ERROR_STRING_DOUBLE);
+			setForeground(editorTheme, new Color(0xFF6B5E), TokenTypes.ERROR_CHAR);
+			setForeground(editorTheme, new Color(0xE4685D), TokenTypes.MARKUP_TAG_NAME);
+			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.MARKUP_PROCESSING_INSTRUCTION);
+			setForeground(editorTheme, new Color(0x83A598), TokenTypes.MARKUP_CDATA_DELIMITER);
+			setForeground(editorTheme, new Color(0xD3869B), TokenTypes.MARKUP_DTD);
+			setForeground(editorTheme, new Color(0x8EC07C), TokenTypes.MARKUP_ENTITY_REFERENCE);
+			setForeground(editorTheme, new Color(0x83A598), TokenTypes.MARKUP_CDATA);
+		}
+		else if (theme == ThemeType.BROWN_LIGHT) {
+			setForeground(editorTheme, new Color(0x928374), TokenTypes.COMMENT_MULTILINE);
+			setForeground(editorTheme, new Color(0x7C6F64), TokenTypes.COMMENT_DOCUMENTATION);
+			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.COMMENT_MARKUP);
+			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.RESERVED_WORD_2);
+			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.LITERAL_NUMBER_FLOAT);
+			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.LITERAL_NUMBER_HEXADECIMAL);
+			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.LITERAL_CHAR);
+			setForeground(editorTheme, new Color(0x076678), TokenTypes.LITERAL_BACKQUOTE);
+			setForeground(editorTheme, new Color(0xAF3A03), TokenTypes.ERROR_NUMBER_FORMAT);
+			setForeground(editorTheme, new Color(0x9D0006), TokenTypes.ERROR_STRING_DOUBLE);
+			setForeground(editorTheme, new Color(0xB00020), TokenTypes.ERROR_CHAR);
+			setForeground(editorTheme, new Color(0xA31218), TokenTypes.MARKUP_TAG_NAME);
+			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.MARKUP_PROCESSING_INSTRUCTION);
+			setForeground(editorTheme, new Color(0x076678), TokenTypes.MARKUP_CDATA_DELIMITER);
+			setForeground(editorTheme, new Color(0x8F3F71), TokenTypes.MARKUP_DTD);
+			setForeground(editorTheme, new Color(0x427B58), TokenTypes.MARKUP_ENTITY_REFERENCE);
+			setForeground(editorTheme, new Color(0x076678), TokenTypes.MARKUP_CDATA);
+		}
+	}
+
+	/**
+	 * Sets the foreground color for the given token types.
+	 *
+	 * <p>
+	 * Legacy helper kept for code written against v1.0.0beta.
+	 * @param theme editor theme to update
+	 * @param color foreground color
+	 * @param tokenTypes token types to update
+	 * @deprecated since v1.1.0, use {@link #setSyntaxForeground(Theme, Color, int...)}
+	 * instead
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private void setForeground(Theme theme, Color color, int... tokenTypes) {
+		for (int tokenType : tokenTypes) {
+			theme.scheme.getStyle(tokenType).foreground = color;
+		}
 	}
 
 }

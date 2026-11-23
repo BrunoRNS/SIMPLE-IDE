@@ -6,11 +6,12 @@ import java.nio.file.Path;
 import javax.swing.SwingUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
 
 /**
@@ -29,11 +30,12 @@ class EditorTest {
 				SyntaxConstants.SYNTAX_STYLE_PYTHON, SyntaxConstants.SYNTAX_STYLE_CSHARP,
 				SyntaxConstants.SYNTAX_STYLE_CPLUSPLUS, SyntaxConstants.SYNTAX_STYLE_C, SyntaxConstants.SYNTAX_STYLE_GO,
 				SyntaxConstants.SYNTAX_STYLE_RUST };
-		File[] files = new File[extensions.length];
+		SimpleIDEFile[] files = new SimpleIDEFile[extensions.length];
 		for (int index = 0; index < extensions.length; index++) {
-			files[index] = new File(Files.writeString(tempDirectory.resolve("main." + extensions[index]), "source"));
+			files[index] = new SimpleIDEFile(
+					Files.writeString(tempDirectory.resolve("main." + extensions[index]), "source"));
 		}
-		File textFile = new File(Files.writeString(tempDirectory.resolve("notes.txt"), "plain text"));
+		SimpleIDEFile textFile = new SimpleIDEFile(Files.writeString(tempDirectory.resolve("notes.txt"), "plain text"));
 
 		SwingUtilities.invokeAndWait(() -> {
 			Editor editor = new Editor();

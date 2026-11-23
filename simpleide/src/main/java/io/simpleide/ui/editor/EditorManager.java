@@ -4,8 +4,11 @@ import java.awt.Component;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
@@ -28,11 +31,12 @@ import io.simpleide.lsp.core.Document;
 import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.icon.MaterialIcons;
 import io.simpleide.ui.menubar.ThemeManager;
-import io.simpleide.ui.treefile.File;
 import io.simpleide.ui.treefile.FileContentKind;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
 
 /**
@@ -59,6 +63,10 @@ public class EditorManager {
 
 	private final Map<Path, EditorTab> openedEditors = new HashMap<>();
 
+	private final List<Consumer<EditorTab>> selectedTabListeners = new ArrayList<>();
+
+	private final List<Consumer<EditorTab>> diagnosticsListeners = new ArrayList<>();
+
 	private static EditorManager instance = null;
 
 	private final DocumentManager manager;
@@ -75,6 +83,14 @@ public class EditorManager {
 	private Runnable createFolder;
 
 	private Runnable openFolder;
+
+	private int editorTabSize = 4;
+
+	private boolean editorWordWrap;
+
+	private boolean editorLineNumbers = true;
+
+	private boolean editorShowWhitespace;
 
 	/**
 	 * Creates the editor manager without a language server status listener.
@@ -138,6 +154,48 @@ public class EditorManager {
 		return null;
 	}
 
+	/**
+	 * Returns the selected editor tab.
+	 * @return the selected tab, or {@code null} when the welcome page is selected
+	 */
+	public EditorTab getSelectedEditorTab() {
+		return jTabbedPane.getSelectedComponent() instanceof EditorTab tab ? tab : null;
+	}
+
+	/**
+	 * Registers a listener notified when the selected editor tab changes.
+	 * @param listener listener invoked on the EDT, must not be {@code null}
+	 */
+	public void addSelectedTabListener(Consumer<EditorTab> listener) {
+		selectedTabListeners.add(java.util.Objects.requireNonNull(listener, "listener"));
+	}
+
+	/**
+	 * Registers a listener notified when diagnostics change for an editor tab.
+	 * @param listener listener invoked with the updated tab, must not be {@code null}
+	 */
+	public void addDiagnosticsListener(Consumer<EditorTab> listener) {
+		diagnosticsListeners.add(java.util.Objects.requireNonNull(listener, "listener"));
+	}
+
+	/**
+	 * Applies the configurable editor behavior options to every open tab and to tabs
+	 * opened later.
+	 * @param tabSize number of spaces used for a tab
+	 * @param wordWrap whether long lines wrap
+	 * @param lineNumbers whether the line number gutter is shown
+	 * @param showWhitespace whether whitespace characters are painted
+	 */
+	public void applyEditorOptions(int tabSize, boolean wordWrap, boolean lineNumbers, boolean showWhitespace) {
+		this.editorTabSize = tabSize;
+		this.editorWordWrap = wordWrap;
+		this.editorLineNumbers = lineNumbers;
+		this.editorShowWhitespace = showWhitespace;
+		for (EditorTab tab : openedEditors.values()) {
+			tab.applyEditorOptions(tabSize, wordWrap, lineNumbers, showWhitespace);
+		}
+	}
+
 	@SuppressWarnings("")
 	/**
 	 * Opens a file in a new tab, or selects its existing tab.
@@ -148,7 +206,7 @@ public class EditorManager {
 	 * binary files use their dedicated viewers and do not start a language server.
 	 * @param file file to open, ignored when {@code null}
 	 */
-	public void openFile(File file) {
+	public void openFile(SimpleIDEFile file) {
 		if (file == null) {
 			return;
 		}
@@ -176,6 +234,9 @@ public class EditorManager {
 					JOptionPane.ERROR_MESSAGE);
 			return;
 		}
+		editorTab.applyEditorOptions(editorTabSize, editorWordWrap, editorLineNumbers, editorShowWhitespace);
+		editorTab.setDiagnosticsListener(this::notifyDiagnostics);
+		editorActions.configure(editorTab);
 		removeWelcomeScreen();
 
 		jTabbedPane.addTab(file.getName(), editorTab.getFileIcon(), editorTab);
@@ -201,6 +262,10 @@ public class EditorManager {
 			return;
 		}
 
+		tab.enableLocalLanguageSupport();
+		editorActions.configure(tab);
+		tab.applyEditorOptions(editorTabSize, editorWordWrap, editorLineNumbers, editorShowWhitespace);
+		tab.setDiagnosticsListener(this::notifyDiagnostics);
 		if (jTabbedPane.getTabCount() == 1 && "Welcome".equals(jTabbedPane.getTitleAt(0))) {
 			jTabbedPane.removeAll();
 		}
@@ -280,6 +345,34 @@ public class EditorManager {
 	}
 
 	/**
+	 * Closes the selected editor tab, prompting to save unsaved changes first.
+	 */
+	public void closeSelectedTab() {
+		closeTab(getSelectedEditorTab());
+	}
+
+	/**
+	 * Closes every open editor tab and shows the welcome page. Unsaved files are handled
+	 * by the same prompt used by a single tab close.
+	 */
+	public void closeAllEditors() {
+		for (EditorTab tab : new ArrayList<>(openedEditors.values())) {
+			closeTab(tab);
+		}
+		if (jTabbedPane.getTabCount() == 0) {
+			showWelcomeScreen();
+		}
+	}
+
+	/**
+	 * Saves every modified editor.
+	 * @return {@code true} when every modified file was saved successfully
+	 */
+	public boolean saveAllEditors() {
+		return saveAllModifiedFiles();
+	}
+
+	/**
 	 * Saves the selected tab when it has unsaved changes.
 	 */
 	public void saveSelectedFile() {
@@ -320,6 +413,14 @@ public class EditorManager {
 	 */
 	public EditorTab getOpenedEditor(Path path) {
 		return openedEditors.get(path);
+	}
+
+	/**
+	 * Returns a snapshot of paths currently open in editor tabs.
+	 * @return normalized open file paths
+	 */
+	public Set<Path> getOpenFilePaths() {
+		return Set.copyOf(openedEditors.keySet());
 	}
 
 	/**
@@ -534,7 +635,33 @@ public class EditorManager {
 
 	private void configJTabbedPane() {
 		this.jTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
-		this.jTabbedPane.addChangeListener(event -> refreshTabHeaderColors());
+		this.jTabbedPane.addChangeListener(new ChangeNode(event -> {
+			refreshTabHeaderColors();
+			notifySelectedTab();
+		}));
+	}
+
+	private void notifySelectedTab() {
+		EditorTab selected = getSelectedEditorTab();
+		for (Consumer<EditorTab> listener : selectedTabListeners) {
+			listener.accept(selected);
+		}
+	}
+
+	private void notifyDiagnostics(EditorTab tab) {
+		if (diagnosticsListeners.isEmpty()) {
+			return;
+		}
+		try {
+			ThreadMaster.getInstance().executeOnEDT(() -> {
+				for (Consumer<EditorTab> listener : diagnosticsListeners) {
+					listener.accept(tab);
+				}
+			});
+		}
+		catch (IllegalStateException error) {
+			LOGGER.debug("Diagnostics listeners were not notified because the thread manager is shut down.", error);
+		}
 	}
 
 	private void refreshTabHeaderColors() {

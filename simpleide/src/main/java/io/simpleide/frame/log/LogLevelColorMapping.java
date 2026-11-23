@@ -1,9 +1,11 @@
 package io.simpleide.frame.log;
 
-import ch.qos.logback.classic.Level;
 import java.awt.Color;
 import java.util.Map;
+
 import javax.swing.UIManager;
+
+import ch.qos.logback.classic.Level;
 
 /**
  * Maps Logback log levels to the colors used by the IDE log console.

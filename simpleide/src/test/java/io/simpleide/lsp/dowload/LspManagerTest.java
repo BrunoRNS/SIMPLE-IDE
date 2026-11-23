@@ -5,13 +5,14 @@ import java.nio.file.Path;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.LoggerFactory;
 
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
 
 /**
@@ -269,9 +270,9 @@ class LspManagerTest {
 		Path jsx = Files.writeString(home.resolve("App.jsx"), "export default App;");
 		Path go = Files.writeString(home.resolve("main.go"), "package main");
 
-		assertThat(new File(csharp).getTypeFile()).isEqualTo(TypeFile.CSHARP);
-		assertThat(new File(jsx).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
-		assertThat(new File(go).getTypeFile()).isEqualTo(TypeFile.GO);
+		assertThat(new SimpleIDEFile(csharp).getTypeFile()).isEqualTo(TypeFile.CSHARP);
+		assertThat(new SimpleIDEFile(jsx).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
+		assertThat(new SimpleIDEFile(go).getTypeFile()).isEqualTo(TypeFile.GO);
 	}
 
 	@Test

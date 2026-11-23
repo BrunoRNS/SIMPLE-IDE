@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JButton;
+import javax.swing.JCheckBox;
 import javax.swing.JFormattedTextField;
 import javax.swing.JLabel;
 import javax.swing.JMenu;
@@ -19,32 +20,34 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
-import javax.swing.JSplitPane;
 import javax.swing.JSpinner;
-import javax.swing.JTable;
+import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
+import javax.swing.JTable;
+import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import org.fife.ui.rsyntaxtextarea.TokenTypes;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
+import org.fife.ui.rsyntaxtextarea.TokenTypes;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
-import io.simpleide.frame.log.LogPanel;
 import io.simpleide.api.HexEditor;
+import io.simpleide.frame.log.LogPanel;
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorWelcomeScreen;
 import io.simpleide.ui.menubar.menus.IdeMenuBar;
 import io.simpleide.ui.menubar.menus.SettingsMenu;
+import io.simpleide.ui.sidebar.WorkspaceSearchPanel;
 import io.simpleide.ui.terminal.TerminalPanel;
 import io.simpleide.ui.terminal.TerminalSettingsProvider;
 import io.simpleide.ui.treefile.Directory;
@@ -226,14 +229,21 @@ class ThemeManagerTest {
 			assertColor("PopupMenu.background", expected.popupBackground(), theme);
 			assertColor("MenuBar.borderColor", expected.border(), theme);
 			assertColor("Component.borderColor", expected.border(), theme);
-			assertColor("Component.focusedBorderColor", ThemePalette.of(theme).focusBorder(), theme);
+			assertColor("Component.focusedBorderColor", expected.border(), theme);
+			assertThat(UIManager.getInt("Component.focusWidth")).as("focus width in %s", theme).isZero();
+			assertThat(UIManager.getInt("Component.innerFocusWidth")).as("inner focus width in %s", theme).isZero();
 			assertColor("Button.borderColor", expected.border(), theme);
 			assertColor("TextField.borderColor", expected.border(), theme);
 			assertColor("PopupMenu.borderColor", expected.border(), theme);
 			assertColor("ToolTip.borderColor", expected.border(), theme);
 			assertColor("Tree.selectionBorderColor", ThemePalette.of(theme).treeSelectionBackground(), theme);
+			assertThat(UIManager.getBorder("Tree.focusCellHighlightBorder").getBorderInsets(null).left)
+				.as("tree focus border in %s", theme)
+				.isZero();
 			assertColor("TabbedPane.underlineColor", ThemePalette.of(theme).tabUnderline(), theme);
 			assertColor("SplitPaneDivider.background", expected.background(), theme);
+			assertColor("SplitPaneDivider.draggingColor",
+					ThemeColors.blend(ThemePalette.of(theme).accent(), expected.background(), 0.45f), theme);
 			assertColor("TextPane.background", expected.background(), theme);
 			assertColor("TextPane.foreground", expected.foreground(), theme);
 			assertColor("EditorPane.background", expected.background(), theme);
@@ -269,6 +279,7 @@ class ThemeManagerTest {
 			Tree tree = new Tree(new Directory(Path.of(".")));
 			TerminalPanel terminal = new TerminalPanel();
 			IdeMenuBar menuBar = new IdeMenuBar(() -> {
+			}, () -> {
 			}, () -> {
 			}, () -> {
 			}, () -> {
@@ -372,7 +383,7 @@ class ThemeManagerTest {
 				.containsExactlyInAnyOrder("Add terminal", "Close selected terminal");
 			for (JButton button : terminalActions) {
 				assertThat(button.getBackground()).as("terminal action button background in %s", theme)
-					.isEqualTo(UIManager.getColor("Button.background"));
+					.isEqualTo(expected.background());
 				assertThat(ThemeColors.contrastRatio(button.getForeground(), button.getBackground()))
 					.as("terminal action icon contrast in %s", theme)
 					.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
@@ -388,8 +399,10 @@ class ThemeManagerTest {
 					graphics.dispose();
 				}
 				assertThat(hasVisiblePixel(iconImage)).as("rendered SVG icon %s", button.getToolTipText()).isTrue();
-				assertThat(hasPixelColor(iconImage, button.getForeground()))
-					.as("theme foreground SVG color %s in %s", button.getToolTipText(), theme)
+				Color terminalIconAccent = ThemeColors.readable(ThemePalette.of(theme).accent(), expected.background(),
+						ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+				assertThat(hasPixelColor(iconImage, terminalIconAccent))
+					.as("theme accent SVG color %s in %s", button.getToolTipText(), theme)
 					.isTrue();
 			}
 		}
@@ -422,12 +435,14 @@ class ThemeManagerTest {
 	}
 
 	@Test
-	void fontSizeSpinnerInputAdoptsEverySelectedTheme() throws Exception {
+	void fontSizeSpinnersAdoptEverySelectedTheme() throws Exception {
 		JMenuBar menuBar = new JMenuBar();
 		SettingsMenu settings = new SettingsMenu();
 		menuBar.add(settings);
-		JSpinner spinner = (JSpinner) settings.getMenuComponent(2);
-		JFormattedTextField editor = ((JSpinner.DefaultEditor) spinner.getEditor()).getTextField();
+		JSpinner uiFontSizeSpinner = spinner(settings, "uiFontSizeSpinner");
+		JSpinner editorFontSizeSpinner = spinner(settings, "editorFontSizeSpinner");
+		JFormattedTextField uiEditor = ((JSpinner.DefaultEditor) uiFontSizeSpinner.getEditor()).getTextField();
+		JFormattedTextField editorEditor = ((JSpinner.DefaultEditor) editorFontSizeSpinner.getEditor()).getTextField();
 		ThemePalette darkPalette = ThemePalette.of(ThemeManager.ThemeType.DARK);
 
 		for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
@@ -435,28 +450,98 @@ class ThemeManagerTest {
 			flushEdt();
 			SwingUtilities.invokeAndWait(() -> SwingUtilities.updateComponentTreeUI(menuBar));
 
-			spinner.setBackground(darkPalette.inputBackground());
-			spinner.setForeground(darkPalette.inputForeground());
-			editor.setBackground(darkPalette.inputBackground());
-			editor.setForeground(darkPalette.inputForeground());
-			editor.setCaretColor(darkPalette.inputForeground());
+			uiFontSizeSpinner.setBackground(darkPalette.inputBackground());
+			uiFontSizeSpinner.setForeground(darkPalette.inputForeground());
+			uiEditor.setBackground(darkPalette.inputBackground());
+			uiEditor.setForeground(darkPalette.inputForeground());
+			uiEditor.setCaretColor(darkPalette.inputForeground());
+			editorFontSizeSpinner.setBackground(darkPalette.inputBackground());
+			editorFontSizeSpinner.setForeground(darkPalette.inputForeground());
+			editorEditor.setBackground(darkPalette.inputBackground());
+			editorEditor.setForeground(darkPalette.inputForeground());
+			editorEditor.setCaretColor(darkPalette.inputForeground());
 
 			ThemePalette palette = ThemePalette.of(theme);
 			themeManager.refreshComponentTheme(menuBar, palette);
 
-			assertThat(spinner.getBackground()).as("font size control background in %s", theme)
+			assertThat(uiFontSizeSpinner.getBackground()).as("interface font size control background in %s", theme)
 				.isEqualTo(palette.inputBackground());
-			assertThat(spinner.getForeground()).as("font size control text in %s", theme)
+			assertThat(uiFontSizeSpinner.getForeground()).as("interface font size control text in %s", theme)
 				.isEqualTo(palette.inputForeground());
-			assertThat(editor.getBackground()).as("font size editor background in %s", theme)
+			assertThat(uiEditor.getBackground()).as("interface font size editor background in %s", theme)
 				.isEqualTo(palette.inputBackground());
-			assertThat(editor.getForeground()).as("font size editor text in %s", theme)
+			assertThat(uiEditor.getForeground()).as("interface font size editor text in %s", theme)
 				.isEqualTo(palette.inputForeground());
-			assertThat(editor.getCaretColor()).as("font size caret in %s", theme).isEqualTo(palette.inputForeground());
-			assertThat(ThemeColors.contrastRatio(editor.getForeground(), editor.getBackground()))
-				.as("font size text contrast in %s", theme)
+			assertThat(uiEditor.getCaretColor()).as("interface font size caret in %s", theme)
+				.isEqualTo(palette.inputForeground());
+			assertThat(ThemeColors.contrastRatio(uiEditor.getForeground(), uiEditor.getBackground()))
+				.as("interface font size text contrast in %s", theme)
+				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
+			assertThat(editorFontSizeSpinner.getBackground()).as("editor font size control background in %s", theme)
+				.isEqualTo(palette.inputBackground());
+			assertThat(editorFontSizeSpinner.getForeground()).as("editor font size control text in %s", theme)
+				.isEqualTo(palette.inputForeground());
+			assertThat(editorEditor.getBackground()).as("editor font size editor background in %s", theme)
+				.isEqualTo(palette.inputBackground());
+			assertThat(editorEditor.getForeground()).as("editor font size editor text in %s", theme)
+				.isEqualTo(palette.inputForeground());
+			assertThat(editorEditor.getCaretColor()).as("editor font size caret in %s", theme)
+				.isEqualTo(palette.inputForeground());
+			assertThat(ThemeColors.contrastRatio(editorEditor.getForeground(), editorEditor.getBackground()))
+				.as("editor font size text contrast in %s", theme)
 				.isGreaterThanOrEqualTo(ThemeColors.MIN_TEXT_CONTRAST);
 		}
+	}
+
+	@Test
+	void workspaceSearchControlsAdoptEverySelectedTheme() throws Exception {
+		WorkspaceSearchPanel panel = new WorkspaceSearchPanel(() -> null, (path, line) -> {
+		});
+		JTextField query = findNamedComponent(panel, "workspaceSearchQuery", JTextField.class);
+		JCheckBox gitIgnore = findNamedComponent(panel, "workspaceSearchUseGitIgnore", JCheckBox.class);
+		JTree results = findNamedComponent(panel, "workspaceSearchResults", JTree.class);
+
+		for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
+			themeManager.setTheme(theme);
+			flushEdt();
+			SwingUtilities.invokeAndWait(() -> {
+				SwingUtilities.updateComponentTreeUI(panel);
+				ThemePalette palette = ThemePalette.of(theme);
+				themeManager.refreshComponentTheme(panel, palette);
+				assertThat(query.getBackground()).as("search input background in %s", theme)
+					.isEqualTo(palette.inputBackground());
+				assertThat(query.getForeground()).as("search input text in %s", theme)
+					.isEqualTo(palette.inputForeground());
+				assertThat(gitIgnore.getBackground()).as("search option background in %s", theme)
+					.isEqualTo(palette.buttonBackground());
+				assertThat(results.getBackground()).as("search results background in %s", theme)
+					.isEqualTo(palette.background());
+			});
+		}
+	}
+
+	private JSpinner spinner(SettingsMenu menu, String name) {
+		JSpinner spinner = findNamedComponent(menu, name, JSpinner.class);
+		if (spinner == null) {
+			throw new AssertionError("Font size spinner not found: " + name);
+		}
+		return spinner;
+	}
+
+	private <T extends Component> T findNamedComponent(Container container, String name, Class<T> componentType) {
+		Component[] children = container instanceof JMenu menu ? menu.getMenuComponents() : container.getComponents();
+		for (Component component : children) {
+			if (componentType.isInstance(component) && name.equals(component.getName())) {
+				return componentType.cast(component);
+			}
+			if (component instanceof Container child) {
+				T found = findNamedComponent(child, name, componentType);
+				if (found != null) {
+					return found;
+				}
+			}
+		}
+		return null;
 	}
 
 	@Test

@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -24,9 +25,7 @@ public class Directory extends TreeFile {
 
 	private final List<TreeFile> children = new ArrayList<>();
 
-	private volatile boolean childrenLoaded;
-
-	private volatile boolean loading;
+	private final AtomicReference<DirectorySnapshot> state = new AtomicReference<>(new DirectorySnapshot(false, false));
 
 	Directory(Path path, String name, boolean loadImmediately) throws IOException {
 		super(path, name);
@@ -72,25 +71,25 @@ public class Directory extends TreeFile {
 	}
 
 	boolean areChildrenLoaded() {
-		return childrenLoaded;
+		return state.get().childrenLoaded();
 	}
 
 	/** Returns whether this directory's child listing is currently being loaded. */
 	public boolean isLoading() {
-		return loading;
+		return state.get().loading();
 	}
 
 	void setLoading(boolean loading) {
-		this.loading = loading;
+		state.updateAndGet(snapshot -> new DirectorySnapshot(snapshot.childrenLoaded(), loading));
 	}
 
-	void loadChildren() throws IOException {
-		if (childrenLoaded) {
+	final void loadChildren() throws IOException {
+		if (state.get().childrenLoaded()) {
 			return;
 		}
 
 		children.addAll(readChildrenFromDisk());
-		childrenLoaded = true;
+		state.updateAndGet(snapshot -> new DirectorySnapshot(true, snapshot.loading()));
 	}
 
 	void refreshChildren() throws IOException {
@@ -104,7 +103,10 @@ public class Directory extends TreeFile {
 	void replaceChildren(List<TreeFile> refreshedChildren) {
 		children.clear();
 		children.addAll(refreshedChildren);
-		childrenLoaded = true;
+		state.updateAndGet(snapshot -> new DirectorySnapshot(true, snapshot.loading()));
+	}
+
+	private record DirectorySnapshot(boolean childrenLoaded, boolean loading) {
 	}
 
 	private List<TreeFile> readChildren(Path path) throws IOException {
@@ -115,7 +117,7 @@ public class Directory extends TreeFile {
 					loadedChildren.add(new Directory(entry, entry.getFileName().toString(), false));
 				}
 				else {
-					loadedChildren.add(File.lazy(entry));
+					loadedChildren.add(SimpleIDEFile.lazy(entry));
 				}
 			}
 		}

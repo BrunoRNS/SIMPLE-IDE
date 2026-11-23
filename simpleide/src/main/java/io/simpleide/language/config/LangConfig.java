@@ -1,6 +1,5 @@
 package io.simpleide.language.config;
 
-import io.simpleide.language.AbstractLanguage;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Path;
@@ -8,6 +7,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+
+import io.simpleide.language.AbstractLanguage;
 
 /**
  * Registry of installed language implementations keyed by file extension.

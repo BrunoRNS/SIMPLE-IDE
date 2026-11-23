@@ -1,8 +1,9 @@
 package io.simpleide.frame.log;
 
+import java.awt.Color;
+
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.AppenderBase;
-import java.awt.Color;
 
 /**
  * Logback appender that forwards events to a {@link LogPanel}.

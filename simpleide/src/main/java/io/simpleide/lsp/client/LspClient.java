@@ -1,8 +1,5 @@
 package io.simpleide.lsp.client;
 
-import io.simpleide.SimpleIDEVersion;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -16,13 +13,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
 import org.eclipse.lsp4j.ClientCapabilities;
 import org.eclipse.lsp4j.ClientInfo;
 import org.eclipse.lsp4j.CompletionCapabilities;
@@ -71,6 +67,12 @@ import org.eclipse.lsp4j.services.LanguageServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.SimpleIDEVersion;
+import io.simpleide.thread.ManagedThreadPool;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.NodePattern;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
+
 /**
  * LSP4J client that manages one language server subprocess.
  *
@@ -114,9 +116,11 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	private final RunnableNode runtimeNode = new RunnableNode(() -> {
 	});
 
-	private final RunnableNode startupNode;
+	private final ManagedThreadPool workerPool;
 
-	private volatile Thread errorReaderThread;
+	private final NodePattern startupNode;
+
+	private volatile ManagedThreadPool errorReaderPool;
 
 	private volatile ExecutorService lspExecutor;
 
@@ -130,19 +134,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 	private volatile boolean closed;
 
-	private volatile TextDocumentSyncKind synchronizationKind = TextDocumentSyncKind.None;
-
-	private volatile boolean openCloseSupported;
-
-	private volatile boolean completionSupported;
-
-	private volatile boolean definitionSupported;
-
-	private volatile boolean saveSupported;
-
-	private volatile boolean saveIncludeText;
-
-	private volatile boolean formattingSupported;
+	private volatile ServerCapabilitiesSnapshot serverCapabilities = ServerCapabilitiesSnapshot.NONE;
 
 	/**
 	 * Creates a client without extra environment variables.
@@ -169,6 +161,22 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler,
 			Map<String, String> environment) throws IOException {
+		this(command, workspaceRoot, diagnosticsHandler, environment, null);
+	}
+
+	/**
+	 * Creates a client whose startup and protocol tasks use a managed worker pool.
+	 * @param command command and arguments used to start the language server
+	 * @param workspaceRoot root directory passed to the server and used as its working
+	 * directory
+	 * @param diagnosticsHandler consumer for diagnostics published by the server, may be
+	 * {@code null}
+	 * @param environment extra environment variables for the server process
+	 * @param workerPool managed pool for background language-server work
+	 * @throws IOException when the client cannot register its startup work
+	 */
+	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler,
+			Map<String, String> environment, ManagedThreadPool workerPool) throws IOException {
 		if (command == null || command.isEmpty()) {
 			throw new IllegalArgumentException("Language server command must not be empty.");
 		}
@@ -178,15 +186,21 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 		this.diagnosticsHandler = diagnosticsHandler == null ? ignored -> {
 		} : diagnosticsHandler;
-		this.startupNode = new RunnableNode(runtimeNode, () -> startServer(command, workspaceRoot, environment), () -> {
+		this.workerPool = workerPool;
+		Runnable startup = () -> startServer(command, workspaceRoot, environment);
+		Runnable startupOnClose = () -> {
 			if (!closed && !initializationSubmitted) {
 				LOGGER.warn("Language server startup node closed before initialization was submitted.");
 			}
-		});
+		};
 		ThreadMaster threadMaster = ThreadMaster.getInstance();
 		try {
 			threadMaster.register(runtimeNode);
-			threadMaster.register(startupNode);
+			startupNode = workerPool == null ? new RunnableNode(runtimeNode, startup, startupOnClose)
+					: workerPool.execute(startup, startupOnClose);
+			if (workerPool == null) {
+				threadMaster.register(startupNode);
+			}
 		}
 		catch (RuntimeException error) {
 			threadMaster.removeNodeCascade(runtimeNode);
@@ -299,7 +313,8 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didOpen(TextDocumentItem document) {
 		sendNotification("didOpen", () -> {
-			if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
+			ServerCapabilitiesSnapshot capabilities = serverCapabilities;
+			if (capabilities.synchronizationKind() != TextDocumentSyncKind.None && capabilities.openCloseSupported()) {
 				server.getTextDocumentService().didOpen(new DidOpenTextDocumentParams(document));
 			}
 		});
@@ -314,6 +329,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didChange(String uri, int version, String previousText, String text) {
 		sendNotification("didChange", () -> {
+			TextDocumentSyncKind synchronizationKind = serverCapabilities.synchronizationKind();
 			if (synchronizationKind == TextDocumentSyncKind.None || previousText.equals(text)) {
 				return;
 			}
@@ -333,7 +349,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 * @return a future with the formatting edits, or an empty list when unsupported
 	 */
 	public CompletableFuture<List<? extends TextEdit>> formatting(DocumentFormattingParams params) {
-		return initialized.thenCompose(ignored -> formattingSupported
+		return initialized.thenCompose(ignored -> serverCapabilities.formattingSupported()
 				? server.getTextDocumentService().formatting(params) : CompletableFuture.completedFuture(List.of()));
 	}
 
@@ -343,7 +359,8 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didClose(String uri) {
 		sendNotification("didClose", () -> {
-			if (synchronizationKind != TextDocumentSyncKind.None && openCloseSupported) {
+			ServerCapabilitiesSnapshot capabilities = serverCapabilities;
+			if (capabilities.synchronizationKind() != TextDocumentSyncKind.None && capabilities.openCloseSupported()) {
 				server.getTextDocumentService()
 					.didClose(new DidCloseTextDocumentParams(new TextDocumentIdentifier(uri)));
 			}
@@ -357,10 +374,11 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public void didSave(String uri, String text) {
 		sendNotification("didSave", () -> {
-			if (saveSupported) {
+			ServerCapabilitiesSnapshot capabilities = serverCapabilities;
+			if (capabilities.saveSupported()) {
 				server.getTextDocumentService()
 					.didSave(new DidSaveTextDocumentParams(new TextDocumentIdentifier(uri),
-							saveIncludeText ? text : null));
+							capabilities.saveIncludeText() ? text : null));
 			}
 		});
 	}
@@ -379,9 +397,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 * @return a future with either a completion list or an array of items
 	 */
 	public CompletableFuture<Either<List<CompletionItem>, CompletionList>> completion(CompletionParams params) {
-		return initialized
-			.thenCompose(ignored -> completionSupported ? server.getTextDocumentService().completion(params)
-					: CompletableFuture.completedFuture(Either.forLeft(List.of())));
+		return initialized.thenCompose(
+				ignored -> serverCapabilities.completionSupported() ? server.getTextDocumentService().completion(params)
+						: CompletableFuture.completedFuture(Either.forLeft(List.of())));
 	}
 
 	/**
@@ -391,9 +409,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definition(
 			DefinitionParams params) {
-		return initialized
-			.thenCompose(ignored -> definitionSupported ? server.getTextDocumentService().definition(params)
-					: CompletableFuture.completedFuture(Either.forLeft(List.of())));
+		return initialized.thenCompose(
+				ignored -> serverCapabilities.definitionSupported() ? server.getTextDocumentService().definition(params)
+						: CompletableFuture.completedFuture(Either.forLeft(List.of())));
 	}
 
 	@SuppressWarnings("deprecation")
@@ -436,13 +454,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 				if (result == null || result.getCapabilities() == null) {
 					throw new IllegalStateException("Language server returned no capabilities.");
 				}
-				synchronizationKind = getSynchronizationKind(result);
-				openCloseSupported = hasOpenCloseSupport(result);
-				completionSupported = result.getCapabilities().getCompletionProvider() != null;
-				definitionSupported = hasDefinitionSupport(result);
-				saveSupported = hasSaveSupport(result);
-				formattingSupported = hasFormattingSupport(result);
-				saveIncludeText = shouldIncludeTextOnSave(result);
+				serverCapabilities = new ServerCapabilitiesSnapshot(getSynchronizationKind(result),
+						hasOpenCloseSupport(result), result.getCapabilities().getCompletionProvider() != null,
+						hasDefinitionSupport(result), hasSaveSupport(result), shouldIncludeTextOnSave(result),
+						hasFormattingSupport(result));
 				server.initialized(new InitializedParams());
 				initialized.complete(null);
 				LOGGER.info("Language server initialized for workspace {}.",
@@ -517,6 +532,15 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 				&& (provider.isLeft() ? Boolean.TRUE.equals(provider.getLeft()) : provider.getRight() != null);
 	}
 
+	private record ServerCapabilitiesSnapshot(TextDocumentSyncKind synchronizationKind, boolean openCloseSupported,
+			boolean completionSupported, boolean definitionSupported, boolean saveSupported, boolean saveIncludeText,
+			boolean formattingSupported) {
+
+		private static final ServerCapabilitiesSnapshot NONE = new ServerCapabilitiesSnapshot(TextDocumentSyncKind.None,
+				false, false, false, false, false, false);
+
+	}
+
 	private Position getEndPosition(String text) {
 		int line = 0;
 		int character = 0;
@@ -572,27 +596,33 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	}
 
 	private void startErrorStreamReader(Process serverProcess) {
-		Thread errorReader = new Thread(() -> {
-			try (BufferedReader reader = new BufferedReader(
-					new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
-				String line;
-				while ((line = reader.readLine()) != null) {
-					recentErrorLines.addLast(line);
-					while (recentErrorLines.size() > MAX_RECENT_ERROR_LINES) {
-						recentErrorLines.removeFirst();
+		ManagedThreadPool pool = ThreadMaster.getInstance().createThreadPool("lsp-stderr-" + serverProcess.pid(), 1);
+		errorReaderPool = pool;
+		try {
+			pool.execute(() -> {
+				try (BufferedReader reader = new BufferedReader(
+						new InputStreamReader(serverProcess.getErrorStream(), StandardCharsets.UTF_8))) {
+					String line;
+					while ((line = reader.readLine()) != null) {
+						recentErrorLines.addLast(line);
+						while (recentErrorLines.size() > MAX_RECENT_ERROR_LINES) {
+							recentErrorLines.removeFirst();
+						}
+						LOGGER.debug("[LSP server] {}", line);
 					}
-					LOGGER.debug("[LSP server] {}", line);
 				}
-			}
-			catch (IOException error) {
-				if (!closed) {
-					LOGGER.warn("Unable to read language server output.", error);
+				catch (IOException error) {
+					if (!closed) {
+						LOGGER.warn("Unable to read language server output.", error);
+					}
 				}
-			}
-		}, "simpleide-lsp-stderr-" + serverProcess.pid());
-		errorReader.setDaemon(true);
-		errorReaderThread = errorReader;
-		errorReader.start();
+			});
+		}
+		catch (RuntimeException error) {
+			errorReaderPool = null;
+			pool.close();
+			throw error;
+		}
 	}
 
 	private String recentErrorOutput() {
@@ -600,13 +630,8 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	}
 
 	private ExecutorService createLspExecutor() {
-		AtomicInteger threadNumber = new AtomicInteger();
-		String threadPrefix = "simpleide-lsp-" + runtimeNode.getId() + "-";
-		return Executors.newFixedThreadPool(2, task -> {
-			Thread thread = new Thread(task, threadPrefix + threadNumber.incrementAndGet());
-			thread.setDaemon(true);
-			return thread;
-		});
+		return workerPool == null ? ThreadMaster.getInstance().createExecutorService(runtimeNode)
+				: workerPool.createExecutorService();
 	}
 
 	/**
@@ -809,23 +834,10 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 			if (timeoutTask != null) {
 				timeoutTask.cancel(false);
 			}
-			boolean wasInterrupted = Thread.interrupted();
-			Thread errorReader = errorReaderThread;
-			errorReaderThread = null;
-			if (errorReader != null && errorReader != Thread.currentThread()) {
-				errorReader.interrupt();
-				try {
-					errorReader.join(250);
-				}
-				catch (InterruptedException error) {
-					wasInterrupted = true;
-				}
-				if (errorReader.isAlive()) {
-					LOGGER.warn("Language server stderr reader did not stop after process shutdown.");
-				}
-			}
-			if (wasInterrupted) {
-				Thread.currentThread().interrupt();
+			ManagedThreadPool stderrPool = errorReaderPool;
+			errorReaderPool = null;
+			if (stderrPool != null) {
+				stderrPool.close();
 			}
 			try {
 				ThreadMaster.getInstance().removeNodeCascade(runtimeNode);

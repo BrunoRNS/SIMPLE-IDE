@@ -8,12 +8,12 @@ import javax.swing.UIManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.ui.menubar.menus.ThemeMenu}.

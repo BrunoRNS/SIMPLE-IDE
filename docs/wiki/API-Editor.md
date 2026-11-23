@@ -165,7 +165,7 @@ if (editor.isModified()) {
 }
 ```
 
-`save()` writes editable text through the tab's `File` model. It does not prompt
+`save()` writes editable text through the tab's `SimpleIDEFile` model. It does not prompt
 and does not create parent directories. Large text is read-only and `save()`
 reports that limitation with `IOException`. Handle `IOException` in the caller
 and show an error dialog if needed.

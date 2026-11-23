@@ -3,6 +3,7 @@ package io.simpleide.lsp.client;
 import javax.swing.SwingUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.InsertTextFormat;
 import org.eclipse.lsp4j.Position;

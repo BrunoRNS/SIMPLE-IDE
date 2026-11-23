@@ -56,15 +56,30 @@ frame.addWindowListener(
 - Wires the add and close buttons.
 - Enables at most five tabs (`TerminalPanel.MAX_TABS`).
 
+## Initial working directory
+
+Each terminal session selects its working directory when it starts. In Simple IDE,
+an open Explorer folder takes priority. If no folder is open, the terminal starts in
+the user's home directory when it is accessible; otherwise it falls back to the
+application startup directory (`user.dir`). If neither directory is accessible,
+session startup fails with an explicit error.
+
+The directory is resolved separately for each new session, so opening or closing an
+Explorer folder affects subsequently created terminals without changing existing
+sessions. Standalone controllers created with `Terminals.controller(panel)` use the
+home/startup-directory fallback. Hosts that need a custom directory can provide a
+`Supplier<Path>` to `BusyBoxTerminalController`.
+
 ## How a session starts
 
 1. The user presses Add.
 2. The controller assigns a session id and creates a tab.
-3. A terminal task extracts the platform BusyBox binary to a temporary file.
-4. On non-Windows platforms the file is marked executable.
-5. The process starts in a pseudo-terminal through pty4j.
-6. The tab is shown with a JediTerm view connected to the process.
-7. The temporary binary is deleted when the executable object closes.
+3. The controller resolves the initial working directory.
+4. A terminal task extracts the platform BusyBox binary to a temporary file.
+5. On non-Windows platforms the file is marked executable.
+6. The process starts in a pseudo-terminal through pty4j in the selected directory.
+7. The tab is shown with a JediTerm view connected to the process.
+8. The temporary binary is deleted when the executable object closes.
 
 No system-wide BusyBox installation is required.
 
@@ -103,7 +118,6 @@ EDT.
   through its action listener only if it is granted access; this is intentionally
   not part of the public API.
 - The tab title is the session id, not the current working directory.
-- The working directory is inherited from the Simple IDE process.
 - The terminal is not a full terminal emulator; it depends on JediTerm's
   supported escape sequences.
 - There is no built-in SSH, split panes or session persistence.

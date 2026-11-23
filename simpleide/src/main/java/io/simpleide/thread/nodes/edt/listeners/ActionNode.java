@@ -1,10 +1,11 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.EDTNode;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.util.function.Consumer;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
  * {@link java.awt.event.ActionListener} that runs its callbacks as an EDT node.

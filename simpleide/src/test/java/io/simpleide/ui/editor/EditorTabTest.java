@@ -10,13 +10,14 @@ import javax.swing.SwingUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+
 import org.eclipse.lsp4j.Position;
 import org.eclipse.lsp4j.Range;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.lsp.core.Document;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 
 /**
  * Tests {@link io.simpleide.ui.editor.EditorTab}.
@@ -33,7 +34,7 @@ class EditorTabTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				EditorTab tab = new EditorTab(new File(path), new Document(path, "java"));
+				EditorTab tab = new EditorTab(new SimpleIDEFile(path), new Document(path, "java"));
 				tab.getEditor().setText("class Main { String text; }");
 				tabReference.set(tab);
 			}
@@ -68,7 +69,7 @@ class EditorTabTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				EditorTab tab = new EditorTab(new File(path), new Document(path, "java"));
+				EditorTab tab = new EditorTab(new SimpleIDEFile(path), new Document(path, "java"));
 
 				tab.goToRange(new Range(new Position(1, 1), new Position(1, 6)));
 

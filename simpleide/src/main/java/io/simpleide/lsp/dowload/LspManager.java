@@ -1,13 +1,5 @@
 package io.simpleide.lsp.dowload;
 
-import io.simpleide.language.config.LangPlatform;
-import io.simpleide.utils.JavaRuntime;
-import io.simpleide.lsp.LspStatus;
-import jakarta.json.Json;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
-import jakarta.json.JsonString;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -25,8 +17,18 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import jakarta.json.Json;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
+import jakarta.json.JsonString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.language.config.LangPlatform;
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.utils.JavaRuntime;
 
 /**
  * Reads the language server registry and resolves launch commands.

@@ -1,8 +1,5 @@
 package io.simpleide.utils.service;
 
-import io.simpleide.ui.treefile.Directory;
-import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TreeFile;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
@@ -12,6 +9,10 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
+
+import io.simpleide.ui.treefile.Directory;
+import io.simpleide.ui.treefile.SimpleIDEFile;
+import io.simpleide.ui.treefile.TreeFile;
 
 /**
  * File and directory operations for the project tree.
@@ -103,7 +104,7 @@ public class FileService {
 		}
 
 		Files.createFile(path);
-		return new File(path);
+		return new SimpleIDEFile(path);
 	}
 
 	private Path parseName(String name) {

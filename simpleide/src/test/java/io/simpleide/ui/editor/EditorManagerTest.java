@@ -1,8 +1,8 @@
 package io.simpleide.ui.editor;
 
 import java.awt.Font;
-import java.io.IOException;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
@@ -17,6 +17,7 @@ import javax.swing.plaf.FontUIResource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+
 import org.fife.ui.autocomplete.Completion;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
@@ -25,7 +26,7 @@ import org.junit.jupiter.api.io.TempDir;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.icon.MaterialIcons;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 
 /**
  * Tests {@link io.simpleide.ui.editor.EditorManager}.
@@ -57,7 +58,7 @@ class EditorManagerTest {
 					}, () -> {
 					});
 				}
-				EditorTab tab = new EditorTab(new File(path), new Document(path, "java"));
+				EditorTab tab = new EditorTab(new SimpleIDEFile(path), new Document(path, "java"));
 
 				manager.addNewTab(tab);
 
@@ -100,16 +101,18 @@ class EditorManagerTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				testManager.openFile(new File(path));
+				testManager.openFile(new SimpleIDEFile(path));
 
 				assertThat(testManager.getJTabbedPane().getSelectedComponent()).isInstanceOf(EditorTab.class);
 				assertThat(testManager.getSelectedEditor().getText()).isEqualTo("class Main {}");
+				assertThat(testManager.getOpenFilePaths()).contains(path.toAbsolutePath().normalize());
 			}
 			catch (IOException error) {
 				throw new AssertionError(error);
 			}
 			finally {
 				testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize()));
+				assertThat(testManager.getOpenFilePaths()).doesNotContain(path.toAbsolutePath().normalize());
 			}
 		});
 	}
@@ -117,7 +120,7 @@ class EditorManagerTest {
 	@Test
 	void opensTabImmediatelyAndLoadsFileOffTheEdt() throws Exception {
 		Path path = Files.writeString(root.resolve("Deferred.txt"), "file content");
-		File file = File.lazy(path);
+		SimpleIDEFile file = SimpleIDEFile.lazy(path);
 		EditorManager manager = EditorManager.getInstance();
 		if (manager == null) {
 			manager = new EditorManager(() -> {
@@ -165,7 +168,7 @@ class EditorManagerTest {
 		EditorManager testManager = manager;
 		ThreadMaster.getInstance().initialize();
 
-		SwingUtilities.invokeAndWait(() -> testManager.openFile(File.lazy(path)));
+		SwingUtilities.invokeAndWait(() -> testManager.openFile(SimpleIDEFile.lazy(path)));
 		await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
 			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
 			assertThat(tab.isLoading()).isFalse();
@@ -196,7 +199,7 @@ class EditorManagerTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				testManager.openFile(new File(binaryPath));
+				testManager.openFile(new SimpleIDEFile(binaryPath));
 				EditorTab binaryTab = testManager.getOpenedEditor(binaryPath.toAbsolutePath().normalize());
 				assertThat(binaryTab.getEditor()).isNull();
 				assertThat(binaryTab.getHexEditor()).isNotNull();
@@ -204,13 +207,13 @@ class EditorManagerTest {
 				testManager.saveSelectedFile();
 				assertThat(binaryTab.isEdit()).isFalse();
 
-				testManager.openFile(new File(imagePath));
+				testManager.openFile(new SimpleIDEFile(imagePath));
 				EditorTab imageTab = testManager.getOpenedEditor(imagePath.toAbsolutePath().normalize());
 				assertThat(imageTab.getEditor()).isNull();
 				assertThat(imageTab.getImageViewer().imageWidth()).isEqualTo(12);
 				assertThat(imageTab.getImageViewer().imageHeight()).isEqualTo(8);
 
-				testManager.openFile(new File(svgPath));
+				testManager.openFile(new SimpleIDEFile(svgPath));
 				EditorTab svgTab = testManager.getOpenedEditor(svgPath.toAbsolutePath().normalize());
 				assertThat(svgTab.getImageViewer().imageWidth()).isEqualTo(9);
 				assertThat(svgTab.getImageViewer().imageHeight()).isEqualTo(7);
@@ -241,7 +244,7 @@ class EditorManagerTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				testManager.openFile(new File(path));
+				testManager.openFile(new SimpleIDEFile(path));
 				EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
 				opened.set(tab);
 				tab.getEditor().setText("class Shutdown { int saved = 1; }\n");
@@ -269,7 +272,7 @@ class EditorManagerTest {
 					}, () -> {
 					});
 				}
-				EditorTab tab = new EditorTab(new File(path), new Document(path, "java"));
+				EditorTab tab = new EditorTab(new SimpleIDEFile(path), new Document(path, "java"));
 				manager.addNewTab(tab);
 				JPanel header = (JPanel) manager.getJTabbedPane().getTabComponentAt(0);
 				JLabel fileLabel = (JLabel) header.getComponent(0);
@@ -308,7 +311,7 @@ class EditorManagerTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				tab.set(new EditorTab(new File(path), new Document(path, "java")));
+				tab.set(new EditorTab(new SimpleIDEFile(path), new Document(path, "java")));
 				EditorManager.completeLanguageServerConnection(tab.get(), null, null);
 			}
 			catch (IOException error) {
@@ -333,7 +336,7 @@ class EditorManagerTest {
 
 		SwingUtilities.invokeAndWait(() -> {
 			try {
-				tab.set(new EditorTab(new File(path), new Document(path, "python")));
+				tab.set(new EditorTab(new SimpleIDEFile(path), new Document(path, "python")));
 				tab.get().enableLocalLanguageSupport();
 			}
 			catch (IOException error) {

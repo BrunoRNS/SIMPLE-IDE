@@ -1,10 +1,11 @@
 package io.simpleide.language.config;
 
+import java.nio.file.Path;
+import java.util.Locale;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import java.nio.file.Path;
-import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

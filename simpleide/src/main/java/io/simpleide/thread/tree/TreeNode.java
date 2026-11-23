@@ -1,9 +1,10 @@
 package io.simpleide.thread.tree;
 
-import io.simpleide.thread.nodes.NodePattern;
 import java.math.BigInteger;
 import java.util.LinkedList;
 import java.util.List;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * One entry in the thread tree, holding a node pattern and its children.

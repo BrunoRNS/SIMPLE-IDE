@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 
 import javax.swing.Icon;
 import javax.swing.JLabel;
@@ -14,6 +15,7 @@ import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
 import javax.swing.text.BadLocationException;
 
+import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.Location;
 import org.eclipse.lsp4j.LocationLink;
 import org.eclipse.lsp4j.Position;
@@ -38,7 +40,7 @@ import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.client.LspEditorSupport;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.utils.service.FileService;
 
 /**
@@ -91,7 +93,7 @@ public class EditorTab extends JPanel {
 
 	private final ButtonExit buttonExit;
 
-	private final File file;
+	private final SimpleIDEFile file;
 
 	private RTextScrollPane scrollPane;
 
@@ -101,14 +103,25 @@ public class EditorTab extends JPanel {
 
 	private DocumentNode documentNode;
 
+	private Consumer<EditorTab> diagnosticsListener = tab -> {
+	};
+
 	private volatile boolean loading;
+
+	private int editorTabSize = 4;
+
+	private boolean editorWordWrap;
+
+	private boolean editorLineNumbers = true;
+
+	private boolean editorShowWhitespace;
 
 	/**
 	 * Creates a tab for a file and its document metadata.
 	 * @param file file shown in the tab
 	 * @param document document metadata tracked by the language server manager
 	 */
-	public EditorTab(File file, Document document) {
+	public EditorTab(SimpleIDEFile file, Document document) {
 		this.isEdit = false;
 		this.file = file;
 		this.document = document;
@@ -176,6 +189,7 @@ public class EditorTab extends JPanel {
 				add(scrollPane, BorderLayout.CENTER);
 				editor.loadFile(file);
 				configIsEdit();
+				applyEditorOptions(editorTabSize, editorWordWrap, editorLineNumbers, editorShowWhitespace);
 			}
 		}
 		revalidate();
@@ -235,7 +249,7 @@ public class EditorTab extends JPanel {
 	 * Returns the file displayed by this tab.
 	 * @return the source file
 	 */
-	public File getFile() {
+	public SimpleIDEFile getFile() {
 		return file;
 	}
 
@@ -388,7 +402,46 @@ public class EditorTab extends JPanel {
 	public void publishDiagnostics(PublishDiagnosticsParams params) {
 		if (lspSupport != null) {
 			lspSupport.publishDiagnostics(params);
+			diagnosticsListener.accept(this);
 		}
+	}
+
+	/**
+	 * Returns the diagnostics most recently published for this document.
+	 * @return the current diagnostics, never {@code null}
+	 */
+	public List<Diagnostic> getDiagnostics() {
+		return lspSupport == null ? List.of() : lspSupport.getDiagnostics();
+	}
+
+	/**
+	 * Registers a listener notified when diagnostics for this tab change.
+	 * @param listener listener invoked with this tab, or {@code null} to clear it
+	 */
+	public void setDiagnosticsListener(Consumer<EditorTab> listener) {
+		diagnosticsListener = listener == null ? tab -> {
+		} : listener;
+	}
+
+	/**
+	 * Applies the configurable editor behavior options.
+	 * @param tabSize number of spaces used for a tab
+	 * @param wordWrap whether long lines wrap
+	 * @param lineNumbers whether the line number gutter is shown
+	 * @param showWhitespace whether whitespace characters are painted
+	 */
+	public void applyEditorOptions(int tabSize, boolean wordWrap, boolean lineNumbers, boolean showWhitespace) {
+		editorTabSize = tabSize;
+		editorWordWrap = wordWrap;
+		editorLineNumbers = lineNumbers;
+		editorShowWhitespace = showWhitespace;
+		if (editor == null || scrollPane == null) {
+			return;
+		}
+		editor.setTabSize(tabSize);
+		editor.setLineWrap(wordWrap);
+		scrollPane.setLineNumbersEnabled(lineNumbers);
+		editor.setWhitespaceVisible(showWhitespace);
 	}
 
 	/**
@@ -552,15 +605,17 @@ public class EditorTab extends JPanel {
 			this.isEdit = false;
 			document.setModified(false);
 			this.buttonExit.setNotEdited();
-			return;
 		}
-		this.isEdit = true;
-		document.setModified(true);
+		else {
+			this.isEdit = true;
+			document.setModified(true);
+			this.buttonExit.setEdited();
+		}
 		document.incrementVersion();
-		this.buttonExit.setEdited();
 		if (lspSupport != null) {
 			lspSupport.documentChanged();
 		}
+		diagnosticsListener.accept(this);
 	}
 
 	private int toOffset(Position position) throws BadLocationException {

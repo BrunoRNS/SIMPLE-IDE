@@ -1,7 +1,7 @@
 package io.simpleide.ui.treefile;
 
-import java.io.IOException;
 import java.awt.image.BufferedImage;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -10,10 +10,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import javax.imageio.ImageIO;
 import javax.swing.Icon;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
-import javax.imageio.ImageIO;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -21,14 +21,15 @@ import javax.swing.tree.TreePath;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import org.junit.jupiter.api.Test;
-import org.slf4j.LoggerFactory;
 
 import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
-import io.simpleide.thread.ThreadMaster;
+import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
+
 import io.simpleide.api.LargeTextViewer;
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Tests {@link io.simpleide.ui.treefile.TreeFile}.
@@ -47,7 +48,7 @@ class TreeFileTest {
 			Directory directory = new Directory(source);
 
 			assertThat(directory.getChildren()).hasSize(2);
-			File file = (File) directory.getChildren()
+			SimpleIDEFile file = (SimpleIDEFile) directory.getChildren()
 				.stream()
 				.filter(child -> child.getName().equals("Main.java"))
 				.findFirst()
@@ -90,7 +91,7 @@ class TreeFileTest {
 					writer.write(block);
 				}
 			}
-			File file = File.lazy(path);
+			SimpleIDEFile file = SimpleIDEFile.lazy(path);
 			file.loadContent();
 
 			assertThat(file.getContentKind()).isEqualTo(FileContentKind.TEXT);
@@ -112,7 +113,7 @@ class TreeFileTest {
 		try {
 			BufferedImage source = new BufferedImage(1200, 900, BufferedImage.TYPE_INT_RGB);
 			ImageIO.write(source, "png", path.toFile());
-			File file = File.lazy(path);
+			SimpleIDEFile file = SimpleIDEFile.lazy(path);
 			file.loadContent();
 
 			assertThat(file.getContentKind()).isEqualTo(FileContentKind.IMAGE);
@@ -330,27 +331,31 @@ class TreeFileTest {
 			Files.writeString(root.resolve("Main.java"), "class Main {}");
 			Files.writeString(nested.resolve("Helper.java"), "class Helper {}");
 			Directory rootDirectory = new Directory(root);
+			Tree[] treeHolder = new Tree[1];
 
-			SwingUtilities.invokeAndWait(() -> {
-				Tree tree = new Tree(rootDirectory);
-				DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
-				DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
-				DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
+			SwingUtilities.invokeAndWait(() -> treeHolder[0] = new Tree(rootDirectory));
+			flushEdt();
+			Tree tree = treeHolder[0];
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
 
-				tree.setSelectionPath(new TreePath(nestedNode.getPath()));
-				assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
-				assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
-				assertThat(appender.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
-					.contains("selected=" + nested, "currentDirectory=" + nested));
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(nestedNode.getPath())));
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
+			assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
+			assertThat(appender.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+				.contains("selected=" + nested, "currentDirectory=" + nested));
 
-				tree.setSelectionPath(new TreePath(fileNode.getPath()));
-				assertThat(tree.getState().getSelected()).isInstanceOf(File.class);
-				assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isInstanceOf(SimpleIDEFile.class);
+			assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 
-				tree.clearSelection();
-				assertThat(tree.getState().getSelected()).isNull();
-				assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
-			});
+			SwingUtilities.invokeAndWait(() -> tree.clearSelection());
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isNull();
+			assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 		}
 		finally {
 			Files.deleteIfExists(root.resolve("nested/Helper.java"));
@@ -451,6 +456,7 @@ class TreeFileTest {
 			SwingUtilities.invokeAndWait(() -> {
 				try {
 					actions.deleteSelected(new TreePath(fileNode.getPath()), (TreeFile) fileNode.getUserObject());
+					assertThat(tree.getState().getSelected()).isSameAs(rootDirectory);
 				}
 				catch (IOException exception) {
 					throw new AssertionError(exception);
@@ -513,7 +519,7 @@ class TreeFileTest {
 			Directory directory = new Directory(root);
 
 			assertThat(directory.getChildren()).hasSize(1);
-			File binary = (File) directory.getChildren().get(0);
+			SimpleIDEFile binary = (SimpleIDEFile) directory.getChildren().get(0);
 			assertThat(binary.isContentLoaded()).isFalse();
 			binary.loadContent();
 			assertThat(binary.isContentLoaded()).isTrue();
@@ -541,16 +547,16 @@ class TreeFileTest {
 			Path groovyPath = Files.writeString(root.resolve("Main.groovy"), "class Main {}");
 			Path goPath = Files.writeString(root.resolve("main.go"), "package main");
 
-			assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
-			assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
-			assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
-			assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
-			assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
-			assertThat(new File(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
-			assertThat(new File(javaPath).getTypeFile()).isEqualTo(TypeFile.JAVA);
-			assertThat(new File(csharpPath).getTypeFile()).isEqualTo(TypeFile.CSHARP);
-			assertThat(new File(groovyPath).getTypeFile()).isEqualTo(TypeFile.GROOVY);
-			assertThat(new File(goPath).getTypeFile()).isEqualTo(TypeFile.GO);
+			assertThat(new SimpleIDEFile(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
+			assertThat(new SimpleIDEFile(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
+			assertThat(new SimpleIDEFile(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
+			assertThat(new SimpleIDEFile(cPath).getTypeFile()).isEqualTo(TypeFile.C);
+			assertThat(new SimpleIDEFile(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
+			assertThat(new SimpleIDEFile(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
+			assertThat(new SimpleIDEFile(javaPath).getTypeFile()).isEqualTo(TypeFile.JAVA);
+			assertThat(new SimpleIDEFile(csharpPath).getTypeFile()).isEqualTo(TypeFile.CSHARP);
+			assertThat(new SimpleIDEFile(groovyPath).getTypeFile()).isEqualTo(TypeFile.GROOVY);
+			assertThat(new SimpleIDEFile(goPath).getTypeFile()).isEqualTo(TypeFile.GO);
 		}
 		finally {
 			Files.deleteIfExists(root.resolve("script.PY"));
@@ -577,9 +583,9 @@ class TreeFileTest {
 			JTree tree = new JTree();
 			DefaultMutableTreeNode directoryNode = new DefaultMutableTreeNode(directory);
 			DefaultMutableTreeNode javaNode = new DefaultMutableTreeNode(
-					new File(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
+					new SimpleIDEFile(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
 			DefaultMutableTreeNode pythonNode = new DefaultMutableTreeNode(
-					new File(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
+					new SimpleIDEFile(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
 
 			renderer.getTreeCellRendererComponent(tree, directoryNode, false, false, false, 0, false);
 			Icon closedFolderIcon = renderer.getIcon();
@@ -598,6 +604,12 @@ class TreeFileTest {
 		finally {
 			Files.deleteIfExists(root);
 		}
+	}
+
+	private static void flushEdt() throws Exception {
+		// Selection listeners are dispatched through ThreadMaster; flush the EDT queue.
+		SwingUtilities.invokeAndWait(() -> {
+		});
 	}
 
 	private DefaultMutableTreeNode childNamed(DefaultMutableTreeNode parent, String name) {

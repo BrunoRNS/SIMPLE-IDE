@@ -1,10 +1,8 @@
 package io.simpleide.ui.editor;
 
 import java.awt.FlowLayout;
-import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 
-import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -15,6 +13,9 @@ import javax.swing.KeyStroke;
 import org.fife.ui.rtextarea.SearchContext;
 import org.fife.ui.rtextarea.SearchEngine;
 import org.fife.ui.rtextarea.SearchResult;
+
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
 
 /**
  * Inline find and replace panel for an {@link Editor}.
@@ -51,23 +52,25 @@ public final class EditorSearchPanel extends JPanel {
 		searchRow.add(new JLabel("Find:"));
 		searchRow.add(searchField);
 		JButton previousButton = new JButton("Previous");
-		previousButton.addActionListener(event -> find(searchField.getText(), false));
+		previousButton.addActionListener(new ActionNode(event -> find(searchField.getText(), false)));
 		searchRow.add(previousButton);
 		JButton nextButton = new JButton("Next");
-		nextButton.addActionListener(event -> find(searchField.getText(), true));
+		nextButton.addActionListener(new ActionNode(event -> find(searchField.getText(), true)));
 		searchRow.add(nextButton);
 		JButton closeButton = new JButton("Close");
-		closeButton.addActionListener(event -> close());
+		closeButton.addActionListener(new ActionNode(event -> close()));
 		searchRow.add(closeButton);
 		add(searchRow);
 
 		replacementRow.add(new JLabel("Replace with:"));
 		replacementRow.add(replacementField);
 		JButton replaceButton = new JButton("Replace");
-		replaceButton.addActionListener(event -> replaceOne(searchField.getText(), replacementField.getText()));
+		replaceButton
+			.addActionListener(new ActionNode(event -> replaceOne(searchField.getText(), replacementField.getText())));
 		replacementRow.add(replaceButton);
 		JButton replaceAllButton = new JButton("Replace all");
-		replaceAllButton.addActionListener(event -> replaceAll(searchField.getText(), replacementField.getText()));
+		replaceAllButton
+			.addActionListener(new ActionNode(event -> replaceAll(searchField.getText(), replacementField.getText())));
 		replacementRow.add(replaceAllButton);
 		replacementRow.setVisible(false);
 		add(replacementRow);
@@ -160,12 +163,7 @@ public final class EditorSearchPanel extends JPanel {
 
 	private void bindKey(JTextField field, String name, KeyStroke keyStroke, Runnable action) {
 		field.getInputMap().put(keyStroke, name);
-		field.getActionMap().put(name, new AbstractAction() {
-			@Override
-			public void actionPerformed(ActionEvent event) {
-				action.run();
-			}
-		});
+		field.getActionMap().put(name, new SwingActionNode(name, action));
 	}
 
 	private void close() {

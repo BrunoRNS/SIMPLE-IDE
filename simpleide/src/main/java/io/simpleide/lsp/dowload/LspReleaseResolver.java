@@ -1,10 +1,5 @@
 package io.simpleide.lsp.dowload;
 
-import jakarta.json.Json;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
-import jakarta.json.JsonString;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
@@ -17,6 +12,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+
+import jakarta.json.Json;
+import jakarta.json.JsonArray;
+import jakarta.json.JsonObject;
+import jakarta.json.JsonReader;
+import jakarta.json.JsonString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

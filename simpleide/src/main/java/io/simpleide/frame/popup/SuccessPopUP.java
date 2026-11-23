@@ -1,11 +1,13 @@
 package io.simpleide.frame.popup;
 
+import java.util.Map;
+
+import javax.swing.JComponent;
+import javax.swing.JOptionPane;
+
 import io.simpleide.frame.utils.LoadIcon;
 import io.simpleide.utils.mappeable.Mappeable;
 import io.simpleide.utils.mappeable.MappeableSupport;
-import java.util.Map;
-import javax.swing.JComponent;
-import javax.swing.JOptionPane;
 
 /**
  * Success dialog with a success icon.

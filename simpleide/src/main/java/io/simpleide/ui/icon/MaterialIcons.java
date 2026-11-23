@@ -13,12 +13,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.swing.Icon;
 import javax.swing.UIManager;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.ui.ThemeColors;
 
@@ -131,6 +130,16 @@ public final class MaterialIcons {
 	 */
 	public static Icon forDirectory(Path path, boolean expanded) {
 		return INSTANCE.forDirectoryInternal(path, expanded);
+	}
+
+	/**
+	 * Returns a bundled Material icon by its definition name.
+	 * @param iconName icon definition name, such as {@code search}
+	 * @param size icon size in pixels
+	 * @return the requested icon, or the default file icon when the name is unknown
+	 */
+	public static Icon forName(String iconName, int size) {
+		return INSTANCE.load(iconName, Math.max(1, size), isLightTheme(), INSTANCE.defaultFileIcon);
 	}
 
 	private Icon forDirectoryInternal(Path path, boolean expanded) {

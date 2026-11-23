@@ -1,13 +1,15 @@
 package io.simpleide.api;
 
-import io.simpleide.ui.editor.Editor;
-import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TypeFile;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
+
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rtextarea.RTextScrollPane;
+
+import io.simpleide.ui.editor.Editor;
+import io.simpleide.ui.treefile.SimpleIDEFile;
+import io.simpleide.ui.treefile.TypeFile;
 
 /**
  * Creates standalone RSyntaxTextArea-based editors without starting the desktop
@@ -57,7 +59,7 @@ public final class Editors {
 	 */
 	public static Editor open(Path file) throws IOException {
 		Editor editor = new Editor();
-		editor.loadFile(new File(Objects.requireNonNull(file, "file")));
+		editor.loadFile(new SimpleIDEFile(Objects.requireNonNull(file, "file")));
 		return editor;
 	}
 
@@ -76,7 +78,7 @@ public final class Editors {
 	 * @param file path used to select the syntax style
 	 */
 	public static void applySyntaxStyle(Editor editor, Path file) {
-		Objects.requireNonNull(editor, "editor").setSyntaxStyle(File.typeOf(file));
+		Objects.requireNonNull(editor, "editor").setSyntaxStyle(SimpleIDEFile.typeOf(file));
 	}
 
 	/**
@@ -94,7 +96,7 @@ public final class Editors {
 	 * @return an RSyntaxTextArea syntax style constant
 	 */
 	public static String syntaxStyleFor(Path file) {
-		return Editor.syntaxStyleFor(File.typeOf(file));
+		return Editor.syntaxStyleFor(SimpleIDEFile.typeOf(file));
 	}
 
 	/**
@@ -113,7 +115,7 @@ public final class Editors {
 	 * @return the matching file type
 	 */
 	public static TypeFile typeOf(Path file) {
-		return File.typeOf(file);
+		return SimpleIDEFile.typeOf(file);
 	}
 
 }

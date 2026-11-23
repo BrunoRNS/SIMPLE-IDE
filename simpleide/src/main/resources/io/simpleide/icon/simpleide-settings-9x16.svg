@@ -1,0 +1,31 @@
+
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="90"
+     height="160"
+     viewBox="0 0 90 160">
+
+  <defs>
+    <mask id="gear-hole" maskUnits="userSpaceOnUse"
+          x="8" y="43" width="74" height="74">
+      <rect x="8" y="43" width="74" height="74" fill="white"/>
+      <circle cx="45" cy="80" r="10" fill="black"/>
+    </mask>
+  </defs>
+
+  <g fill="currentColor" mask="url(#gear-hole)">
+    <!-- Corpo circular -->
+    <circle cx="45" cy="80" r="25"/>
+
+    <!-- Oito dentes radialmente simétricos -->
+    <g transform="translate(45 80)">
+      <rect x="-6" y="-35" width="12" height="13" rx="2"/>
+      <rect x="-6" y="-35" width="12" height="13" rx="2" transform="rotate(45)"/>
+      <rect x="-6" y="-35" width="12" height="13" rx="2" transform="rotate(90)"/>
+      <rect x="-6" y="-35" width="12" height="13" rx="2" transform="rotate(135)"/>
+      <rect x="-6" y="-35" width="12" height="13" rx="2" transform="rotate(180)"/>
+      <rect x="-6" y="-35" width="12" height="13" rx="2" transform="rotate(225)"/>
+      <rect x="-6" y="-35" width="12" height="13" rx="2" transform="rotate(270)"/>
+      <rect x="-6" y="-35" width="12" height="13" rx="2" transform="rotate(315)"/>
+    </g>
+  </g>
+</svg>

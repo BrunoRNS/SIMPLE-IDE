@@ -1,5 +1,6 @@
 package io.simpleide.ui.treefile;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -11,11 +12,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
-import java.awt.image.BufferedImage;
+
+import javax.imageio.ImageIO;
 import javax.imageio.ImageReadParam;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
-import javax.imageio.ImageIO;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,9 +29,11 @@ import org.slf4j.LoggerFactory;
  * mutable buffer with its text. Image and binary content is kept out of the text buffer
  * and handled by the corresponding viewer.
  *
+ * @deprecated since v1.1.0, use SimpleIDEFile instead.
  * @author LuisOtavio13
  * @since v1.0.0beta
  */
+@Deprecated
 public class File extends TreeFile {
 
 	private static final long MAX_IN_MEMORY_FILE_BYTES = 2L * 1024 * 1024;
@@ -46,6 +50,7 @@ public class File extends TreeFile {
 
 	private volatile BufferedImage imageContent;
 
+	@SuppressWarnings("")
 	private volatile byte[] binaryContent;
 
 	private volatile boolean contentLoaded;
@@ -65,6 +70,7 @@ public class File extends TreeFile {
 	 * @param typeFile resolved file type
 	 * @param code file content
 	 */
+	@Deprecated
 	public File(Path path, String name, TypeFile typeFile, StringBuffer code) {
 		super(path, name);
 		this.typeFile = typeFile;
@@ -79,6 +85,7 @@ public class File extends TreeFile {
 	 * @param path file to read
 	 * @throws IOException when the file cannot be read
 	 */
+	@Deprecated
 	public File(Path path) throws IOException {
 		this(path, loadNameFile(path), getTypeFile(path), readContent(path));
 	}
@@ -104,6 +111,7 @@ public class File extends TreeFile {
 	 * @param path file path
 	 * @return an unloaded file entry
 	 */
+	@Deprecated
 	public static File lazy(Path path) {
 		return new File(path, loadNameFile(path), getTypeFile(path), new StringBuffer(), false);
 	}
@@ -112,6 +120,7 @@ public class File extends TreeFile {
 	 * Returns the resolved type of this file.
 	 * @return the file type
 	 */
+	@Deprecated
 	public TypeFile getTypeFile() {
 		return typeFile;
 	}
@@ -120,11 +129,13 @@ public class File extends TreeFile {
 	 * Returns the in-memory content buffer.
 	 * @return the mutable file content
 	 */
+	@Deprecated
 	public StringBuffer getCode() {
 		return code;
 	}
 
 	/** Returns whether this entry has been read and classified. */
+	@Deprecated
 	public boolean isContentLoaded() {
 		return contentLoaded;
 	}
@@ -132,11 +143,13 @@ public class File extends TreeFile {
 	/**
 	 * Returns whether this file needs a memory-bounded viewer instead of a full editor.
 	 */
+	@Deprecated
 	public boolean isLargeContent() {
 		return largeContent;
 	}
 
 	/** Returns the file size in bytes after content classification. */
+	@Deprecated
 	public long getFileSize() {
 		return fileSize;
 	}
@@ -145,6 +158,7 @@ public class File extends TreeFile {
 	 * Returns how this file should be presented when opened.
 	 * @return text, image, or binary content kind
 	 */
+	@Deprecated
 	public FileContentKind getContentKind() {
 		if (!contentLoaded) {
 			throw new IllegalStateException("File content has not been loaded yet.");
@@ -156,6 +170,7 @@ public class File extends TreeFile {
 	 * Loads contents once. Tree-created files should be loaded on a background thread.
 	 * @throws IOException when the file cannot be read
 	 */
+	@Deprecated
 	public synchronized void loadContent() throws IOException {
 		if (!contentLoaded) {
 			apply(readContent(getPath()));
@@ -165,12 +180,14 @@ public class File extends TreeFile {
 	/**
 	 * Returns a defensive copy of the binary content, or {@code null} for other kinds.
 	 */
+	@Deprecated
 	public byte[] getBinaryContent() {
 		byte[] content = binaryContent;
 		return content == null ? null : content.clone();
 	}
 
 	/** Returns the decoded image, or {@code null} for other content kinds. */
+	@Deprecated
 	public BufferedImage getImageContent() {
 		return imageContent;
 	}
@@ -178,6 +195,7 @@ public class File extends TreeFile {
 	/**
 	 * Releases a decoded image preview so it can be reloaded the next time it is opened.
 	 */
+	@Deprecated
 	public synchronized void releaseImageContent() {
 		if (contentKind == FileContentKind.IMAGE) {
 			imageContent = null;
@@ -186,11 +204,13 @@ public class File extends TreeFile {
 	}
 
 	/** Returns the original image width, or {@code 0} for non-image files. */
+	@Deprecated
 	public int getImageWidth() {
 		return imageWidth;
 	}
 
 	/** Returns the original image height, or {@code 0} for non-image files. */
+	@Deprecated
 	public int getImageHeight() {
 		return imageHeight;
 	}
@@ -344,6 +364,7 @@ public class File extends TreeFile {
 	 * @param path path to inspect
 	 * @return the matching file type, or {@link TypeFile#TXT} when unknown
 	 */
+	@Deprecated
 	public static TypeFile typeOf(Path path) {
 		return getTypeFile(path);
 	}

@@ -1,13 +1,15 @@
 package io.simpleide.ui.terminal;
 
+import java.awt.Font;
+
+import javax.swing.UIManager;
+
 import com.jediterm.core.Color;
 import com.jediterm.terminal.TerminalColor;
 import com.jediterm.terminal.TextStyle;
 import com.jediterm.terminal.emulator.ColorPalette;
 import com.jediterm.terminal.emulator.ColorPaletteImpl;
 import com.jediterm.terminal.ui.settings.DefaultSettingsProvider;
-import java.awt.Font;
-import javax.swing.UIManager;
 
 /**
  * JediTerm settings derived from the active Swing theme.

@@ -1,7 +1,7 @@
 package io.simpleide.lsp.client;
 
-import io.simpleide.thread.ThreadMaster;
 import java.util.List;
+
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 import org.eclipse.lsp4j.Position;
@@ -12,6 +12,8 @@ import org.fife.ui.rsyntaxtextarea.parser.DefaultParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.DefaultParserNotice;
 import org.fife.ui.rsyntaxtextarea.parser.ParseResult;
 import org.fife.ui.rsyntaxtextarea.parser.ParserNotice;
+
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * RSyntaxTextArea parser that renders LSP diagnostics as editor notices.
@@ -46,6 +48,14 @@ public final class LspDiagnosticParser extends AbstractParser {
 	public void setDiagnostics(List<Diagnostic> diagnostics) {
 		this.diagnostics = List.copyOf(diagnostics);
 		ThreadMaster.getInstance().executeOnEDT(() -> editor.forceReparsing(this));
+	}
+
+	/**
+	 * Returns the diagnostics most recently shown in the editor.
+	 * @return the current diagnostics
+	 */
+	public List<Diagnostic> getDiagnostics() {
+		return diagnostics;
 	}
 
 	/**

@@ -1,14 +1,18 @@
 package io.simpleide.ui.terminal;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.math.BigInteger;
+
+import javax.swing.JPanel;
+import javax.swing.JScrollBar;
+import javax.swing.SwingUtilities;
+
 import com.jediterm.terminal.TtyConnector;
 import com.jediterm.terminal.model.StyleState;
 import com.jediterm.terminal.model.TerminalTextBuffer;
 import com.jediterm.terminal.ui.JediTermWidget;
 import com.jediterm.terminal.ui.settings.SettingsProvider;
-import java.awt.BorderLayout;
-import java.math.BigInteger;
-import javax.swing.JPanel;
-import javax.swing.SwingUtilities;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -79,13 +83,23 @@ public final class TerminalView extends JPanel {
 		repaint();
 	}
 
-	private static final class ThemedTerminalWidget extends JediTermWidget {
+	static final class ThemedTerminalWidget extends JediTermWidget {
 
 		private ThemedTerminalPanel terminalPanel;
 
-		private ThemedTerminalWidget(TtyConnector connector) {
+		ThemedTerminalWidget(TtyConnector connector) {
 			super(COLUMNS, ROWS, new TerminalSettingsProvider());
 			setTtyConnector(connector);
+		}
+
+		@Override
+		protected JScrollBar createScrollBar() {
+			JScrollBar scrollBar = super.createScrollBar();
+			scrollBar.setPreferredSize(new Dimension(0, 0));
+			scrollBar.setMinimumSize(new Dimension(0, 0));
+			scrollBar.setMaximumSize(new Dimension(0, 0));
+			scrollBar.setVisible(false);
+			return scrollBar;
 		}
 
 		@Override

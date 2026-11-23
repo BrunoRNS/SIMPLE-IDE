@@ -1,10 +1,11 @@
 package io.simplebytecode.compiler.utils;
 
+import java.util.Locale;
+
 import io.simplebytecode.compiler.RunnerInterface;
 import io.simplebytecode.compiler.classloader.JavaRunner;
 import io.simplebytecode.compiler.groovy.GroovyRunner;
 import io.simplebytecode.compiler.kotlin.KotlinRunner;
-import java.util.Locale;
 
 /**
  * Maps source file extensions to runner implementations.

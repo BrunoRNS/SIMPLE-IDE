@@ -4,11 +4,14 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
 import javax.swing.JButton;
+import javax.swing.JScrollBar;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -18,9 +21,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import org.junit.jupiter.api.Test;
 
 import com.formdev.flatlaf.extras.FlatSVGIcon;
+import com.jediterm.terminal.TtyConnector;
+import org.junit.jupiter.api.Test;
+
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.ThemePalette;
+import io.simpleide.ui.menubar.ThemeManager;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.TerminalPanel}.
@@ -31,11 +39,15 @@ class TerminalPanelTest {
 	void actionIconSvgColorsFollowTheTheme() throws Exception {
 		Object originalForeground = UIManager.get("Button.foreground");
 		Object originalBackground = UIManager.get("Button.background");
+		Object originalPanelBackground = UIManager.get("Panel.background");
+		Object originalAccent = UIManager.get("Component.accentColor");
 		try {
 			Color foreground = new Color(0xEBDBB2);
 			Color background = new Color(0x3C3836);
 			UIManager.put("Button.foreground", foreground);
 			UIManager.put("Button.background", background);
+			UIManager.put("Panel.background", background);
+			UIManager.put("Component.accentColor", foreground);
 
 			SwingUtilities.invokeAndWait(() -> {
 				TerminalPanel panel = new TerminalPanel();
@@ -45,8 +57,8 @@ class TerminalPanelTest {
 					assertThat(button.getForeground()).as("button foreground follows active theme")
 						.isEqualTo(foreground);
 					assertThat(button.getClientProperty("JButton.buttonType"))
-						.as("terminal action buttons use rounded styling")
-						.isEqualTo("roundRect");
+						.as("terminal action buttons do not use rounded styling")
+						.isNull();
 					FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
 					FlatSVGIcon.ColorFilter filter = icon.getColorFilter();
 					assertThat(filter.filter(null, new Color(0x6E7781))).as("accent stroke color")
@@ -59,7 +71,112 @@ class TerminalPanelTest {
 		finally {
 			restoreUiValue("Button.foreground", originalForeground);
 			restoreUiValue("Button.background", originalBackground);
+			restoreUiValue("Panel.background", originalPanelBackground);
+			restoreUiValue("Component.accentColor", originalAccent);
 		}
+	}
+
+	@Test
+	void terminalActionIconsKeepDarkVisibleStrokesInLightThemes() throws Exception {
+		Object originalForeground = UIManager.get("Button.foreground");
+		Object originalBackground = UIManager.get("Button.background");
+		Object originalPanelBackground = UIManager.get("Panel.background");
+		Object originalAccent = UIManager.get("Component.accentColor");
+		try {
+			for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
+				ThemePalette palette = ThemePalette.of(theme);
+				if (palette.dark()) {
+					continue;
+				}
+				UIManager.put("Button.foreground", palette.buttonForeground());
+				UIManager.put("Button.background", palette.surface());
+				UIManager.put("Panel.background", palette.surface());
+				UIManager.put("Component.accentColor", palette.accent());
+
+				SwingUtilities.invokeAndWait(() -> {
+					TerminalPanel panel = new TerminalPanel();
+					assertThat(findButtons(panel)).hasSize(2).allSatisfy(button -> {
+						Color background = button.getBackground();
+						FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
+						Color stroke = icon.getColorFilter().filter(button, new Color(0x6E7781));
+						Color expectedStroke = ThemeColors.readable(palette.accent(), background,
+								ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+						assertThat(stroke).as("terminal strokes use the theme accent in %s", theme)
+							.isEqualTo(expectedStroke);
+						assertThat(ThemeColors.contrastRatio(stroke, background))
+							.as("main SVG stroke contrast in %s", theme)
+							.isGreaterThanOrEqualTo(ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+						assertThat(stroke).as("light-theme terminal strokes should be dark or blue")
+							.isNotEqualTo(Color.WHITE);
+						assertThat(ThemeColors.contrastRatio(icon.getColorFilter().filter(button, Color.WHITE), stroke))
+							.as("add/close mark contrast against its badge in %s", theme)
+							.isGreaterThanOrEqualTo(ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+
+						BufferedImage image = new BufferedImage(icon.getIconWidth(), icon.getIconHeight(),
+								BufferedImage.TYPE_INT_ARGB);
+						Graphics2D graphics = image.createGraphics();
+						try {
+							icon.paintIcon(button, graphics, 0, 0);
+						}
+						finally {
+							graphics.dispose();
+						}
+						long visibleStrokePixels = 0;
+						for (int y = 0; y < image.getHeight(); y++) {
+							for (int x = 0; x < image.getWidth(); x++) {
+								Color pixel = new Color(image.getRGB(x, y), true);
+								if (pixel.getAlpha() > 220 && ThemeColors.contrastRatio(pixel, background) >= 3.0d) {
+									visibleStrokePixels++;
+								}
+							}
+						}
+						assertThat(visibleStrokePixels).as("visible terminal icon strokes in %s", theme)
+							.isGreaterThan(10);
+					});
+				});
+			}
+		}
+		finally {
+			restoreUiValue("Button.foreground", originalForeground);
+			restoreUiValue("Button.background", originalBackground);
+			restoreUiValue("Panel.background", originalPanelBackground);
+			restoreUiValue("Component.accentColor", originalAccent);
+		}
+	}
+
+	@Test
+	void spacesTerminalActionsAndExplainsDisabledStates() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			TerminalPanel panel = new TerminalPanel();
+			List<JButton> buttons = findButtons(panel);
+			assertThat(buttons).hasSize(2);
+			assertThat(buttons.get(0).getParent().getComponent(1).getPreferredSize().height).isEqualTo(8);
+			assertThat(buttons.get(0).getParent().getInsets().left).isEqualTo(8);
+
+			panel.setActionsEnabled(false, false, true);
+
+			assertThat(buttons.get(0).isEnabled()).isFalse();
+			assertThat(buttons.get(0).getToolTipText()).isEqualTo("Cannot add another terminal");
+			assertThat(buttons.get(1).isEnabled()).isFalse();
+			assertThat(buttons.get(1).getToolTipText()).isEqualTo("No terminal selected");
+		});
+	}
+
+	@Test
+	void hidesTerminalScrollbarWithoutRemovingItsScrollModel() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			TerminalView.ThemedTerminalWidget widget = new TerminalView.ThemedTerminalWidget(new StubTtyConnector());
+			try {
+				JScrollBar scrollBar = findScrollBar(widget);
+				assertThat(scrollBar).isNotNull();
+				assertThat(scrollBar.isVisible()).isFalse();
+				assertThat(scrollBar.getPreferredSize().width).isZero();
+				assertThat(scrollBar.getModel()).isNotNull();
+			}
+			finally {
+				widget.close();
+			}
+		});
 	}
 
 	@Test
@@ -168,6 +285,62 @@ class TerminalPanelTest {
 		List<JButton> buttons = new ArrayList<>();
 		collectButtons(component, buttons);
 		return buttons;
+	}
+
+	private static JScrollBar findScrollBar(Component component) {
+		if (component instanceof JScrollBar scrollBar) {
+			return scrollBar;
+		}
+		if (component instanceof Container container) {
+			for (Component child : container.getComponents()) {
+				JScrollBar result = findScrollBar(child);
+				if (result != null) {
+					return result;
+				}
+			}
+		}
+		return null;
+	}
+
+	private static final class StubTtyConnector implements TtyConnector {
+
+		@Override
+		public int read(char[] buffer, int offset, int length) {
+			return -1;
+		}
+
+		@Override
+		public void write(byte[] bytes) {
+		}
+
+		@Override
+		public void write(String string) {
+		}
+
+		@Override
+		public boolean isConnected() {
+			return false;
+		}
+
+		@Override
+		public int waitFor() {
+			return 0;
+		}
+
+		@Override
+		public boolean ready() {
+			return false;
+		}
+
+		@Override
+		public String getName() {
+			return "test";
+		}
+
+		@Override
+		public void close() {
+		}
+
 	}
 
 	private static void collectButtons(Component component, List<JButton> buttons) {

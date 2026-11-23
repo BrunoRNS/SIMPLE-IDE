@@ -2,6 +2,7 @@ package io.simpleide.ui.terminal;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
@@ -16,20 +17,21 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.awaitility.Awaitility.await;
-import org.awaitility.core.ConditionTimeoutException;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.jediterm.core.util.TermSize;
 import com.jediterm.terminal.ProcessTtyConnector;
 import com.jediterm.terminal.TtyConnector;
 import com.pty4j.PtyProcess;
+import org.awaitility.core.ConditionTimeoutException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.api.io.TempDir;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.config.LangPlatform;
 
@@ -37,6 +39,9 @@ import io.simpleide.language.config.LangPlatform;
  * Tests {@link io.simpleide.ui.terminal.BusyBoxTerminalSession}.
  */
 class BusyBoxTerminalSessionTest {
+
+	@TempDir
+	private Path tempDirectory;
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(BusyBoxTerminalSessionTest.class);
 
@@ -56,6 +61,37 @@ class BusyBoxTerminalSessionTest {
 
 			session.close();
 			awaitSessionClosed(session);
+		}
+	}
+
+	@Test
+	void startsBusyBoxInConfiguredWorkingDirectory() throws Exception {
+		LangPlatform platform = LangPlatform.getCurrentPlatform();
+		assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+
+		Path workingDirectory = Files.createDirectory(tempDirectory.resolve("busybox-working-directory")).toRealPath();
+		// BusyBox reports Windows paths with forward slashes (for example
+		// C:/Users/...), so comparing the shell's pwd output with Path.toString()
+		// fails on Windows. A relative probe file proves the initial directory
+		// without depending on the platform's path formatting.
+		String probeFile = "p.txt";
+		String probeMarker = "SIMPLEIDE_WORKING_DIRECTORY_OK";
+		Files.writeString(workingDirectory.resolve(probeFile), probeMarker + "\n");
+		ExecutorService outputReader = Executors.newSingleThreadExecutor();
+		try (BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform, workingDirectory)) {
+			session.start();
+			Future<String> output = outputReader.submit(() -> readUntil(session.getConnector(), "SIMPLEIDE_WD_DONE"));
+			session.getConnector()
+				.write("pwd\ncat " + probeFile + " 2>/dev/null || printf 'SIMPLEIDE_%s\\n' WD_MISSING\n"
+						+ "printf 'SIMPLEIDE_%s\\n' WD_DONE\n");
+
+			String terminalOutput = output.get(10, TimeUnit.SECONDS);
+			assertTrue(terminalOutput.contains(probeMarker),
+					"The BusyBox shell did not start in the configured working directory. Output: " + terminalOutput
+							+ "; session=" + session.processDiagnostics());
+		}
+		finally {
+			outputReader.shutdownNow();
 		}
 	}
 
@@ -113,8 +149,9 @@ class BusyBoxTerminalSessionTest {
 		assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform.");
 		assumeTrue(!"windows".equals(platform.getOs()), "This test requires a POSIX system shell.");
 
+		Path workingDirectory = Files.createDirectory(tempDirectory.resolve("fallback-working-directory")).toRealPath();
 		@SuppressWarnings("resource")
-		BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform);
+		BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform, workingDirectory);
 		Map<String, String> environment = new HashMap<>(System.getenv());
 		environment.put("TERM", "xterm-256color");
 		String missingExecutable = Path
@@ -149,9 +186,13 @@ class BusyBoxTerminalSessionTest {
 			Future<String> output = outputReader.submit(() -> readUntil(connector, "PTY_OK"));
 			connector
 				.write("""
+						pwd
 						if test -t 0 && test -t 1; then printf '\\120\\124\\131\\137\\117\\113\\n'; else printf '\\120\\124\\131\\137\\116\\117\\n'; fi
 						""");
-			assertTrue(output.get(10, TimeUnit.SECONDS).contains("PTY_OK"),
+			String terminalOutput = output.get(10, TimeUnit.SECONDS);
+			assertTrue(terminalOutput.contains(workingDirectory.toString()),
+					"The fallback shell did not start in the configured working directory.");
+			assertTrue(terminalOutput.contains("PTY_OK"),
 					"The /bin/sh fallback did not execute a command through the PTY.");
 		}
 		finally {
