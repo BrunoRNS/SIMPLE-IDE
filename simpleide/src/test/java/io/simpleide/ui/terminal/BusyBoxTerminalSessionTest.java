@@ -70,14 +70,25 @@ class BusyBoxTerminalSessionTest {
 		assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
 
 		Path workingDirectory = Files.createDirectory(tempDirectory.resolve("busybox-working-directory")).toRealPath();
+		// BusyBox reports Windows paths with forward slashes (for example
+		// C:/Users/...), so comparing the shell's pwd output with Path.toString()
+		// fails on Windows. A relative probe file proves the initial directory
+		// without depending on the platform's path formatting.
+		String probeFile = "p.txt";
+		String probeMarker = "SIMPLEIDE_WORKING_DIRECTORY_OK";
+		Files.writeString(workingDirectory.resolve(probeFile), probeMarker + "\n");
 		ExecutorService outputReader = Executors.newSingleThreadExecutor();
 		try (BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform, workingDirectory)) {
 			session.start();
-			Future<String> output = outputReader
-				.submit(() -> readUntil(session.getConnector(), workingDirectory.toString()));
-			session.getConnector().write("pwd\n");
+			Future<String> output = outputReader.submit(() -> readUntil(session.getConnector(), "SIMPLEIDE_WD_DONE"));
+			session.getConnector()
+				.write("pwd\ncat " + probeFile + " 2>/dev/null || printf 'SIMPLEIDE_%s\\n' WD_MISSING\n"
+						+ "printf 'SIMPLEIDE_%s\\n' WD_DONE\n");
 
-			assertTrue(output.get(10, TimeUnit.SECONDS).contains(workingDirectory.toString()));
+			String terminalOutput = output.get(10, TimeUnit.SECONDS);
+			assertTrue(terminalOutput.contains(probeMarker),
+					"The BusyBox shell did not start in the configured working directory. Output: " + terminalOutput
+							+ "; session=" + session.processDiagnostics());
 		}
 		finally {
 			outputReader.shutdownNow();
