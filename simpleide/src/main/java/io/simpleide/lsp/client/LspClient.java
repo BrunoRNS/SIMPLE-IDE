@@ -70,6 +70,7 @@ import org.slf4j.LoggerFactory;
 import io.simpleide.SimpleIDEVersion;
 import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
@@ -115,7 +116,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	private final RunnableNode runtimeNode = new RunnableNode(() -> {
 	});
 
-	private final RunnableNode startupNode;
+	private final ManagedThreadPool workerPool;
+
+	private final NodePattern startupNode;
 
 	private volatile ManagedThreadPool errorReaderPool;
 
@@ -170,6 +173,22 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler,
 			Map<String, String> environment) throws IOException {
+		this(command, workspaceRoot, diagnosticsHandler, environment, null);
+	}
+
+	/**
+	 * Creates a client whose startup and protocol tasks use a managed worker pool.
+	 * @param command command and arguments used to start the language server
+	 * @param workspaceRoot root directory passed to the server and used as its working
+	 * directory
+	 * @param diagnosticsHandler consumer for diagnostics published by the server, may be
+	 * {@code null}
+	 * @param environment extra environment variables for the server process
+	 * @param workerPool managed pool for background language-server work
+	 * @throws IOException when the client cannot register its startup work
+	 */
+	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler,
+			Map<String, String> environment, ManagedThreadPool workerPool) throws IOException {
 		if (command == null || command.isEmpty()) {
 			throw new IllegalArgumentException("Language server command must not be empty.");
 		}
@@ -179,15 +198,21 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 		this.diagnosticsHandler = diagnosticsHandler == null ? ignored -> {
 		} : diagnosticsHandler;
-		this.startupNode = new RunnableNode(runtimeNode, () -> startServer(command, workspaceRoot, environment), () -> {
+		this.workerPool = workerPool;
+		Runnable startup = () -> startServer(command, workspaceRoot, environment);
+		Runnable startupOnClose = () -> {
 			if (!closed && !initializationSubmitted) {
 				LOGGER.warn("Language server startup node closed before initialization was submitted.");
 			}
-		});
+		};
 		ThreadMaster threadMaster = ThreadMaster.getInstance();
 		try {
 			threadMaster.register(runtimeNode);
-			threadMaster.register(startupNode);
+			startupNode = workerPool == null ? new RunnableNode(runtimeNode, startup, startupOnClose)
+					: workerPool.execute(startup, startupOnClose);
+			if (workerPool == null) {
+				threadMaster.register(startupNode);
+			}
 		}
 		catch (RuntimeException error) {
 			threadMaster.removeNodeCascade(runtimeNode);
@@ -607,7 +632,8 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	}
 
 	private ExecutorService createLspExecutor() {
-		return ThreadMaster.getInstance().createExecutorService(runtimeNode);
+		return workerPool == null ? ThreadMaster.getInstance().createExecutorService(runtimeNode)
+				: workerPool.createExecutorService();
 	}
 
 	/**

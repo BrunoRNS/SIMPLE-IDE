@@ -20,10 +20,10 @@ import io.simpleide.thread.nodes.edt.listeners.ActionNode;
  * File menu with new file, new folder, open folder, close folder and save items.
  *
  * <p>
- * Items are listed alphabetically. Each item forwards to the callback supplied at
- * construction through an EDT node, so menu work is managed by the thread tree. Save is
- * bound to Ctrl+S; the shortcut labels of New File, Open Folder and Close Folder come
- * from the persistent settings and can be refreshed with
+ * Items are ordered by creation, navigation and save actions. Each item forwards to the
+ * callback supplied at construction through an EDT node, so menu work is managed by the
+ * thread tree. Save is bound to Ctrl+S; the shortcut labels of New File, Open Folder and
+ * Close Folder come from the persistent settings and can be refreshed with
  * {@link #applySettings(IdeSettings)}.
  *
  * <p>
@@ -36,13 +36,13 @@ public class FileMenu extends JMenu {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(FileMenu.class);
 
-	private JMenuItem closeFolder;
-
 	private JMenuItem newFile;
 
 	private JMenuItem newFolder;
 
 	private JMenuItem openFolder;
+
+	private JMenuItem closeFolder;
 
 	private JMenuItem saveFile;
 
@@ -76,33 +76,33 @@ public class FileMenu extends JMenu {
 	 */
 	public void applySettings(IdeSettings settings) {
 		Objects.requireNonNull(settings, "settings");
-		closeFolder.setAccelerator(IdeAction.parseKeyStroke(settings.keybindingOf(IdeAction.CLOSE_FOLDER)));
 		newFile.setAccelerator(IdeAction.parseKeyStroke(settings.keybindingOf(IdeAction.NEW_FILE)));
 		openFolder.setAccelerator(IdeAction.parseKeyStroke(settings.keybindingOf(IdeAction.OPEN_FOLDER)));
+		closeFolder.setAccelerator(IdeAction.parseKeyStroke(settings.keybindingOf(IdeAction.CLOSE_FOLDER)));
 	}
 
 	private void configureMenu() {
-		add(closeFolder);
 		add(newFile);
 		add(newFolder);
 		add(openFolder);
+		add(closeFolder);
 		add(saveFile);
 	}
 
 	private void configureActions(Runnable createFile, Runnable createFolder, Runnable openFolder, Runnable closeFolder,
 			Runnable saveFile) {
-		this.closeFolder.addActionListener(new ActionNode(event -> closeFolder.run()));
 		newFile.addActionListener(new ActionNode(event -> createFile.run()));
 		newFolder.addActionListener(new ActionNode(event -> createFolder.run()));
 		this.openFolder.addActionListener(new ActionNode(event -> openFolder.run()));
+		this.closeFolder.addActionListener(new ActionNode(event -> closeFolder.run()));
 		this.saveFile.addActionListener(new ActionNode(event -> saveFile.run()));
 	}
 
 	private void createItems() {
-		this.closeFolder = new JMenuItem("Close Folder");
 		this.newFile = new JMenuItem("New File");
 		this.newFolder = new JMenuItem("New Folder");
 		this.openFolder = new JMenuItem("Open Folder");
+		this.closeFolder = new JMenuItem("Close Folder");
 		this.saveFile = new JMenuItem("Save");
 		this.saveFile.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK));
 	}

@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
@@ -412,6 +413,14 @@ public class EditorManager {
 	 */
 	public EditorTab getOpenedEditor(Path path) {
 		return openedEditors.get(path);
+	}
+
+	/**
+	 * Returns a snapshot of paths currently open in editor tabs.
+	 * @return normalized open file paths
+	 */
+	public Set<Path> getOpenFilePaths() {
+		return Set.copyOf(openedEditors.keySet());
 	}
 
 	/**

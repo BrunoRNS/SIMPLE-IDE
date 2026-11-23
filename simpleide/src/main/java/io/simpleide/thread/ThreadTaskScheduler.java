@@ -42,7 +42,9 @@ public final class ThreadTaskScheduler {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ThreadTaskScheduler.class);
 	static final int MAX_QUEUED_TASKS = 256;
-	static final int WORKER_COUNT = Math.max(4, Math.min(8, Runtime.getRuntime().availableProcessors()));
+	static final int MIN_WORKER_COUNT = 4;
+
+	public static final int WORKER_COUNT = workerCountForProcessors(Runtime.getRuntime().availableProcessors());
 
 	private final Map<BigInteger, ManagedTask> activeTasks = new LinkedHashMap<>();
 
@@ -63,6 +65,10 @@ public final class ThreadTaskScheduler {
 
 	ThreadTaskScheduler() {
 		timer.setRemoveOnCancelPolicy(true);
+	}
+
+	static int workerCountForProcessors(int processorCount) {
+		return Math.max(MIN_WORKER_COUNT, Math.max(1, processorCount));
 	}
 
 	void schedule(NodePattern node) {

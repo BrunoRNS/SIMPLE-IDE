@@ -138,15 +138,18 @@ public final class TerminalPanel extends JPanel {
 		return new FlatSVGIcon(resource, iconSize, iconSize)
 			.setColorFilter(new FlatSVGIcon.ColorFilter((component, color) -> {
 				if (ICON_ACCENT.equals(color)) {
-					Color foreground = component == null ? null : component.getForeground();
-					if (foreground == null) {
-						foreground = UIManager.getColor("Button.foreground");
+					Color accent = UIManager.getColor("Component.accentColor");
+					if (accent == null) {
+						accent = component == null ? null : component.getForeground();
 					}
-					if (foreground == null) {
-						foreground = UIManager.getColor("Label.foreground");
+					if (accent == null) {
+						accent = UIManager.getColor("Button.foreground");
 					}
-					return ThemeColors.readable(foreground == null ? Color.GRAY : foreground,
-							getIconBackground(component));
+					if (accent == null) {
+						accent = UIManager.getColor("Label.foreground");
+					}
+					return ThemeColors.readable(accent == null ? Color.GRAY : accent, getIconBackground(component),
+							ThemeColors.MIN_LARGE_TEXT_CONTRAST);
 				}
 				if (Color.WHITE.equals(color)) {
 					return this.getIconBackground(component);

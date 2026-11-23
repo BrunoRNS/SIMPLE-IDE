@@ -31,7 +31,7 @@ import io.simpleide.ui.icon.ThemedSvgIcon;
  * <p>
  * The buttons use the bundled 9:16 SVG artwork, centred inside fixed-size buttons so the
  * selected state only changes colours: the icon of the selected view is painted with the
- * theme accent colour while the other views keep a muted version of the theme foreground.
+ * theme accent colour while every other icon keeps a readable theme foreground.
  *
  * @author BrunoRNS
  * @since v1.1.0
@@ -132,15 +132,23 @@ public final class ActivityBar extends JPanel {
 
 	private Color iconColor(SidebarView view, ActivityButton button) {
 		Color background = ThemeColors.ui("Panel.background", "control", "Tree.background");
+		if (background == null) {
+			background = button.getBackground();
+		}
+		if (background == null) {
+			background = Color.DARK_GRAY;
+		}
 		Color foreground = ThemeColors.ui("Label.foreground", "Panel.foreground");
 		if (foreground == null) {
 			foreground = ThemeColors.isLight(background) ? Color.BLACK : Color.WHITE;
 		}
 		if (view == selectedView) {
 			Color accent = ThemeColors.ui("Component.accentColor", "Component.focusColor");
-			return accent == null ? foreground : accent;
+			return ThemeColors.readable(accent == null ? foreground : accent, background,
+					ThemeColors.MIN_LARGE_TEXT_CONTRAST);
 		}
-		return button.getModel().isRollover() ? foreground : ThemeColors.blend(foreground, background, 0.3f);
+		Color iconColor = button.getModel().isRollover() ? foreground : ThemeColors.blend(foreground, background, 0.3f);
+		return ThemeColors.readable(iconColor, background, ThemeColors.MIN_LARGE_TEXT_CONTRAST);
 	}
 
 	@Override

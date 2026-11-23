@@ -9,10 +9,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +30,9 @@ import org.slf4j.LoggerFactory;
  *
  * <p>
  * The service walks the folder recursively, skips common build and version-control
- * directories, ignores binary files and files larger than {@link #MAX_FILE_BYTES}, and
- * returns one {@link SearchMatch} for every matching line. Matching is case-sensitive on
- * request and otherwise uses a locale-independent lower-case comparison. The method is
- * blocking and must run on a background thread.
+ * directories, supports gitignore and glob filters, ignores binary files and files larger
+ * than {@link #MAX_FILE_BYTES}, and returns one {@link SearchMatch} for every occurrence.
+ * The method is blocking and must run on a background thread.
  *
  * @author BrunoRNS
  * @since v1.1.0
@@ -51,25 +58,55 @@ public final class WorkspaceSearchService {
 			"avi", "mov", "wav", "ogg", "woff", "woff2", "ttf", "otf", "eot", "db", "sqlite", "sqlite3");
 
 	/**
-	 * Searches a workspace for a text query.
+	 * Searches a workspace for a literal text query.
 	 * @param root workspace folder, or {@code null} when no folder is open
 	 * @param query text to find
 	 * @param matchCase whether the comparison is case-sensitive
 	 * @param maxResults maximum number of matches
-	 * @return matching lines ordered by file walk order
+	 * @return matching occurrences ordered by file path, line and column
 	 */
 	public List<SearchMatch> search(Path root, String query, boolean matchCase, int maxResults) {
-		if (root == null || query == null || query.isEmpty() || maxResults < 1 || !Files.isDirectory(root)) {
+		return search(root, query, new SearchOptions(matchCase, false, true, false, Set.of(), "", ""), maxResults);
+	}
+
+	/**
+	 * Searches a workspace with the requested scope and matching options.
+	 * @param root workspace folder, or {@code null} when no folder is open
+	 * @param query text or regular expression to find
+	 * @param options query, scope and file filter settings
+	 * @param maxResults maximum number of occurrences
+	 * @return matching occurrences ordered by file path, line and column
+	 * @throws PatternSyntaxException if the regular expression is invalid
+	 * @throws IllegalArgumentException if a file glob is invalid
+	 */
+	public List<SearchMatch> search(Path root, String query, SearchOptions options, int maxResults) {
+		if (root == null || query == null || query.isEmpty() || options == null || maxResults < 1
+				|| !Files.isDirectory(root)) {
 			return List.of();
 		}
-		String needle = matchCase ? query : query.toLowerCase(Locale.ROOT);
+
+		Path normalizedRoot = root.toAbsolutePath().normalize();
+		Pattern queryPattern = compileQuery(query, options);
+		GlobFilter includes = GlobFilter.compile(options.filesToInclude());
+		GlobFilter excludes = GlobFilter.compile(options.filesToExclude());
+		List<Path> openedFiles = options.openFiles().stream().map(path -> path.toAbsolutePath().normalize()).toList();
 		List<SearchMatch> matches = new ArrayList<>();
+		List<IgnoreRule> ignoreRules = new ArrayList<>();
+		Deque<Integer> ruleCounts = new ArrayDeque<>();
 		try {
-			Files.walkFileTree(root, new SimpleFileVisitor<>() {
+			Files.walkFileTree(normalizedRoot, new SimpleFileVisitor<>() {
 				@Override
 				public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes) {
-					if (!directory.equals(root) && isSkippedDirectory(directory)) {
+					if (!directory.equals(normalizedRoot) && isSkippedDirectory(directory)) {
 						return FileVisitResult.SKIP_SUBTREE;
+					}
+					if (options.useGitIgnore() && !directory.equals(normalizedRoot)
+							&& isIgnored(normalizedRoot.relativize(directory), true, ignoreRules)) {
+						return FileVisitResult.SKIP_SUBTREE;
+					}
+					ruleCounts.push(ignoreRules.size());
+					if (options.useGitIgnore()) {
+						loadIgnoreRules(directory, normalizedRoot, ignoreRules);
 					}
 					return FileVisitResult.CONTINUE;
 				}
@@ -82,8 +119,30 @@ public final class WorkspaceSearchService {
 					if (!attributes.isRegularFile() || attributes.size() > MAX_FILE_BYTES || isBinary(file)) {
 						return FileVisitResult.CONTINUE;
 					}
-					searchFile(file, needle, matchCase, maxResults, matches);
+					Path relative = normalizedRoot.relativize(file);
+					if (options.openEditorsOnly() && !openedFiles.contains(file.toAbsolutePath().normalize())) {
+						return FileVisitResult.CONTINUE;
+					}
+					if (options.useGitIgnore() && isIgnored(relative, false, ignoreRules)) {
+						return FileVisitResult.CONTINUE;
+					}
+					if ((!includes.patterns().isEmpty() && !includes.matches(relative)) || excludes.matches(relative)) {
+						return FileVisitResult.CONTINUE;
+					}
+					searchFile(file, queryPattern, maxResults, matches);
 					return matches.size() >= maxResults ? FileVisitResult.TERMINATE : FileVisitResult.CONTINUE;
+				}
+
+				@Override
+				public FileVisitResult postVisitDirectory(Path directory, IOException error) {
+					int ruleCount = ruleCounts.pop();
+					while (ignoreRules.size() > ruleCount) {
+						ignoreRules.remove(ignoreRules.size() - 1);
+					}
+					if (error != null) {
+						LOGGER.debug("Unable to read workspace directory {}.", directory, error);
+					}
+					return FileVisitResult.CONTINUE;
 				}
 
 				@Override
@@ -96,10 +155,58 @@ public final class WorkspaceSearchService {
 		catch (IOException | RuntimeException error) {
 			LOGGER.warn("Unable to search workspace {}.", root, error);
 		}
+		matches.sort(Comparator
+			.comparing((SearchMatch match) -> normalizePath(normalizedRoot.relativize(match.path()).toString()))
+			.thenComparingInt(SearchMatch::line)
+			.thenComparingInt(SearchMatch::column));
 		return List.copyOf(matches);
 	}
 
-	private void searchFile(Path file, String needle, boolean matchCase, int maxResults, List<SearchMatch> matches) {
+	private Pattern compileQuery(String query, SearchOptions options) {
+		String expression = options.regularExpression() ? query : Pattern.quote(query);
+		int flags = options.matchCase() ? 0 : Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE;
+		return Pattern.compile(expression, flags);
+	}
+
+	private void loadIgnoreRules(Path directory, Path root, List<IgnoreRule> rules) {
+		Path ignoreFile = directory.resolve(".gitignore");
+		if (!Files.isRegularFile(ignoreFile)) {
+			return;
+		}
+		String base = normalizePath(root.relativize(directory).toString());
+		try {
+			for (String line : Files.readAllLines(ignoreFile, StandardCharsets.UTF_8)) {
+				IgnoreRule.parse(line, base).ifPresent(rules::add);
+			}
+		}
+		catch (IOException error) {
+			LOGGER.debug("Unable to read ignore file {}.", ignoreFile, error);
+		}
+	}
+
+	private boolean isIgnored(Path relativePath, boolean directory, List<IgnoreRule> rules) {
+		String[] components = normalizePath(relativePath.toString()).split("/");
+		StringBuilder current = new StringBuilder();
+		for (int index = 0; index < components.length; index++) {
+			if (current.length() > 0) {
+				current.append('/');
+			}
+			current.append(components[index]);
+			boolean isDirectory = index < components.length - 1 || directory;
+			boolean ignored = false;
+			for (IgnoreRule rule : rules) {
+				if (rule.matches(current.toString(), isDirectory)) {
+					ignored = !rule.negated();
+				}
+			}
+			if (ignored) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void searchFile(Path file, Pattern pattern, int maxResults, List<SearchMatch> matches) {
 		try (BufferedReader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
 			String line;
 			int lineNumber = 0;
@@ -109,10 +216,9 @@ public final class WorkspaceSearchService {
 					return;
 				}
 				String searchable = line.length() > MAX_LINE_LENGTH ? line.substring(0, MAX_LINE_LENGTH) : line;
-				String compared = matchCase ? searchable : searchable.toLowerCase(Locale.ROOT);
-				int column = compared.indexOf(needle);
-				if (column >= 0) {
-					matches.add(new SearchMatch(file, lineNumber, column + 1, line));
+				Matcher matcher = pattern.matcher(searchable);
+				while (matcher.find() && matches.size() < maxResults) {
+					matches.add(new SearchMatch(file, lineNumber, matcher.start() + 1, line));
 				}
 			}
 		}
@@ -142,15 +248,272 @@ public final class WorkspaceSearchService {
 		return BINARY_EXTENSIONS.contains(name.substring(dot + 1).toLowerCase(Locale.ROOT));
 	}
 
+	private static String normalizePath(String path) {
+		return path.replace('\\', '/');
+	}
+
 	/**
-	 * One matching line in the workspace.
+	 * Search query behavior and scope.
+	 *
+	 * @param matchCase whether matches respect letter case
+	 * @param regularExpression whether the query is a Java regular expression
+	 * @param useGitIgnore whether files ignored by applicable {@code .gitignore} files
+	 * are excluded
+	 * @param openEditorsOnly whether the search is limited to {@code openFiles}
+	 * @param openFiles paths currently open in editor tabs
+	 * @param filesToInclude comma-separated include globs
+	 * @param filesToExclude comma-separated exclude globs
+	 */
+	public record SearchOptions(boolean matchCase, boolean regularExpression, boolean useGitIgnore,
+			boolean openEditorsOnly, Set<Path> openFiles, String filesToInclude, String filesToExclude) {
+
+		/** Creates an immutable, normalized options snapshot. */
+		public SearchOptions {
+			Set<Path> normalized = new HashSet<>();
+			if (openFiles != null) {
+				for (Path path : openFiles) {
+					if (path != null) {
+						normalized.add(path.toAbsolutePath().normalize());
+					}
+				}
+			}
+			openFiles = Set.copyOf(normalized);
+			filesToInclude = filesToInclude == null ? "" : filesToInclude;
+			filesToExclude = filesToExclude == null ? "" : filesToExclude;
+		}
+
+	}
+
+	/**
+	 * One matching occurrence in the workspace.
 	 *
 	 * @param path file containing the match
 	 * @param line one-based line number
-	 * @param column one-based column of the first match in the line
+	 * @param column one-based column of the match
 	 * @param lineText full text of the matching line
 	 */
 	public record SearchMatch(Path path, int line, int column, String lineText) {
+	}
+
+	private record IgnoreRule(String base, Pattern pattern, boolean pathPattern, boolean directoryOnly,
+			boolean negated) {
+
+		private static Optional<IgnoreRule> parse(String source, String base) {
+			String line = trimTrailingSpaces(source);
+			if (line.isBlank() || line.startsWith("#")) {
+				return Optional.empty();
+			}
+			boolean escapedLeadingMarker = line.startsWith("\\#") || line.startsWith("\\!");
+			if (escapedLeadingMarker) {
+				line = line.substring(1);
+			}
+			boolean negated = !escapedLeadingMarker && line.startsWith("!");
+			if (negated) {
+				line = line.substring(1);
+			}
+			boolean anchored = line.startsWith("/");
+			if (anchored) {
+				line = line.substring(1);
+			}
+			boolean directoryOnly = line.endsWith("/") && !line.endsWith("\\/");
+			if (directoryOnly) {
+				line = line.substring(0, line.length() - 1);
+			}
+			if (line.isEmpty()) {
+				return Optional.empty();
+			}
+			boolean pathPattern = anchored || line.contains("/");
+			try {
+				return Optional.of(new IgnoreRule(base, compileGlob(line, true), pathPattern, directoryOnly, negated));
+			}
+			catch (IllegalArgumentException error) {
+				LOGGER.warn("Skipping invalid .gitignore pattern '{}'.", source, error);
+				return Optional.empty();
+			}
+		}
+
+		private boolean matches(String path, boolean directory) {
+			String localPath;
+			if (base.isEmpty()) {
+				localPath = path;
+			}
+			else if (path.startsWith(base + "/")) {
+				localPath = path.substring(base.length() + 1);
+			}
+			else {
+				return false;
+			}
+			if (localPath.isEmpty()) {
+				return false;
+			}
+			if (pathPattern) {
+				return (!directoryOnly || directory) && pattern.matcher(localPath).matches();
+			}
+			String[] components = localPath.split("/");
+			for (int index = 0; index < components.length; index++) {
+				boolean componentDirectory = index < components.length - 1 || directory;
+				if ((!directoryOnly || componentDirectory) && pattern.matcher(components[index]).matches()) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		private static String trimTrailingSpaces(String line) {
+			int end = line.length();
+			while (end > 0 && line.charAt(end - 1) == ' ') {
+				int escapeCount = 0;
+				for (int index = end - 2; index >= 0 && line.charAt(index) == '\\'; index--) {
+					escapeCount++;
+				}
+				if (escapeCount % 2 == 1) {
+					break;
+				}
+				end--;
+			}
+			return line.substring(0, end);
+		}
+
+	}
+
+	private record GlobFilter(List<GlobPattern> patterns) {
+
+		private static GlobFilter compile(String source) {
+			List<GlobPattern> patterns = splitGlobs(source).stream().map(GlobPattern::compile).toList();
+			return new GlobFilter(patterns);
+		}
+
+		private boolean matches(Path relativePath) {
+			String normalizedPath = normalizePath(relativePath.toString());
+			String fileName = normalizePath(relativePath.getFileName().toString());
+			return patterns.stream()
+				.anyMatch(glob -> glob.pattern().matcher(glob.pathPattern() ? normalizedPath : fileName).matches());
+		}
+
+		private static List<String> splitGlobs(String source) {
+			List<String> globs = new ArrayList<>();
+			StringBuilder current = new StringBuilder();
+			int braceDepth = 0;
+			for (int index = 0; index < source.length(); index++) {
+				char character = source.charAt(index);
+				if (character == '{') {
+					braceDepth++;
+				}
+				else if (character == '}') {
+					braceDepth = Math.max(0, braceDepth - 1);
+				}
+				if ((character == ',' || character == ';') && braceDepth == 0) {
+					addGlob(globs, current);
+				}
+				else {
+					current.append(character);
+				}
+			}
+			addGlob(globs, current);
+			return globs;
+		}
+
+		private static void addGlob(List<String> globs, StringBuilder current) {
+			String glob = current.toString().trim();
+			if (!glob.isEmpty()) {
+				globs.add(glob);
+			}
+			current.setLength(0);
+		}
+
+	}
+
+	private record GlobPattern(Pattern pattern, boolean pathPattern) {
+
+		private static GlobPattern compile(String source) {
+			String glob = normalizePath(source.trim());
+			while (glob.startsWith("./")) {
+				glob = glob.substring(2);
+			}
+			if (glob.startsWith("/")) {
+				glob = glob.substring(1);
+			}
+			if (glob.isEmpty()) {
+				throw new IllegalArgumentException("File filter patterns cannot be empty.");
+			}
+			return new GlobPattern(compileGlob(glob, false), glob.contains("/"));
+		}
+
+	}
+
+	private static Pattern compileGlob(String glob, boolean ignorePattern) {
+		StringBuilder regex = new StringBuilder("^");
+		boolean inGroup = false;
+		for (int index = 0; index < glob.length(); index++) {
+			char character = glob.charAt(index);
+			if (character == '\\' && index + 1 < glob.length()) {
+				appendLiteral(regex, glob.charAt(++index));
+			}
+			else if (character == '*') {
+				if (index + 1 < glob.length() && glob.charAt(index + 1) == '*') {
+					index++;
+					if (index + 1 < glob.length() && glob.charAt(index + 1) == '/') {
+						index++;
+						regex.append("(?:.*/)?");
+					}
+					else {
+						regex.append(".*");
+					}
+				}
+				else {
+					regex.append("[^/]*");
+				}
+			}
+			else if (character == '?') {
+				regex.append("[^/]");
+			}
+			else if (character == '[') {
+				int closing = glob.indexOf(']', index + 1);
+				if (closing < 0) {
+					appendLiteral(regex, character);
+				}
+				else {
+					regex.append('[');
+					int classStart = index + 1;
+					if (classStart < closing && glob.charAt(classStart) == '!') {
+						regex.append('^');
+						classStart++;
+					}
+					regex.append(glob, classStart, closing + 1);
+					index = closing;
+				}
+			}
+			else if (!ignorePattern && character == '{') {
+				regex.append("(?:");
+				inGroup = true;
+			}
+			else if (!ignorePattern && character == '}' && inGroup) {
+				regex.append(')');
+				inGroup = false;
+			}
+			else if (!ignorePattern && character == ',' && inGroup) {
+				regex.append('|');
+			}
+			else {
+				appendLiteral(regex, character);
+			}
+		}
+		if (inGroup) {
+			throw new IllegalArgumentException("Unclosed group in file filter: " + glob);
+		}
+		try {
+			return Pattern.compile(regex.append('$').toString());
+		}
+		catch (PatternSyntaxException error) {
+			throw new IllegalArgumentException("Invalid file filter: " + glob, error);
+		}
+	}
+
+	private static void appendLiteral(StringBuilder regex, char character) {
+		if ("\\.[]{}()+-^$|".indexOf(character) >= 0) {
+			regex.append('\\');
+		}
+		regex.append(character);
 	}
 
 }

@@ -105,12 +105,14 @@ class EditorManagerTest {
 
 				assertThat(testManager.getJTabbedPane().getSelectedComponent()).isInstanceOf(EditorTab.class);
 				assertThat(testManager.getSelectedEditor().getText()).isEqualTo("class Main {}");
+				assertThat(testManager.getOpenFilePaths()).contains(path.toAbsolutePath().normalize());
 			}
 			catch (IOException error) {
 				throw new AssertionError(error);
 			}
 			finally {
 				testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize()));
+				assertThat(testManager.getOpenFilePaths()).doesNotContain(path.toAbsolutePath().normalize());
 			}
 		});
 	}

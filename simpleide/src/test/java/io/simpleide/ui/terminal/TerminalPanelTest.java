@@ -4,6 +4,8 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Container;
 import java.awt.Font;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,6 +26,10 @@ import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.jediterm.terminal.TtyConnector;
 import org.junit.jupiter.api.Test;
 
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.ThemePalette;
+import io.simpleide.ui.menubar.ThemeManager;
+
 /**
  * Tests {@link io.simpleide.ui.terminal.TerminalPanel}.
  */
@@ -34,12 +40,14 @@ class TerminalPanelTest {
 		Object originalForeground = UIManager.get("Button.foreground");
 		Object originalBackground = UIManager.get("Button.background");
 		Object originalPanelBackground = UIManager.get("Panel.background");
+		Object originalAccent = UIManager.get("Component.accentColor");
 		try {
 			Color foreground = new Color(0xEBDBB2);
 			Color background = new Color(0x3C3836);
 			UIManager.put("Button.foreground", foreground);
 			UIManager.put("Button.background", background);
 			UIManager.put("Panel.background", background);
+			UIManager.put("Component.accentColor", foreground);
 
 			SwingUtilities.invokeAndWait(() -> {
 				TerminalPanel panel = new TerminalPanel();
@@ -64,6 +72,75 @@ class TerminalPanelTest {
 			restoreUiValue("Button.foreground", originalForeground);
 			restoreUiValue("Button.background", originalBackground);
 			restoreUiValue("Panel.background", originalPanelBackground);
+			restoreUiValue("Component.accentColor", originalAccent);
+		}
+	}
+
+	@Test
+	void terminalActionIconsKeepDarkVisibleStrokesInLightThemes() throws Exception {
+		Object originalForeground = UIManager.get("Button.foreground");
+		Object originalBackground = UIManager.get("Button.background");
+		Object originalPanelBackground = UIManager.get("Panel.background");
+		Object originalAccent = UIManager.get("Component.accentColor");
+		try {
+			for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
+				ThemePalette palette = ThemePalette.of(theme);
+				if (palette.dark()) {
+					continue;
+				}
+				UIManager.put("Button.foreground", palette.buttonForeground());
+				UIManager.put("Button.background", palette.surface());
+				UIManager.put("Panel.background", palette.surface());
+				UIManager.put("Component.accentColor", palette.accent());
+
+				SwingUtilities.invokeAndWait(() -> {
+					TerminalPanel panel = new TerminalPanel();
+					assertThat(findButtons(panel)).hasSize(2).allSatisfy(button -> {
+						Color background = button.getBackground();
+						FlatSVGIcon icon = (FlatSVGIcon) button.getIcon();
+						Color stroke = icon.getColorFilter().filter(button, new Color(0x6E7781));
+						Color expectedStroke = ThemeColors.readable(palette.accent(), background,
+								ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+						assertThat(stroke).as("terminal strokes use the theme accent in %s", theme)
+							.isEqualTo(expectedStroke);
+						assertThat(ThemeColors.contrastRatio(stroke, background))
+							.as("main SVG stroke contrast in %s", theme)
+							.isGreaterThanOrEqualTo(ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+						assertThat(stroke).as("light-theme terminal strokes should be dark or blue")
+							.isNotEqualTo(Color.WHITE);
+						assertThat(ThemeColors.contrastRatio(icon.getColorFilter().filter(button, Color.WHITE), stroke))
+							.as("add/close mark contrast against its badge in %s", theme)
+							.isGreaterThanOrEqualTo(ThemeColors.MIN_LARGE_TEXT_CONTRAST);
+
+						BufferedImage image = new BufferedImage(icon.getIconWidth(), icon.getIconHeight(),
+								BufferedImage.TYPE_INT_ARGB);
+						Graphics2D graphics = image.createGraphics();
+						try {
+							icon.paintIcon(button, graphics, 0, 0);
+						}
+						finally {
+							graphics.dispose();
+						}
+						long visibleStrokePixels = 0;
+						for (int y = 0; y < image.getHeight(); y++) {
+							for (int x = 0; x < image.getWidth(); x++) {
+								Color pixel = new Color(image.getRGB(x, y), true);
+								if (pixel.getAlpha() > 220 && ThemeColors.contrastRatio(pixel, background) >= 3.0d) {
+									visibleStrokePixels++;
+								}
+							}
+						}
+						assertThat(visibleStrokePixels).as("visible terminal icon strokes in %s", theme)
+							.isGreaterThan(10);
+					});
+				});
+			}
+		}
+		finally {
+			restoreUiValue("Button.foreground", originalForeground);
+			restoreUiValue("Button.background", originalBackground);
+			restoreUiValue("Panel.background", originalPanelBackground);
+			restoreUiValue("Component.accentColor", originalAccent);
 		}
 	}
 

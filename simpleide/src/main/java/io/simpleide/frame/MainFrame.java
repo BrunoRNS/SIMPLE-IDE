@@ -207,7 +207,8 @@ public class MainFrame extends JFrame implements Runnable {
 
 	private void createSidebar() {
 		explorerPanel = new ExplorerPanel(treePane, this::openFolder);
-		workspaceSearchPanel = new WorkspaceSearchPanel(() -> currentRoot, this::openSearchMatch);
+		workspaceSearchPanel = new WorkspaceSearchPanel(() -> currentRoot, editorManager::getOpenFilePaths,
+				this::openSearchMatch);
 		settingsPanel = new SettingsPanel();
 
 		sidebarPanel = new SidebarPanel();
@@ -646,6 +647,9 @@ public class MainFrame extends JFrame implements Runnable {
 							return;
 						}
 						Editor editor = tab.getEditor();
+						if (editor == null) {
+							return;
+						}
 						try {
 							editor.setCaretPosition(editor.getLineStartOffset(Math.max(0, line - 1)));
 							editor.requestFocusInWindow();

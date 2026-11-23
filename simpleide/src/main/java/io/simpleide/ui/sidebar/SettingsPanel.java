@@ -33,6 +33,7 @@ import io.simpleide.settings.KeybindingManager;
 import io.simpleide.settings.SettingsService;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
+import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.menubar.ThemeManager;
 
 /**
@@ -88,6 +89,16 @@ public final class SettingsPanel extends JPanel {
 		uiFontSizeSpinner = new JSpinner(new SpinnerNumberModel(settings.getUiFontSize(), 8, 48, 1));
 		editorFontSizeSpinner = new JSpinner(new SpinnerNumberModel(settings.getEditorFontSize(), 8, 72, 1));
 		tabSizeSpinner = new JSpinner(new SpinnerNumberModel(settings.getTabSize(), 1, 16, 1));
+
+		List<JSpinner> lspinners = List.of(uiFontSizeSpinner, editorFontSizeSpinner, tabSizeSpinner);
+
+		for (JSpinner spinner : lspinners) {
+			JComponent editor = spinner.getEditor();
+			if (editor instanceof JSpinner.DefaultEditor) {
+				((JSpinner.DefaultEditor) editor).getTextField().setHorizontalAlignment(JTextField.LEFT);
+			}
+		}
+
 		createHeader();
 		createContent();
 		configureActions();
@@ -234,6 +245,9 @@ public final class SettingsPanel extends JPanel {
 		settingsService.update(settings -> settings.setTheme(selected.name()));
 		ThemeManager.getInstance().setTheme(selected);
 		feedbackLabel.setText("Theme saved.");
+		ThemePalette p = ThemePalette.of(ThemeManager.getInstance().getCurrentTheme());
+		themeBox.setBackground(p.inputBackground());
+		themeBox.setForeground(p.inputForeground());
 	}
 
 	private void updateFonts() {
@@ -303,7 +317,12 @@ public final class SettingsPanel extends JPanel {
 
 	private void refresh(IdeSettings settings) {
 		ThemeManager.ThemeType theme = IdeSettings.parseTheme(settings.getTheme());
-		themeBox.setSelectedItem(theme == null ? ThemeManager.ThemeType.DARK : theme);
+		if (theme == null)
+			theme = ThemeManager.getInstance().getCurrentTheme();
+		themeBox.setSelectedItem(theme);
+		ThemePalette p = ThemePalette.of(theme);
+		themeBox.setBackground(p.inputBackground());
+		themeBox.setForeground(p.inputForeground());
 		uiFontFamilyBox.setSelectedItem(settings.getUiFontFamily());
 		editorFontFamilyBox.setSelectedItem(settings.getEditorFontFamily());
 		uiFontSizeSpinner.setValue(settings.getUiFontSize());

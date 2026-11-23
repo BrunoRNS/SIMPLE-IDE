@@ -43,6 +43,14 @@ class ThreadMasterTest {
 	}
 
 	@Test
+	void sizesTheManagedWorkerPoolForLowAndHighCpuCounts() {
+		assertEquals(ThreadTaskScheduler.MIN_WORKER_COUNT, ThreadTaskScheduler.workerCountForProcessors(1));
+		assertEquals(ThreadTaskScheduler.MIN_WORKER_COUNT, ThreadTaskScheduler.workerCountForProcessors(0));
+		assertEquals(8, ThreadTaskScheduler.workerCountForProcessors(8));
+		assertEquals(32, ThreadTaskScheduler.workerCountForProcessors(32));
+	}
+
+	@Test
 	void retainsTheRootProvidedToItsConstructor() {
 		NodePattern root = new NodePattern() {
 			@Override
@@ -295,6 +303,30 @@ class ThreadMasterTest {
 		}
 		finally {
 			release.countDown();
+			pool.close();
+			master.shutdown();
+		}
+	}
+
+	@Test
+	void routesManagedExecutorTasksThroughTheDedicatedPool() throws Exception {
+		TestThreadMaster master = new TestThreadMaster();
+		ManagedThreadPool pool = master.createThreadPool("executor-test", 1);
+		ExecutorService executor = pool.createExecutorService();
+		CountDownLatch completed = new CountDownLatch(1);
+		AtomicReference<String> workerName = new AtomicReference<>();
+		try {
+			master.initialize();
+			executor.execute(() -> {
+				workerName.set(Thread.currentThread().getName());
+				completed.countDown();
+			});
+
+			assertTrue(completed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+			assertThat(workerName.get()).startsWith("simpleide-executor-test-");
+		}
+		finally {
+			executor.shutdownNow();
 			pool.close();
 			master.shutdown();
 		}

@@ -8,11 +8,14 @@ import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -21,7 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.icon.ThemedSvgIcon;
+import io.simpleide.ui.menubar.ThemeManager;
 
 /**
  * Tests for {@link ActivityBar}.
@@ -144,6 +150,54 @@ class ActivityBarTest {
 		assertTrue(visiblePixels[0] > 50, "the unselected search icon is visible over the bar background");
 	}
 
+	@Test
+	void keepsEveryActivityIconContrastedAcrossThemesAndSelections() throws Exception {
+		String[] keys = { "Panel.background", "control", "Tree.background", "Label.foreground", "Panel.foreground",
+				"Component.accentColor", "Component.focusColor" };
+		Map<String, Object> defaults = new HashMap<>();
+		for (String key : keys) {
+			defaults.put(key, UIManager.get(key));
+		}
+
+		try {
+			SwingUtilities.invokeAndWait(() -> {
+				for (ThemeManager.ThemeType theme : ThemeManager.ThemeType.values()) {
+					ThemePalette palette = ThemePalette.of(theme);
+					UIManager.put("Panel.background", palette.surface());
+					UIManager.put("control", palette.surface());
+					UIManager.put("Tree.background", palette.background());
+					UIManager.put("Label.foreground", palette.foreground());
+					UIManager.put("Panel.foreground", palette.foreground());
+					UIManager.put("Component.accentColor", palette.accent());
+					UIManager.put("Component.focusColor", palette.accent());
+
+					ActivityBar bar = new ActivityBar();
+					List<JButton> activityButtons = buttons(bar);
+					for (SidebarView selectedView : SidebarView.values()) {
+						bar.setSelected(selectedView);
+						for (int index = 0; index < activityButtons.size(); index++) {
+							Color iconColor = dominantOpaqueColor(activityButtons.get(index).getIcon(),
+									activityButtons.get(index));
+							assertTrue(ThemeColors.contrastRatio(iconColor, palette.surface()) >= 3.0d,
+									() -> "icon must contrast in " + theme + " with " + selectedView + " selected");
+						}
+
+						JButton selectedButton = activityButtons.get(selectedView.ordinal());
+						Color selectedColor = dominantOpaqueColor(selectedButton.getIcon(), selectedButton);
+						bar.setSelected(
+								SidebarView.values()[(selectedView.ordinal() + 1) % SidebarView.values().length]);
+						Color idleColor = dominantOpaqueColor(selectedButton.getIcon(), selectedButton);
+						assertFalse(selectedColor.equals(idleColor),
+								() -> "selection should visibly tint " + selectedView + " in " + theme);
+					}
+				}
+			});
+		}
+		finally {
+			SwingUtilities.invokeAndWait(() -> defaults.forEach(ActivityBarTest::restoreUiValue));
+		}
+	}
+
 	private static List<JButton> buttons(ActivityBar bar) {
 		List<JButton> buttons = new ArrayList<>();
 		for (Component component : bar.getComponents()) {
@@ -152,6 +206,42 @@ class ActivityBarTest {
 			}
 		}
 		return buttons;
+	}
+
+	private static Color dominantOpaqueColor(Icon icon, Component component) {
+		BufferedImage image = new BufferedImage(icon.getIconWidth(), icon.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+		Graphics2D graphics = image.createGraphics();
+		try {
+			icon.paintIcon(component, graphics, 0, 0);
+		}
+		finally {
+			graphics.dispose();
+		}
+
+		Map<Integer, Integer> frequencies = new HashMap<>();
+		for (int y = 0; y < image.getHeight(); y++) {
+			for (int x = 0; x < image.getWidth(); x++) {
+				int pixel = image.getRGB(x, y);
+				if ((pixel >>> 24) >= 230) {
+					frequencies.merge(pixel & 0x00FFFFFF, 1, Integer::sum);
+				}
+			}
+		}
+		Map.Entry<Integer, Integer> dominant = frequencies.entrySet()
+			.stream()
+			.max(Map.Entry.comparingByValue())
+			.orElseThrow(() -> new AssertionError("Activity icon should contain visible pixels."));
+		assertTrue(dominant.getValue() > 10, "activity icon should contain a visible stroke");
+		return new Color(dominant.getKey());
+	}
+
+	private static void restoreUiValue(String key, Object value) {
+		if (value == null) {
+			UIManager.getDefaults().remove(key);
+		}
+		else {
+			UIManager.put(key, value);
+		}
 	}
 
 	private static int[] paintIcon(Icon icon, Component component) {
