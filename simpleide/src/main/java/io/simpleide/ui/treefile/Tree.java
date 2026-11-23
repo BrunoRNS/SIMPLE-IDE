@@ -77,7 +77,7 @@ public class Tree extends JTree {
 		setCellRenderer(new TreeFileCellRenderer());
 		state = new TreeState(root);
 		fileActions = new TreeFileActions(this, state);
-		addTreeSelectionListener(new TreeSelectionNode(event -> updateState(getSelectionPath())));
+		addTreeSelectionListener(new TreeSelectionNode(event -> updateState(event.getNewLeadSelectionPath())));
 		fileActions.installContextMenu();
 		LOGGER.info("Tree state initialized: currentDirectory={}", root.getPath());
 		addTreeWillExpandListener(new TreeWillExpandNode().onExpand(event -> loadChildren(event.getPath())));

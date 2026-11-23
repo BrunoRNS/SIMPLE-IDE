@@ -3,6 +3,7 @@ package io.simpleide.thread.nodes.edt.listeners;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import javax.swing.SwingUtilities;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 
@@ -10,11 +11,12 @@ import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
- * Tree selection listener that routes callbacks through the thread manager.
+ * Tree selection listener that dispatches off-EDT callbacks through the thread manager.
  *
  * <p>
- * The selected path change is dispatched as an EDT node, so selection work never runs
- * directly inside the Swing callback.
+ * Swing delivers tree-selection events on the EDT. Those callbacks run immediately there
+ * so models stay in sync with the selection; events received off the EDT are marshalled
+ * through the thread manager.
  *
  * @author BrunoRNS
  * @since v1.1.0
@@ -33,7 +35,12 @@ public final class TreeSelectionNode extends EDTNode implements TreeSelectionLis
 
 	@Override
 	public void valueChanged(TreeSelectionEvent event) {
-		ThreadMaster.getInstance().executeOnEDT(() -> handler.accept(event));
+		if (SwingUtilities.isEventDispatchThread()) {
+			handler.accept(event);
+		}
+		else {
+			ThreadMaster.getInstance().executeOnEDT(() -> handler.accept(event));
+		}
 	}
 
 }

@@ -456,6 +456,7 @@ class TreeFileTest {
 			SwingUtilities.invokeAndWait(() -> {
 				try {
 					actions.deleteSelected(new TreePath(fileNode.getPath()), (TreeFile) fileNode.getUserObject());
+					assertThat(tree.getState().getSelected()).isSameAs(rootDirectory);
 				}
 				catch (IOException exception) {
 					throw new AssertionError(exception);
