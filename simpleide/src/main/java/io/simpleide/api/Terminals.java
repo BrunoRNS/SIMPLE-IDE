@@ -35,7 +35,9 @@ public final class Terminals {
 	}
 
 	/**
-	 * Creates a controller that manages the terminal tabs of a panel.
+	 * Creates a controller that manages the terminal tabs of a panel. New sessions start
+	 * in the user's home directory, or in the application startup directory if the home
+	 * directory is inaccessible.
 	 * @param panel panel created by {@link #panel()}
 	 * @return a terminal controller
 	 */

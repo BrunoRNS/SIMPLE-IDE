@@ -76,6 +76,7 @@ import io.simpleide.ui.sidebar.SidebarView;
 import io.simpleide.ui.sidebar.WorkspaceSearchPanel;
 import io.simpleide.ui.terminal.BusyBoxTerminalController;
 import io.simpleide.ui.terminal.TerminalPanel;
+import io.simpleide.ui.terminal.TerminalWorkingDirectory;
 import io.simpleide.ui.treefile.Directory;
 import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.Tree;
@@ -108,7 +109,7 @@ public class MainFrame extends JFrame implements Runnable {
 
 	private Watcher watcher;
 
-	private Path currentRoot;
+	private volatile Path currentRoot;
 
 	private EditorManager editorManager;
 
@@ -164,7 +165,7 @@ public class MainFrame extends JFrame implements Runnable {
 		LspStatusBar lspStatusBar = new LspStatusBar();
 
 		TerminalPanel terminalPanel = new TerminalPanel();
-		terminalController = new BusyBoxTerminalController(terminalPanel);
+		terminalController = new BusyBoxTerminalController(terminalPanel, this::terminalWorkingDirectory);
 
 		debugConsolePanel = new DebugConsolePanel();
 		JTabbedPane outputTabs = new JTabbedPane();
@@ -593,6 +594,7 @@ public class MainFrame extends JFrame implements Runnable {
 		if (tree == null && currentRoot == null) {
 			return;
 		}
+
 		if (editorManager != null) {
 			editorManager.closeAllEditors();
 		}
@@ -602,6 +604,11 @@ public class MainFrame extends JFrame implements Runnable {
 		treePane.setViewportView(null);
 		explorerPanel.showNoFolder();
 		showSidebarView(SidebarView.EXPLORER);
+	}
+
+	private Path terminalWorkingDirectory() {
+		return TerminalWorkingDirectory.resolve(currentRoot, System.getProperty("user.home"),
+				System.getProperty("user.dir"));
 	}
 
 	private void createNewFile() {

@@ -2,12 +2,15 @@ package io.simpleide.ui.terminal;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +49,8 @@ public final class BusyBoxTerminalController {
 
 	private final LangPlatform platform;
 
+	private final Supplier<Path> workingDirectorySupplier;
+
 	private final ManagedThreadPool terminalWorkers;
 
 	private final Object tabsLock = new Object();
@@ -63,12 +68,26 @@ public final class BusyBoxTerminalController {
 	 * @param panel panel whose terminals are managed
 	 */
 	public BusyBoxTerminalController(TerminalPanel panel) {
-		this(panel, LangPlatform.getCurrentPlatform());
+		this(panel, LangPlatform.getCurrentPlatform(), TerminalWorkingDirectory::resolveDefault);
+	}
+
+	/**
+	 * Creates a controller that resolves each session's working directory when it starts.
+	 * @param panel panel whose terminals are managed
+	 * @param workingDirectorySupplier supplier of the initial directory for each session
+	 */
+	public BusyBoxTerminalController(TerminalPanel panel, Supplier<Path> workingDirectorySupplier) {
+		this(panel, LangPlatform.getCurrentPlatform(), workingDirectorySupplier);
 	}
 
 	BusyBoxTerminalController(TerminalPanel panel, LangPlatform platform) {
+		this(panel, platform, TerminalWorkingDirectory::resolveDefault);
+	}
+
+	BusyBoxTerminalController(TerminalPanel panel, LangPlatform platform, Supplier<Path> workingDirectorySupplier) {
 		this.panel = panel;
 		this.platform = platform;
+		this.workingDirectorySupplier = Objects.requireNonNull(workingDirectorySupplier, "workingDirectorySupplier");
 		terminalWorkers = threads.createThreadPool("terminal", TerminalPanel.MAX_TABS);
 		panel.setActions(this::addTerminal, this::closeSelectedTerminal);
 		schedulePanelUpdate();
@@ -124,9 +143,10 @@ public final class BusyBoxTerminalController {
 
 	@SuppressWarnings("resource")
 	private void launch(TerminalTab tab) {
-		BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform);
-		tab.setSession(session);
 		try {
+			Path workingDirectory = Objects.requireNonNull(workingDirectorySupplier.get(), "workingDirectory");
+			BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform, workingDirectory);
+			tab.setSession(session);
 			session.start();
 			if (!session.isAlive()) {
 				tab.setLaunchFailure(new IllegalStateException(
@@ -169,7 +189,8 @@ public final class BusyBoxTerminalController {
 
 		TerminalTabSnapshot snapshot = tab.snapshot();
 		if (snapshot.launchFailure() != null || !snapshot.launchSucceeded()) {
-			Throwable failure = snapshot.launchFailure() != null ? snapshot.launchFailure()
+			Throwable snapshotFailure = snapshot.launchFailure();
+			Throwable failure = snapshotFailure != null ? snapshotFailure
 					: new IllegalStateException("BusyBox terminal session " + tab.id + " did not start.");
 			scheduleOnClose(tab, failure);
 			return;
@@ -287,7 +308,8 @@ public final class BusyBoxTerminalController {
 			}
 			Runnable closeCallback = getWindowCloseCallbackIfFinished();
 			boolean showStartupError = !tab.snapshot().launchSucceeded()
-					&& processError instanceof BusyBoxTerminalSession.FallbackStartupException;
+					&& (processError instanceof BusyBoxTerminalSession.FallbackStartupException
+							|| processError instanceof TerminalWorkingDirectory.DirectoryUnavailableException);
 			Runnable updateUi = () -> {
 				try {
 					panel.closeTerminalWidget(tab.id);
@@ -304,11 +326,12 @@ public final class BusyBoxTerminalController {
 				}
 				if (showStartupError) {
 					try {
-						new ErrorPopUP(
-								"The terminal could not start. BusyBox and the system shell fallback both failed.\n\n"
-										+ processError.getMessage(),
-								panel, ErrorTypePopUp.INTERNAL_ERROR)
-							.startManaged();
+						String message = processError instanceof TerminalWorkingDirectory.DirectoryUnavailableException
+								? "The terminal could not start because no accessible working directory was found.\n\n"
+										+ processError.getMessage()
+								: "The terminal could not start. BusyBox and the system shell fallback both failed.\n\n"
+										+ processError.getMessage();
+						new ErrorPopUP(message, panel, ErrorTypePopUp.INTERNAL_ERROR).startManaged();
 					}
 					catch (RuntimeException exception) {
 						LOGGER.error("Unable to show the terminal startup error dialog.", exception);

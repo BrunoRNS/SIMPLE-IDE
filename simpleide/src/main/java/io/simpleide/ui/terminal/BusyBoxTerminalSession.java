@@ -3,6 +3,7 @@ package io.simpleide.ui.terminal;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -74,6 +75,8 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 
 	private final LangPlatform platform;
 
+	private final Path workingDirectory;
+
 	private final AtomicBoolean closed = new AtomicBoolean();
 
 	private final AtomicBoolean terminationRequested = new AtomicBoolean();
@@ -82,7 +85,12 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 			new SessionSnapshot(null, null, null, false, false));
 
 	BusyBoxTerminalSession(LangPlatform platform) {
+		this(platform, null);
+	}
+
+	BusyBoxTerminalSession(LangPlatform platform, Path workingDirectory) {
 		this.platform = platform;
+		this.workingDirectory = workingDirectory == null ? null : workingDirectory.toAbsolutePath().normalize();
 	}
 
 	void start() throws IOException {
@@ -481,6 +489,9 @@ public final class BusyBoxTerminalSession implements AutoCloseable {
 			.setEnvironment(environment)
 			.setInitialColumns(TERMINAL_COLUMNS)
 			.setInitialRows(TERMINAL_ROWS);
+		if (workingDirectory != null) {
+			builder.setDirectory(workingDirectory.toString());
+		}
 		Pty4jCompatibility.setSpawnProcessUsingJdkOnMacIntel(builder, platform != LangPlatform.MACOSINTEL);
 		return builder.setUnixOpenTtyToPreserveOutputAfterTermination(platform == LangPlatform.MACOSAARCH64).start();
 	}
