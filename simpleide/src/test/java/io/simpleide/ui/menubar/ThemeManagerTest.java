@@ -41,7 +41,6 @@ import org.junit.jupiter.api.Test;
 
 import io.simpleide.api.HexEditor;
 import io.simpleide.frame.log.LogPanel;
-import io.simpleide.api.HexEditor;
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;

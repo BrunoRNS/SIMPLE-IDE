@@ -46,7 +46,6 @@ import org.fife.ui.rtextarea.Gutter;
 
 import io.simpleide.api.HexEditor;
 import io.simpleide.thread.ThreadMaster;
-import io.simpleide.api.HexEditor;
 import io.simpleide.ui.SyntaxPalette;
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;

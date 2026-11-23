@@ -2,7 +2,6 @@ package io.simpleide.ui.treefile;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.awt.image.BufferedImage;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -15,7 +14,6 @@ import javax.imageio.ImageIO;
 import javax.swing.Icon;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
-import javax.imageio.ImageIO;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -32,7 +30,6 @@ import org.slf4j.LoggerFactory;
 
 import io.simpleide.api.LargeTextViewer;
 import io.simpleide.thread.ThreadMaster;
-import io.simpleide.api.LargeTextViewer;
 
 /**
  * Tests {@link io.simpleide.ui.treefile.TreeFile}.
