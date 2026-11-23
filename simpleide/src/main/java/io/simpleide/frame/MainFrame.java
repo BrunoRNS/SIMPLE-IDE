@@ -226,6 +226,7 @@ public class MainFrame extends JFrame implements Runnable {
 		settingsPanel = new SettingsPanel();
 
 		sidebarPanel = new SidebarPanel();
+		gitPanel.setFileOpenListener(this::openGitFile);
 		sidebarPanel.addView(SidebarView.EXPLORER, explorerPanel);
 		sidebarPanel.addView(SidebarView.SEARCH, workspaceSearchPanel);
 		sidebarPanel.addView(SidebarView.GIT, gitPanel);
@@ -564,10 +565,21 @@ public class MainFrame extends JFrame implements Runnable {
 		if (selectedPath == null) {
 			return;
 		}
+
 		Object selectedNode = selectedPath.getLastPathComponent();
 		if (selectedNode instanceof DefaultMutableTreeNode node
 				&& node.getUserObject() instanceof SimpleIDEFile selectedFile) {
 			editorManager.openFile(selectedFile);
+		}
+	}
+
+	private void openGitFile(Path path) {
+		try {
+			editorManager.openFile(new SimpleIDEFile(path));
+		}
+		catch (IOException error) {
+			logger.error("Unable to open changed Git file {}.", path.getFileName(), error);
+			new ErrorPopUP(error.getMessage(), getRootPane(), ErrorTypePopUp.INTERNAL_ERROR).startManaged();
 		}
 	}
 

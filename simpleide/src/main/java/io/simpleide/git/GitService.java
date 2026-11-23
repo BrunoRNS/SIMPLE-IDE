@@ -1,8 +1,6 @@
 package io.simpleide.git;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Instant;
@@ -10,13 +8,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.Ref;
 import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.revplot.PlotCommit;
 import org.eclipse.jgit.revplot.PlotCommitList;
 import org.eclipse.jgit.revplot.PlotLane;
 import org.eclipse.jgit.revplot.PlotWalk;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.git.GitStatusEntry.GitStatus;
 
@@ -27,6 +29,8 @@ import io.simpleide.git.GitStatusEntry.GitStatus;
  * @since v1.1.0
  */
 public final class GitService {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(GitService.class);
 
 	/**
 	 * Creates a Git service.
@@ -40,7 +44,10 @@ public final class GitService {
 	 * @return repository work tree
 	 */
 	public Optional<Path> resolveRepository(Path openedFolder) {
-		return GitRepositoryResolver.resolve(openedFolder);
+		LOGGER.info("Resolving Git repository for the Explorer folder.");
+		Optional<Path> resolved = GitRepositoryResolver.resolve(openedFolder);
+		LOGGER.info("Git repository resolution finished: {}.", resolved.isPresent() ? "repository found" : "not found");
+		return resolved;
 	}
 
 	/**
@@ -49,7 +56,8 @@ public final class GitService {
 	 * @return status entries
 	 */
 	public List<GitStatusEntry> status(Path repository) {
-		GitOperationResult result = run(repository, "status", "--porcelain=v1", "-z");
+		GitOperationResult result = run(repository, "status", "--porcelain=v1", "-z", "--untracked-files=all",
+				"--ignored=no");
 		if (!result.success()) {
 			return List.of();
 		}
@@ -74,6 +82,9 @@ public final class GitService {
 			}
 			String xy = record.substring(0, 2);
 			String relative = record.substring(3);
+			if (xy.equals("!!") || containsGitMetadata(relative)) {
+				continue;
+			}
 			GitStatus status = mapStatus(xy);
 			entries.add(new GitStatusEntry(repository.resolve(relative).normalize(), status));
 		}
@@ -114,7 +125,7 @@ public final class GitService {
 	 * @return command result
 	 */
 	public GitOperationResult switchBranch(Path repository, String branch) {
-		return run(repository, "switch", branch);
+		return run(repository, "checkout", branch);
 	}
 
 	/**
@@ -124,7 +135,16 @@ public final class GitService {
 	 * @return command result
 	 */
 	public GitOperationResult stage(Path repository, Path path) {
-		return run(repository, "add", "--", repository.relativize(path.toAbsolutePath().normalize()).toString());
+		return run(repository, "add", "--", relativePath(repository, path));
+	}
+
+	private static String relativePath(Path repository, Path path) {
+		Path normalizedRepository = repository.toAbsolutePath().normalize();
+		Path normalizedPath = path.toAbsolutePath().normalize();
+		if (!normalizedPath.startsWith(normalizedRepository)) {
+			throw new IllegalArgumentException("Git file is outside the opened repository.");
+		}
+		return normalizedRepository.relativize(normalizedPath).toString();
 	}
 
 	/**
@@ -134,12 +154,78 @@ public final class GitService {
 	 * @return command result
 	 */
 	public GitOperationResult unstage(Path repository, Path path) {
-		String relative = repository.relativize(path.toAbsolutePath().normalize()).toString();
-		GitOperationResult restore = run(repository, "restore", "--staged", "--", relative);
+		String relative = relativePath(repository, path);
+		GitOperationResult restore = run(repository, "reset", "-q", "HEAD", "--", relative);
 		if (restore.success()) {
 			return restore;
 		}
+
 		return run(repository, "rm", "--cached", "--", relative);
+	}
+
+	/**
+	 * Stages all non-ignored changes and creates a commit.
+	 * @param repository repository work tree
+	 * @param message commit message
+	 * @return command result
+	 */
+	public GitOperationResult commit(Path repository, String message) {
+		if (message == null || message.isBlank()) {
+			return new GitOperationResult(false, 1, "", "Commit message must not be blank.");
+		}
+		LOGGER.info("Git commit preparation step started: staging repository changes.");
+		GitOperationResult stageResult = run(repository, "add", ".");
+		if (!stageResult.success()) {
+			LOGGER.warn("Git commit preparation step failed: unable to stage repository changes.");
+			return stageResult;
+		}
+		LOGGER.info("Git commit preparation step completed: repository changes staged.");
+		return run(repository, "commit", "-m", message.trim());
+	}
+
+	/**
+	 * Returns a repository-local Git configuration value without consulting global
+	 * config.
+	 * @param repository repository work tree
+	 * @param key local configuration key
+	 * @return local value, or an empty string when unset
+	 */
+	public String localConfig(Path repository, String key) {
+		GitOperationResult result = run(repository, "config", "--local", "--list");
+		if (!result.success()) {
+			return "";
+		}
+		String prefix = key + "=";
+		return result.output()
+			.lines()
+			.filter(line -> line.startsWith(prefix))
+			.map(line -> line.substring(prefix.length()).trim())
+			.reduce((first, last) -> last)
+			.orElse("");
+	}
+
+	/**
+	 * Sets nonblank author identity values in this repository only.
+	 * @param repository repository work tree
+	 * @param name local author name, or blank to leave unchanged
+	 * @param email local author email, or blank to leave unchanged
+	 * @return command result
+	 */
+	public GitOperationResult configureLocalIdentity(Path repository, String name, String email) {
+		if ((name == null || name.isBlank()) && (email == null || email.isBlank())) {
+			LOGGER.info("Git identity step skipped: no local author values were provided.");
+			return new GitOperationResult(true, 0, "", "");
+		}
+		if (name != null && !name.isBlank()) {
+			GitOperationResult result = run(repository, "config", "--local", "user.name", name.trim());
+			if (!result.success()) {
+				return result;
+			}
+		}
+		if (email != null && !email.isBlank()) {
+			return run(repository, "config", "--local", "user.email", email.trim());
+		}
+		return new GitOperationResult(true, 0, "", "");
 	}
 
 	/**
@@ -188,8 +274,15 @@ public final class GitService {
 		try (Repository jgitRepository = new FileRepositoryBuilder().setWorkTree(repository.toFile())
 			.setMustExist(true)
 			.build(); PlotWalk walk = new PlotWalk(jgitRepository)) {
-			Ref head = jgitRepository.findRef("HEAD");
-			if (head != null) {
+			LOGGER.info("Commit graph step started for repository {}.", repository.getFileName());
+			List<Ref> branchRefs = new ArrayList<>(jgitRepository.getRefDatabase().getRefsByPrefix(Constants.R_HEADS));
+			branchRefs.addAll(jgitRepository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES));
+			walk.addAdditionalRefs(branchRefs);
+			for (Ref ref : branchRefs) {
+				walk.markStart(walk.parseCommit(ref.getObjectId()));
+			}
+			Ref head = jgitRepository.findRef(Constants.HEAD);
+			if (head != null && head.getObjectId() != null) {
 				walk.markStart(walk.parseCommit(head.getObjectId()));
 			}
 			PlotCommitList<PlotLane> plot = new PlotCommitList<>();
@@ -197,24 +290,40 @@ public final class GitService {
 			plot.fillTo(200);
 
 			List<GitCommit> commits = new ArrayList<>();
-			for (var commit : plot) {
+			for (PlotCommit<PlotLane> commit : plot) {
 				PersonIdent author = commit.getAuthorIdent();
 				List<String> parents = new ArrayList<>();
 				for (var parent : commit.getParents()) {
 					parents.add(parent.getName());
+				}
+				List<String> refs = new ArrayList<>();
+				for (int index = 0; index < commit.getRefCount(); index++) {
+					refs.add(commit.getRef(index).getName());
 				}
 				Instant date = author == null ? Instant.EPOCH
 						: Instant.ofEpochSecond(author.getWhenAsInstant().getEpochSecond());
 				String message = commit.getFullMessage();
 				String shortHash = commit.getName().substring(0, 7);
 				commits.add(new GitCommit(commit.getName(), shortHash, author == null ? "" : author.getName(),
-						message == null ? "" : message.trim(), date, parents));
+						message == null ? "" : message.trim(), date, parents,
+						commit.getLane() == null ? 0 : commit.getLane().getPosition(), refs));
 			}
+			LOGGER.info("Commit graph step completed: {} commits loaded.", commits.size());
 			return List.copyOf(commits);
 		}
 		catch (IOException | IllegalArgumentException exception) {
+			LOGGER.error("Unable to read the commit graph for repository {}.", repository.getFileName(), exception);
 			return List.of();
 		}
+	}
+
+	private static boolean containsGitMetadata(String path) {
+		for (Path part : Path.of(path)) {
+			if (part.toString().equals(".git")) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private static GitStatus mapStatus(String xy) {
@@ -239,25 +348,29 @@ public final class GitService {
 		command.add("-C");
 		command.add(repository.toAbsolutePath().normalize().toString());
 		command.addAll(List.of(arguments));
+		String step = arguments.length == 0 ? "command" : arguments[0];
+		LOGGER.info("Git step started: {} (repository={}).", step, repository.getFileName());
 		try {
-			Process process = new ProcessBuilder(command).redirectErrorStream(false).start();
+			Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
 			String output;
-			String error;
-			try (BufferedReader outputReader = new BufferedReader(
-					new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-					BufferedReader errorReader = new BufferedReader(
-							new InputStreamReader(process.getErrorStream(), StandardCharsets.UTF_8))) {
-				output = outputReader.lines().collect(java.util.stream.Collectors.joining("\n"));
-				error = errorReader.lines().collect(java.util.stream.Collectors.joining("\n"));
+			try (var stream = process.getInputStream()) {
+				output = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
 			}
 			int exitCode = process.waitFor();
-			return new GitOperationResult(exitCode == 0, exitCode, output, error);
+			LOGGER.info("Git step completed: {} (exitCode={}).", step, exitCode);
+			if (exitCode != 0) {
+				LOGGER.warn("Git step failed: {} (repository={}, exitCode={}).", step, repository.getFileName(),
+						exitCode);
+			}
+			return new GitOperationResult(exitCode == 0, exitCode, output, "");
 		}
 		catch (IOException exception) {
+			LOGGER.error("Unable to start Git step {} for repository {}.", step, repository.getFileName(), exception);
 			return new GitOperationResult(false, -1, "", exception.getMessage());
 		}
 		catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
+			LOGGER.warn("Git step {} was interrupted for repository {}.", step, repository.getFileName(), exception);
 			return new GitOperationResult(false, -1, "", "Git command was interrupted.");
 		}
 	}

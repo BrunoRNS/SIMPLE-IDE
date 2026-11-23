@@ -11,7 +11,7 @@ import java.util.Objects;
  * @since v1.1.0
  */
 public record GitCommit(String hash, String abbreviatedHash, String author, String message, Instant date,
-		List<String> parents) {
+		List<String> parents, int lane, List<String> refs) {
 
 	/**
 	 * Creates immutable commit information.
@@ -21,10 +21,13 @@ public record GitCommit(String hash, String abbreviatedHash, String author, Stri
 	 * @param message commit message
 	 * @param date commit timestamp
 	 * @param parents parent commit hashes
+	 * @param lane graph lane assigned by JGit
+	 * @param refs branches and tags pointing to this commit
 	 */
 	public GitCommit {
 		Objects.requireNonNull(hash, "hash");
 		Objects.requireNonNull(date, "date");
 		parents = List.copyOf(Objects.requireNonNull(parents, "parents"));
+		refs = List.copyOf(Objects.requireNonNull(refs, "refs"));
 	}
 }

@@ -8,7 +8,9 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -28,6 +30,9 @@ import io.simpleide.git.GitCommit;
 public final class GitCommitGraphPanel extends JPanel {
 
 	private static final int ROW_HEIGHT = 42;
+
+	private static final Color[] LANE_COLORS = { new Color(86, 156, 214), new Color(198, 120, 221),
+			new Color(152, 195, 121), new Color(229, 192, 123), new Color(224, 108, 117), new Color(86, 182, 194) };
 
 	private List<GitCommit> commits = List.of();
 
@@ -73,7 +78,9 @@ public final class GitCommitGraphPanel extends JPanel {
 	 */
 	public void setCommits(List<GitCommit> commits) {
 		this.commits = List.copyOf(Objects.requireNonNull(commits, "commits"));
-		setPreferredSize(new Dimension(0, Math.max(ROW_HEIGHT, commits.size() * ROW_HEIGHT)));
+		int laneCount = commits.stream().mapToInt(commit -> commit.lane() + 1).max().orElse(1);
+		setPreferredSize(new Dimension(Math.max(240, 24 + laneCount * 20 + 190),
+				Math.max(ROW_HEIGHT, commits.size() * ROW_HEIGHT)));
 		revalidate();
 		repaint();
 	}
@@ -90,6 +97,12 @@ public final class GitCommitGraphPanel extends JPanel {
 	private GitCommit commitAt(int y) {
 		int index = y / ROW_HEIGHT;
 		return index >= 0 && index < commits.size() ? commits.get(index) : null;
+	}
+
+	@Override
+	public String getToolTipText(MouseEvent event) {
+		GitCommit commit = commitAt(event.getY());
+		return commit == null ? null : commit.hash() + " " + commit.message();
 	}
 
 	private void showDetails(GitCommit commit) {
@@ -119,23 +132,49 @@ public final class GitCommitGraphPanel extends JPanel {
 		try {
 			g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 			g.setStroke(new BasicStroke(2f));
+			Map<String, Integer> commitRows = new HashMap<>();
 			for (int index = 0; index < commits.size(); index++) {
-				int y = index * ROW_HEIGHT + ROW_HEIGHT / 2;
-				g.setColor(new Color(86, 156, 214));
-				g.drawLine(18, y, 18, index == commits.size() - 1 ? y : y + ROW_HEIGHT);
-				g.setColor(Color.ORANGE);
-				g.fillOval(11, y - 7, 14, 14);
-
+				commitRows.put(commits.get(index).hash(), index);
+			}
+			for (int index = 0; index < commits.size(); index++) {
 				GitCommit commit = commits.get(index);
+				int x = laneX(commit.lane());
+				int y = index * ROW_HEIGHT + ROW_HEIGHT / 2;
+				g.setColor(laneColor(commit.lane()));
+				for (String parent : commit.parents()) {
+					Integer parentIndex = commitRows.get(parent);
+					if (parentIndex != null) {
+						GitCommit parentCommit = commits.get(parentIndex);
+						int parentY = parentIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+						g.drawLine(x, y, laneX(parentCommit.lane()), parentY);
+					}
+				}
+			}
+			for (int index = 0; index < commits.size(); index++) {
+				GitCommit commit = commits.get(index);
+				int x = laneX(commit.lane());
+				int y = index * ROW_HEIGHT + ROW_HEIGHT / 2;
+				g.setColor(laneColor(commit.lane()));
+				g.fillOval(x - 7, y - 7, 14, 14);
 				g.setColor(getForeground());
-				g.drawString(commit.abbreviatedHash() + "  " + commit.message(), 34, y - 2);
+				String refs = commit.refs().isEmpty() ? "" : "  [" + String.join(", ", commit.refs()) + "]";
+				String summary = commit.abbreviatedHash() + "  " + commit.message() + refs;
+				g.drawString(summary, Math.min(x + 14, Math.max(x + 14, getWidth() - 190)), y - 2);
 				g.setFont(g.getFont().deriveFont(11f));
-				g.drawString(commit.author(), 34, y + 14);
+				g.drawString(commit.author(), Math.min(x + 14, Math.max(x + 14, getWidth() - 190)), y + 14);
 			}
 		}
 		finally {
 			g.dispose();
 		}
+	}
+
+	private static int laneX(int lane) {
+		return 18 + Math.max(0, lane) * 20;
+	}
+
+	private static Color laneColor(int lane) {
+		return LANE_COLORS[Math.floorMod(lane, LANE_COLORS.length)];
 	}
 
 }

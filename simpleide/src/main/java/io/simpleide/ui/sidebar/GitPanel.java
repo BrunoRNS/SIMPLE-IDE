@@ -3,8 +3,12 @@ package io.simpleide.ui.sidebar;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
+import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -18,7 +22,11 @@ import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
+import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
@@ -37,6 +45,8 @@ import io.simpleide.thread.ThreadMaster;
  */
 public final class GitPanel extends JPanel {
 
+	private static final Logger LOGGER = LoggerFactory.getLogger(GitPanel.class);
+
 	private final GitService gitService = new GitService();
 
 	private final JLabel title = new JLabel("SOURCE CONTROL");
@@ -49,7 +59,16 @@ public final class GitPanel extends JPanel {
 
 	private final JList<GitStatusEntry> statusList = new JList<>(statusModel);
 
+	private final JTextField commitMessageField = new JTextField();
+
+	private final JTextField authorNameField = new JTextField();
+
+	private final JTextField authorEmailField = new JTextField();
+
 	private final GitCommitGraphPanel graph = new GitCommitGraphPanel();
+
+	private Consumer<Path> fileOpenListener = path -> {
+	};
 
 	private Path openedFolder;
 
@@ -76,6 +95,14 @@ public final class GitPanel extends JPanel {
 
 		statusList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		statusList.setCellRenderer(new StatusRenderer());
+		statusList.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent event) {
+				if (event.getClickCount() == 1) {
+					openSelectedFile();
+				}
+			}
+		});
 		graph.setCheckoutListener(this::checkoutCommit);
 	}
 
@@ -110,6 +137,33 @@ public final class GitPanel extends JPanel {
 		addAction(gitActions, "Unstage", this::unstageSelected);
 		actions.add(gitActions);
 
+		JPanel commitRow = new JPanel(new BorderLayout(4, 0));
+		commitMessageField.setToolTipText("Commit message");
+		commitMessageField.putClientProperty("JTextField.placeholderText", "Commit message");
+		commitRow.add(commitMessageField, BorderLayout.CENTER);
+		JButton commit = new JButton("Commit");
+		commit.addActionListener(event -> commit());
+		commitRow.add(commit, BorderLayout.EAST);
+		commitRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+		actions.add(Box.createVerticalStrut(4));
+		actions.add(commitRow);
+
+		JPanel identityRow = new JPanel(new BorderLayout(4, 0));
+		authorNameField.setToolTipText("Local Git user.name (optional)");
+		authorEmailField.setToolTipText("Local Git user.email (optional)");
+		JPanel identityFields = new JPanel(new BorderLayout(4, 0));
+		authorNameField.putClientProperty("JTextField.placeholderText", "user.name");
+		authorEmailField.putClientProperty("JTextField.placeholderText", "user.email");
+		identityFields.add(authorNameField, BorderLayout.NORTH);
+		identityFields.add(authorEmailField, BorderLayout.SOUTH);
+		identityRow.add(identityFields, BorderLayout.CENTER);
+		JButton configure = new JButton("Set local identity");
+		configure.addActionListener(event -> configureIdentity());
+		identityRow.add(configure, BorderLayout.EAST);
+		identityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+		actions.add(Box.createVerticalStrut(4));
+		actions.add(identityRow);
+
 		JScrollPane statusScroll = new JScrollPane(statusList);
 		statusScroll.setPreferredSize(new Dimension(0, 150));
 		top.add(actions, BorderLayout.NORTH);
@@ -131,13 +185,24 @@ public final class GitPanel extends JPanel {
 	public void setOpenedFolder(Path openedFolder) {
 		this.openedFolder = openedFolder == null ? null : openedFolder.toAbsolutePath().normalize();
 		this.repository = openedFolder == null ? null : gitService.resolveRepository(openedFolder).orElse(null);
+		LOGGER.info("Source Control folder changed: repository={}.",
+				repository == null ? "none" : repository.getFileName());
 		refresh();
+	}
+
+	/**
+	 * Registers the callback used to open a selected changed file in the editor.
+	 * @param listener file-open callback
+	 */
+	public void setFileOpenListener(Consumer<Path> listener) {
+		fileOpenListener = Objects.requireNonNull(listener, "listener");
 	}
 
 	/**
 	 * Refreshes status, branch and graph for the bound repository.
 	 */
 	public void refresh() {
+		LOGGER.info("Source Control refresh started.");
 		statusModel.clear();
 		branchBox.removeAllItems();
 		graph.setCommits(List.of());
@@ -145,10 +210,15 @@ public final class GitPanel extends JPanel {
 			repositoryLabel.setText(
 					openedFolder == null ? "No folder opened" : "No Git repository for " + openedFolder.getFileName());
 			setActionsEnabled(false);
+			authorNameField.setText("");
+			authorEmailField.setText("");
+			LOGGER.info("Source Control refresh completed: no repository is bound.");
 			return;
 		}
 		setActionsEnabled(true);
 		repositoryLabel.setText("Repository: " + repository.getFileName());
+		authorNameField.setText(gitService.localConfig(repository, "user.name"));
+		authorEmailField.setText(gitService.localConfig(repository, "user.email"));
 		String currentBranch = gitService.currentBranch(repository);
 		for (String branch : gitService.branches(repository)) {
 			branchBox.addItem(branch);
@@ -159,7 +229,10 @@ public final class GitPanel extends JPanel {
 		for (GitStatusEntry entry : status) {
 			statusModel.addElement(entry);
 		}
-		graph.setCommits(gitService.commits(repository));
+		List<GitCommit> commits = gitService.commits(repository);
+		graph.setCommits(commits);
+		LOGGER.info("Source Control refresh completed: branch={}, changedFiles={}, commits={}.", currentBranch,
+				status.size(), commits.size());
 	}
 
 	private void setActionsEnabled(boolean enabled) {
@@ -168,7 +241,7 @@ public final class GitPanel extends JPanel {
 	}
 
 	private void setComponentEnabled(Component component, boolean enabled) {
-		if (component instanceof JButton || component instanceof JComboBox) {
+		if (component instanceof JButton || component instanceof JComboBox || component instanceof JTextField) {
 			component.setEnabled(enabled);
 		}
 		if (component instanceof java.awt.Container container) {
@@ -221,6 +294,45 @@ public final class GitPanel extends JPanel {
 			showResult(gitService.unstage(repository, selected.path()), "unstage file");
 		}
 		refresh();
+	}
+
+	private void commit() {
+		if (repository == null) {
+			return;
+		}
+		String message = commitMessageField.getText();
+		LOGGER.info("Source Control commit step requested for repository {}.", repository.getFileName());
+		GitOperationResult result = gitService.commit(repository, message);
+		showResult(result, "commit");
+		if (result.success()) {
+			commitMessageField.setText("");
+		}
+		refresh();
+	}
+
+	private void configureIdentity() {
+		if (repository == null) {
+			return;
+		}
+		LOGGER.info("Source Control local identity configuration step requested for repository {}.",
+				repository.getFileName());
+		GitOperationResult result = gitService.configureLocalIdentity(repository, authorNameField.getText(),
+				authorEmailField.getText());
+		showResult(result, "configure local Git identity");
+		refresh();
+	}
+
+	private void openSelectedFile() {
+		GitStatusEntry selected = statusList.getSelectedValue();
+		if (selected == null) {
+			return;
+		}
+		if (!java.nio.file.Files.isRegularFile(selected.path())) {
+			LOGGER.debug("Changed file is not available in the working tree: {}.", selected.path().getFileName());
+			return;
+		}
+		LOGGER.info("Opening changed file from Source Control: {}.", selected.path().getFileName());
+		fileOpenListener.accept(selected.path());
 	}
 
 	private void checkoutCommit(GitCommit commit) {

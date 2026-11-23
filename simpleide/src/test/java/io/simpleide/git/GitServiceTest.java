@@ -44,6 +44,7 @@ class GitServiceTest {
 		Path repo = temp.resolve("status");
 		Files.createDirectories(repo);
 		init(repo);
+		Files.writeString(repo.resolve(".gitignore"), "*.secret\n");
 		Files.writeString(repo.resolve("tracked.txt"), "one");
 		Files.writeString(repo.resolve("missing.txt"), "present");
 		git.run(repo, "add", ".");
@@ -51,6 +52,7 @@ class GitServiceTest {
 
 		Files.writeString(repo.resolve("tracked.txt"), "changed");
 		Files.writeString(repo.resolve("new.txt"), "new");
+		Files.writeString(repo.resolve("ignored.secret"), "ignored");
 		Files.delete(repo.resolve("missing.txt"));
 
 		List<GitStatusEntry> entries = git.status(repo);
@@ -60,13 +62,15 @@ class GitServiceTest {
 				entry -> entry.status() == GitStatus.ADDED && entry.path().getFileName().toString().equals("new.txt"));
 		assertThat(entries).anyMatch(entry -> entry.status() == GitStatus.DELETED
 				&& entry.path().getFileName().toString().equals("missing.txt"));
+		assertThat(entries).noneMatch(entry -> entry.path().toString().contains(".git"));
+		assertThat(entries).noneMatch(entry -> entry.path().getFileName().toString().equals("ignored.secret"));
 	}
 
 	@Test
 	void parsesStatusCategories() {
 		Path repo = temp.resolve("repo");
 		List<GitStatusEntry> entries = git.parseStatus(repo,
-				"M  modified.txt\0D  deleted.txt\0?? added.txt\0A  staged.txt\0");
+				"M  modified.txt\0D  deleted.txt\0?? added.txt\0A  staged.txt\0?? .git/config\0!! ignored.secret\0");
 		assertThat(entries).extracting(GitStatusEntry::status)
 			.containsExactly(GitStatus.MODIFIED, GitStatus.DELETED, GitStatus.ADDED, GitStatus.ADDED);
 	}
@@ -93,10 +97,10 @@ class GitServiceTest {
 		Files.writeString(repo.resolve("file.txt"), "main");
 		git.run(repo, "add", ".");
 		git.run(repo, "commit", "-m", "initial");
-		git.run(repo, "switch", "-c", "feature");
+		git.run(repo, "checkout", "-b", "feature");
 		Files.writeString(repo.resolve("file.txt"), "feature");
 		git.run(repo, "commit", "-am", "feature commit");
-		git.run(repo, "switch", "master");
+		git.run(repo, "checkout", "master");
 		Files.writeString(repo.resolve("main.txt"), "main");
 		git.run(repo, "add", ".");
 		git.run(repo, "commit", "-m", "main commit");
@@ -106,6 +110,26 @@ class GitServiceTest {
 		List<GitCommit> commits = git.commits(repo);
 		assertThat(commits).isNotEmpty();
 		assertThat(commits).anyMatch(commit -> commit.parents().size() >= 2);
+		assertThat(commits).anyMatch(commit -> commit.lane() > 0);
+		assertThat(commits).anyMatch(commit -> commit.refs().contains("refs/heads/feature"));
+		assertThat(commits).anyMatch(commit -> commit.refs().contains("refs/heads/master"));
+	}
+
+	@Test
+	void commitsAndStoresOnlyNonblankIdentityLocally() throws Exception {
+		Path repo = temp.resolve("identity");
+		Files.createDirectories(repo);
+		init(repo);
+		Files.writeString(repo.resolve("file.txt"), "content");
+
+		assertThat(git.configureLocalIdentity(repo, "Local Author", "local@example.com").success()).isTrue();
+		assertThat(git.localConfig(repo, "user.name")).isEqualTo("Local Author");
+		assertThat(git.localConfig(repo, "user.email")).isEqualTo("local@example.com");
+		assertThat(git.commit(repo, "commit message").success()).isTrue();
+		assertThat(git.run(repo, "status", "--porcelain").output()).isBlank();
+		assertThat(git.run(repo, "log", "-1", "--format=%s").output().trim()).isEqualTo("commit message");
+		assertThat(git.commit(repo, " ").success()).isFalse();
+		assertThat(git.configureLocalIdentity(repo, " ", " ").success()).isTrue();
 	}
 
 	@Test
@@ -142,7 +166,8 @@ class GitServiceTest {
 
 	private void init(Path repo) throws Exception {
 		Files.createDirectories(repo);
-		run(repo, "git", "init", "-b", "master");
+		run(repo, "git", "init");
+		run(repo, "git", "symbolic-ref", "HEAD", "refs/heads/master");
 		run(repo, "git", "config", "user.name", "Test");
 		run(repo, "git", "config", "user.email", "test@example.com");
 	}
