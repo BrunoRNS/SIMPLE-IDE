@@ -1,0 +1,57 @@
+{
+  "adapters": [
+    {
+      "id": "js-debug",
+      "name": "JavaScript Debug Adapter",
+      "version": "1.140.1",
+      "command": "node",
+      "transport": "tcp",
+      "launch": {
+        "type": "node",
+        "console": "integratedTerminal"
+      },
+      "arguments": [
+        "${installDir}/js-debug/src/dapDebugServer.js",
+        "${port}"
+      ],
+      "downloads": [
+        {
+          "os": "linux",
+          "arch": "x64",
+          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
+          "archiveType": "tar.gz"
+        },
+        {
+          "os": "linux",
+          "arch": "arm64",
+          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
+          "archiveType": "tar.gz"
+        },
+        {
+          "os": "windows",
+          "arch": "x64",
+          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
+          "archiveType": "tar.gz"
+        },
+        {
+          "os": "windows",
+          "arch": "arm64",
+          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
+          "archiveType": "tar.gz"
+        },
+        {
+          "os": "macos",
+          "arch": "x64",
+          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
+          "archiveType": "tar.gz"
+        },
+        {
+          "os": "macos",
+          "arch": "arm64",
+          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
+          "archiveType": "tar.gz"
+        }
+      ]
+    }
+  ]
+}

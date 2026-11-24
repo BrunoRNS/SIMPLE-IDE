@@ -1,13 +1,23 @@
 package io.simpleide.ui.editor;
 
+import java.awt.Component;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 
+import javax.swing.Icon;
 import javax.swing.UIManager;
 
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+import org.fife.ui.rtextarea.Gutter;
+import org.fife.ui.rtextarea.GutterIconInfo;
 
 import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
@@ -24,12 +34,21 @@ import io.simpleide.ui.treefile.TypeFile;
  * <p>
  * Covered by {@code EditorTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/rsyntax.md">docs/api/rsyntax.md</a>
  */
 public class Editor extends RSyntaxTextArea {
+
+	private final TreeSet<Integer> breakpointLines = new TreeSet<>();
+
+	private final Map<Integer, GutterIconInfo> breakpointIcons = new LinkedHashMap<>();
+
+	private Consumer<List<Integer>> breakpointListener = ignored -> {
+	};
+
+	private Gutter gutter;
 
 	/**
 	 * Creates an empty editor with the application font and editing defaults.
@@ -38,6 +57,140 @@ public class Editor extends RSyntaxTextArea {
 		super();
 		applyUiFont();
 		config();
+	}
+
+	/**
+	 * Attaches the gutter used to paint breakpoint markers.
+	 * @param gutter gutter of the scroll pane that hosts this editor
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void attachGutter(Gutter gutter) {
+		this.gutter = gutter;
+		repaintBreakpoints();
+	}
+
+	/**
+	 * Returns the one-based line numbers with a breakpoint, in ascending order.
+	 * @return an immutable snapshot of the breakpoint lines
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public List<Integer> getBreakpointLines() {
+		return List.copyOf(breakpointLines);
+	}
+
+	/**
+	 * Toggles a breakpoint on a one-based line.
+	 * @param line one-based line number
+	 * @return {@code true} when a breakpoint now exists on the line
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean toggleBreakpoint(int line) {
+		if (line < 1 || line > getLineCount()) {
+			return false;
+		}
+		boolean added;
+		if (breakpointLines.remove(line)) {
+			added = false;
+		}
+		else {
+			breakpointLines.add(line);
+			added = true;
+		}
+		repaintBreakpoints();
+		breakpointListener.accept(getBreakpointLines());
+		return added;
+	}
+
+	/**
+	 * Toggles a breakpoint on the line that contains the caret.
+	 * @return {@code true} when a breakpoint now exists on the caret line
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean toggleBreakpointAtCaret() {
+		try {
+			return toggleBreakpoint(getLineOfOffset(getCaretPosition()) + 1);
+		}
+		catch (javax.swing.text.BadLocationException error) {
+			return false;
+		}
+	}
+
+	/**
+	 * Removes every breakpoint from the editor.
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void clearBreakpoints() {
+		breakpointLines.clear();
+		repaintBreakpoints();
+		breakpointListener.accept(getBreakpointLines());
+	}
+
+	/**
+	 * Registers a listener notified when breakpoints change.
+	 * @param listener listener invoked with the current breakpoint lines, or {@code null}
+	 * to clear it
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void setBreakpointListener(Consumer<List<Integer>> listener) {
+		breakpointListener = listener == null ? ignored -> {
+		} : listener;
+	}
+
+	private void repaintBreakpoints() {
+		Gutter activeGutter = gutter;
+		if (activeGutter == null) {
+			return;
+		}
+		for (GutterIconInfo icon : breakpointIcons.values()) {
+			activeGutter.removeTrackingIcon(icon);
+		}
+		breakpointIcons.clear();
+		Icon icon = new BreakpointIcon();
+		for (Integer line : breakpointLines) {
+			try {
+				GutterIconInfo info = activeGutter.addLineTrackingIcon(line - 1, icon, "Breakpoint at line " + line);
+				breakpointIcons.put(line, info);
+			}
+			catch (javax.swing.text.BadLocationException ignored) {
+				// The line disappeared while the editor was reloading.
+			}
+		}
+	}
+
+	/**
+	 * Paints the breakpoint dot shown in the gutter.
+	 *
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	private static final class BreakpointIcon implements Icon {
+
+		private static final int SIZE = 10;
+
+		@Override
+		public void paintIcon(Component component, Graphics graphics, int x, int y) {
+			graphics.setColor(new java.awt.Color(0xD73A49));
+			graphics.fillOval(x + 1, y + 1, SIZE, SIZE);
+			graphics.setColor(new java.awt.Color(0x8B1A23));
+			graphics.drawOval(x + 1, y + 1, SIZE, SIZE);
+		}
+
+		@Override
+		public int getIconWidth() {
+			return SIZE + 2;
+		}
+
+		@Override
+		public int getIconHeight() {
+			return SIZE + 2;
+		}
+
 	}
 
 	@Override

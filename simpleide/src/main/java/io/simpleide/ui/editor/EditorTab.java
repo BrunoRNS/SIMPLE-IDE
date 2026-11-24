@@ -1,7 +1,28 @@
+/**
+ * File tab showing editable text, an image viewer, or a binary hex editor with shared
+ * save tracking.
+ *
+ * <p>
+ * The tab loads a file into the editor, enables line numbers, marks itself edited when
+ * the document changes, saves through {@link FileService}, and switches between local
+ * completion and a connected language server. Closing the tab releases local support, the
+ * LSP binding and the document listener.
+ *
+ * <p>
+ * Covered by {@code EditorTabTest}.
+ *
+ * @author BrunoRNS
+ * @since v1.1.0
+ * @see <a href="https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
+ */
+
 package io.simpleide.ui.editor;
 
 import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
+import java.awt.Point;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -13,6 +34,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 
 import org.eclipse.lsp4j.Diagnostic;
@@ -56,8 +78,8 @@ import io.simpleide.utils.service.FileService;
  * <p>
  * Covered by {@code EditorTabTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
  */
@@ -190,6 +212,8 @@ public class EditorTab extends JPanel {
 				editor.loadFile(file);
 				configIsEdit();
 				applyEditorOptions(editorTabSize, editorWordWrap, editorLineNumbers, editorShowWhitespace);
+				editor.attachGutter(scrollPane.getGutter());
+				installBreakpointMouseListener();
 			}
 		}
 		revalidate();
@@ -260,6 +284,64 @@ public class EditorTab extends JPanel {
 	 */
 	public Editor getEditor() {
 		return editor;
+	}
+
+	/**
+	 * Returns the one-based line numbers with a breakpoint in this tab.
+	 * @return an immutable snapshot of the breakpoint lines, or an empty list for
+	 * non-text tabs
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public List<Integer> getBreakpoints() {
+		return editor == null ? List.of() : editor.getBreakpointLines();
+	}
+
+	/**
+	 * Toggles a breakpoint on a one-based line of this tab.
+	 * @param line one-based line number
+	 * @return {@code true} when a breakpoint now exists on the line
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean toggleBreakpoint(int line) {
+		return editor != null && editor.toggleBreakpoint(line);
+	}
+
+	/**
+	 * Removes every breakpoint from this tab.
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void clearBreakpoints() {
+		if (editor != null) {
+			editor.clearBreakpoints();
+		}
+	}
+
+	private void installBreakpointMouseListener() {
+		if (scrollPane == null || scrollPane.getGutter() == null) {
+			return;
+		}
+		scrollPane.getGutter().addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent event) {
+				if (!SwingUtilities.isLeftMouseButton(event) || event.getClickCount() != 1) {
+					return;
+				}
+				Point point = SwingUtilities.convertPoint(event.getComponent(), event.getPoint(), editor);
+				int offset = editor.viewToModel2D(point);
+				if (offset < 0 || offset > editor.getDocument().getLength()) {
+					return;
+				}
+				try {
+					editor.toggleBreakpoint(editor.getLineOfOffset(offset) + 1);
+				}
+				catch (BadLocationException ignored) {
+					// The click landed after the last line.
+				}
+			}
+		});
 	}
 
 	/**

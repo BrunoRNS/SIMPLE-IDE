@@ -203,6 +203,23 @@ public API method.
 `EditorActions` wires these operations to key bindings and menu actions in the
 desktop application. An embedding application can call the methods directly.
 
+## Breakpoints
+
+The desktop editor exposes breakpoints through `Editor` and `EditorTab`:
+
+```java
+EditorTab tab = editorManager.getSelectedEditorTab();
+tab.toggleBreakpoint(42);            // one-based line
+List<Integer> lines = tab.getBreakpoints();
+```
+
+`Editor.toggleBreakpoint(int)` paints a red dot in the gutter, keeps the lines
+sorted and notifies listeners registered with
+`setBreakpointListener(Consumer<List<Integer>>)`. `toggleBreakpointAtCaret()` is
+bound to F9 by `EditorActions`, and clicking the gutter toggles the clicked
+line. Breakpoints are read when Run or Debug starts; the debug session sends the
+selected file's lines to the adapter with `setBreakpoints`.
+
 ## Lifecycle
 
 ```java

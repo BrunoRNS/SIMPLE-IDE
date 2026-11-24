@@ -96,6 +96,19 @@ class AbstractLanguageTest {
 	}
 
 	@Test
+	void notifiesExecutionListenersWhenNoCommandIsConfigured() {
+		AbstractLanguage language = new AbstractLanguage() {
+		};
+		java.util.concurrent.atomic.AtomicInteger notifications = new java.util.concurrent.atomic.AtomicInteger();
+		language.addExecutionListener(notifications::incrementAndGet);
+
+		language.run();
+		language.run();
+
+		assertEquals(2, notifications.get());
+	}
+
+	@Test
 	void capturesOutputAndSuccessfulExit() throws InterruptedException {
 		TestLanguage language = new TestLanguage("success");
 
