@@ -1,5 +1,6 @@
 package io.simpleide.dap;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -27,6 +28,8 @@ public final class DapAdapter {
 	private final String name;
 
 	private final String version;
+
+	private final String languageId;
 
 	private final String command;
 
@@ -108,9 +111,31 @@ public final class DapAdapter {
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads, String transport, Map<String, String> launchArguments,
 			Map<String, String> environment) {
+		this(id, name, version, null, command, arguments, downloads, transport, launchArguments, environment);
+	}
+
+	/**
+	 * Creates an adapter definition bound to a language.
+	 * @param id stable adapter identifier
+	 * @param name human-readable adapter name
+	 * @param version adapter version
+	 * @param languageId language identifier the adapter debugs, or {@code null}
+	 * @param command launch command
+	 * @param arguments launch arguments
+	 * @param downloads platform-specific download entries
+	 * @param transport {@code stdio}, {@code tcp} or {@code jdtls}
+	 * @param launchArguments extra properties merged into the DAP launch request
+	 * @param environment extra environment variables for the adapter process
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public DapAdapter(String id, String name, String version, String languageId, String command,
+			List<String> arguments, List<DapDownload> downloads, String transport,
+			Map<String, String> launchArguments, Map<String, String> environment) {
 		this.id = Objects.requireNonNull(id, "id");
 		this.name = Objects.requireNonNull(name, "name");
 		this.version = version == null ? "" : version;
+		this.languageId = languageId == null ? "" : languageId;
 		this.command = Objects.requireNonNull(command, "command");
 		this.arguments = List.copyOf(arguments == null ? List.of() : arguments);
 		this.downloads = List.copyOf(downloads == null ? List.of() : downloads);
@@ -223,6 +248,28 @@ public final class DapAdapter {
 	}
 
 	/**
+	 * Returns the language identifier this adapter debugs.
+	 * @return the language identifier, or an empty string when the adapter is not bound
+	 * to a language
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public String getLanguageId() {
+		return languageId;
+	}
+
+	/**
+	 * Returns whether the adapter debugs a language.
+	 * @param candidate language identifier to compare
+	 * @return {@code true} when the adapter is bound to the supplied language
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean supportsLanguage(String candidate) {
+		return candidate != null && candidate.equals(languageId);
+	}
+
+	/**
 	 * Returns the launch command template.
 	 * @return the command template
 	 * @author BrunoRNS
@@ -270,6 +317,26 @@ public final class DapAdapter {
 	 */
 	public Map<String, String> getLaunchArguments() {
 		return launchArguments;
+	}
+
+	/**
+	 * Resolves the launch properties for a program, expanding the {@code ${program}}
+	 * and {@code ${fileDir}} placeholders.
+	 * @param program program being debugged
+	 * @return the resolved launch properties
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public Map<String, Object> launchArguments(Path program) {
+		String programPath = program == null ? "" : program.toString();
+		Path parent = program == null ? null : program.getParent();
+		String fileDirectory = parent == null ? "." : parent.toString();
+		Map<String, Object> resolved = new LinkedHashMap<>();
+		for (Map.Entry<String, String> entry : launchArguments.entrySet()) {
+			resolved.put(entry.getKey(),
+					entry.getValue().replace("${program}", programPath).replace("${fileDir}", fileDirectory));
+		}
+		return resolved;
 	}
 
 	/**

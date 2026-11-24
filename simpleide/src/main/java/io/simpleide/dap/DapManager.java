@@ -3,8 +3,11 @@ package io.simpleide.dap;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.lsp.client.LspClient;
 
 /**
  * Coordinates debug adapter discovery, installation and session startup.
@@ -67,6 +70,42 @@ public final class DapManager {
 	}
 
 	/**
+	 * Returns whether a program can be debugged on this platform.
+	 * @param program source file
+	 * @return {@code true} when an adapter is registered for the file language
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean supports(Path program) {
+		String language = languageOf(program);
+		return !language.isEmpty() && registry.supports(platform, language);
+	}
+
+	/**
+	 * Resolves the language identifier used to select a debug adapter.
+	 * @param program source file
+	 * @return the language identifier, or an empty string when the language is not
+	 * debuggable
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public static String languageOf(Path program) {
+		if (program == null || program.getFileName() == null) {
+			return "";
+		}
+		String name = program.getFileName().toString().toLowerCase(Locale.ROOT);
+		int dot = name.lastIndexOf('.');
+		String extension = dot < 0 ? "" : name.substring(dot + 1);
+		return switch (extension) {
+			case "js", "jsx", "mjs", "cjs", "jscript" -> "javascript";
+			case "py", "pyi", "pyw", "py3" -> "python";
+			case "go" -> "go";
+			case "java", "jav" -> "java";
+			default -> "";
+		};
+	}
+
+	/**
 	 * Resolves and installs the adapter for this platform.
 	 * @return the installed adapter and its download entry
 	 * @throws DapUnavailableException when the platform is unsupported or installation
@@ -79,6 +118,32 @@ public final class DapManager {
 		if (adapter == null) {
 			throw new DapUnavailableException("Debugging is not supported on " + platform.getDisplayName() + ".");
 		}
+		return prepare(adapter);
+	}
+
+	/**
+	 * Resolves and installs the adapter for a program language.
+	 * @param program source file
+	 * @return the installed adapter and its download entry
+	 * @throws DapUnavailableException when the language is unsupported or installation
+	 * fails
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public PreparedAdapter prepare(Path program) throws DapUnavailableException {
+		String language = languageOf(program);
+		if (language.isEmpty()) {
+			throw new DapUnavailableException("Debugging is not supported for " + program.getFileName() + ".");
+		}
+		DapAdapter adapter = registry.findForPlatform(platform, language);
+		if (adapter == null) {
+			throw new DapUnavailableException(
+					"Debugging " + language + " is not supported on " + platform.getDisplayName() + ".");
+		}
+		return prepare(adapter);
+	}
+
+	private PreparedAdapter prepare(DapAdapter adapter) throws DapUnavailableException {
 		DapDownload download = adapter.downloadFor(platform);
 		if (download == null) {
 			throw new DapUnavailableException(
@@ -111,7 +176,7 @@ public final class DapManager {
 	 */
 	public DapSession start(Path program, List<Integer> breakpoints, DapSession.Listener listener)
 			throws DapUnavailableException {
-		PreparedAdapter prepared = prepare();
+		PreparedAdapter prepared = prepare(program);
 		DapSession session = new DapSession(prepared.adapter(), prepared.installDirectory(), program, listener);
 		try {
 			session.start(breakpoints);
@@ -126,6 +191,42 @@ public final class DapManager {
 			Thread.currentThread().interrupt();
 			session.close();
 			throw new DapUnavailableException("Debug adapter startup was interrupted.", error);
+		}
+	}
+
+	/**
+	 * Starts a Java debug session through the running JDT language server.
+	 * @param program source file
+	 * @param client initialized Java language-server client
+	 * @param breakpoints initial line breakpoints
+	 * @param listener listener for execution state changes
+	 * @return the started session
+	 * @throws DapUnavailableException when the JDT debug bridge cannot start a session
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public DapSession startJava(Path program, LspClient client, List<Integer> breakpoints,
+			DapSession.Listener listener) throws DapUnavailableException {
+		if (client == null) {
+			throw new DapUnavailableException(
+					"Java debugging requires the Java language server. Open the file and wait for it to connect.");
+		}
+		if (!registry.supports(platform, "java")) {
+			throw new DapUnavailableException("Java debugging is not supported on " + platform.getDisplayName() + ".");
+		}
+		try {
+			Map<String, Object> launchArguments = JavaDebugBridge.launchArguments(client, program);
+			int port = JavaDebugBridge.startDebugSession(client);
+			DapSession session = new DapSession(program, port, launchArguments, listener);
+			session.start(breakpoints);
+			return session;
+		}
+		catch (IOException | RuntimeException error) {
+			throw new DapUnavailableException("Unable to start Java debugging: " + error.getMessage(), error);
+		}
+		catch (InterruptedException error) {
+			Thread.currentThread().interrupt();
+			throw new DapUnavailableException("Java debug startup was interrupted.", error);
 		}
 	}
 

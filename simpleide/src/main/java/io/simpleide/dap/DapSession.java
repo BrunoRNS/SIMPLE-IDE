@@ -122,6 +122,10 @@ public final class DapSession implements AutoCloseable {
 
 	private final Listener listener;
 
+	private final int externalPort;
+
+	private final Map<String, Object> externalLaunchArguments;
+
 	private final Client client = new Client();
 
 	private final Object stateLock = new Object();
@@ -137,6 +141,8 @@ public final class DapSession implements AutoCloseable {
 	private Capabilities capabilities;
 
 	private volatile int threadId;
+
+	private volatile boolean stopped;
 
 	private volatile boolean closed;
 
@@ -159,6 +165,32 @@ public final class DapSession implements AutoCloseable {
 		this.program = program;
 		this.listener = listener == null ? new Listener() {
 		} : listener;
+		this.externalPort = 0;
+		this.externalLaunchArguments = Map.of();
+	}
+
+	/**
+	 * Creates a session that connects to a debug adapter already listening on a port.
+	 *
+	 * <p>
+	 * This is used for adapters hosted by another process, such as the Java debug plugin
+	 * hosted by the JDT language server. The program starts with the supplied launch
+	 * arguments instead of a local adapter process.
+	 * @param program program being debugged
+	 * @param port TCP port where the adapter is listening
+	 * @param launchArguments properties sent in the DAP launch request
+	 * @param listener listener for execution state changes, may be {@code null}
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public DapSession(Path program, int port, Map<String, Object> launchArguments, Listener listener) {
+		this.adapter = null;
+		this.installDirectory = null;
+		this.program = program;
+		this.listener = listener == null ? new Listener() {
+		} : listener;
+		this.externalPort = port;
+		this.externalLaunchArguments = launchArguments == null ? Map.of() : Map.copyOf(launchArguments);
 	}
 
 	/**
@@ -170,24 +202,33 @@ public final class DapSession implements AutoCloseable {
 	 * @since v1.1.0
 	 */
 	public void start(List<Integer> breakpoints) throws IOException, InterruptedException {
-		List<String> commandLine;
-		int port = 0;
-		if ("tcp".equals(adapter.getTransport())) {
-			port = findFreePort();
-			commandLine = adapter.commandLine(installDirectory.toString(), program.toString(), port);
-			startProcess(commandLine, port);
-			connect(port);
+		if (externalPort > 0) {
+			connect(externalPort);
 		}
 		else {
-			commandLine = adapter.commandLine(installDirectory.toString(), program.toString());
-			startProcess(commandLine, port);
-			synchronized (stateLock) {
-				socket = null;
+			List<String> commandLine;
+			int port = 0;
+			if ("tcp".equals(adapter.getTransport())) {
+				port = findFreePort();
+				commandLine = adapter.commandLine(installDirectory.toString(), program.toString(), port);
+				startProcess(commandLine, port);
+				connect(port);
+			}
+			else {
+				commandLine = adapter.commandLine(installDirectory.toString(), program.toString());
+				startProcess(commandLine, port);
+				synchronized (stateLock) {
+					socket = null;
+				}
 			}
 		}
 
-		InputStream input = socket == null ? process.getInputStream() : socket.getInputStream();
-		OutputStream output = socket == null ? process.getOutputStream() : socket.getOutputStream();
+		InputStream input;
+		OutputStream output;
+		synchronized (stateLock) {
+			input = socket == null ? process.getInputStream() : socket.getInputStream();
+			output = socket == null ? process.getOutputStream() : socket.getOutputStream();
+		}
 		Launcher<IDebugProtocolServer> launcher = DSPLauncher.createClientLauncher(client, input, output);
 		synchronized (stateLock) {
 			server = launcher.getRemoteProxy();
@@ -196,8 +237,12 @@ public final class DapSession implements AutoCloseable {
 
 		initialize();
 		await(initialized);
+		CompletableFuture<Void> launchRequest = launch();
 		await(sendBreakpoints(program, breakpoints));
-		launch();
+		if (capabilities != null && Boolean.TRUE.equals(capabilities.getSupportsConfigurationDoneRequest())) {
+			await(server.configurationDone(new ConfigurationDoneArguments()));
+		}
+		await(launchRequest);
 	}
 
 	private void startProcess(List<String> commandLine, int port) throws IOException {
@@ -341,7 +386,9 @@ public final class DapSession implements AutoCloseable {
 		InitializeRequestArguments arguments = new InitializeRequestArguments();
 		arguments.setClientID("simpleide");
 		arguments.setClientName("Simple IDE");
-		arguments.setAdapterID(adapter.getId());
+		if (adapter != null) {
+			arguments.setAdapterID(adapter.getId());
+		}
 		arguments.setLinesStartAt1(true);
 		arguments.setColumnsStartAt1(true);
 		arguments.setPathFormat("path");
@@ -352,16 +399,18 @@ public final class DapSession implements AutoCloseable {
 		}
 	}
 
-	private void launch() throws IOException, InterruptedException {
-		Map<String, Object> arguments = new LinkedHashMap<>(adapter.getLaunchArguments());
-		arguments.put("program", program.toString());
-		arguments.put("cwd", program.getParent() == null ? "." : program.getParent().toString());
-		arguments.putIfAbsent("name", adapter.getName());
-		CompletableFuture<Void> launchRequest = server.launch(arguments).thenApply(ignored -> null);
-		if (capabilities != null && Boolean.TRUE.equals(capabilities.getSupportsConfigurationDoneRequest())) {
-			await(server.configurationDone(new ConfigurationDoneArguments()));
+	private CompletableFuture<Void> launch() {
+		Map<String, Object> arguments;
+		if (adapter == null) {
+			arguments = new LinkedHashMap<>(externalLaunchArguments);
 		}
-		await(launchRequest);
+		else {
+			arguments = new LinkedHashMap<>(adapter.launchArguments(program));
+			arguments.putIfAbsent("program", program.toString());
+			arguments.putIfAbsent("cwd", program.getParent() == null ? "." : program.getParent().toString());
+			arguments.putIfAbsent("name", adapter.getName());
+		}
+		return server.launch(arguments).thenApply(ignored -> null);
 	}
 
 	/**
@@ -418,9 +467,9 @@ public final class DapSession implements AutoCloseable {
 	 * @since v1.1.0
 	 */
 	public void resume() {
-		send(server -> {
+		sendWhenStopped(activeThread -> {
 			ContinueArguments arguments = new ContinueArguments();
-			arguments.setThreadId(threadId);
+			arguments.setThreadId(activeThread);
 			return server.continue_(arguments).thenApply(ignored -> null);
 		});
 	}
@@ -431,9 +480,9 @@ public final class DapSession implements AutoCloseable {
 	 * @since v1.1.0
 	 */
 	public void pause() {
-		send(server -> {
+		sendUsingThread(activeThread -> {
 			PauseArguments arguments = new PauseArguments();
-			arguments.setThreadId(threadId);
+			arguments.setThreadId(activeThread);
 			return server.pause(arguments);
 		});
 	}
@@ -444,9 +493,9 @@ public final class DapSession implements AutoCloseable {
 	 * @since v1.1.0
 	 */
 	public void stepOver() {
-		send(server -> {
+		sendWhenStopped(activeThread -> {
 			NextArguments arguments = new NextArguments();
-			arguments.setThreadId(threadId);
+			arguments.setThreadId(activeThread);
 			return server.next(arguments);
 		});
 	}
@@ -457,9 +506,9 @@ public final class DapSession implements AutoCloseable {
 	 * @since v1.1.0
 	 */
 	public void stepInto() {
-		send(server -> {
+		sendWhenStopped(activeThread -> {
 			StepInArguments arguments = new StepInArguments();
-			arguments.setThreadId(threadId);
+			arguments.setThreadId(activeThread);
 			return server.stepIn(arguments);
 		});
 	}
@@ -470,9 +519,9 @@ public final class DapSession implements AutoCloseable {
 	 * @since v1.1.0
 	 */
 	public void stepOut() {
-		send(server -> {
+		sendWhenStopped(activeThread -> {
 			StepOutArguments arguments = new StepOutArguments();
-			arguments.setThreadId(threadId);
+			arguments.setThreadId(activeThread);
 			return server.stepOut(arguments);
 		});
 	}
@@ -489,7 +538,15 @@ public final class DapSession implements AutoCloseable {
 		}
 	}
 
-	private void send(java.util.function.Function<IDebugProtocolServer, CompletableFuture<Void>> request) {
+	private void sendWhenStopped(java.util.function.IntFunction<CompletableFuture<Void>> request) {
+		if (!stopped) {
+			Output.getInstance().publish(OutputType.DEBUG, "Execution is running; pause before stepping.");
+			return;
+		}
+		sendUsingThread(request);
+	}
+
+	private void sendUsingThread(java.util.function.IntFunction<CompletableFuture<Void>> request) {
 		IDebugProtocolServer activeServer;
 		synchronized (stateLock) {
 			activeServer = server;
@@ -497,12 +554,54 @@ public final class DapSession implements AutoCloseable {
 		if (activeServer == null || closed) {
 			return;
 		}
-		request.apply(activeServer).whenComplete((ignored, error) -> {
+		int activeThread = threadId;
+		if (activeThread > 0) {
+			sendRequest(request, activeThread);
+			return;
+		}
+		activeServer.threads().whenComplete((response, error) -> {
 			if (error != null) {
-				LOGGER.warn("Debug control request failed.", error);
-				Output.getInstance().publish(OutputType.ERROR, "Debug control request failed: " + error.getMessage());
+				publishControlFailure(error);
+				return;
 			}
+			int resolved = firstThreadId(response);
+			if (resolved <= 0) {
+				Output.getInstance().publish(OutputType.DEBUG, "No debug thread is available for this request.");
+				return;
+			}
+			threadId = resolved;
+			sendRequest(request, resolved);
 		});
+	}
+
+	private void sendRequest(java.util.function.IntFunction<CompletableFuture<Void>> request, int activeThread) {
+		try {
+			request.apply(activeThread).whenComplete((ignored, error) -> {
+				if (error != null) {
+					publishControlFailure(error);
+				}
+			});
+		}
+		catch (RuntimeException error) {
+			publishControlFailure(error);
+		}
+	}
+
+	private void publishControlFailure(Throwable error) {
+		LOGGER.warn("Debug control request failed.", error);
+		Output.getInstance().publish(OutputType.ERROR, "Debug control request failed: " + error.getMessage());
+	}
+
+	private static int firstThreadId(org.eclipse.lsp4j.debug.ThreadsResponse response) {
+		if (response == null || response.getThreads() == null || response.getThreads().length == 0) {
+			return 0;
+		}
+		for (org.eclipse.lsp4j.debug.Thread thread : response.getThreads()) {
+			if (thread != null && thread.getId() > 0) {
+				return thread.getId();
+			}
+		}
+		return 0;
 	}
 
 	private <T> T await(CompletableFuture<T> future) throws IOException, InterruptedException {

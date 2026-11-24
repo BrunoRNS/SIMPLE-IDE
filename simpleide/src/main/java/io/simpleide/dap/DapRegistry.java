@@ -109,6 +109,7 @@ public final class DapRegistry {
 		String name = requiredString(object, "name");
 		String command = requiredString(object, "command");
 		String version = optionalString(object, "version", "");
+		String languageId = optionalString(object, "languageId", "");
 		String transport = optionalString(object, "transport", "stdio");
 		List<String> arguments = readStringList(object, "arguments");
 		JsonArray downloadsArray = object.getJsonArray("downloads");
@@ -124,7 +125,7 @@ public final class DapRegistry {
 			downloads.add(new DapDownload(requiredString(download, "os"), requiredString(download, "arch"),
 					requiredString(download, "url"), optionalString(download, "archiveType", null)));
 		}
-		return new DapAdapter(id, name, version, command, arguments, downloads, transport,
+		return new DapAdapter(id, name, version, languageId, command, arguments, downloads, transport,
 				readStringMap(object, "launch"), readStringMap(object, "environment"));
 	}
 
@@ -192,6 +193,51 @@ public final class DapRegistry {
 			}
 		}
 		return null;
+	}
+
+	/**
+	 * Returns the adapter registered for a platform and language.
+	 * @param platform platform to resolve
+	 * @param languageId language identifier such as {@code javascript}
+	 * @return the matching adapter, or {@code null} when none supports the pair
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public DapAdapter findForPlatform(LangPlatform platform, String languageId) {
+		for (DapAdapter adapter : adapters) {
+			if (adapter.supportsLanguage(languageId) && adapter.downloadFor(platform) != null) {
+				return adapter;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Returns whether a platform and language have a registered adapter.
+	 * @param platform platform to check
+	 * @param languageId language identifier
+	 * @return {@code true} when an adapter and a download entry exist
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean supports(LangPlatform platform, String languageId) {
+		return findForPlatform(platform, languageId) != null;
+	}
+
+	/**
+	 * Returns every language identifier with a registered adapter.
+	 * @return the language identifiers in registry order
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public List<String> getLanguages() {
+		List<String> languages = new ArrayList<>();
+		for (DapAdapter adapter : adapters) {
+			if (!adapter.getLanguageId().isBlank() && !languages.contains(adapter.getLanguageId())) {
+				languages.add(adapter.getLanguageId());
+			}
+		}
+		return List.copyOf(languages);
 	}
 
 	/**
