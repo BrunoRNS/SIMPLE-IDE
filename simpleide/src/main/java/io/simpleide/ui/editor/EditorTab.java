@@ -34,6 +34,8 @@ import org.slf4j.LoggerFactory;
 import io.simpleide.api.HexEditor;
 import io.simpleide.api.ImageViewer;
 import io.simpleide.api.LargeTextViewer;
+import io.simpleide.api.MediaPlayback;
+import io.simpleide.api.MediaPlaybacks;
 import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.lsp.client.LspClient;
@@ -74,6 +76,10 @@ public class EditorTab extends JPanel {
 	private HexEditor hexEditor;
 
 	private LargeTextViewer largeTextViewer;
+
+	private MediaPlayback audioViewer;
+
+	private MediaPlayback videoViewer;
 
 	private final Document document;
 
@@ -146,6 +152,9 @@ public class EditorTab extends JPanel {
 		return closed;
 	}
 
+	/**
+	 * Creates the read-only viewer or editable text component after the file is loaded.
+	 */
 	public final void showLoadedContent() {
 		if (closed) {
 			return;
@@ -159,6 +168,8 @@ public class EditorTab extends JPanel {
 		imageViewer = null;
 		hexEditor = null;
 		largeTextViewer = null;
+		audioViewer = null;
+		videoViewer = null;
 		searchPanel = null;
 		scrollPane = null;
 		switch (file.getContentKind()) {
@@ -166,15 +177,24 @@ public class EditorTab extends JPanel {
 				imageViewer = new ImageViewer(file.getImageContent(), file.getImageWidth(), file.getImageHeight());
 				add(imageViewer, BorderLayout.CENTER);
 			}
-			case BINARY -> {
-				try {
-					hexEditor = new HexEditor(file.getPath());
+			case BINARY -> showHexEditor();
+			case AUDIO -> {
+				audioViewer = MediaPlaybacks.audio(file.getPath());
+				if (audioViewer == null) {
+					showHexEditor();
 				}
-				catch (IOException error) {
-					throw new java.io.UncheckedIOException("Unable to open binary file " + file.getPath(), error);
+				else {
+					add(audioViewer.component(), BorderLayout.CENTER);
 				}
-				hexEditor.setChangeListener(this::onBinaryChanged);
-				add(hexEditor, BorderLayout.CENTER);
+			}
+			case VIDEO -> {
+				videoViewer = MediaPlaybacks.video(file.getPath());
+				if (videoViewer == null) {
+					showHexEditor();
+				}
+				else {
+					add(videoViewer.component(), BorderLayout.CENTER);
+				}
 			}
 			case TEXT -> {
 				if (file.isLargeContent()) {
@@ -194,6 +214,17 @@ public class EditorTab extends JPanel {
 		}
 		revalidate();
 		repaint();
+	}
+
+	private void showHexEditor() {
+		try {
+			hexEditor = new HexEditor(file.getPath());
+		}
+		catch (IOException error) {
+			throw new java.io.UncheckedIOException("Unable to open binary file " + file.getPath(), error);
+		}
+		hexEditor.setChangeListener(this::onBinaryChanged);
+		add(hexEditor, BorderLayout.CENTER);
 	}
 
 	void showLoadError(Throwable error) {
@@ -279,6 +310,26 @@ public class EditorTab extends JPanel {
 	/** Returns the paged, read-only view for large text files, otherwise {@code null}. */
 	public LargeTextViewer getLargeTextViewer() {
 		return largeTextViewer;
+	}
+
+	/**
+	 * Returns the audio player for this tab, or {@code null} for other content kinds.
+	 * @return the audio player, or {@code null} when the tab does not play audio
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public MediaPlayback getAudioViewer() {
+		return audioViewer;
+	}
+
+	/**
+	 * Returns the video player for this tab, or {@code null} for other content kinds.
+	 * @return the video player, or {@code null} when the tab does not play video
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public MediaPlayback getVideoViewer() {
+		return videoViewer;
 	}
 
 	void showSearchPanel(boolean showReplacement) {
@@ -526,6 +577,12 @@ public class EditorTab extends JPanel {
 		}
 		if (largeTextViewer != null) {
 			largeTextViewer.close();
+		}
+		if (audioViewer != null) {
+			audioViewer.close();
+		}
+		if (videoViewer != null) {
+			videoViewer.close();
 		}
 		if (imageViewer != null) {
 			imageViewer.releaseImage();

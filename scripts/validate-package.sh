@@ -48,6 +48,10 @@ detect_arch() {
 OS=${SIMPLEIDE_PKG_OS:-$(detect_os)}
 ARCH=${SIMPLEIDE_PKG_ARCH:-$(detect_arch)}
 ARTIFACT_BASE="simpleide-v${VERSION}-${OS}-${ARCH}"
+VARIANT=${SIMPLEIDE_PKG_VARIANT:-}
+if [ -n "$VARIANT" ]; then
+    ARTIFACT_BASE="$ARTIFACT_BASE-$VARIANT"
+fi
 
 fail() {
     echo "PACKAGE VALIDATION FAILED: $1" >&2

@@ -14,6 +14,7 @@ not cover a use case.
 - [Isolated modules](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Isolated-Modules) — use only one subsystem.
 - [Standalone RSyntaxTextArea](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-RSyntax) — editor without threads or LSP.
 - [Embedded editor](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor) — search, line numbers, local completion and LSP.
+- [Audio and video](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor#audio-and-video) — optional JavaFX media playback, platform support and fallback.
 - [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading) — EDT tasks, background tasks and managed pools.
 - [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages) — discovery, execution, input and output.
 - [Language Server Protocol](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP) — server discovery, installation and use.
@@ -33,8 +34,10 @@ not cover a use case.
 | Facade | Responsibility | Starts threads? | Starts Swing? |
 | --- | --- | --- | --- |
 | `io.simpleide.api.Editors` | Creates RSyntaxTextArea-based editors | No | Creates Swing components |
-| `io.simpleide.api.SimpleEditor` | Text, paged large-text, image and binary editor tab | Only when LSP starts | Creates Swing components |
+| `io.simpleide.api.SimpleEditor` | Text, paged large-text, image, audio, video and binary editor tab | Only when LSP starts | Creates Swing components |
 | `io.simpleide.api.ImageViewer` | ImageIO image viewer with zoom and scrolling | No | Creates Swing components |
+| `io.simpleide.api.MediaPlayback` | Platform-neutral audio/video player interface | No | Creates Swing components |
+| `io.simpleide.api.MediaPlaybacks` | Creates the JavaFX media players, or reports them unavailable | No | Creates Swing components |
 | `io.simpleide.api.LargeTextViewer` | Read-only paged viewer for large UTF-8 files | Page reads on demand | Creates Swing components |
 | `io.simpleide.api.HexEditor` | Chunked binary/hex editor with visible ASCII rows | No | Creates Swing components |
 | `io.simpleide.api.Threads` | Manages EDT and background tasks | Yes | No application frame |
@@ -49,6 +52,8 @@ not cover a use case.
 | `Editor` | `io.simpleide.ui.editor` | RSyntaxTextArea subclass with Simple IDE defaults |
 | `EditorTab` | `io.simpleide.ui.editor` | Editor plus search panel, line numbers and tab state |
 | `SimpleEditor` | `io.simpleide.api` | Embeddable wrapper around `EditorTab` and LSP |
+| `MediaPlayback` | `io.simpleide.api` | Audio/video player contract used by `SimpleEditor` |
+| `MediaPlaybacks` | `io.simpleide.api` | JavaFX media factory with platform availability detection |
 | `ThreadMaster` | `io.simpleide.thread` | Singleton thread tree and schedulers |
 | `RunnableNode` | `io.simpleide.thread.nodes.runnable` | Background task node |
 | `EDTNode` | `io.simpleide.thread.nodes.edt` | Swing EDT task node |

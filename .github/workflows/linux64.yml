@@ -15,6 +15,7 @@ jobs:
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x64
+      SIMPLEIDE_DEBIAN_IMAGE: debian:10
 
     strategy:
       fail-fast: false
@@ -39,7 +40,7 @@ jobs:
         env:
           SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
           SIMPLEIDE_CI_ARCH: x64
-          BUILD_PACKAGES: ${{ matrix.java == '17' }}
+          BUILD_PACKAGES: ${{ matrix.java == '17' || matrix.java == '21' }}
         run: |
           set -eu
 

@@ -15,6 +15,9 @@ jobs:
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-arm64
+      # OpenJFX arm64 natives need glibc 2.34, so the JavaFX 23 package is built
+      # on Debian 12. The other JDKs keep exercising the glibc 2.28 baseline.
+      SIMPLEIDE_DEBIAN_IMAGE: ${{ matrix.java == '21' && 'debian:12' || 'debian:10' }}
 
     strategy:
       fail-fast: false
@@ -39,7 +42,7 @@ jobs:
         env:
           SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
           SIMPLEIDE_CI_ARCH: arm64
-          BUILD_PACKAGES: ${{ matrix.java == '17' }}
+          BUILD_PACKAGES: ${{ matrix.java == '17' || matrix.java == '21' }}
         run: |
           set -eu
 

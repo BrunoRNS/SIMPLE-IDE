@@ -63,7 +63,7 @@ jobs:
         run: make test
 
       - name: Validate fat JAR and generated packages
-        if: matrix.java == '17'
+        if: matrix.java == '17' || matrix.java == '21'
         env:
           SIMPLEIDE_PKG_OS: macos
           SIMPLEIDE_PKG_ARCH: arm64

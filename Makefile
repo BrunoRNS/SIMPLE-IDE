@@ -11,25 +11,39 @@ PKG_DIR := simpleide/target/pkg
 VERSION := $(shell sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties 2>/dev/null | tr -d '\r')
 JAVA_OPTS ?= -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED
 
+# Audio/video playback is optional. Select the JavaFX release from the current
+# JDK and platform; unsupported platforms disable media and fall back to the
+# hex editor instead of downloading JavaFX. See scripts/javafx-version.sh.
+JAVAFX_MEDIA := $(shell sh scripts/javafx-version.sh 2>/dev/null || echo none)
+ifeq ($(JAVAFX_MEDIA),none)
+JAVAFX_ARGS := -Dmedia.viewer.skip=true
+JAVAFX_VARIANT := nojavafx
+else
+JAVAFX_ARGS := -Djavafx.version=$(JAVAFX_MEDIA)
+JAVAFX_VARIANT := javafx$(shell printf '%s' '$(JAVAFX_MEDIA)' | cut -d. -f1)
+endif
+export SIMPLEIDE_PKG_VARIANT := $(JAVAFX_VARIANT)
+MVN := $(MVNW) $(JAVAFX_ARGS)
+
 .PHONY: all build test test-nolang jar pkg pkg-verify change-version run clean format check-format format-check verify help
 
 all: test jar
 
 # Compile every module without running tests or packaging artifacts.
 build:
-	$(MVNW) -B -DskipTests compile
+	$(MVN) -B -DskipTests compile
 
 # Run the complete test suite.
 test: check-format
-	$(MVNW) -B test
+	$(MVN) -B test
 
 # Run the test suite without tests that require external language toolchains.
 test-nolang: check-format
-	$(MVNW) -B -DexcludedGroups=language-tools test
+	$(MVN) -B -DexcludedGroups=language-tools test
 
 # Package the executable fat JAR. Tests are intentionally not part of this target.
 jar:
-	$(MVNW) -B -DskipTests package
+	$(MVN) -B -DskipTests package
 	@echo "Fat JAR: $(APP_JAR)"
 
 # Build a self-contained jpackage application image for the current OS/arch.
@@ -60,12 +74,12 @@ run: jar
 
 # Apply Spring Java Format and the repository's import ordering to every Java source.
 format:
-	$(MVNW) -B spring-javaformat:apply
+	$(MVN) -B spring-javaformat:apply
 	java scripts/JavaImportFormatter.java --apply
 
 # Fail when Java sources violate Spring Java Format or the repository's import ordering.
 check-format:
-	$(MVNW) -B spring-javaformat:validate
+	$(MVN) -B spring-javaformat:validate
 	java scripts/JavaImportFormatter.java --check
 
 # Backwards-compatible alias for check-format.
@@ -75,7 +89,7 @@ format-check: check-format
 verify: check-format test jar
 
 clean:
-	$(MVNW) -B clean
+	$(MVN) -B clean
 	rm -rf "$(PKG_DIR)"
 
 help:

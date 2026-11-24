@@ -33,6 +33,7 @@ and Java on `PATH` (or `JAVA_HOME`).
 | `org.rauschig:jarchivelib` | 1.2.0 | Apache 2.0 | Extraction of bundled archives (BusyBox, LSP servers) |
 | `com.github.hypfvieh:dbus-java-core` | 5.1.1 | MIT | Linux StatusNotifierItem tray integration on Wayland desktops |
 | `com.github.hypfvieh:dbus-java-transport-jnr-unixsocket` | 5.1.1 | MIT | D-Bus session transport for Linux tray registration |
+| `org.openjfx:javafx-controls/media/swing` | 22.0.2 on JDK 17–20, 23.0.2 on JDK 21+ | GPLv2 with the Classpath Exception | Optional JavaFX media playback embedded in Swing; resolved only on platforms with OpenJFX natives |
 
 ## Runtime dependencies (simplebytecode-compiler module)
 
@@ -50,6 +51,13 @@ and Java on `PATH` (or `JAVA_HOME`).
 | `org.junit.jupiter:junit-jupiter-engine` | 5.14.4 | EPL 2.0 | Test framework |
 | `org.assertj:assertj-core` | 4.0.0-M1 | Apache 2.0 | Test assertions |
 | `org.awaitility:awaitility` | 4.2.2 | Apache 2.0 | Async test assertions |
+
+The JavaFX dependencies are optional. The build resolves them only on Linux
+`x64`/`arm64`, macOS `x64`/`arm64` and Windows `x64`, and only when the platform
+glibc satisfies the OpenJFX native floor. On every other platform the fat JAR
+has no JavaFX classes and media files open in the hex editor. The selection is
+implemented by `scripts/javafx-version.sh` and the Maven profiles in
+`simpleide/pom.xml`.
 
 Versions are re-checked against the `pom.xml` files when they change. Test
 dependencies are never included in the fat JAR.

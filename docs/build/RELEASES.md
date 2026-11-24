@@ -9,13 +9,17 @@ publishes a GitHub release from the version in
 | Artifact | Produced by | Naming |
 | --- | --- | --- |
 | Executable fat JAR | `make jar` | `simpleide-v<version>-any-with-deps.jar` |
-| Portable static package (zipped jpackage app image, no install required) | `make pkg` on Linux and Windows CI | `simpleide-v<version>-<os>-<arch>.zip` |
-| Linux `.deb` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>.deb` |
-| Linux `.rpm` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>.rpm` |
-| macOS `.dmg` installer | `make pkg` on macOS CI | `simpleide-v<version>-macos-<arch>.dmg` |
-| Windows `.msi` installer (x64 only) | `make pkg` on Windows CI | `simpleide-v<version>-windows-x64.msi` |
+| Portable static package (zipped jpackage app image, no install required) | `make pkg` on Linux and Windows CI | `simpleide-v<version>-<os>-<arch>-<variant>.zip` |
+| Linux `.deb` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>-<variant>.deb` |
+| Linux `.rpm` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>-<variant>.rpm` |
+| macOS `.dmg` installer | `make pkg` on macOS CI | `simpleide-v<version>-macos-<arch>-<variant>.dmg` |
+| Windows `.msi` installer (x64 only) | `make pkg` on Windows CI | `simpleide-v<version>-windows-x64-<variant>.msi` |
 
 `<os>` is `linux`, `macos` or `windows`; `<arch>` is `x64`, `x86` or `arm64`.
+`<variant>` identifies the optional media build: `javafx22`, `javafx23` or
+`nojavafx`. For example, `simpleide-v1.1.0-linux-x64-javafx23.deb` is the JDK 21
+build with JavaFX 23, while `simpleide-v1.1.0-linux-x86-nojavafx.deb` is the
+32-bit build that opens media files in the hex editor.
 `make pkg` builds the full set for the current OS: Linux produces the static
 zip, the `.deb` and the `.rpm`; macOS produces only the `.dmg`; Windows
 produces the static zip (whose launcher is the `SimpleIDE.exe` inside the app
@@ -39,10 +43,17 @@ release workflow rebuilds every platform, passes the packages between its jobs
 with `actions/upload-artifact`/`actions/download-artifact`, and attaches them
 to the GitHub release tag with `gh release upload`.
 
-Linux packages are built and validated inside an explicit Debian 10
-(`buster`) container. Debian 10 provides the minimum supported glibc (2.28),
-so a package that passes CI is known to run on every supported Linux
-distribution. Alpine is not used. See
+The release builds two media variants where the platform supports them:
+JDK 17 with JavaFX 22 and JDK 21 with JavaFX 23. Platforms that cannot run
+JavaFX (Linux `x86`, Windows `x86` and Windows `arm64`) produce the `nojavafx`
+variant, which opens audio and video files in the hex editor.
+
+Linux packages are built and validated inside an explicit Debian container.
+Debian 10 (`buster`) provides the minimum supported glibc (2.28), so a package
+that passes CI is known to run on every supported Linux distribution. The
+JavaFX 23 `arm64` package is built on Debian 12 (glibc 2.36) because the OpenJFX
+`arm64` native libraries require glibc 2.34; `x64` keeps the Debian 10 baseline
+because its JavaFX natives only need glibc 2.17. Alpine is not used. See
 [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 ## Version types

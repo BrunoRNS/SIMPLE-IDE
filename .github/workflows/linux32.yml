@@ -15,6 +15,7 @@ jobs:
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x86
+      SIMPLEIDE_DEBIAN_IMAGE: debian:10
 
     steps:
       - name: Check out repository

@@ -80,7 +80,7 @@ jobs:
           retention-days: 1
 
   linux-packages:
-    name: Package Linux ${{ matrix.pkg_arch }}
+    name: Package Linux ${{ matrix.pkg_arch }} (JDK ${{ matrix.java }})
     needs: metadata
     runs-on: ${{ matrix.runner }}
     strategy:
@@ -90,14 +90,34 @@ jobs:
           - runner: ubuntu-latest
             container_platform: linux/amd64
             pkg_arch: x64
+            java: "17"
+            image: debian:10
+
+          - runner: ubuntu-latest
+            container_platform: linux/amd64
+            pkg_arch: x64
+            java: "21"
+            image: debian:10
 
           - runner: ubuntu-24.04-arm
             container_platform: linux/arm64
             pkg_arch: arm64
+            java: "17"
+            image: debian:10
+
+          # OpenJFX arm64 natives require glibc 2.34, so the JavaFX 23 arm64
+          # package is built on Debian 12 (glibc 2.36).
+          - runner: ubuntu-24.04-arm
+            container_platform: linux/arm64
+            pkg_arch: arm64
+            java: "21"
+            image: debian:12
 
           - runner: ubuntu-latest
             container_platform: linux/386
             pkg_arch: x86
+            java: "17"
+            image: debian:10
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -105,10 +125,11 @@ jobs:
       - name: Prepare Maven cache
         run: mkdir -p "$HOME/.m2"
 
-      - name: Build Linux packages in Debian 10
+      - name: Build Linux packages in Debian
         env:
-          SIMPLEIDE_CI_JAVA: "17"
+          SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
           SIMPLEIDE_CI_ARCH: ${{ matrix.pkg_arch }}
+          SIMPLEIDE_DEBIAN_IMAGE: ${{ matrix.image }}
         run: |
           set -eu
 
@@ -118,13 +139,13 @@ jobs:
       - name: Upload Linux package artifact
         uses: actions/upload-artifact@v7
         with:
-          name: package-linux-${{ matrix.pkg_arch }}
-          path: simpleide/target/pkg/simpleide-v*-linux-${{ matrix.pkg_arch }}.*
+          name: package-linux-${{ matrix.pkg_arch }}-jdk${{ matrix.java }}
+          path: simpleide/target/pkg/simpleide-v*-linux-${{ matrix.pkg_arch }}-*.*
           if-no-files-found: error
           retention-days: 1
 
   native-packages:
-    name: Package ${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}
+    name: Package ${{ matrix.pkg_os }}-${{ matrix.pkg_arch }} (JDK ${{ matrix.java }})
     needs: metadata
     strategy:
       fail-fast: false
@@ -134,26 +155,49 @@ jobs:
             pkg_os: macos
             pkg_arch: x64
             java_arch: x64
+            java: "17"
+
+          - os: macos-15-intel
+            pkg_os: macos
+            pkg_arch: x64
+            java_arch: x64
+            java: "21"
 
           - os: macos-latest
             pkg_os: macos
             pkg_arch: arm64
             java_arch: aarch64
+            java: "17"
+
+          - os: macos-latest
+            pkg_os: macos
+            pkg_arch: arm64
+            java_arch: aarch64
+            java: "21"
 
           - os: windows-latest
             pkg_os: windows
             pkg_arch: x64
             java_arch: x64
+            java: "17"
+
+          - os: windows-latest
+            pkg_os: windows
+            pkg_arch: x64
+            java_arch: x64
+            java: "21"
 
           - os: windows-latest
             pkg_os: windows
             pkg_arch: x86
             java_arch: x86
+            java: "17"
 
           - os: windows-11-arm
             pkg_os: windows
             pkg_arch: arm64
             java_arch: aarch64
+            java: "17"
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
@@ -164,7 +208,7 @@ jobs:
         uses: actions/setup-java@v6
         with:
           distribution: zulu
-          java-version: "17"
+          java-version: ${{ matrix.java }}
           architecture: ${{ matrix.java_arch }}
           cache: maven
 
@@ -219,8 +263,8 @@ jobs:
       - name: Upload native package artifact
         uses: actions/upload-artifact@v7
         with:
-          name: package-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}
-          path: simpleide/target/pkg/simpleide-v*-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}.*
+          name: package-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}-jdk${{ matrix.java }}
+          path: simpleide/target/pkg/simpleide-v*-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}-*.*
           if-no-files-found: error
           retention-days: 1
 

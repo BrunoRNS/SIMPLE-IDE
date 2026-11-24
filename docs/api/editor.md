@@ -30,10 +30,78 @@ The component returned by `component()` is the `EditorTab`. It can be added to a
 `SimpleEditor.open(path)` uses the same content detection as the desktop IDE:
 UTF-8 text up to 2 MiB uses the regular editor, larger UTF-8 files use the
 read-only, paginated `LargeTextViewer`, ImageIO-readable files use `ImageViewer`,
-and other files use `HexEditor`. For files displayed in another viewer,
+and other files use `HexEditor`. Files with a known audio or video extension use
+the read-only media player when the platform supports JavaFX media; otherwise
+those files open in the hex editor. For files displayed in another viewer,
 `textArea()` throws `IllegalStateException`; use `imageViewer()`,
-`largeTextViewer()`, or `hexEditor()` as applicable. Language-server and local
-language support methods apply only to regular editable text files.
+`largeTextViewer()`, `audioViewer()`, `videoViewer()`, or `hexEditor()` as
+applicable. Language-server and local language support methods apply only to
+regular editable text files.
+
+## Audio and video
+
+Audio and video playback uses a JavaFX `MediaPlayer` embedded in Swing through
+`JFXPanel`. The public API is platform neutral: `audioViewer()` and
+`videoViewer()` return `MediaPlayback`, which exposes `component()`, `play()`,
+`pause()`, `stop()`, `setVolume(float)`, `isMediaLoaded()` and `close()`.
+`AudioViewer` and `VideoViewer` are the JavaFX implementations behind that
+interface.
+
+```java
+import io.simpleide.api.MediaPlayback;
+import io.simpleide.api.SimpleEditor;
+import java.nio.file.Path;
+
+try (SimpleEditor editor = SimpleEditor.open(Path.of("clip.mp4"))) {
+  MediaPlayback video = editor.videoViewer();
+  if (video != null) {
+    video.setVolume(0.5f);
+    video.play();
+  }
+  else {
+    // Media playback is unavailable on this platform; the file is in the hex editor.
+    System.out.println("Hex editor available: " + (editor.hexEditor() != null));
+  }
+}
+```
+
+Both players are read-only; closing the tab releases the JavaFX media pipeline.
+JavaFX loads media asynchronously and the `Media`/`MediaPlayer` objects are
+created on the JavaFX application thread, so opening a large file does not block
+the Swing window. Loading errors (unsupported codec, unreadable file, missing
+JavaFX toolkit) are reported on the player status label instead of failing
+silently.
+
+Supported extensions are `mp4`, `m4v`, `mov`, `mkv`, `webm`, `avi`, `wmv`,
+`flv`, `mpeg`, `mpg` and `3gp` for video, and `wav`, `wave`, `aif`, `aiff`,
+`aifc`, `mp3`, `mp2`, `m4a`, `flac`, `ogg`, `oga`, `opus`, `aac`, `ape`, `spx`
+and `wv` for audio. The actual codec support comes from JavaFX and its FFmpeg
+plug-in; a file with a known extension can still fail to decode.
+
+### Platform support
+
+The JavaFX viewers are compiled and packaged only where OpenJFX publishes native
+artifacts. Everywhere else the build does not download JavaFX and audio/video
+files open in the hex editor.
+
+| Platform | Media playback |
+| --- | --- |
+| Linux `x86_64` | Yes, with a graphical session, GTK 3, ALSA or PulseAudio and system FFmpeg |
+| Linux `arm64` | Yes on glibc 2.34 or newer (Debian 12+, Ubuntu 22.04+); the rest of the IDE still supports glibc 2.28 |
+| macOS `x64` and `arm64` | Yes, with a graphical session and JavaFX codecs |
+| Windows `x64` | Yes, with a graphical session and JavaFX codecs |
+| Linux `x86` (32-bit) | No; files open in `HexEditor` with a log warning |
+| Windows `x86` and `arm64` | No; files open in `HexEditor` with a log warning |
+
+The Maven build selects JavaFX 22.0.2 on JDK 17 through 20, and JavaFX 23.0.2
+on JDK 21 and newer when the platform glibc satisfies the OpenJFX native floor.
+When JavaFX 23 cannot run but JavaFX 22 can, it falls back to JavaFX 22; when
+neither can run, the platform builds without media support. The same source
+compiles and runs against both versions. On Linux the runtime also needs the
+native libraries listed in
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux#audio-and-video-playback).
+Use `MediaPlaybacks.isAvailable()` to decide whether to show media controls in
+your own UI.
 
 ## Image, large-text, and binary viewers
 
@@ -92,6 +160,8 @@ the hex editor.
 | `tab()` | Return the underlying `EditorTab` |
 | `textArea()` | Return the `Editor`; throws when a specialized viewer is active |
 | `imageViewer()` | Return the image viewer for image files, otherwise `null` |
+| `audioViewer()` | Return the `MediaPlayback` for audio files, otherwise `null` |
+| `videoViewer()` | Return the `MediaPlayback` for video files, otherwise `null` |
 | `largeTextViewer()` | Return the paginated read-only viewer for large text, otherwise `null` |
 | `hexEditor()` | Return the hex editor for binary files, otherwise `null` |
 | `document()` | Return the LSP `Document` |

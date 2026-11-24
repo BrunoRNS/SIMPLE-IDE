@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
-# Prepares a Debian 10 (buster) container and runs one or more CI tasks.
+# Prepares a Debian container and runs one or more CI tasks.
 #
-# Debian 10 is the oldest distribution whose glibc (2.28) satisfies every
-# bundled dependency, including the 32-bit pty4j native library and the newer
-# JDKs. Alpine is intentionally not supported: its musl libc cannot run the
+# Debian 10 (buster, glibc 2.28) is the oldest distribution whose glibc
+# satisfies every bundled dependency, including the 32-bit pty4j native library
+# and the newer JDKs. Debian 12 (bookworm, glibc 2.36) is used for the JavaFX 23
+# Linux arm64 package, because the OpenJFX arm64 natives require glibc 2.34.
+# Alpine is intentionally not supported: its musl libc cannot run the
 # glibc-linked JDK and native terminal binaries.
 #
 # Usage (inside the container, from the repository root):
@@ -91,12 +93,26 @@ echo "architecture: $ARCH ($(dpkg --print-architecture))"
 # Debian archive
 # ------------------------------------------------------------------
 
-# Debian 10 is archived; the regular mirrors no longer serve buster.
-cat >/etc/apt/sources.list <<'EOF'
+CODENAME=$(. /etc/os-release 2>/dev/null && printf '%s' "${VERSION_CODENAME:-}")
+if [ -z "$CODENAME" ]; then
+	echo "error: unable to read the Debian codename from /etc/os-release" >&2
+	exit 1
+fi
+
+if [ "$CODENAME" = "buster" ]; then
+	# Debian 10 is archived; the regular mirrors no longer serve buster.
+	cat >/etc/apt/sources.list <<'EOF'
 deb http://archive.debian.org/debian buster main
 deb http://archive.debian.org/debian buster-updates main
 deb http://archive.debian.org/debian-security buster/updates main
 EOF
+else
+	cat >/etc/apt/sources.list <<EOF
+deb http://deb.debian.org/debian $CODENAME main
+deb http://deb.debian.org/debian $CODENAME-updates main
+deb http://deb.debian.org/debian-security $CODENAME-security main
+EOF
+fi
 
 rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
 
@@ -125,7 +141,14 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 	rustc \
 	unzip \
 	xz-utils \
-	zip
+	zip \
+	ffmpeg \
+	libasound2 \
+	libgl1 \
+	libgtk-3-0 \
+	libx11-6 \
+	libxxf86vm1 \
+	libxtst6
 
 # ------------------------------------------------------------------
 # Java

@@ -16,6 +16,11 @@ target names and keeps the fat JAR and package paths in one place.
   `Compress-Archive` is used on Windows.
 - External language toolchains for the full test suite. See
   [Runtime tools](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime).
+- Optional audio/video support on Linux: GTK 3, ALSA and FFmpeg. `make` selects
+  JavaFX 22 on JDK 17–20 and JavaFX 23 on JDK 21+ when the platform glibc
+  supports it; unsupported platforms build without JavaFX and open media files
+  in the hex editor. See
+  [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux#audio-and-video-playback).
 
 Check the environment:
 
@@ -34,7 +39,7 @@ make help
 | `make test` | Full test suite | Surefire reports |
 | `make test-nolang` | Tests without the `language-tools` tag | Surefire reports |
 | `make jar` | Package the executable fat JAR, skip tests | `simpleide/target/simpleide.jar` |
-| `make pkg` | `jar` plus every package type for the current OS/arch (Linux: zip + deb + rpm; macOS: dmg; Windows: zip, plus msi on x64 only) | `simpleide/target/pkg/` |
+| `make pkg` | `jar` plus every package type for the current OS/arch (Linux: zip + deb + rpm; macOS: dmg; Windows: zip, plus msi on x64 only). Artifacts carry the `javafx22`, `javafx23` or `nojavafx` variant suffix | `simpleide/target/pkg/` |
 | `make pkg-verify` | `pkg` plus validation of every produced package | Exit status |
 | `make change-version VERSAO` | Validate and change the project version after confirmation | Updated pom and properties files |
 | `make run` | `jar` then launch the fat JAR | A running IDE |

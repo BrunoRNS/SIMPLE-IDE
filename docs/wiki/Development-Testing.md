@@ -43,6 +43,31 @@ simpleide/src/test/java/io/simpleide/
 Test resources are under `simpleide/src/test/resources`. Prefer classpath
 resources over hard-coded absolute paths.
 
+### Media tests
+
+`AudioViewerTest` and `VideoViewerTest` live under
+`simpleide/src/test/javafx/java` and are compiled only when the platform
+publishes JavaFX native artifacts. They use the sample files in
+`simpleide/src/test/resources/io/simpleide/media`.
+
+- Construction, null-path and close tests run everywhere and never need a
+  display.
+- Playback tests are skipped in a headless session. They probe the JavaFX media
+  backend first and abort when no media backend is available, so a build without
+  audio or codecs stays green.
+- `EditorManagerTest` verifies both paths: the media viewer when
+  `MediaPlaybacks.isAvailable()` is true, and the hex-editor fallback otherwise
+  (32-bit builds, Windows ARM64 and unsupported architectures).
+
+Run the media tests on a desktop session with:
+
+```sh
+make test
+```
+
+On Linux, install GTK 3, ALSA and FFmpeg first; see
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux#audio-and-video-playback).
+
 ## Tags
 
 Tests that execute real external toolchains are tagged:

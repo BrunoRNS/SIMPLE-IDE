@@ -97,18 +97,22 @@ Download from [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/releases):
 
 - `simpleide-v<version>-any-with-deps.jar` — platform-independent, run with
   `java -jar`.
-- `simpleide-v<version>-<os>-<arch>.zip` — self-contained static package for
-  Linux and Windows, no installation step.
-- `simpleide-v<version>-linux-<arch>.deb` / `.rpm`,
-  `simpleide-v<version>-macos-<arch>.dmg` and
-  `simpleide-v<version>-windows-x64.msi` — native installers per platform. The
-  Windows `.msi` is published for `x64` only; `x86` and `arm64` ship the zip.
+- `simpleide-v<version>-<os>-<arch>-<variant>.zip` — self-contained static
+  package for Linux and Windows, no installation step.
+- `simpleide-v<version>-linux-<arch>-<variant>.deb` / `.rpm`,
+  `simpleide-v<version>-macos-<arch>-<variant>.dmg` and
+  `simpleide-v<version>-windows-x64-<variant>.msi` — native installers per
+  platform. The Windows `.msi` is published for `x64` only; `x86` and `arm64`
+  ship the zip. `<variant>` is `javafx22`, `javafx23` or `nojavafx`, and selects
+  the JavaFX media build (or the hex-editor fallback) shipped in the package.
 
 Beta versions (e.g. `1.0.0beta`) are published as pre-releases.
 
 Linux builds require a GNU/Linux distribution with **glibc 2.28 or newer**
 (Debian 10+, Ubuntu 18.10+, Fedora 29+, RHEL 8+). Alpine Linux and other
-musl-based distributions are not supported. See
+musl-based distributions are not supported. Audio and video playback is
+optional and additionally needs GTK 3, ALSA or PulseAudio and system FFmpeg; on
+`arm64` the JavaFX natives require glibc 2.34. See
 [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 Windows builds require **Windows 10** on `x86` and `x64`, and **Windows 11** on
