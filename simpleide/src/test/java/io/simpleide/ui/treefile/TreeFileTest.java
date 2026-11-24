@@ -1,5 +1,10 @@
 package io.simpleide.ui.treefile;
 
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.datatransfer.Transferable;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTargetDropEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -11,6 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.imageio.ImageIO;
+import javax.swing.Action;
 import javax.swing.Icon;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
@@ -649,6 +655,241 @@ class TreeFileTest {
 			return super.readChildrenFromDisk();
 		}
 
+	}
+
+	@Test
+	void copyAndPasteFileInSameDirectory() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-copy-");
+		try {
+			Path filePath = Files.writeString(root.resolve("source.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getFileActions().copySelected();
+			});
+			flushEdt();
+
+			SwingUtilities.invokeAndWait(() -> tree.getFileActions().pasteSelected());
+			flushEdt();
+
+			assertThat(rootDirectory.getChildren()).extracting(TreeFile::getName).contains("source.txt", "source.txt");
+			assertThat(Files.exists(root.resolve("source.txt"))).isTrue();
+			assertThat(Files.exists(root.resolve("source.txt"))).isTrue();
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void cutAndPasteFileToDifferentDirectory() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-cut-");
+		try {
+			Path srcDir = Files.createDirectory(root.resolve("src"));
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Path filePath = Files.writeString(srcDir.resolve("move.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode srcNode = childNamed(rootNode, "src");
+			DefaultMutableTreeNode fileNode = childNamed((DefaultMutableTreeNode) srcNode.getChildAt(0), "move.txt");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getFileActions().cutSelected();
+			});
+			flushEdt();
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(dstNode.getPath()));
+				tree.getFileActions().pasteSelected();
+			});
+			flushEdt();
+
+			assertThat(Files.exists(srcDir.resolve("move.txt"))).isFalse();
+			assertThat(Files.exists(dstDir.resolve("move.txt"))).isTrue();
+			TreeFileClipboard.getInstance().clear();
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("src/move.txt"));
+			Files.deleteIfExists(root.resolve("dst/move.txt"));
+			Files.deleteIfExists(root.resolve("src"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void copyAndPasteDirectory() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-copy-dir-");
+		try {
+			Path srcDir = Files.createDirectory(root.resolve("src"));
+			Files.writeString(srcDir.resolve("file.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode srcNode = childNamed(rootNode, "src");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(srcNode.getPath()));
+				tree.getFileActions().copySelected();
+			});
+			flushEdt();
+
+			SwingUtilities.invokeAndWait(() -> tree.getFileActions().pasteSelected());
+			flushEdt();
+
+			assertThat(rootDirectory.getChildren()).extracting(TreeFile::getName).contains("src", "src");
+			assertThat(Files.exists(root.resolve("src/file.txt"))).isTrue();
+			assertThat(Files.exists(root.resolve("src/file.txt"))).isTrue();
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("src/file.txt"));
+			Files.deleteIfExists(root.resolve("src"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void pasteIntoNonExistentTargetShowsWarning() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-paste-error-");
+		try {
+			Path filePath = Files.writeString(root.resolve("source.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getFileActions().copySelected();
+			});
+			flushEdt();
+
+			Files.writeString(root.resolve("source.txt"), "existing");
+
+			SwingUtilities.invokeAndWait(() -> tree.getFileActions().pasteSelected());
+			flushEdt();
+
+			assertThat(rootDirectory.getChildren()).extracting(TreeFile::getName).containsExactly("source.txt");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void keyboardShortcutsTriggerActions() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-keyboard-");
+		try {
+			Path filePath = Files.writeString(root.resolve("source.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+
+			Action copyAction = tree.getActionMap().get("copy");
+			assertThat(copyAction).isNotNull();
+			SwingUtilities.invokeAndWait(() -> copyAction.actionPerformed(null));
+			flushEdt();
+
+			Action pasteAction = tree.getActionMap().get("paste");
+			assertThat(pasteAction).isNotNull();
+			SwingUtilities.invokeAndWait(() -> pasteAction.actionPerformed(null));
+			flushEdt();
+
+			assertThat(rootDirectory.getChildren()).extracting(TreeFile::getName).contains("source.txt", "source.txt");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void dragAndDropMovesFile() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-dnd-");
+		try {
+			Path srcDir = Files.createDirectory(root.resolve("src"));
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Path filePath = Files.writeString(srcDir.resolve("move.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode srcNode = childNamed(rootNode, "src");
+			DefaultMutableTreeNode fileNode = childNamed((DefaultMutableTreeNode) srcNode.getChildAt(0), "move.txt");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+
+			Transferable transferable = tree.getTransferHandler().createTransferable(tree);
+			assertThat(transferable).isNotNull();
+			assertThat(transferable.isDataFlavorSupported(TreeFileTransferable.TREE_FILE_FLAVOR)).isTrue();
+
+			DropTargetDropEvent dropEvent = createDropEvent(tree, dstNode, transferable, DnDConstants.ACTION_MOVE);
+			tree.getDropTarget().drop(dropEvent);
+			flushEdt();
+
+			assertThat(Files.exists(srcDir.resolve("move.txt"))).isFalse();
+			assertThat(Files.exists(dstDir.resolve("move.txt"))).isTrue();
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("src/move.txt"));
+			Files.deleteIfExists(root.resolve("dst/move.txt"));
+			Files.deleteIfExists(root.resolve("src"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void dragAndDropCopiesFileWithCtrl() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-dnd-copy-");
+		try {
+			Path filePath = Files.writeString(root.resolve("source.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+
+			Transferable transferable = tree.getTransferHandler().createTransferable(tree);
+			assertThat(transferable).isNotNull();
+
+			DropTargetDropEvent dropEvent = createDropEvent(tree, rootNode, transferable, DnDConstants.ACTION_COPY);
+			tree.getDropTarget().drop(dropEvent);
+			flushEdt();
+
+			assertThat(rootDirectory.getChildren()).extracting(TreeFile::getName).contains("source.txt", "source.txt");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	private DropTargetDropEvent createDropEvent(JTree tree, DefaultMutableTreeNode targetNode,
+			Transferable transferable, int action) {
+		Point point = new Point();
+		SwingUtilities.invokeAndWait(() -> {
+			TreePath path = new TreePath(targetNode.getPath());
+			Rectangle bounds = tree.getPathBounds(path);
+			point.setLocation(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+		});
+		return new DropTargetDropEvent(tree.getDropTarget().getDropTargetContext(), point, action, transferable);
 	}
 
 }

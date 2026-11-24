@@ -2,8 +2,12 @@ package io.simpleide.ui.treefile;
 
 import java.awt.event.MouseEvent;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Enumeration;
+import java.util.List;
 
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -47,6 +51,12 @@ public final class TreeFileActions {
 
 	private JPopupMenu contextMenu;
 
+	private JMenuItem copyItem;
+
+	private JMenuItem cutItem;
+
+	private JMenuItem pasteItem;
+
 	private JMenuItem renameItem;
 
 	private JMenuItem deleteItem;
@@ -60,6 +70,9 @@ public final class TreeFileActions {
 		contextMenu = new JPopupMenu();
 		addMenuItem(contextMenu, "New file", this::promptCreateFile);
 		addMenuItem(contextMenu, "New folder", this::promptCreateDirectory);
+		copyItem = addMenuItem(contextMenu, "Copy", this::copySelected);
+		cutItem = addMenuItem(contextMenu, "Cut", this::cutSelected);
+		pasteItem = addMenuItem(contextMenu, "Paste", this::pasteSelected);
 		renameItem = addMenuItem(contextMenu, "Rename", this::promptRename);
 		deleteItem = addMenuItem(contextMenu, "Delete", this::promptDelete);
 
@@ -75,7 +88,7 @@ public final class TreeFileActions {
 		if (clickedPath != null) {
 			tree.setSelectionPath(clickedPath);
 		}
-		updateMenuActions(renameItem, deleteItem);
+		updateMenuActions(renameItem, deleteItem, copyItem, cutItem, pasteItem);
 		SwingUtilities.updateComponentTreeUI(contextMenu);
 		contextMenu.show(event.getComponent(), event.getX(), event.getY());
 	}
@@ -112,6 +125,91 @@ public final class TreeFileActions {
 		selectPath(parentDirectory.getPath());
 	}
 
+	void copySelected() {
+		TreePath selectedPath = tree.getSelectionPath();
+		TreeFile selected = state.getSelected();
+		if (!isSelectedPath(selectedPath, selected) || selectedPath.getParentPath() == null) {
+			return;
+		}
+		TreeFileClipboard.getInstance().setCopied(List.of(selected));
+	}
+
+	void cutSelected() {
+		TreePath selectedPath = tree.getSelectionPath();
+		TreeFile selected = state.getSelected();
+		if (!isSelectedPath(selectedPath, selected) || selectedPath.getParentPath() == null) {
+			return;
+		}
+		TreeFileClipboard.getInstance().setCut(List.of(selected));
+	}
+
+	void pasteSelected() {
+		Directory targetDirectory = state.getCurrentDirectory();
+		if (targetDirectory == null) {
+			return;
+		}
+
+		List<TreeFile> entries = TreeFileClipboard.getInstance().getEntries();
+		boolean isCut = TreeFileClipboard.getInstance().isCut();
+		if (entries.isEmpty()) {
+			return;
+		}
+
+		try {
+			targetDirectory.loadChildren();
+			for (TreeFile entry : entries) {
+				Path sourcePath = entry.getPath();
+				Path targetPath = targetDirectory.getPath().resolve(sourcePath.getFileName());
+				if (Files.exists(targetPath)) {
+					new WarningPopUP("File exists", "A file or directory named \"" + targetPath.getFileName()
+							+ "\" already exists in the target directory.", tree)
+						.startManaged();
+					return;
+				}
+				if (isCut) {
+					Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+				}
+				else {
+					copyRecursively(sourcePath, targetPath);
+				}
+			}
+			targetDirectory.refreshChildren();
+			refreshDirectoryNode(targetDirectory);
+			if (isCut) {
+				TreeFileClipboard.getInstance().clear();
+			}
+		}
+		catch (IllegalArgumentException exception) {
+			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
+		}
+		catch (FileAlreadyExistsException exception) {
+			new WarningPopUP("File exists", "A file or directory with that name already exists.", tree).startManaged();
+		}
+		catch (IOException exception) {
+			LOGGER.error("Unable to paste.", exception);
+			showError(exception);
+		}
+	}
+
+	private void copyRecursively(Path source, Path target) throws IOException {
+		if (Files.isDirectory(source)) {
+			Files.createDirectory(target);
+			try (var stream = Files.list(source)) {
+				stream.forEach(child -> {
+					try {
+						copyRecursively(child, target.resolve(child.getFileName()));
+					}
+					catch (IOException exception) {
+						throw new RuntimeException(exception);
+					}
+				});
+			}
+		}
+		else {
+			Files.copy(source, target);
+		}
+	}
+
 	private JMenuItem addMenuItem(JPopupMenu menu, String label, Runnable action) {
 		JMenuItem item = new JMenuItem(label);
 		item.addActionListener(new ActionNode(event -> action.run()));
@@ -119,11 +217,17 @@ public final class TreeFileActions {
 		return item;
 	}
 
-	private void updateMenuActions(JMenuItem rename, JMenuItem delete) {
+	private void updateMenuActions(JMenuItem rename, JMenuItem delete, JMenuItem copy, JMenuItem cut, JMenuItem paste) {
 		TreePath selectedPath = tree.getSelectionPath();
 		TreeFile selected = getSelectedFile(selectedPath);
-		rename.setEnabled(selected != null && selectedPath.getParentPath() != null);
-		delete.setEnabled(selected != null && selected.getPath().getParent() != null);
+		boolean canEdit = selected != null && selectedPath.getParentPath() != null;
+		boolean canDelete = selected != null && selected.getPath().getParent() != null;
+		boolean canPaste = !TreeFileClipboard.getInstance().isEmpty() && state.getCurrentDirectory() != null;
+		rename.setEnabled(canEdit);
+		delete.setEnabled(canDelete);
+		copy.setEnabled(canEdit);
+		cut.setEnabled(canEdit);
+		paste.setEnabled(canPaste);
 	}
 
 	private void promptRename() {
@@ -224,7 +328,7 @@ public final class TreeFileActions {
 		}
 	}
 
-	private void refreshDirectoryNode(Directory directory) {
+	void refreshDirectoryNode(Directory directory) {
 		DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
 		Enumeration<?> nodes = root.depthFirstEnumeration();
 		while (nodes.hasMoreElements()) {

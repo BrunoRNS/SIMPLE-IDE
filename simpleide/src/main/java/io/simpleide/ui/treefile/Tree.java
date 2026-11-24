@@ -1,8 +1,20 @@
 package io.simpleide.ui.treefile;
 
 import java.awt.Color;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.awt.dnd.DnDConstants;
+import java.awt.dnd.DropTarget;
+import java.awt.dnd.DropTargetDragEvent;
+import java.awt.dnd.DropTargetDropEvent;
+import java.awt.dnd.DropTargetEvent;
+import java.awt.dnd.DropTargetListener;
+import java.awt.event.KeyEvent;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -13,8 +25,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import javax.swing.JComponent;
 import javax.swing.JTree;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.TransferHandler;
 import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
@@ -81,6 +98,42 @@ public class Tree extends JTree {
 		fileActions.installContextMenu();
 		LOGGER.info("Tree state initialized: currentDirectory={}", root.getPath());
 		addTreeWillExpandListener(new TreeWillExpandNode().onExpand(event -> loadChildren(event.getPath())));
+		installKeyboardActions();
+		installDragAndDrop();
+	}
+
+	private void installKeyboardActions() {
+		getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK),
+				"copy");
+		getActionMap().put("copy", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				fileActions.copySelected();
+			}
+		});
+
+		getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.CTRL_DOWN_MASK), "cut");
+		getActionMap().put("cut", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				fileActions.cutSelected();
+			}
+		});
+
+		getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_V, KeyEvent.CTRL_DOWN_MASK),
+				"paste");
+		getActionMap().put("paste", new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent e) {
+				fileActions.pasteSelected();
+			}
+		});
+	}
+
+	private void installDragAndDrop() {
+		setDragEnabled(true);
+		setTransferHandler(new TreeFileTransferHandler(this));
+		setDropTarget(new DropTarget(this, new TreeFileDropTargetListener(this)));
 	}
 
 	/**
@@ -89,6 +142,14 @@ public class Tree extends JTree {
 	 */
 	public TreeState getState() {
 		return state;
+	}
+
+	/**
+	 * Returns the file actions for testing purposes.
+	 * @return the file actions
+	 */
+	TreeFileActions getFileActions() {
+		return fileActions;
 	}
 
 	/**
@@ -352,6 +413,239 @@ public class Tree extends JTree {
 	 */
 	public void createNewDirectory() {
 		fileActions.createNewDirectory();
+	}
+
+	/**
+	 * Refreshes a directory node in the tree model.
+	 * @param directory the directory to refresh
+	 */
+	void refreshDirectoryNode(Directory directory) {
+		fileActions.refreshDirectoryNode(directory);
+	}
+
+}
+
+/**
+ * Transfer handler for drag-and-drop operations on the file tree.
+ */
+final class TreeFileTransferHandler extends TransferHandler {
+
+	private final Tree tree;
+
+	TreeFileTransferHandler(Tree tree) {
+		this.tree = tree;
+	}
+
+	@Override
+	public int getSourceActions(JComponent c) {
+		return DnDConstants.ACTION_COPY_OR_MOVE;
+	}
+
+	@Override
+	public Transferable createTransferable(JComponent c) {
+		TreePath selectionPath = tree.getSelectionPath();
+		if (selectionPath == null) {
+			return null;
+		}
+		Object userObject = ((DefaultMutableTreeNode) selectionPath.getLastPathComponent()).getUserObject();
+		if (!(userObject instanceof TreeFile file)) {
+			return null;
+		}
+		return new TreeFileTransferable(List.of(file));
+	}
+
+	@Override
+	public void exportDone(JComponent source, Transferable data, int action) {
+		if (action == DnDConstants.ACTION_MOVE) {
+			// The drop target listener handles the actual move
+		}
+	}
+
+}
+
+/**
+ * Transferable for TreeFile entries.
+ */
+final class TreeFileTransferable implements Transferable {
+
+	static final DataFlavor TREE_FILE_FLAVOR = new DataFlavor(TreeFile.class, "TreeFile");
+
+	private final List<TreeFile> files;
+
+	TreeFileTransferable(List<TreeFile> files) {
+		this.files = files;
+	}
+
+	@Override
+	public DataFlavor[] getTransferDataFlavors() {
+		return new DataFlavor[] { TREE_FILE_FLAVOR };
+	}
+
+	@Override
+	public boolean isDataFlavorSupported(DataFlavor flavor) {
+		return TREE_FILE_FLAVOR.equals(flavor);
+	}
+
+	@Override
+	public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException {
+		if (!isDataFlavorSupported(flavor)) {
+			throw new UnsupportedFlavorException(flavor);
+		}
+		return files;
+	}
+
+}
+
+/**
+ * Drop target listener for handling drops on the file tree.
+ */
+final class TreeFileDropTargetListener implements DropTargetListener {
+
+	private static final Logger LOGGER = LoggerFactory.getLogger(TreeFileDropTargetListener.class);
+
+	private final Tree tree;
+
+	TreeFileDropTargetListener(Tree tree) {
+		this.tree = tree;
+	}
+
+	@Override
+	public void dragEnter(DropTargetDragEvent dtde) {
+		if (isValidDrop(dtde)) {
+			dtde.acceptDrag(DnDConstants.ACTION_COPY_OR_MOVE);
+		}
+		else {
+			dtde.rejectDrag();
+		}
+	}
+
+	@Override
+	public void dragOver(DropTargetDragEvent dtde) {
+		if (isValidDrop(dtde)) {
+			dtde.acceptDrag(DnDConstants.ACTION_COPY_OR_MOVE);
+		}
+		else {
+			dtde.rejectDrag();
+		}
+	}
+
+	@Override
+	public void dropActionChanged(DropTargetDragEvent dtde) {
+		dragOver(dtde);
+	}
+
+	@Override
+	public void dragExit(DropTargetEvent dte) {
+	}
+
+	@Override
+	public void drop(DropTargetDropEvent dtde) {
+		if (!isValidDrop(dtde)) {
+			dtde.rejectDrop();
+			return;
+		}
+
+		try {
+			Transferable transferable = dtde.getTransferable();
+			if (transferable.isDataFlavorSupported(TreeFileTransferable.TREE_FILE_FLAVOR)) {
+				@SuppressWarnings("unchecked")
+				List<TreeFile> files = (List<TreeFile>) transferable
+					.getTransferData(TreeFileTransferable.TREE_FILE_FLAVOR);
+				TreePath dropPath = tree.getPathForLocation(dtde.getLocation().x, dtde.getLocation().y);
+				Directory targetDirectory = getTargetDirectory(dropPath);
+				if (targetDirectory == null) {
+					dtde.rejectDrop();
+					return;
+				}
+
+				boolean isMove = (dtde.getDropAction() & DnDConstants.ACTION_MOVE) != 0;
+				boolean success = performDrop(files, targetDirectory, isMove);
+				if (success) {
+					dtde.acceptDrop(dtde.getDropAction());
+				}
+				else {
+					dtde.rejectDrop();
+				}
+			}
+			else {
+				dtde.rejectDrop();
+			}
+		}
+		catch (Exception exception) {
+			LOGGER.error("Drop failed.", exception);
+			dtde.rejectDrop();
+		}
+	}
+
+	private boolean isValidDrop(DropTargetDragEvent dtde) {
+		return dtde.isDataFlavorSupported(TreeFileTransferable.TREE_FILE_FLAVOR);
+	}
+
+	private boolean isValidDrop(DropTargetDropEvent dtde) {
+		return dtde.isDataFlavorSupported(TreeFileTransferable.TREE_FILE_FLAVOR);
+	}
+
+	Directory getTargetDirectory(TreePath dropPath) {
+		if (dropPath == null) {
+			return tree.getState().getCurrentDirectory();
+		}
+		Object userObject = ((DefaultMutableTreeNode) dropPath.getLastPathComponent()).getUserObject();
+		if (userObject instanceof Directory directory) {
+			return directory;
+		}
+		if (userObject instanceof TreeFile file && dropPath.getParentPath() != null) {
+			Object parentObject = ((DefaultMutableTreeNode) dropPath.getParentPath().getLastPathComponent())
+				.getUserObject();
+			if (parentObject instanceof Directory directory) {
+				return directory;
+			}
+		}
+		return tree.getState().getCurrentDirectory();
+	}
+
+	boolean performDrop(List<TreeFile> files, Directory targetDirectory, boolean isMove) {
+		try {
+			targetDirectory.loadChildren();
+			for (TreeFile file : files) {
+				Path sourcePath = file.getPath();
+				Path targetPath = targetDirectory.getPath().resolve(sourcePath.getFileName());
+				if (Files.exists(targetPath)) {
+					return false;
+				}
+				if (isMove) {
+					Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+				}
+				else {
+					copyRecursively(sourcePath, targetPath);
+				}
+			}
+			targetDirectory.refreshChildren();
+			tree.refreshDirectoryNode(targetDirectory);
+			return true;
+		}
+		catch (IOException exception) {
+			LOGGER.error("Drop failed.", exception);
+			return false;
+		}
+	}
+
+	private void copyRecursively(Path source, Path target) throws IOException {
+		if (Files.isDirectory(source)) {
+			Files.createDirectory(target);
+			try (var stream = Files.list(source)) {
+				stream.forEach(child -> {
+					try {
+						copyRecursively(child, target.resolve(child.getFileName()));
+					}
+					catch (IOException exception) {
+						throw new RuntimeException(exception);
+					}
+				});
+			}
+		}
+		else {
+			Files.copy(source, target);
+		}
 	}
 
 }
