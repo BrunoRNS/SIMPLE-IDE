@@ -4,18 +4,19 @@
 #
 # Debian 10 (buster, glibc 2.28) is the oldest distribution whose glibc
 # satisfies every bundled dependency, including the 32-bit pty4j native library
-# and the newer JDKs. Debian 12 (bookworm, glibc 2.36) is used for the JavaFX 23
-# Linux arm64 package, because the OpenJFX arm64 natives require glibc 2.34.
+# and the newer JDKs. Linux arm64 builds always use the nojavafx media variant,
+# so no OpenJFX native artifacts are required here.
 # Alpine is intentionally not supported: its musl libc cannot run the
 # glibc-linked JDK and native terminal binaries.
 #
 # Usage (inside the container, from the repository root):
 #
-#   bash scripts/ci/linux-debian.sh [test] [pkg] [verify]
+#   bash scripts/ci/linux-debian.sh [test] [consumer] [pkg] [verify]
 #
-#   test    Run the full Maven test suite.
-#   pkg     Build and validate every Linux package for this architecture.
-#   verify  Print the installed toolchain versions and exit.
+#   test      Run the full Maven test suite.
+#   consumer  Validate the Maven consumer media variants (no/22/23/auto).
+#   pkg       Build and validate every Linux package for this architecture.
+#   verify    Print the installed toolchain versions and exit.
 #
 # Environment:
 #
@@ -321,6 +322,10 @@ for TASK in "${TASKS[@]}"; do
 			echo "=== Running tests ==="
 			make test
 			;;
+		consumer)
+			echo "=== Validating Maven consumer media variants ==="
+			make test-consumer
+			;;
 		pkg)
 			echo "=== Building and validating Linux packages ==="
 			SIMPLEIDE_PKG_OS=linux SIMPLEIDE_PKG_ARCH="$ARCH" make pkg-verify
@@ -330,7 +335,7 @@ for TASK in "${TASKS[@]}"; do
 			;;
 		*)
 			echo "error: unknown task: $TASK" >&2
-			echo "usage: $0 [test] [pkg] [verify]" >&2
+			echo "usage: $0 [test] [consumer] [pkg] [verify]" >&2
 			exit 1
 			;;
 	esac

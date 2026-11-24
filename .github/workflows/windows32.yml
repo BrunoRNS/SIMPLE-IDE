@@ -344,9 +344,16 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Validate Maven consumer media variants
+        run: make test-consumer
+
       - name: Validate fat JAR and generated packages
         env:
           SIMPLEIDE_PKG_OS: windows
           SIMPLEIDE_PKG_ARCH: x86
         shell: pwsh
         run: make pkg-verify
+
+      - name: Report failed tests
+        if: failure()
+        run: python scripts/ci/report-surefire.py

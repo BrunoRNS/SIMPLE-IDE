@@ -14,7 +14,7 @@ not cover a use case.
 - [Isolated modules](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Isolated-Modules) — use only one subsystem.
 - [Standalone RSyntaxTextArea](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-RSyntax) — editor without threads or LSP.
 - [Embedded editor](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor) — search, line numbers, local completion and LSP.
-- [Audio and video](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor#audio-and-video) — optional JavaFX media playback, platform support and fallback.
+- [Audio and video](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor#audio-and-video) — optional JavaFX media playback, platform support and fallback. See also [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media) for the `nojavafx`/`javafx22`/`javafx23` consumer contract.
 - [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading) — EDT tasks, background tasks and managed pools.
 - [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages) — discovery, execution, input and output.
 - [Language Server Protocol](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP) — server discovery, installation and use.

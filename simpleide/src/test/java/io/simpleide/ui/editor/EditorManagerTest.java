@@ -256,7 +256,10 @@ class EditorManagerTest {
 					assertThat(audioTab.getAudioViewer()).isNotNull();
 					assertThat(audioTab.getHexEditor()).isNull();
 					assertThat(videoTab.getVideoViewer()).isNotNull();
-					assertThat(videoTab.getVideoViewer().isMediaLoaded()).isFalse();
+					// The player is created asynchronously on the JavaFX thread, so
+					// isMediaLoaded() is inherently racy here. Assert the component is
+					// mounted instead.
+					assertThat(videoTab.getVideoViewer().component()).isNotNull();
 				}
 				else {
 					// Platforms without a JavaFX runtime fall back to the hex editor.

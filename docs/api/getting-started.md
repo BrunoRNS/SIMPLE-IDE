@@ -40,6 +40,12 @@ Their runtime dependencies are declared by the modules, so you do not need to ad
 RSyntaxTextArea, FlatLaf, LSP4J or pty4j separately. For a standalone executable,
 download the release fat JAR described in [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts).
 
+JavaFX media is optional. Maven selects `javafx22` or `javafx23` from your JDK
+and OS/architecture; pass `-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`
+to force a variant. Gradle does not evaluate those POM profiles, so declare the
+OpenJFX modules explicitly if you need playback. See
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+
 ## 2. Create a standalone editor
 
 ```java

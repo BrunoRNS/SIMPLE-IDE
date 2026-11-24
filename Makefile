@@ -1,9 +1,11 @@
 ifeq ($(OS),Windows_NT)
 MVNW := mvnw.cmd
 PKG_RUNNER := powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package.ps1
+PYTHON := python
 else
 MVNW := ./mvnw
 PKG_RUNNER := sh scripts/package.sh
+PYTHON := python3
 endif
 
 APP_JAR := simpleide/target/simpleide.jar
@@ -11,21 +13,18 @@ PKG_DIR := simpleide/target/pkg
 VERSION := $(shell sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties 2>/dev/null | tr -d '\r')
 JAVA_OPTS ?= -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED
 
-# Audio/video playback is optional. Select the JavaFX release from the current
-# JDK and platform; unsupported platforms disable media and fall back to the
-# hex editor instead of downloading JavaFX. See scripts/javafx-version.sh.
-JAVAFX_MEDIA := $(shell sh scripts/javafx-version.sh 2>/dev/null || echo none)
-ifeq ($(JAVAFX_MEDIA),none)
-JAVAFX_ARGS := -Dmedia.viewer.skip=true
-JAVAFX_VARIANT := nojavafx
-else
-JAVAFX_ARGS := -Djavafx.version=$(JAVAFX_MEDIA)
-JAVAFX_VARIANT := javafx$(shell printf '%s' '$(JAVAFX_MEDIA)' | cut -d. -f1)
+# Audio/video playback is optional. scripts/javafx-version.sh selects the
+# nojavafx, javafx22 or javafx23 variant from the current JDK and platform.
+# Override it with SIMPLEIDE_MEDIA_VARIANT=nojavafx|javafx22|javafx23. Linux
+# arm64 always resolves to nojavafx. See docs/reference/JAVAFX-MEDIA.md.
+MEDIA_VARIANT := $(shell sh scripts/javafx-version.sh)
+ifeq ($(filter $(MEDIA_VARIANT),nojavafx javafx22 javafx23),)
+$(error scripts/javafx-version.sh returned an unsupported variant: $(MEDIA_VARIANT))
 endif
-export SIMPLEIDE_PKG_VARIANT := $(JAVAFX_VARIANT)
-MVN := $(MVNW) $(JAVAFX_ARGS)
+export SIMPLEIDE_PKG_VARIANT := $(MEDIA_VARIANT)
+MVN := $(MVNW) -Dsimpleide.media.variant=$(MEDIA_VARIANT)
 
-.PHONY: all build test test-nolang jar pkg pkg-verify change-version run clean format check-format format-check verify help
+.PHONY: all build test test-nolang test-consumer jar pkg pkg-verify change-version run clean format check-format format-check verify help
 
 all: test jar
 
@@ -40,6 +39,13 @@ test: check-format
 # Run the test suite without tests that require external language toolchains.
 test-nolang: check-format
 	$(MVN) -B -DexcludedGroups=language-tools test
+
+# Install the reactor locally, then resolve a standalone consumer POM once per
+# media variant and verify the transitive JavaFX dependencies. This validates
+# the consumer-visible profile contract, including OS/architecture gating.
+test-consumer:
+	$(MVN) -B -DskipTests install
+	$(PYTHON) scripts/ci/test-consumer-profiles.py --skip-install
 
 # Package the executable fat JAR. Tests are intentionally not part of this target.
 jar:
@@ -85,8 +91,8 @@ check-format:
 # Backwards-compatible alias for check-format.
 format-check: check-format
 
-# Full local validation: formatting, tests and packaging.
-verify: check-format test jar
+# Full local validation: formatting, tests, consumer resolution and packaging.
+verify: check-format test test-consumer jar
 
 clean:
 	$(MVN) -B clean
@@ -98,6 +104,7 @@ help:
 	@echo "  make build         Compile all modules (no tests, no packages)"
 	@echo "  make test          Run the full test suite"
 	@echo "  make test-nolang   Run tests without external language toolchains"
+	@echo "  make test-consumer Validate the Maven consumer media variants"
 	@echo "  make jar           Package the executable fat JAR"
 	@echo "  make pkg           Build every release package for this OS/architecture"
 	@echo "  make pkg-verify    Build packages and validate the produced executables"
@@ -111,5 +118,6 @@ help:
 	@echo "  make clean         Remove generated build and package outputs"
 	@echo ""
 	@echo "Version: $(VERSION)"
+	@echo "Media variant: $(MEDIA_VARIANT)"
 	@echo "Fat JAR: $(APP_JAR)"
 	@echo "Package output: $(PKG_DIR)"

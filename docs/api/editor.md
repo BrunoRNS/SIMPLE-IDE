@@ -80,28 +80,30 @@ plug-in; a file with a known extension can still fail to decode.
 
 ### Platform support
 
-The JavaFX viewers are compiled and packaged only where OpenJFX publishes native
-artifacts. Everywhere else the build does not download JavaFX and audio/video
-files open in the hex editor.
+The JavaFX viewers are compiled and packaged only when the selected media
+variant enables JavaFX and the platform publishes usable OpenJFX natives.
+Everywhere else the build does not download JavaFX and audio/video files open in
+the hex editor.
 
 | Platform | Media playback |
 | --- | --- |
-| Linux `x86_64` | Yes, with a graphical session, GTK 3, ALSA or PulseAudio and system FFmpeg |
-| Linux `arm64` | Yes on glibc 2.34 or newer (Debian 12+, Ubuntu 22.04+); the rest of the IDE still supports glibc 2.28 |
+| Linux `x64` | Yes, with a graphical session, GTK 3, ALSA or PulseAudio and system FFmpeg |
+| Linux `arm64` | No; the project always builds the `nojavafx` variant on this platform |
 | macOS `x64` and `arm64` | Yes, with a graphical session and JavaFX codecs |
 | Windows `x64` | Yes, with a graphical session and JavaFX codecs |
 | Linux `x86` (32-bit) | No; files open in `HexEditor` with a log warning |
 | Windows `x86` and `arm64` | No; files open in `HexEditor` with a log warning |
 
-The Maven build selects JavaFX 22.0.2 on JDK 17 through 20, and JavaFX 23.0.2
-on JDK 21 and newer when the platform glibc satisfies the OpenJFX native floor.
-When JavaFX 23 cannot run but JavaFX 22 can, it falls back to JavaFX 22; when
-neither can run, the platform builds without media support. The same source
-compiles and runs against both versions. On Linux the runtime also needs the
-native libraries listed in
+The Maven build selects JavaFX 22.0.2 on JDK 17 through 20 and JavaFX 23.0.2 on
+JDK 21 and newer on a supported platform. Consumers can force a variant with
+`-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`; forced variants on an
+unsupported platform still resolve to `nojavafx`. The same source compiles and
+runs against both versions. On Linux the runtime also needs the native libraries
+listed in
 [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux#audio-and-video-playback).
 Use `MediaPlaybacks.isAvailable()` to decide whether to show media controls in
-your own UI.
+your own UI. The full consumer contract and platform matrix are in
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
 
 ## Image, large-text, and binary viewers
 

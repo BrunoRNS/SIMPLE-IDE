@@ -18,8 +18,9 @@ publishes a GitHub release from the version in
 `<os>` is `linux`, `macos` or `windows`; `<arch>` is `x64`, `x86` or `arm64`.
 `<variant>` identifies the optional media build: `javafx22`, `javafx23` or
 `nojavafx`. For example, `simpleide-v1.1.0-linux-x64-javafx23.deb` is the JDK 21
-build with JavaFX 23, while `simpleide-v1.1.0-linux-x86-nojavafx.deb` is the
-32-bit build that opens media files in the hex editor.
+build with JavaFX 23, while `simpleide-v1.1.0-linux-arm64-nojavafx.deb` is the
+arm64 build that opens media files in the hex editor. Linux `arm64`, Linux
+`x86`, Windows `x86` and Windows `arm64` always produce `nojavafx`.
 `make pkg` builds the full set for the current OS: Linux produces the static
 zip, the `.deb` and the `.rpm`; macOS produces only the `.dmg`; Windows
 produces the static zip (whose launcher is the `SimpleIDE.exe` inside the app
@@ -43,17 +44,19 @@ release workflow rebuilds every platform, passes the packages between its jobs
 with `actions/upload-artifact`/`actions/download-artifact`, and attaches them
 to the GitHub release tag with `gh release upload`.
 
-The release builds two media variants where the platform supports them:
-JDK 17 with JavaFX 22 and JDK 21 with JavaFX 23. Platforms that cannot run
-JavaFX (Linux `x86`, Windows `x86` and Windows `arm64`) produce the `nojavafx`
-variant, which opens audio and video files in the hex editor.
+The release uses the Maven media profiles to build the variants. On supported
+platforms, JDK 17 produces `javafx22` and JDK 21+ produces `javafx23`. Linux
+`arm64`, Linux `x86`, Windows `x86` and Windows `arm64` always produce
+`nojavafx`, which opens audio and video files in the hex editor. Consumers can
+force a variant with `-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`; see
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
 
 Linux packages are built and validated inside an explicit Debian container.
 Debian 10 (`buster`) provides the minimum supported glibc (2.28), so a package
-that passes CI is known to run on every supported Linux distribution. The
-JavaFX 23 `arm64` package is built on Debian 12 (glibc 2.36) because the OpenJFX
-`arm64` native libraries require glibc 2.34; `x64` keeps the Debian 10 baseline
-because its JavaFX natives only need glibc 2.17. Alpine is not used. See
+that passes CI is known to run on every supported Linux distribution. Every
+architecture, including `arm64`, uses the Debian 10 baseline because Linux
+`arm64` always builds the `nojavafx` variant and therefore needs no OpenJFX
+`arm64` natives. Alpine is not used. See
 [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 ## Version types

@@ -15,9 +15,8 @@ jobs:
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-arm64
-      # OpenJFX arm64 natives need glibc 2.34, so the JavaFX 23 package is built
-      # on Debian 12. The other JDKs keep exercising the glibc 2.28 baseline.
-      SIMPLEIDE_DEBIAN_IMAGE: ${{ matrix.java == '21' && 'debian:12' || 'debian:10' }}
+      # Linux arm64 always builds the nojavafx media variant, so every JDK
+      # exercises the Debian 10 (glibc 2.28) baseline.
 
     strategy:
       fail-fast: false
@@ -43,6 +42,7 @@ jobs:
           SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
           SIMPLEIDE_CI_ARCH: arm64
           BUILD_PACKAGES: ${{ matrix.java == '17' || matrix.java == '21' }}
+          VALIDATE_CONSUMER: ${{ matrix.java == '17' || matrix.java == '25' }}
         run: |
           set -eu
 
@@ -50,33 +50,13 @@ jobs:
           if [ "$BUILD_PACKAGES" = "true" ]; then
             tasks="test pkg"
           fi
+          if [ "$VALIDATE_CONSUMER" = "true" ]; then
+            tasks="$tasks consumer"
+          fi
 
           bash scripts/ci/run-linux-debian.sh linux/arm64 $tasks
 
       - name: Report failed tests
         if: failure()
         shell: bash
-        run: |
-          python3 - <<'PY'
-          import glob
-          import xml.etree.ElementTree as ET
-
-          failures = 0
-          for report in sorted(glob.glob('*/target/surefire-reports/TEST-*.xml')):
-              try:
-                  root = ET.parse(report).getroot()
-              except Exception as error:
-                  print(f"::warning::Unable to parse {report}: {error}")
-                  continue
-              for case in root.iter('testcase'):
-                  for kind in ('failure', 'error'):
-                      node = case.find(kind)
-                      if node is None:
-                          continue
-                      failures += 1
-                      name = f"{case.get('classname')}.{case.get('name')}"
-                      message = (node.get('message') or node.text or kind).strip()
-                      message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
-                      print(f"::error title={name}::{message[:1500]}")
-          print(f"Surefire reported {failures} failed or errored test(s).")
-          PY
+        run: python3 scripts/ci/report-surefire.py

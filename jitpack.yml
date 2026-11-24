@@ -1,0 +1,12 @@
+# JitPack build configuration.
+#
+# Pin the JDK so the published artifacts compile against the JavaFX 22 baseline.
+# The auto media profile in simpleide/pom.xml selects JavaFX 22 on JDK 17-20 and
+# JavaFX 23 on JDK 21+, so building with JDK 17 produces the widest-compatible
+# viewer classes. Consumers still choose the runtime dependency variant with
+# -Dsimpleide.media.variant=nojavafx|javafx22|javafx23.
+jdk:
+  - openjdk17
+
+install:
+  - ./mvnw -B -DskipTests install

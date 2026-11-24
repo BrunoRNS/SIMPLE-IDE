@@ -16,7 +16,7 @@ import javax.swing.JComponent;
  * {@link #pause()}, {@link #stop()} or {@link #setVolume(float)} before the media is
  * ready; loading errors are reported by the component itself.
  *
- * @author BrunoRNS
+ * @author luisotavio13
  * @since v1.1.0
  * @see MediaPlaybacks
  */
@@ -25,7 +25,7 @@ public interface MediaPlayback extends AutoCloseable {
 	/**
 	 * Returns the Swing component that renders the player.
 	 * @return the embeddable player component
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	JComponent component();
@@ -33,28 +33,28 @@ public interface MediaPlayback extends AutoCloseable {
 	/**
 	 * Returns whether the media backend created a player.
 	 * @return {@code true} after media initialization succeeds
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	boolean isMediaLoaded();
 
 	/**
 	 * Starts or resumes playback.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	void play();
 
 	/**
 	 * Pauses playback while preserving the current position.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	void pause();
 
 	/**
 	 * Stops playback and returns to the beginning.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	void stop();
@@ -62,14 +62,14 @@ public interface MediaPlayback extends AutoCloseable {
 	/**
 	 * Sets the playback volume.
 	 * @param value volume from {@code 0} (muted) through {@code 1} (full volume)
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	void setVolume(float value);
 
 	/**
 	 * Releases playback resources. Calling the method more than once is a no-op.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	@Override

@@ -11,16 +11,18 @@ import org.slf4j.LoggerFactory;
  * media support.
  *
  * <p>
- * JavaFX publishes native artifacts only for Linux x64/arm64, macOS x64/arm64 and Windows
- * x64. The Maven build compiles the JavaFX-backed viewers only on those platforms, so a
- * call from any other platform finds no implementation class and returns {@code null}.
+ * JavaFX publishes native artifacts only for Linux x64, macOS x64/arm64 and Windows x64.
+ * Linux arm64 is deliberately built without JavaFX. The Maven build compiles the
+ * JavaFX-backed viewers only when a compatible dependency variant is selected, so a call
+ * from any other platform finds no usable implementation and returns {@code null}.
  * Callers should then present the file with the hex editor instead of a player.
  *
  * <p>
  * The lookup is reflective on purpose: the base application must keep building and
- * running where the JavaFX modules are absent, including 32-bit x86 builds.
+ * running where the JavaFX modules are absent, including 32-bit x86 builds and builds
+ * that force the {@code nojavafx} consumer variant.
  *
- * @author BrunoRNS
+ * @author luisotavio13
  * @since v1.1.0
  */
 public final class MediaPlaybacks {
@@ -31,6 +33,8 @@ public final class MediaPlaybacks {
 
 	private static final String VIDEO_VIEWER = "io.simpleide.api.VideoViewer";
 
+	private static final String JAVAFX_MEDIA_PLAYER = "javafx.scene.media.MediaPlayer";
+
 	private static final boolean AVAILABLE = probe();
 
 	private MediaPlaybacks() {
@@ -39,7 +43,7 @@ public final class MediaPlaybacks {
 	/**
 	 * Returns whether this build and platform can play audio and video.
 	 * @return {@code true} when the JavaFX-backed viewer classes are present
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	public static boolean isAvailable() {
@@ -51,7 +55,7 @@ public final class MediaPlaybacks {
 	 * available on this platform.
 	 * @param path audio file to play
 	 * @return the player, or {@code null} when no media implementation is available
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	public static MediaPlayback audio(Path path) {
@@ -63,7 +67,7 @@ public final class MediaPlaybacks {
 	 * available on this platform.
 	 * @param path video file to play
 	 * @return the player, or {@code null} when no media implementation is available
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	public static MediaPlayback video(Path path) {
@@ -87,11 +91,16 @@ public final class MediaPlaybacks {
 
 	private static boolean probe() {
 		try {
-			Class.forName(AUDIO_VIEWER, false, MediaPlaybacks.class.getClassLoader());
+			ClassLoader loader = MediaPlaybacks.class.getClassLoader();
+			// A consumer can force the nojavafx variant for a jar that still contains the
+			// viewer classes. Checking JavaFX itself keeps isAvailable() accurate in that
+			// case, so files are classified as binary instead of failing at open time.
+			Class.forName(AUDIO_VIEWER, false, loader);
+			Class.forName(JAVAFX_MEDIA_PLAYER, false, loader);
 			return true;
 		}
 		catch (ClassNotFoundException | LinkageError error) {
-			LOGGER.debug("JavaFX media viewers are not part of this build; media files use the hex editor.");
+			LOGGER.debug("JavaFX media viewers are not available; media files use the hex editor.");
 			return false;
 		}
 	}

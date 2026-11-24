@@ -37,12 +37,13 @@ import org.slf4j.LoggerFactory;
  * are reported on the status label instead of failing silently.
  *
  * <p>
- * This class is compiled only on platforms that publish JavaFX native artifacts (Linux
- * x64/arm64, macOS x64/arm64 and Windows x64). Use {@link MediaPlaybacks#video(Path)} to
+ * This class is compiled only on platforms that publish JavaFX native artifacts and are
+ * enabled by the selected Maven variant: Linux x64, macOS x64/arm64 and Windows x64.
+ * Linux arm64 always builds without JavaFX. Use {@link MediaPlaybacks#video(Path)} to
  * create it through the platform-neutral API; that factory returns {@code null} where
  * playback is unavailable.
  *
- * @author BrunoRNS
+ * @author luisotavio13
  * @since v1.1.0
  * @see MediaPlaybacks
  */
@@ -68,6 +69,8 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 
 	private volatile MediaPlayer player;
 
+	private volatile Media media;
+
 	private volatile boolean closed;
 
 	private boolean updatingSeek;
@@ -75,7 +78,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 	/**
 	 * Creates a player for the specified video file.
 	 * @param path video file to play
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	public VideoViewer(Path path) {
@@ -144,7 +147,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 	/**
 	 * Returns this panel so it can be mounted through {@link MediaPlayback}.
 	 * @return this component
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	@Override
@@ -155,7 +158,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 	/**
 	 * Returns whether JavaFX has created the media player.
 	 * @return {@code true} after JavaFX media initialization succeeds
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	public boolean isMediaLoaded() {
@@ -164,7 +167,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 
 	/**
 	 * Starts playback.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	@Override
@@ -177,7 +180,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 
 	/**
 	 * Pauses playback while preserving the current position.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	@Override
@@ -190,7 +193,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 
 	/**
 	 * Stops playback and returns to the beginning.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	@Override
@@ -206,7 +209,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 	/**
 	 * Sets the playback volume between 0 (muted) and 1 (full volume).
 	 * @param value volume from 0 through 1
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	@Override
@@ -219,7 +222,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 
 	/**
 	 * Releases the JavaFX media player.
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	@Override
@@ -245,7 +248,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 					disposed.countDown();
 				}
 			});
-			disposed.await(5, TimeUnit.SECONDS);
+			disposed.await(10, TimeUnit.SECONDS);
 		}
 		catch (IllegalStateException error) {
 			LOGGER.debug("JavaFX toolkit is already shut down; skipping media disposal.", error);
@@ -257,11 +260,23 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 
 	private void disposePlayer() {
 		MediaPlayer current = player;
+		player = null;
 		if (current != null) {
 			current.stop();
 			current.dispose();
-			player = null;
 		}
+		// Detach the media graph before dropping the references. This also releases
+		// the file handle on Windows, where MediaPlayer keeps the file locked until
+		// the JavaFX scene is detached and the player is disposed.
+		if (fxPanel != null) {
+			try {
+				fxPanel.setScene(null);
+			}
+			catch (RuntimeException | LinkageError error) {
+				LOGGER.debug("Unable to detach the JavaFX video scene during disposal.", error);
+			}
+		}
+		media = null;
 	}
 
 	/**
@@ -322,6 +337,7 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 			}
 			onFx(() -> status.setText("Stopped"));
 		});
+		this.media = media;
 		applyMedia(player);
 	}
 

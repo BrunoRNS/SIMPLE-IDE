@@ -10,6 +10,15 @@ changes first. Version 1.1.0 is still in development, so its changes remain unde
 
 ### Added
 
+- Optional audio and video playback in read-only editor tabs through JavaFX, with a
+  platform-neutral `MediaPlayback` API and a hex-editor fallback. Maven consumers choose
+  `nojavafx`, `javafx22` or `javafx23` with `-Dsimpleide.media.variant`; without the
+  property the variant is derived from the consumer JDK and OS/architecture. Linux
+  `arm64` always uses `nojavafx`. See
+  [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+- `make test-consumer` and `scripts/ci/test-consumer-profiles.py` verify the consumer
+  variant contract for automatic selection and the three forced variants on every
+  supported OS/architecture.
 - Restored legacy helpers and the language icon resources used by older integrations.
   These are compatibility-only; new code should use the current APIs and Material
   Icon Theme.

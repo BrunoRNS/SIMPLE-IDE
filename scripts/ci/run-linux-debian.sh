@@ -20,8 +20,8 @@
 #   SIMPLEIDE_CI_ARCH
 #
 # The container image defaults to debian:10. Set SIMPLEIDE_DEBIAN_IMAGE to run
-# the same tasks on a newer glibc; the JavaFX 23 arm64 build uses debian:12
-# because the OpenJFX arm64 natives require glibc 2.34.
+# the same tasks on a newer glibc. Linux arm64 always uses the nojavafx media
+# variant, so it does not need a newer glibc for OpenJFX natives.
 
 set -euo pipefail
 

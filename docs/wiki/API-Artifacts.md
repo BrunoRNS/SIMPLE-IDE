@@ -127,6 +127,35 @@ coordinate is not available:
    or download the release fat JAR and install it manually.
 4. Pin the dependency to a released tag instead of a branch.
 
+### Optional JavaFX media variant
+
+The `simpleide` artifact contains reflective media viewers that need OpenJFX at
+runtime only when audio and video playback is wanted. Select a variant with a
+Maven user property:
+
+```sh
+mvn -Dsimpleide.media.variant=nojavafx package  # no JavaFX
+mvn -Dsimpleide.media.variant=javafx22 package # OpenJFX 22.0.2
+mvn -Dsimpleide.media.variant=javafx23 package # OpenJFX 23.0.2
+```
+
+Omit the property for automatic selection:
+
+| Consumer JDK | Supported platform | Selected variant |
+| --- | --- | --- |
+| 17 through 20 | Linux/Windows/macOS `x64`, macOS `arm64` | `javafx22` |
+| 21 or newer | Linux/Windows/macOS `x64`, macOS `arm64` | `javafx23` |
+| Any | Linux `x86`/`arm64`, Windows `x86`/`arm64` | `nojavafx` |
+
+Linux `arm64` always resolves to `nojavafx`, even when `javafx22` or `javafx23`
+is forced. Pass the property on the command line, in `.mvn/maven.config` or in
+`MAVEN_OPTS`; it is not read from the consumer POM `<properties>`.
+
+Gradle does not evaluate the JDK/OS profiles of dependency POMs. Gradle
+consumers should declare the OpenJFX modules explicitly, or omit them for the
+`nojavafx` behavior. The complete contract, platform matrix and examples are in
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+
 ## Maven coordinates from the reactor
 
 The reactor modules use group `io` and version `1.0.0beta`:

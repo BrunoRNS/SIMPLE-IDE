@@ -19,7 +19,7 @@ import org.slf4j.LoggerFactory;
  * plugin. The configuration is a no-op on other platforms, when an ALSA configuration is
  * already present, or when no PulseAudio socket exists.
  *
- * @author BrunoRNS
+ * @author luisotavio13
  * @since v1.1.0
  */
 final class JavaFxAudioOutput {
@@ -35,7 +35,7 @@ final class JavaFxAudioOutput {
 	 * Installs the PulseAudio ALSA fallback once for the current process.
 	 * @throws IOException when the temporary ALSA configuration cannot be created or
 	 * applied
-	 * @author BrunoRNS
+	 * @author luisotavio13
 	 * @since v1.1.0
 	 */
 	static synchronized void configurePulseFallback() throws IOException {

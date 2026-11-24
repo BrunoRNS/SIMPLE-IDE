@@ -41,6 +41,7 @@ jobs:
           SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
           SIMPLEIDE_CI_ARCH: x64
           BUILD_PACKAGES: ${{ matrix.java == '17' || matrix.java == '21' }}
+          VALIDATE_CONSUMER: ${{ matrix.java == '17' || matrix.java == '25' }}
         run: |
           set -eu
 
@@ -48,5 +49,13 @@ jobs:
           if [ "$BUILD_PACKAGES" = "true" ]; then
             tasks="test pkg"
           fi
+          if [ "$VALIDATE_CONSUMER" = "true" ]; then
+            tasks="$tasks consumer"
+          fi
 
           bash scripts/ci/run-linux-debian.sh linux/amd64 $tasks
+
+      - name: Report failed tests
+        if: failure()
+        shell: bash
+        run: python3 scripts/ci/report-surefire.py

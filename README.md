@@ -91,6 +91,35 @@ Prefer no repository setup? Download the release JAR and install it locally —
 see [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts). To consume only the
 compiler module use the `simplebytecode-compiler` artifact.
 
+### Optional audio and video (JavaFX)
+
+Audio and video playback is an optional build variant. Without it, media files
+open in the built-in hex editor and the rest of the IDE is unchanged. Maven
+consumers select the variant with `-Dsimpleide.media.variant`:
+
+| Command | Result |
+| --- | --- |
+| `mvn package` | Automatic: JavaFX 23 on JDK 21+, JavaFX 22 on JDK 17–20, on a supported platform |
+| `mvn -Dsimpleide.media.variant=nojavafx package` | No JavaFX; media files use the hex editor |
+| `mvn -Dsimpleide.media.variant=javafx22 package` | OpenJFX 22.0.2 |
+| `mvn -Dsimpleide.media.variant=javafx23 package` | OpenJFX 23.0.2 |
+
+Supported platforms are Linux x64, Windows x64, macOS x64 and macOS arm64.
+Linux arm64 always uses `nojavafx`, as do Linux x86, Windows x86 and Windows
+arm64. Forced variants on an unsupported platform also resolve to `nojavafx`.
+
+Pass the property on the command line, in `.mvn/maven.config` or in
+`MAVEN_OPTS`. A `<properties>` entry in the consumer POM does not activate the
+profiles because Maven evaluates profile activation from user and system
+properties only. Gradle does not evaluate these JDK/OS POM profiles; Gradle
+consumers should declare the OpenJFX modules explicitly.
+
+Builds from source use `SIMPLEIDE_MEDIA_VARIANT=auto|nojavafx|javafx22|javafx23`
+with `make`, for example `SIMPLEIDE_MEDIA_VARIANT=javafx23 make jar`.
+
+Full contract, platform matrix, JitPack behavior and troubleshooting:
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+
 ### Fat JAR / package (advanced users)
 
 Download from [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/releases):
@@ -111,8 +140,9 @@ Beta versions (e.g. `1.0.0beta`) are published as pre-releases.
 Linux builds require a GNU/Linux distribution with **glibc 2.28 or newer**
 (Debian 10+, Ubuntu 18.10+, Fedora 29+, RHEL 8+). Alpine Linux and other
 musl-based distributions are not supported. Audio and video playback is
-optional and additionally needs GTK 3, ALSA or PulseAudio and system FFmpeg; on
-`arm64` the JavaFX natives require glibc 2.34. See
+optional and additionally needs GTK 3, ALSA or PulseAudio and system FFmpeg. On
+Linux, media playback is built for `x64`; Linux `arm64` always uses the
+`nojavafx` variant. See
 [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 Windows builds require **Windows 10** on `x86` and `x64`, and **Windows 11** on
@@ -171,7 +201,8 @@ The complete guides and API reference are published in the [SIMPLE-IDE Wiki](htt
   [LSP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-LSP) ·
   [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-ThreadMaster)
 - [Linux](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux) · [Windows](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Windows) ·
-  [macOS](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-macOS)
+  [macOS](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-macOS) ·
+  [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media)
 - [Build, test and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile) ·
   [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Releases)
 - [Third-party dependencies and licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party)
