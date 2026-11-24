@@ -41,18 +41,31 @@ if [ -n "${JAVA_HOME:-}" ] && [ -x "$JAVA_HOME/bin/java" ]; then
 	JAVA_BIN="$JAVA_HOME/bin/java"
 fi
 
-JDK_VERSION=$(
-	"$JAVA_BIN" -XshowSettings:properties -version 2>&1 |
-		sed -n 's/.*java\.specification\.version = //p' |
-		head -n 1
-)
+JAVA_PROPERTIES=$("$JAVA_BIN" -XshowSettings:properties -version 2>&1)
+JDK_VERSION=$(printf '%s\n' "$JAVA_PROPERTIES" | sed -n 's/.*java\.specification\.version = //p' | head -n 1)
 case "$JDK_VERSION" in
 	1.*) JDK_VERSION=${JDK_VERSION#1.} ;;
 esac
 JDK_MAJOR=${JDK_VERSION%%.*}
 
-OS=$(uname -s 2>/dev/null || echo unknown)
-ARCH=$(uname -m 2>/dev/null || echo unknown)
+# Read the platform from the JDK so the selection matches Maven's os.arch and
+# os.name activation, even when a 64-bit shell drives a 32-bit JDK.
+JAVA_OS=$(printf '%s\n' "$JAVA_PROPERTIES" | sed -n 's/.*os\.name = //p' | head -n 1)
+JAVA_ARCH=$(printf '%s\n' "$JAVA_PROPERTIES" | sed -n 's/.*os\.arch = //p' | head -n 1)
+
+case "$JAVA_OS" in
+	Linux*) OS=Linux ;;
+	Mac*|Darwin*) OS=Darwin ;;
+	Windows*) OS=Windows ;;
+	*) OS=unknown ;;
+esac
+
+case "$JAVA_ARCH" in
+	amd64|x86_64) ARCH=x86_64 ;;
+	aarch64|arm64) ARCH=aarch64 ;;
+	x86|i386|i486|i586|i686) ARCH=x86 ;;
+	*) ARCH=$JAVA_ARCH ;;
+esac
 
 # Minimum glibc reported by each OpenJFX Linux classifier. OpenJFX 22 and 23
 # use the same floor per architecture.
@@ -110,9 +123,9 @@ case "$OS" in
 			*) echo none; exit 0 ;;
 		esac
 		;;
-	MINGW*|MSYS*|CYGWIN*)
+	Windows)
 		case "$ARCH" in
-			x86_64|amd64) ;;
+			x86_64) ;;
 			*) echo none; exit 0 ;;
 		esac
 		;;

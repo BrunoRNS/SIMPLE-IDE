@@ -5,6 +5,8 @@ import java.awt.GraphicsEnvironment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -223,14 +225,42 @@ public final class VideoViewer extends JPanel implements MediaPlayback {
 	@Override
 	public void close() {
 		closed = true;
-		if (fxPanel != null) {
+		if (fxPanel == null) {
+			return;
+		}
+		if (Platform.isFxApplicationThread()) {
+			disposePlayer();
+			return;
+		}
+		// Wait for disposal so callers can safely delete or replace the media file as
+		// soon as close() returns. On Windows the player keeps the file locked until it
+		// is disposed on the JavaFX thread.
+		CountDownLatch disposed = new CountDownLatch(1);
+		try {
 			Platform.runLater(() -> {
-				if (player != null) {
-					player.stop();
-					player.dispose();
-					player = null;
+				try {
+					disposePlayer();
+				}
+				finally {
+					disposed.countDown();
 				}
 			});
+			disposed.await(5, TimeUnit.SECONDS);
+		}
+		catch (IllegalStateException error) {
+			LOGGER.debug("JavaFX toolkit is already shut down; skipping media disposal.", error);
+		}
+		catch (InterruptedException error) {
+			Thread.currentThread().interrupt();
+		}
+	}
+
+	private void disposePlayer() {
+		MediaPlayer current = player;
+		if (current != null) {
+			current.stop();
+			current.dispose();
+			player = null;
 		}
 	}
 
