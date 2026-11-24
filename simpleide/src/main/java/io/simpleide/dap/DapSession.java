@@ -727,6 +727,7 @@ public final class DapSession implements AutoCloseable {
 
 		@Override
 		public void stopped(StoppedEventArguments arguments) {
+			stopped = true;
 			String reason = arguments == null || arguments.getReason() == null ? "unknown" : arguments.getReason();
 			if (arguments != null && arguments.getThreadId() != null && arguments.getThreadId() > 0) {
 				threadId = arguments.getThreadId();
@@ -737,11 +738,13 @@ public final class DapSession implements AutoCloseable {
 
 		@Override
 		public void continued(org.eclipse.lsp4j.debug.ContinuedEventArguments arguments) {
+			stopped = false;
 			listener.onContinued();
 		}
 
 		@Override
 		public void terminated(TerminatedEventArguments arguments) {
+			stopped = false;
 			Output.getInstance().publish(OutputType.DEBUG, "Debug session terminated.");
 			notifyTerminated();
 		}

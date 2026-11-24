@@ -4,10 +4,8 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 import io.simpleide.language.config.LangPlatform;
-import io.simpleide.lsp.client.LspClient;
 
 /**
  * Coordinates debug adapter discovery, installation and session startup.
@@ -205,30 +203,6 @@ public final class DapManager {
 	 * @author BrunoRNS
 	 * @since v1.1.0
 	 */
-	public DapSession startJava(Path program, LspClient client, List<Integer> breakpoints,
-			DapSession.Listener listener) throws DapUnavailableException {
-		if (client == null) {
-			throw new DapUnavailableException(
-					"Java debugging requires the Java language server. Open the file and wait for it to connect.");
-		}
-		if (!registry.supports(platform, "java")) {
-			throw new DapUnavailableException("Java debugging is not supported on " + platform.getDisplayName() + ".");
-		}
-		try {
-			Map<String, Object> launchArguments = JavaDebugBridge.launchArguments(client, program);
-			int port = JavaDebugBridge.startDebugSession(client);
-			DapSession session = new DapSession(program, port, launchArguments, listener);
-			session.start(breakpoints);
-			return session;
-		}
-		catch (IOException | RuntimeException error) {
-			throw new DapUnavailableException("Unable to start Java debugging: " + error.getMessage(), error);
-		}
-		catch (InterruptedException error) {
-			Thread.currentThread().interrupt();
-			throw new DapUnavailableException("Java debug startup was interrupted.", error);
-		}
-	}
 
 	/**
 	 * Installed adapter ready to launch a session.

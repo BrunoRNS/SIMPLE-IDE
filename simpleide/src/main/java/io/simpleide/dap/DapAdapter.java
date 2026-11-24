@@ -129,9 +129,9 @@ public final class DapAdapter {
 	 * @author BrunoRNS
 	 * @since v1.1.0
 	 */
-	public DapAdapter(String id, String name, String version, String languageId, String command,
-			List<String> arguments, List<DapDownload> downloads, String transport,
-			Map<String, String> launchArguments, Map<String, String> environment) {
+	public DapAdapter(String id, String name, String version, String languageId, String command, List<String> arguments,
+			List<DapDownload> downloads, String transport, Map<String, String> launchArguments,
+			Map<String, String> environment) {
 		this.id = Objects.requireNonNull(id, "id");
 		this.name = Objects.requireNonNull(name, "name");
 		this.version = version == null ? "" : version;
@@ -320,8 +320,8 @@ public final class DapAdapter {
 	}
 
 	/**
-	 * Resolves the launch properties for a program, expanding the {@code ${program}}
-	 * and {@code ${fileDir}} placeholders.
+	 * Resolves the launch properties for a program, expanding the {@code ${program}} and
+	 * {@code ${fileDir}} placeholders.
 	 * @param program program being debugged
 	 * @return the resolved launch properties
 	 * @author BrunoRNS
