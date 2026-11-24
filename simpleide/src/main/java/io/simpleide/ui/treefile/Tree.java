@@ -1,6 +1,7 @@
 package io.simpleide.ui.treefile;
 
 import java.awt.Color;
+import java.awt.GraphicsEnvironment;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -26,7 +27,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.swing.AbstractAction;
-import javax.swing.Action;
 import javax.swing.JComponent;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
@@ -68,6 +68,8 @@ public class Tree extends JTree {
 	private final Set<Path> refreshingDirectories = new HashSet<>();
 
 	private final TreeFileActions fileActions;
+
+	private TreeFileDropTargetListener dropTargetListener;
 
 	private Consumer<Directory> rootChangeListener = root -> {
 	};
@@ -131,9 +133,18 @@ public class Tree extends JTree {
 	}
 
 	private void installDragAndDrop() {
-		setDragEnabled(true);
 		setTransferHandler(new TreeFileTransferHandler(this));
-		setDropTarget(new DropTarget(this, new TreeFileDropTargetListener(this)));
+		dropTargetListener = new TreeFileDropTargetListener(this);
+		// Swing drag-and-drop needs a display. Headless tests exercise the drop
+		// listener directly so the transfer logic stays covered without one.
+		if (!GraphicsEnvironment.isHeadless()) {
+			setDragEnabled(true);
+			setDropTarget(new DropTarget(this, dropTargetListener));
+		}
+	}
+
+	TreeFileDropTargetListener getDropTargetListener() {
+		return dropTargetListener;
 	}
 
 	/**

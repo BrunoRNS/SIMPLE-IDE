@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.imageio.ImageIO;
@@ -170,14 +171,20 @@ class EditorManagerTest {
 		ThreadMaster.getInstance().initialize();
 
 		SwingUtilities.invokeAndWait(() -> testManager.openFile(SimpleIDEFile.lazy(path)));
-		await().atMost(10, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
+		await().atMost(10, TimeUnit.SECONDS).until(() -> {
+			AtomicBoolean loading = new AtomicBoolean(true);
+			SwingUtilities.invokeAndWait(() -> {
+				EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
+				loading.set(tab == null || tab.isLoading());
+			});
+			return !loading.get();
+		});
+		SwingUtilities.invokeAndWait(() -> {
 			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
-			assertThat(tab.isLoading()).isFalse();
 			assertThat(tab.getEditor()).isNull();
 			assertThat(tab.getLargeTextViewer()).isNotNull();
-		}));
-		SwingUtilities
-			.invokeAndWait(() -> testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize())));
+			testManager.closeTab(tab);
+		});
 	}
 
 	@Test
