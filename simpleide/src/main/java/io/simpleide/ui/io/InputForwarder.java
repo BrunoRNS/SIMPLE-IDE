@@ -60,7 +60,7 @@ public final class InputForwarder implements AutoCloseable {
 		if (!active.get() || text == null) {
 			return false;
 		}
-		for (String line : text.split("\\R", -1)) {
+		for (String line : text.split("\\R")) {
 			input.set(line);
 		}
 		return true;

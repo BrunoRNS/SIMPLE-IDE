@@ -17,9 +17,10 @@ DAP over standard input/output or TCP.
 | `DapSession` | Connects to the adapter, sends `initialize`/`launch` and exposes execution controls |
 
 The registry lives at
-`simpleide/src/main/resources/io/simpleide/dap/registry.json`. Each adapter has
-an id, name, version, launch command, transport (`stdio` or `tcp`), optional
-launch properties and a download entry per platform:
+`simpleide/src/main/resources/io/simpleide/dap/registry.json` (mirrored as
+`dap_registry.json`). Each adapter has an id, name, version, launch command,
+transport (`stdio` or `tcp`), optional launch properties and a download entry
+per platform:
 
 ```json
 {
@@ -93,6 +94,9 @@ back the debug buttons shown by `IOPanel` while a debug session is active.
 
 - `DapRegistryTest` covers registry parsing, platform/architecture matching,
   command placeholders and bundled downloads.
+- `DapRegistryIntegrationTest` covers that every supported platform resolves to
+  an adapter and that every adapter ships downloads for all OS/architecture
+  combinations.
 - `DapManagerTest` covers unsupported-platform fallback without network access.
 - `DapInstallerTest` covers installed-version markers and cleanup after a rejected
   insecure download.

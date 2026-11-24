@@ -8,49 +8,154 @@
       "transport": "tcp",
       "launch": {
         "type": "node",
-        "console": "integratedTerminal"
+        "console": "internalConsole"
       },
       "arguments": [
         "${installDir}/js-debug/src/dapDebugServer.js",
         "${port}"
       ],
       "downloads": [
-        {
-          "os": "linux",
-          "arch": "x64",
-          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
-          "archiveType": "tar.gz"
-        },
-        {
-          "os": "linux",
-          "arch": "arm64",
-          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
-          "archiveType": "tar.gz"
-        },
-        {
-          "os": "windows",
-          "arch": "x64",
-          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
-          "archiveType": "tar.gz"
-        },
-        {
-          "os": "windows",
-          "arch": "arm64",
-          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
-          "archiveType": "tar.gz"
-        },
-        {
-          "os": "macos",
-          "arch": "x64",
-          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
-          "archiveType": "tar.gz"
-        },
-        {
-          "os": "macos",
-          "arch": "arm64",
-          "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz",
-          "archiveType": "tar.gz"
-        }
+        { "os": "linux", "arch": "x86", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-linux-x86.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-linux-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-linux-arm64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-win32-x86.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-win32-x64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-win32-arm64.zip", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-darwin-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1-darwin-arm64.tar.gz", "archiveType": "tar.gz" }
+      ]
+    },
+    {
+      "id": "debugpy",
+      "name": "Python Debug Adapter",
+      "version": "1.8.1",
+      "command": "python",
+      "transport": "stdio",
+      "arguments": [
+        "-m",
+        "debugpy",
+        "--listen",
+        "127.0.0.1:${port}"
+      ],
+      "launch": {
+        "program": "${program}"
+      },
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-linux-x86.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-linux-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-linux-arm64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-win32-x86.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-win32-x64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-win32-arm64.zip", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-darwin-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/microsoft/debugpy/releases/download/v1.8.1/debugpy-v1.8.1-darwin-arm64.tar.gz", "archiveType": "tar.gz" }
+      ]
+    },
+    {
+      "id": "java-debug",
+      "name": "Java Debug Adapter",
+      "version": "1.0.0",
+      "command": "java",
+      "transport": "stdio",
+      "arguments": [
+        "-jar",
+        "${installDir}/java-debug/com.microsoft.java.debug.jar"
+      ],
+      "launch": {},
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-linux-x86.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-linux-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-linux-arm64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-win32-x86.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-win32-x64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-win32-arm64.zip", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-darwin-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/microsoft/vscode-java-debug/releases/download/v1.0.0/com.microsoft.java.debug-darwin-arm64.tar.gz", "archiveType": "tar.gz" }
+      ]
+    },
+    {
+      "id": "cpptools",
+      "name": "C/C++ Debug Adapter",
+      "version": "1.18.0",
+      "command": "${installDir}/cpptools/debugAdapters/bin/OpenDebugAD7",
+      "transport": "stdio",
+      "arguments": [],
+      "launch": {},
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-linux-x86.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-linux-x64.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-linux-arm64.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-win32-x86.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-win32-x64.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-win32-arm64.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-darwin-x64.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/microsoft/vscode-cpptools/releases/download/v1.18.0/cpptools-darwin-arm64.vsix", "archiveType": "zip" }
+      ]
+    },
+    {
+      "id": "vsdbg",
+      "name": ".NET Debug Adapter",
+      "version": "1.0.0",
+      "command": "${installDir}/vsdbg/vsdbg",
+      "transport": "stdio",
+      "arguments": [
+        "--interpreter=vscode"
+      ],
+      "launch": {},
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-linux-x86.zip", "archiveType": "zip" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-linux-x64.zip", "archiveType": "zip" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-linux-arm64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-win32-x86.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-win32-x64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-win32-arm64.zip", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-darwin-x64.zip", "archiveType": "zip" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/microsoft/vsdbg/releases/download/v1.0.0/vsdbg-darwin-arm64.zip", "archiveType": "zip" }
+      ]
+    },
+    {
+      "id": "delve",
+      "name": "Go Debug Adapter",
+      "version": "1.22.0",
+      "command": "${installDir}/delve/dlv",
+      "transport": "tcp",
+      "arguments": [
+        "dap",
+        "--listen",
+        "127.0.0.1:${port}",
+        "--log-dest",
+        "${installDir}/delve/delve.log",
+        "--accept-multiclient"
+      ],
+      "launch": {},
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-linux-x86.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-linux-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-linux-arm64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-windows-x86.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-windows-x64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-windows-arm64.zip", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-darwin-x64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/go-delve/delve/releases/download/v1.22.0/dlv-1.22.0-darwin-arm64.tar.gz", "archiveType": "tar.gz" }
+      ]
+    },
+    {
+      "id": "codelldb",
+      "name": "Rust Debug Adapter",
+      "version": "1.10.0",
+      "command": "${installDir}/codelldb/lldb-dap",
+      "transport": "stdio",
+      "arguments": [],
+      "launch": {},
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-linux-x86.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-linux-x64.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-linux-arm64.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-windows-x86.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-windows-x64.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-windows-arm64.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-macos-x64.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/vadimcn/codelldb/releases/download/v1.10.0/codelldb-1.10.0-macos-arm64.vsix", "archiveType": "zip" }
       ]
     }
   ]
