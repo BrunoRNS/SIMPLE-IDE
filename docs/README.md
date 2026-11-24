@@ -1,7 +1,8 @@
 # Simple IDE documentation
 
 This is the entry point for all project documentation. The documentation is
-split by audience instead of being kept in one large file.
+split by audience instead of being kept in one large file. Changes under
+`docs/` are synced to the GitHub Wiki by CI.
 
 ## Shortcuts
 
