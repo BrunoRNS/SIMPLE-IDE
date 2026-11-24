@@ -125,7 +125,7 @@ public final class DapRegistry {
 					requiredString(download, "url"), optionalString(download, "archiveType", null)));
 		}
 		return new DapAdapter(id, name, version, command, arguments, downloads, transport,
-				readStringMap(object, "launch"));
+				readStringMap(object, "launch"), readStringMap(object, "environment"));
 	}
 
 	private static String requiredString(JsonObject object, String key) {

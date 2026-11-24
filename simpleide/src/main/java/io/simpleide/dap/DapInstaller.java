@@ -84,6 +84,7 @@ public final class DapInstaller {
 				finally {
 					Files.deleteIfExists(archive);
 				}
+				makeCommandExecutable(adapter, directory);
 				Files.writeString(directory.resolve(".installed"), adapter.getVersion(), StandardOpenOption.CREATE,
 						StandardOpenOption.TRUNCATE_EXISTING);
 				LOGGER.info("DAP adapter {} {} installed successfully.", adapter.getName(), adapter.getVersion());
@@ -174,6 +175,17 @@ public final class DapInstaller {
 	private static void extract(Path archive, Path directory) throws IOException {
 		Archiver archiver = ArchiverFactory.createArchiver(archive.toFile());
 		archiver.extract(archive.toFile(), directory.toFile());
+	}
+
+	private static void makeCommandExecutable(DapAdapter adapter, Path directory) throws IOException {
+		String command = adapter.commandLine(directory.toString(), "").get(0);
+		Path executable = directory.resolve(command);
+		if (!executable.normalize().startsWith(directory.normalize()) || !Files.isRegularFile(executable)) {
+			return;
+		}
+		if (!executable.toFile().setExecutable(true, true)) {
+			LOGGER.debug("Unable to mark the debug adapter command as executable: {}", executable);
+		}
 	}
 
 	private static void deleteDirectory(Path directory) throws IOException {

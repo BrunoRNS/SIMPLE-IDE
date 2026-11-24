@@ -67,6 +67,9 @@ public class Editor extends RSyntaxTextArea {
 	 */
 	public void attachGutter(Gutter gutter) {
 		this.gutter = gutter;
+		if (gutter != null) {
+			gutter.setIconRowHeaderEnabled(true);
+		}
 		repaintBreakpoints();
 	}
 
@@ -147,6 +150,7 @@ public class Editor extends RSyntaxTextArea {
 		if (activeGutter == null) {
 			return;
 		}
+		activeGutter.setIconRowHeaderEnabled(true);
 		for (GutterIconInfo icon : breakpointIcons.values()) {
 			activeGutter.removeTrackingIcon(icon);
 		}
@@ -171,11 +175,11 @@ public class Editor extends RSyntaxTextArea {
 	 */
 	private static final class BreakpointIcon implements Icon {
 
-		private static final int SIZE = 10;
+		private static final int SIZE = 12;
 
 		@Override
 		public void paintIcon(Component component, Graphics graphics, int x, int y) {
-			graphics.setColor(new java.awt.Color(0xD73A49));
+			graphics.setColor(new java.awt.Color(0xE5142B));
 			graphics.fillOval(x + 1, y + 1, SIZE, SIZE);
 			graphics.setColor(new java.awt.Color(0x8B1A23));
 			graphics.drawOval(x + 1, y + 1, SIZE, SIZE);

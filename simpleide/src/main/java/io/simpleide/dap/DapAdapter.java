@@ -38,6 +38,8 @@ public final class DapAdapter {
 
 	private final Map<String, String> launchArguments;
 
+	private final Map<String, String> environment;
+
 	/**
 	 * Creates an adapter definition that communicates over standard input and output.
 	 * @param id stable adapter identifier
@@ -51,7 +53,7 @@ public final class DapAdapter {
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads) {
-		this(id, name, version, command, arguments, downloads, "stdio", Map.of());
+		this(id, name, version, command, arguments, downloads, "stdio", Map.of(), Map.of());
 	}
 
 	/**
@@ -68,7 +70,7 @@ public final class DapAdapter {
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads, String transport) {
-		this(id, name, version, command, arguments, downloads, transport, Map.of());
+		this(id, name, version, command, arguments, downloads, transport, Map.of(), Map.of());
 	}
 
 	/**
@@ -86,6 +88,26 @@ public final class DapAdapter {
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads, String transport, Map<String, String> launchArguments) {
+		this(id, name, version, command, arguments, downloads, transport, launchArguments, Map.of());
+	}
+
+	/**
+	 * Creates an adapter definition.
+	 * @param id stable adapter identifier
+	 * @param name human-readable adapter name
+	 * @param version adapter version
+	 * @param command launch command
+	 * @param arguments launch arguments
+	 * @param downloads platform-specific download entries
+	 * @param transport {@code stdio} or {@code tcp}
+	 * @param launchArguments extra properties merged into the DAP launch request
+	 * @param environment extra environment variables for the adapter process
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
+			List<DapDownload> downloads, String transport, Map<String, String> launchArguments,
+			Map<String, String> environment) {
 		this.id = Objects.requireNonNull(id, "id");
 		this.name = Objects.requireNonNull(name, "name");
 		this.version = version == null ? "" : version;
@@ -94,6 +116,7 @@ public final class DapAdapter {
 		this.downloads = List.copyOf(downloads == null ? List.of() : downloads);
 		this.transport = transport == null || transport.isBlank() ? "stdio" : transport.toLowerCase();
 		this.launchArguments = Map.copyOf(launchArguments == null ? Map.of() : new LinkedHashMap<>(launchArguments));
+		this.environment = Map.copyOf(environment == null ? Map.of() : new LinkedHashMap<>(environment));
 	}
 
 	/**
@@ -144,6 +167,23 @@ public final class DapAdapter {
 			commandLine.add(resolve(argument, installDirectory, program, port));
 		}
 		return commandLine;
+	}
+
+	/**
+	 * Builds the environment variables used to start the adapter.
+	 * @param installDirectory directory where the adapter was installed
+	 * @param program program being debugged
+	 * @param port TCP port used by server-style adapters, or {@code 0} when unused
+	 * @return the immutable resolved environment map
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public Map<String, String> environment(String installDirectory, String program, int port) {
+		Map<String, String> resolved = new LinkedHashMap<>();
+		for (Map.Entry<String, String> entry : environment.entrySet()) {
+			resolved.put(entry.getKey(), resolve(entry.getValue(), installDirectory, program, port));
+		}
+		return Map.copyOf(resolved);
 	}
 
 	private static String resolve(String value, String installDirectory, String program, int port) {
@@ -230,6 +270,16 @@ public final class DapAdapter {
 	 */
 	public Map<String, String> getLaunchArguments() {
 		return launchArguments;
+	}
+
+	/**
+	 * Returns the extra environment variables used to start the adapter.
+	 * @return the immutable environment map
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public Map<String, String> getEnvironment() {
+		return environment;
 	}
 
 }

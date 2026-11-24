@@ -22,6 +22,7 @@ class DapRegistryTest {
 			      "command": "node",
 			      "arguments": ["${installDir}/adapter.js", "${port}"],
 			      "launch": {"type": "node"},
+			      "environment": {"ADAPTER_HOME": "${installDir}"},
 			      "downloads": [
 			        {"os": "linux", "arch": "x64", "url": "https://example.com/linux.tar.gz",
 			         "archiveType": "tar.gz"},
@@ -42,6 +43,8 @@ class DapRegistryTest {
 		assertThat(adapter).isNotNull();
 		assertThat(adapter.getId()).isEqualTo("test-adapter");
 		assertThat(adapter.getLaunchArguments()).containsEntry("type", "node");
+		assertThat(adapter.environment("/opt/adapters", "/tmp/program.js", 0)).containsEntry("ADAPTER_HOME",
+				"/opt/adapters");
 		assertThat(adapter.downloadFor(LangPlatform.LINUXX64)).isNotNull();
 		assertThat(adapter.downloadFor(LangPlatform.MACOSAARCH64)).isNotNull();
 		assertThat(registry.supports(LangPlatform.WINDOWSX64UNICODE)).isFalse();
@@ -72,6 +75,18 @@ class DapRegistryTest {
 		assertThatThrownBy(() -> DapRegistry.parse(
 				"{\"adapters\":[{\"id\":\"x\",\"name\":\"x\",\"command\":\"node\",\"downloads\":[{\"os\":\"linux\",\"arch\":\"x64\"}]}]}"))
 			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	void bundledDownloadsUseHttpsAndArchiveTypes() {
+		DapRegistry registry = DapRegistry.loadDefault();
+
+		for (DapAdapter adapter : registry.getAdapters()) {
+			for (DapDownload download : adapter.getDownloads()) {
+				assertThat(download.url()).as("%s download", adapter.getId()).startsWith("https://");
+				assertThat(download.archiveType()).as("%s archive type", adapter.getId()).isNotBlank();
+			}
+		}
 	}
 
 	@Test

@@ -38,6 +38,7 @@ import org.eclipse.lsp4j.debug.SetBreakpointsArguments;
 import org.eclipse.lsp4j.debug.SetBreakpointsResponse;
 import org.eclipse.lsp4j.debug.Source;
 import org.eclipse.lsp4j.debug.SourceBreakpoint;
+import org.eclipse.lsp4j.debug.StartDebuggingRequestArguments;
 import org.eclipse.lsp4j.debug.StepInArguments;
 import org.eclipse.lsp4j.debug.StepOutArguments;
 import org.eclipse.lsp4j.debug.StoppedEventArguments;
@@ -170,15 +171,16 @@ public final class DapSession implements AutoCloseable {
 	 */
 	public void start(List<Integer> breakpoints) throws IOException, InterruptedException {
 		List<String> commandLine;
+		int port = 0;
 		if ("tcp".equals(adapter.getTransport())) {
-			int port = findFreePort();
+			port = findFreePort();
 			commandLine = adapter.commandLine(installDirectory.toString(), program.toString(), port);
-			startProcess(commandLine);
+			startProcess(commandLine, port);
 			connect(port);
 		}
 		else {
 			commandLine = adapter.commandLine(installDirectory.toString(), program.toString());
-			startProcess(commandLine);
+			startProcess(commandLine, port);
 			synchronized (stateLock) {
 				socket = null;
 			}
@@ -198,9 +200,13 @@ public final class DapSession implements AutoCloseable {
 		launch();
 	}
 
-	private void startProcess(List<String> commandLine) throws IOException {
+	private void startProcess(List<String> commandLine, int port) throws IOException {
 		ProcessBuilder builder = new ProcessBuilder(commandLine);
 		builder.redirectErrorStream(false);
+		Map<String, String> environment = adapter.environment(installDirectory.toString(), program.toString(), port);
+		if (!environment.isEmpty()) {
+			builder.environment().putAll(environment);
+		}
 		process = builder.start();
 		drainErrors(process);
 	}
@@ -351,10 +357,11 @@ public final class DapSession implements AutoCloseable {
 		arguments.put("program", program.toString());
 		arguments.put("cwd", program.getParent() == null ? "." : program.getParent().toString());
 		arguments.putIfAbsent("name", adapter.getName());
-		await(server.launch(arguments));
+		CompletableFuture<Void> launchRequest = server.launch(arguments).thenApply(ignored -> null);
 		if (capabilities != null && Boolean.TRUE.equals(capabilities.getSupportsConfigurationDoneRequest())) {
 			await(server.configurationDone(new ConfigurationDoneArguments()));
 		}
+		await(launchRequest);
 	}
 
 	/**
@@ -648,6 +655,12 @@ public final class DapSession implements AutoCloseable {
 		 * @author BrunoRNS
 		 * @since v1.1.0
 		 */
+		@Override
+		public CompletableFuture<Void> startDebugging(StartDebuggingRequestArguments arguments) {
+			LOGGER.warn("[DAP] The adapter requested a child debug session, which is not supported yet.");
+			return CompletableFuture.completedFuture(null);
+		}
+
 		@Override
 		public CompletableFuture<RunInTerminalResponse> runInTerminal(RunInTerminalRequestArguments arguments) {
 			try {

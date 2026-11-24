@@ -112,6 +112,8 @@ class EditorTest {
 			RTextScrollPane scrollPane = new RTextScrollPane(editor);
 			editor.attachGutter(scrollPane.getGutter());
 
+			assertThat(scrollPane.getGutter().isIconRowHeaderEnabled()).isTrue();
+
 			assertThat(editor.toggleBreakpoint(1)).isTrue();
 			assertThat(editor.toggleBreakpoint(3)).isTrue();
 			assertThat(editor.getBreakpointLines()).containsExactly(1, 3);
@@ -121,6 +123,7 @@ class EditorTest {
 
 			editor.clearBreakpoints();
 			assertThat(editor.getBreakpointLines()).isEmpty();
+			assertThat(scrollPane.getGutter().isIconRowHeaderEnabled()).isTrue();
 		});
 	}
 
