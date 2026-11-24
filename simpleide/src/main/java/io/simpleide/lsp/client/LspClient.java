@@ -26,6 +26,7 @@ import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionItemCapabilities;
 import org.eclipse.lsp4j.CompletionList;
 import org.eclipse.lsp4j.CompletionParams;
+import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.eclipse.lsp4j.DefinitionCapabilities;
 import org.eclipse.lsp4j.DefinitionOptions;
 import org.eclipse.lsp4j.DefinitionParams;
@@ -412,6 +413,24 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 		return initialized.thenCompose(
 				ignored -> serverCapabilities.definitionSupported() ? server.getTextDocumentService().definition(params)
 						: CompletableFuture.completedFuture(Either.forLeft(List.of())));
+	}
+
+	/**
+	 * Runs a workspace command on the language server.
+	 *
+	 * <p>
+	 * This backs the Java debug bridge, which starts the DAP server hosted by the JDT
+	 * language server through the {@code vscode.java.startDebugSession} command.
+	 * @param command command identifier understood by the server
+	 * @param arguments command arguments, may be {@code null}
+	 * @return a future completed with the command result
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public CompletableFuture<Object> executeCommand(String command, List<Object> arguments) {
+		ExecuteCommandParams params = new ExecuteCommandParams(command,
+				arguments == null ? List.of() : List.copyOf(arguments));
+		return initialized.thenCompose(ignored -> server.getWorkspaceService().executeCommand(params));
 	}
 
 	@SuppressWarnings("deprecation")

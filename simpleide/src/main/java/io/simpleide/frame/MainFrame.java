@@ -48,6 +48,7 @@ import org.slf4j.LoggerFactory;
 import io.simpleide.api.Languages;
 import io.simpleide.dap.DapManager;
 import io.simpleide.dap.DapSession;
+import io.simpleide.dap.JavaDebugBridge;
 import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
@@ -58,6 +59,7 @@ import io.simpleide.frame.utils.ApplicationIcon;
 import io.simpleide.frame.utils.LinuxStatusNotifierTray;
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.io.OutputType;
+import io.simpleide.lsp.client.LspClient;
 import io.simpleide.settings.IdeAction;
 import io.simpleide.settings.IdeSettings;
 import io.simpleide.settings.KeybindingManager;
@@ -418,7 +420,7 @@ public class MainFrame extends JFrame implements Runnable {
 		};
 		RunnableNode startNode = new RunnableNode(() -> {
 			try {
-				DapSession session = dapManager.start(program, breakpoints, listener);
+				DapSession session = startDebugSession(tab, program, breakpoints, listener);
 				dapSession = session;
 				session.setBreakpoints(program, tab.getBreakpoints());
 				SwingUtilities.invokeLater(() -> ioPanel.setSession(session));
@@ -426,8 +428,40 @@ public class MainFrame extends JFrame implements Runnable {
 			catch (DapManager.DapUnavailableException error) {
 				SwingUtilities.invokeLater(() -> handleDebugFailure(error.getMessage()));
 			}
+			catch (InterruptedException error) {
+				Thread.currentThread().interrupt();
+				SwingUtilities.invokeLater(() -> handleDebugFailure("Debug startup was interrupted."));
+			}
+			catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException error) {
+				SwingUtilities.invokeLater(
+						() -> handleDebugFailure("Unable to reach the Java language server: " + error.getMessage()));
+			}
+			catch (RuntimeException error) {
+				SwingUtilities
+					.invokeLater(() -> handleDebugFailure("Unable to start the debug session: " + error.getMessage()));
+			}
 		});
 		ThreadMaster.getInstance().register(startNode);
+	}
+
+	/**
+	 * Starts the debug session for a program, using the JDT language server for Java and
+	 * a standalone adapter for the other languages.
+	 */
+	private DapSession startDebugSession(EditorTab tab, Path program, List<Integer> breakpoints,
+			DapSession.Listener listener) throws DapManager.DapUnavailableException, IOException, InterruptedException,
+			java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
+		if (!dapManager.isLanguageServerDebug(program)) {
+			return dapManager.start(program, breakpoints, listener);
+		}
+		LspClient client = tab.getLanguageServer();
+		if (client == null) {
+			client = editorManager.connectLanguageServer(tab.getDocument())
+				.get(30, java.util.concurrent.TimeUnit.SECONDS);
+		}
+		JavaDebugBridge.JavaDebugClient bridgeClient = (command, arguments) -> client.executeCommand(command,
+				arguments);
+		return dapManager.startJava(program, bridgeClient, breakpoints, listener);
 	}
 
 	private void handleDebugFailure(String message) {

@@ -105,6 +105,8 @@ public class EditorTab extends JPanel {
 
 	private LspEditorSupport lspSupport;
 
+	private volatile LspClient languageServer;
+
 	private boolean localLanguageSupportRegistered;
 
 	private AutoCompletion localAutoCompletion;
@@ -326,22 +328,52 @@ public class EditorTab extends JPanel {
 		scrollPane.getGutter().addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent event) {
-				if (!SwingUtilities.isLeftMouseButton(event) || event.getClickCount() != 1) {
+				if (!SwingUtilities.isLeftMouseButton(event)) {
 					return;
 				}
-				Point point = SwingUtilities.convertPoint(event.getComponent(), event.getPoint(), editor);
-				int offset = editor.viewToModel2D(point);
-				if (offset < 0 || offset > editor.getDocument().getLength()) {
-					return;
-				}
-				try {
-					editor.toggleBreakpoint(editor.getLineOfOffset(offset) + 1);
-				}
-				catch (BadLocationException ignored) {
-					// The click landed after the last line.
+				Integer line = lineAtGutterPoint(event);
+				if (line != null) {
+					editor.toggleBreakpoint(line);
 				}
 			}
+
+			@Override
+			public void mouseExited(MouseEvent event) {
+				editor.setHoverLine(0);
+			}
 		});
+		scrollPane.getGutter().addMouseMotionListener(new MouseAdapter() {
+			@Override
+			public void mouseMoved(MouseEvent event) {
+				Integer line = lineAtGutterPoint(event);
+				editor.setHoverLine(line == null ? 0 : line);
+			}
+		});
+	}
+
+	/**
+	 * Maps a gutter mouse position to the one-based editor line under the pointer.
+	 * @param event gutter mouse event
+	 * @return the one-based line, or {@code null} when the position is not over a line
+	 */
+	private Integer lineAtGutterPoint(MouseEvent event) {
+		if (editor == null) {
+			return null;
+		}
+		Point point = SwingUtilities.convertPoint(event.getComponent(), event.getPoint(), editor);
+		// The gutter sits to the left of the text area, so the converted x is negative.
+		// Clamp it inside the editor so viewToModel2D resolves the vertical position.
+		point.x = Math.max(0, Math.min(point.x, Math.max(0, editor.getWidth() - 1)));
+		int offset = editor.viewToModel2D(point);
+		if (offset < 0 || offset > editor.getDocument().getLength()) {
+			return null;
+		}
+		try {
+			return editor.getLineOfOffset(offset) + 1;
+		}
+		catch (BadLocationException ignored) {
+			return null;
+		}
 	}
 
 	/**
@@ -379,7 +411,19 @@ public class EditorTab extends JPanel {
 			return;
 		}
 		unregisterLocalLanguageSupport();
+		languageServer = client;
 		lspSupport = new LspEditorSupport(editor, document, client);
+	}
+
+	/**
+	 * Returns the language server connected to this tab, or {@code null} when none is
+	 * connected yet.
+	 * @return the connected language server client
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public LspClient getLanguageServer() {
+		return languageServer;
 	}
 
 	/**
@@ -606,6 +650,7 @@ public class EditorTab extends JPanel {
 		if (lspSupport != null) {
 			lspSupport.close();
 		}
+		languageServer = null;
 		if (largeTextViewer != null) {
 			largeTextViewer.close();
 		}

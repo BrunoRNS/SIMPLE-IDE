@@ -190,6 +190,65 @@ public final class DapManager {
 			session.close();
 			throw new DapUnavailableException("Debug adapter startup was interrupted.", error);
 		}
+		catch (RuntimeException error) {
+			session.close();
+			throw new DapUnavailableException(
+					"Unable to start " + prepared.adapter().getName() + ": " + error.getMessage(), error);
+		}
+	}
+
+	/**
+	 * Starts a Java debug session through the JDT language server.
+	 *
+	 * <p>
+	 * The Java debug adapter is hosted by the language server, so no standalone adapter
+	 * is downloaded. The language server must already be initialized and the
+	 * {@code vscode.java.startDebugSession} command must be available.
+	 * @param program Java source file to debug
+	 * @param client language-server command client
+	 * @param breakpoints initial line breakpoints
+	 * @param listener listener for execution state changes
+	 * @return the started session
+	 * @throws DapUnavailableException when the language server cannot start a session
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public DapSession startJava(Path program, JavaDebugBridge.JavaDebugClient client, List<Integer> breakpoints,
+			DapSession.Listener listener) throws DapUnavailableException {
+		if (client == null) {
+			throw new DapUnavailableException(
+					"Java debugging requires the Java language server. Open the file and wait for it to connect.");
+		}
+		try {
+			return JavaDebugBridge.start(client, program, breakpoints, listener);
+		}
+		catch (IOException error) {
+			throw new DapUnavailableException("Unable to start Java debugging: " + error.getMessage(), error);
+		}
+		catch (InterruptedException error) {
+			Thread.currentThread().interrupt();
+			throw new DapUnavailableException("Java debug startup was interrupted.", error);
+		}
+		catch (RuntimeException error) {
+			throw new DapUnavailableException("Unable to start Java debugging: " + error.getMessage(), error);
+		}
+	}
+
+	/**
+	 * Returns whether a program is debugged through a language server rather than a
+	 * standalone adapter.
+	 * @param program source file
+	 * @return {@code true} when the resolved adapter uses the {@code jdtls} transport
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean isLanguageServerDebug(Path program) {
+		String language = languageOf(program);
+		if (language.isEmpty()) {
+			return false;
+		}
+		DapAdapter adapter = registry.findForPlatform(platform, language);
+		return adapter != null && "jdtls".equals(adapter.getTransport());
 	}
 
 	/**

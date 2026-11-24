@@ -50,6 +50,8 @@ public class Editor extends RSyntaxTextArea {
 
 	private Gutter gutter;
 
+	private int hoverLine;
+
 	/**
 	 * Creates an empty editor with the application font and editing defaults.
 	 */
@@ -81,6 +83,33 @@ public class Editor extends RSyntaxTextArea {
 	 */
 	public List<Integer> getBreakpointLines() {
 		return List.copyOf(breakpointLines);
+	}
+
+	/**
+	 * Returns the one-based line currently under the pointer in the gutter, or {@code 0}
+	 * when the pointer is not over a line.
+	 * @return the hovered line, or {@code 0}
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public int getHoverLine() {
+		return hoverLine;
+	}
+
+	/**
+	 * Updates the line shown with a translucent marker while the pointer is over the
+	 * gutter. A value of {@code 0} clears the marker.
+	 * @param line one-based line number, or {@code 0} to clear
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void setHoverLine(int line) {
+		int clamped = line < 1 || line > getLineCount() ? 0 : line;
+		if (hoverLine == clamped) {
+			return;
+		}
+		hoverLine = clamped;
+		repaintBreakpoints();
 	}
 
 	/**
@@ -155,20 +184,32 @@ public class Editor extends RSyntaxTextArea {
 			activeGutter.removeTrackingIcon(icon);
 		}
 		breakpointIcons.clear();
-		Icon icon = new BreakpointIcon();
+		Icon selectedIcon = new BreakpointIcon(true);
 		for (Integer line : breakpointLines) {
-			try {
-				GutterIconInfo info = activeGutter.addLineTrackingIcon(line - 1, icon, "Breakpoint at line " + line);
-				breakpointIcons.put(line, info);
-			}
-			catch (javax.swing.text.BadLocationException ignored) {
-				// The line disappeared while the editor was reloading.
-			}
+			addBreakpointIcon(activeGutter, line, selectedIcon);
+		}
+		int hovered = hoverLine;
+		if (hovered > 0 && !breakpointLines.contains(hovered)) {
+			addBreakpointIcon(activeGutter, hovered, new BreakpointIcon(false));
+		}
+	}
+
+	private void addBreakpointIcon(Gutter activeGutter, int line, Icon icon) {
+		try {
+			GutterIconInfo info = activeGutter.addLineTrackingIcon(line - 1, icon, "Breakpoint at line " + line);
+			breakpointIcons.put(line, info);
+		}
+		catch (javax.swing.text.BadLocationException ignored) {
+			// The line disappeared while the editor was reloading.
 		}
 	}
 
 	/**
 	 * Paints the breakpoint dot shown in the gutter.
+	 *
+	 * <p>
+	 * A selected breakpoint is a solid red dot; the translucent variant is shown while
+	 * the pointer hovers a line that has no breakpoint yet.
 	 *
 	 * @author BrunoRNS
 	 * @since v1.1.0
@@ -177,12 +218,26 @@ public class Editor extends RSyntaxTextArea {
 
 		private static final int SIZE = 12;
 
+		private static final java.awt.Color SELECTED = new java.awt.Color(0xE5142B);
+
+		private static final java.awt.Color SELECTED_BORDER = new java.awt.Color(0x8B1A23);
+
+		private static final java.awt.Color HOVERED = new java.awt.Color(0x88E5142B, true);
+
+		private final boolean selected;
+
+		private BreakpointIcon(boolean selected) {
+			this.selected = selected;
+		}
+
 		@Override
 		public void paintIcon(Component component, Graphics graphics, int x, int y) {
-			graphics.setColor(new java.awt.Color(0xE5142B));
+			graphics.setColor(selected ? SELECTED : HOVERED);
 			graphics.fillOval(x + 1, y + 1, SIZE, SIZE);
-			graphics.setColor(new java.awt.Color(0x8B1A23));
-			graphics.drawOval(x + 1, y + 1, SIZE, SIZE);
+			if (selected) {
+				graphics.setColor(SELECTED_BORDER);
+				graphics.drawOval(x + 1, y + 1, SIZE, SIZE);
+			}
 		}
 
 		@Override
