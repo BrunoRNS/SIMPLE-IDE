@@ -182,10 +182,12 @@ load error on its status label; the rest of the IDE is unaffected.
 ### Audio output
 
 JavaFX writes audio through ALSA. When PulseAudio or PipeWire is available and
-neither `~/.asoundrc` nor `/etc/asound.conf` defines a default device, the
+no ALSA configuration defines a default PCM (in `~/.asoundrc`,
+`/etc/asound.conf`, `/etc/alsa/conf.d` or `/usr/share/alsa/alsa.conf.d`), the
 viewers create a temporary ALSA configuration that routes the default PCM
-through the PulseAudio ALSA plug-in. A native PipeWire ALSA configuration works
-too. Set `ALSA_CONFIG_PATH` to override the automatic configuration.
+through the matching plug-in: PipeWire when its ALSA module is installed,
+otherwise PulseAudio. Set `ALSA_CONFIG_PATH` to override the automatic
+configuration.
 
 ### Headless and packaging behavior
 

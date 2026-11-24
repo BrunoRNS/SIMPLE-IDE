@@ -129,7 +129,7 @@ public final class AudioViewer extends JPanel implements MediaPlayback {
 		}
 		else {
 			try {
-				JavaFxAudioOutput.configurePulseFallback();
+				JavaFxAudioOutput.configureAlsaFallback();
 				fxPanel = new JFXPanel();
 			}
 			catch (Throwable error) {

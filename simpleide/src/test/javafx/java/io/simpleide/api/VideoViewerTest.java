@@ -135,7 +135,7 @@ class VideoViewerTest {
 	}
 
 	private void probeMediaBackend(Path sample) throws Exception {
-		JavaFxAudioOutput.configurePulseFallback();
+		JavaFxAudioOutput.configureAlsaFallback();
 		SwingUtilities.invokeAndWait(() -> new JFXPanel());
 		CompletableFuture<Void> ready = new CompletableFuture<>();
 		Platform.runLater(() -> {
