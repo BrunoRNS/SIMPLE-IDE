@@ -96,6 +96,33 @@ class BusyBoxTerminalSessionTest {
 	}
 
 	@Test
+	void acceptsUnicodeAndDeadKeyCharactersThroughThePty() throws Exception {
+		LangPlatform platform = LangPlatform.getCurrentPlatform();
+		assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+
+		String expected = "SIMPLEIDE_UNICODE_OK:~\u00B4\u00E1\u00E9\u00ED\u00F3\u00FA\u00E3\u00F5\u00E7";
+		Files.writeString(tempDirectory.resolve("unicode.txt"), expected + "\n", StandardCharsets.UTF_8);
+		ExecutorService outputReader = Executors.newSingleThreadExecutor(task -> {
+			Thread thread = new Thread(task, "terminal-unicode-output-test");
+			thread.setDaemon(true);
+			return thread;
+		});
+		try (BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform, tempDirectory)) {
+			session.start();
+			Future<String> output = outputReader
+				.submit(() -> readUntil(session.getConnector(), "SIMPLEIDE_UNICODE_DONE"));
+			session.getConnector().write("cat unicode.txt\nprintf 'SIMPLEIDE_%s\\n' UNICODE_DONE\n");
+
+			String terminalOutput = output.get(10, TimeUnit.SECONDS);
+			assertTrue(terminalOutput.contains(expected), "The PTY did not return the typed Unicode text. Output: "
+					+ terminalOutput + "; session=" + session.processDiagnostics());
+		}
+		finally {
+			outputReader.shutdownNow();
+		}
+	}
+
+	@Test
 	void runsAnInteractiveCommandThroughTheMacArm64TerminalSession() throws Exception {
 		assumeTrue(LangPlatform.getCurrentPlatform() == LangPlatform.MACOSAARCH64, "Test requires macOS ARM64");
 

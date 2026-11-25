@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.eclipse.jgit.lib.Constants;
@@ -338,6 +339,11 @@ public final class GitService {
 
 	/**
 	 * Runs a Git command in exactly the repository work tree.
+	 * <p>
+	 * The command is always started non-interactively: standard input is closed
+	 * immediately, terminal credential prompts are disabled and editors, pagers and SSH
+	 * passphrase prompts are redirected so a Git operation can never wait for the user
+	 * inside the application. Commands that still need input fail with an error instead.
 	 * @param repository repository work tree
 	 * @param arguments Git arguments
 	 * @return command result
@@ -345,13 +351,15 @@ public final class GitService {
 	public GitOperationResult run(Path repository, String... arguments) {
 		List<String> command = new ArrayList<>();
 		command.add("git");
+		command.add("--no-pager");
 		command.add("-C");
 		command.add(repository.toAbsolutePath().normalize().toString());
 		command.addAll(List.of(arguments));
 		String step = arguments.length == 0 ? "command" : arguments[0];
 		LOGGER.info("Git step started: {} (repository={}).", step, repository.getFileName());
 		try {
-			Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+			Process process = nonInteractiveProcess(command).start();
+			closeStandardInput(process, step);
 			String output;
 			try (var stream = process.getInputStream()) {
 				output = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
@@ -372,6 +380,39 @@ public final class GitService {
 			Thread.currentThread().interrupt();
 			LOGGER.warn("Git step {} was interrupted for repository {}.", step, repository.getFileName(), exception);
 			return new GitOperationResult(false, -1, "", "Git command was interrupted.");
+		}
+	}
+
+	private static ProcessBuilder nonInteractiveProcess(List<String> command) {
+		ProcessBuilder builder = new ProcessBuilder(command).redirectErrorStream(true)
+			.redirectInput(ProcessBuilder.Redirect.PIPE);
+		Map<String, String> environment = builder.environment();
+		environment.put("GIT_TERMINAL_PROMPT", "0");
+		environment.put("GCM_INTERACTIVE", "never");
+		environment.put("GIT_PAGER", "cat");
+		environment.put("PAGER", "cat");
+		environment.put("GIT_EDITOR", "true");
+		environment.put("GIT_SEQUENCE_EDITOR", "true");
+		environment.put("GIT_MERGE_AUTOEDIT", "no");
+		environment.put("GIT_ASKPASS", "true");
+		environment.put("SSH_ASKPASS", "true");
+		environment.put("SSH_ASKPASS_REQUIRE", "never");
+		String sshCommand = environment.get("GIT_SSH_COMMAND");
+		if (sshCommand == null || sshCommand.isBlank()) {
+			environment.put("GIT_SSH_COMMAND", "ssh -o BatchMode=yes");
+		}
+		else if (sshCommand.contains("ssh") && !sshCommand.contains("BatchMode")) {
+			environment.put("GIT_SSH_COMMAND", sshCommand + " -o BatchMode=yes");
+		}
+		return builder;
+	}
+
+	private static void closeStandardInput(Process process, String step) {
+		try {
+			process.getOutputStream().close();
+		}
+		catch (IOException exception) {
+			LOGGER.debug("Unable to close standard input for Git step {}.", step, exception);
 		}
 	}
 

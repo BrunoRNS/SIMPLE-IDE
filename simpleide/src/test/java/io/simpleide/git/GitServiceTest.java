@@ -164,6 +164,33 @@ class GitServiceTest {
 		assertThat(message).contains("gh auth login", "gh auth setup-git", "SSH", "does not perform login");
 	}
 
+	@Test
+	void interactionMessageExplainsDisabledPrompts() {
+		assertThat(GitAuthMessage.isInteractionFailure("fatal: could not read Username: terminal prompts disabled"))
+			.isTrue();
+		assertThat(GitAuthMessage.isInteractionFailure("Host key verification failed.")).isTrue();
+		assertThat(GitAuthMessage.isInteractionFailure("Already up to date.")).isFalse();
+		String message = GitAuthMessage.interactionMessageFor("push");
+		assertThat(message).contains("stopped instead of waiting for input", "gh auth login", "gh auth setup-git");
+	}
+
+	@Test
+	void runsCommandsWithClosedStandardInputAndNonInteractiveEnvironment() throws Exception {
+		Path repo = temp.resolve("non-interactive");
+		Files.createDirectories(repo);
+		init(repo);
+		assertThat(git.run(repo, "config", "alias.waitsforinput", "!read answer; echo finished").success()).isTrue();
+
+		GitOperationResult result = git.run(repo, "waitsforinput");
+
+		assertThat(result.success()).isTrue();
+		assertThat(result.output()).contains("finished");
+		assertThat(git.run(repo, "config", "alias.showenvironment", "!echo $GIT_TERMINAL_PROMPT; echo $GIT_SSH_COMMAND")
+			.success()).isTrue();
+		GitOperationResult environment = git.run(repo, "showenvironment");
+		assertThat(environment.output()).contains("0", "BatchMode=yes");
+	}
+
 	private void init(Path repo) throws Exception {
 		Files.createDirectories(repo);
 		run(repo, "git", "init");

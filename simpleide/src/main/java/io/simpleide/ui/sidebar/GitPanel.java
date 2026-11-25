@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -24,6 +25,7 @@ import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
+import javax.swing.SwingUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +38,7 @@ import io.simpleide.git.GitOperationResult;
 import io.simpleide.git.GitService;
 import io.simpleide.git.GitStatusEntry;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
  * Source Control sidebar view bound to the Explorer folder.
@@ -73,6 +76,8 @@ public final class GitPanel extends JPanel {
 	private Path openedFolder;
 
 	private Path repository;
+
+	private long refreshGeneration;
 
 	/**
 	 * Creates the Source Control panel.
@@ -200,13 +205,22 @@ public final class GitPanel extends JPanel {
 
 	/**
 	 * Refreshes status, branch and graph for the bound repository.
+	 * <p>
+	 * Git commands run on the background pool so the window stays responsive even when a
+	 * command is slow or fails while trying to prompt for input.
 	 */
 	public void refresh() {
+		if (!SwingUtilities.isEventDispatchThread()) {
+			ThreadMaster.getInstance().executeOnEDT(this::refresh);
+			return;
+		}
+		Path currentRepository = repository;
+		long generation = ++refreshGeneration;
 		LOGGER.info("Source Control refresh started.");
 		statusModel.clear();
 		branchBox.removeAllItems();
 		graph.setCommits(List.of());
-		if (repository == null) {
+		if (currentRepository == null) {
 			repositoryLabel.setText(
 					openedFolder == null ? "No folder opened" : "No Git repository for " + openedFolder.getFileName());
 			setActionsEnabled(false);
@@ -216,23 +230,42 @@ public final class GitPanel extends JPanel {
 			return;
 		}
 		setActionsEnabled(true);
-		repositoryLabel.setText("Repository: " + repository.getFileName());
-		authorNameField.setText(gitService.localConfig(repository, "user.name"));
-		authorEmailField.setText(gitService.localConfig(repository, "user.email"));
-		String currentBranch = gitService.currentBranch(repository);
-		for (String branch : gitService.branches(repository)) {
-			branchBox.addItem(branch);
+		repositoryLabel.setText("Repository: " + currentRepository.getFileName());
+		ThreadMaster master = ThreadMaster.getInstance();
+		try {
+			master.register(new RunnableNode(() -> {
+				String localName = gitService.localConfig(currentRepository, "user.name");
+				String localEmail = gitService.localConfig(currentRepository, "user.email");
+				String currentBranch = gitService.currentBranch(currentRepository);
+				List<String> branches = gitService.branches(currentRepository);
+				List<GitStatusEntry> status = gitService.status(currentRepository);
+				List<GitCommit> commits = gitService.commits(currentRepository);
+				master.executeOnEDT(() -> {
+					if (generation != refreshGeneration || !Objects.equals(repository, currentRepository)) {
+						LOGGER.debug("Discarding an outdated Source Control refresh result.");
+						return;
+					}
+					authorNameField.setText(localName);
+					authorEmailField.setText(localEmail);
+					branchBox.removeAllItems();
+					for (String branch : branches) {
+						branchBox.addItem(branch);
+					}
+					branchBox.setSelectedItem(currentBranch);
+					statusModel.clear();
+					for (GitStatusEntry entry : status) {
+						statusModel.addElement(entry);
+					}
+					graph.setCommits(commits);
+					LOGGER.info("Source Control refresh completed: branch={}, changedFiles={}, commits={}.",
+							currentBranch, status.size(), commits.size());
+				});
+			}));
 		}
-		branchBox.setSelectedItem(currentBranch);
-
-		List<GitStatusEntry> status = gitService.status(repository);
-		for (GitStatusEntry entry : status) {
-			statusModel.addElement(entry);
+		catch (RuntimeException error) {
+			LOGGER.warn("Unable to start the Source Control refresh for {}.", currentRepository.getFileName(), error);
+			showFailure("Unable to refresh Source Control. Check the application log.", ErrorTypePopUp.INTERNAL_ERROR);
 		}
-		List<GitCommit> commits = gitService.commits(repository);
-		graph.setCommits(commits);
-		LOGGER.info("Source Control refresh completed: branch={}, changedFiles={}, commits={}.", currentBranch,
-				status.size(), commits.size());
 	}
 
 	private void setActionsEnabled(boolean enabled) {
@@ -252,74 +285,77 @@ public final class GitPanel extends JPanel {
 	}
 
 	private void switchBranch() {
-		if (repository == null || branchBox.getSelectedItem() == null) {
+		Path currentRepository = repository;
+		Object selected = branchBox.getSelectedItem();
+		if (currentRepository == null || selected == null) {
 			return;
 		}
-		showResult(gitService.switchBranch(repository, branchBox.getSelectedItem().toString()), "switch branch");
-		refresh();
+		String branch = selected.toString();
+		runOperation(currentRepository, "switch branch", () -> gitService.switchBranch(currentRepository, branch),
+				null);
 	}
 
 	private void fetch() {
-		if (repository != null) {
-			showResult(gitService.fetch(repository), "fetch");
+		Path currentRepository = repository;
+		if (currentRepository != null) {
+			runOperation(currentRepository, "fetch", () -> gitService.fetch(currentRepository), null);
 		}
-		refresh();
 	}
 
 	private void pull() {
-		if (repository != null) {
-			showResult(gitService.pull(repository), "pull");
+		Path currentRepository = repository;
+		if (currentRepository != null) {
+			runOperation(currentRepository, "pull", () -> gitService.pull(currentRepository), null);
 		}
-		refresh();
 	}
 
 	private void push() {
-		if (repository != null) {
-			showResult(gitService.push(repository), "push");
+		Path currentRepository = repository;
+		if (currentRepository != null) {
+			runOperation(currentRepository, "push", () -> gitService.push(currentRepository), null);
 		}
-		refresh();
 	}
 
 	private void stageSelected() {
+		Path currentRepository = repository;
 		GitStatusEntry selected = statusList.getSelectedValue();
-		if (repository != null && selected != null) {
-			showResult(gitService.stage(repository, selected.path()), "stage file");
+		if (currentRepository != null && selected != null) {
+			runOperation(currentRepository, "stage file", () -> gitService.stage(currentRepository, selected.path()),
+					null);
 		}
-		refresh();
 	}
 
 	private void unstageSelected() {
+		Path currentRepository = repository;
 		GitStatusEntry selected = statusList.getSelectedValue();
-		if (repository != null && selected != null) {
-			showResult(gitService.unstage(repository, selected.path()), "unstage file");
+		if (currentRepository != null && selected != null) {
+			runOperation(currentRepository, "unstage file",
+					() -> gitService.unstage(currentRepository, selected.path()), null);
 		}
-		refresh();
 	}
 
 	private void commit() {
-		if (repository == null) {
+		Path currentRepository = repository;
+		if (currentRepository == null) {
 			return;
 		}
 		String message = commitMessageField.getText();
-		LOGGER.info("Source Control commit step requested for repository {}.", repository.getFileName());
-		GitOperationResult result = gitService.commit(repository, message);
-		showResult(result, "commit");
-		if (result.success()) {
-			commitMessageField.setText("");
-		}
-		refresh();
+		LOGGER.info("Source Control commit step requested for repository {}.", currentRepository.getFileName());
+		runOperation(currentRepository, "commit", () -> gitService.commit(currentRepository, message),
+				() -> commitMessageField.setText(""));
 	}
 
 	private void configureIdentity() {
-		if (repository == null) {
+		Path currentRepository = repository;
+		if (currentRepository == null) {
 			return;
 		}
+		String name = authorNameField.getText();
+		String email = authorEmailField.getText();
 		LOGGER.info("Source Control local identity configuration step requested for repository {}.",
-				repository.getFileName());
-		GitOperationResult result = gitService.configureLocalIdentity(repository, authorNameField.getText(),
-				authorEmailField.getText());
-		showResult(result, "configure local Git identity");
-		refresh();
+				currentRepository.getFileName());
+		runOperation(currentRepository, "configure local Git identity",
+				() -> gitService.configureLocalIdentity(currentRepository, name, email), null);
 	}
 
 	private void openSelectedFile() {
@@ -336,11 +372,50 @@ public final class GitPanel extends JPanel {
 	}
 
 	private void checkoutCommit(GitCommit commit) {
-		if (repository == null) {
+		Path currentRepository = repository;
+		if (currentRepository == null) {
 			return;
 		}
-		showResult(gitService.checkoutCommit(repository, commit.hash()), "checkout commit");
-		refresh();
+		runOperation(currentRepository, "checkout commit",
+				() -> gitService.checkoutCommit(currentRepository, commit.hash()), null);
+	}
+
+	private void runOperation(Path currentRepository, String operation, Supplier<GitOperationResult> action,
+			Runnable onSuccess) {
+		ThreadMaster master = ThreadMaster.getInstance();
+		try {
+			master.register(new RunnableNode(() -> {
+				GitOperationResult result;
+				try {
+					result = action.get();
+				}
+				catch (RuntimeException error) {
+					LOGGER.error("Git operation {} failed unexpectedly for repository {}.", operation,
+							currentRepository.getFileName(), error);
+					master.executeOnEDT(() -> showFailure(
+							"Git failed unexpectedly while trying to " + operation + ". Check the application log.",
+							ErrorTypePopUp.INTERNAL_ERROR));
+					return;
+				}
+				master.executeOnEDT(() -> {
+					if (!Objects.equals(repository, currentRepository)) {
+						LOGGER.debug("Discarding the Git {} result because the repository changed.", operation);
+						return;
+					}
+					showResult(result, operation);
+					if (result.success() && onSuccess != null) {
+						onSuccess.run();
+					}
+					refresh();
+				});
+			}));
+		}
+		catch (RuntimeException error) {
+			LOGGER.warn("Unable to start the Git {} operation for repository {}.", operation,
+					currentRepository.getFileName(), error);
+			showFailure("Unable to start Git while trying to " + operation + ". Check the application log.",
+					ErrorTypePopUp.INTERNAL_ERROR);
+		}
 	}
 
 	private void showResult(GitOperationResult result, String operation) {
@@ -348,10 +423,21 @@ public final class GitPanel extends JPanel {
 			return;
 		}
 		String output = result.combinedOutput();
-		String message = GitAuthMessage.isAuthenticationFailure(output) ? GitAuthMessage.messageFor(operation)
-				: output.isBlank() ? "Git failed while trying to " + operation + "." : output;
-		ThreadMaster.getInstance()
-			.executeOnEDT(() -> new ErrorPopUP(message, this, ErrorTypePopUp.INTERNAL_ERROR).startManaged());
+		String message;
+		if (GitAuthMessage.isInteractionFailure(output)) {
+			message = GitAuthMessage.interactionMessageFor(operation);
+		}
+		else if (GitAuthMessage.isAuthenticationFailure(output)) {
+			message = GitAuthMessage.messageFor(operation);
+		}
+		else {
+			message = output.isBlank() ? "Git failed while trying to " + operation + "." : output;
+		}
+		showFailure(message, ErrorTypePopUp.INTERNAL_ERROR);
+	}
+
+	private void showFailure(String message, ErrorTypePopUp type) {
+		ThreadMaster.getInstance().executeOnEDT(() -> new ErrorPopUP(message, this, type).startManaged());
 	}
 
 	private static final class StatusRenderer extends DefaultListCellRenderer {
