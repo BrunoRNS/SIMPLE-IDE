@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.ui.terminal.core.busybox.BusyBoxPlatform;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.BusyBoxTerminalSession}.
@@ -99,6 +100,9 @@ class BusyBoxTerminalSessionTest {
 	void acceptsUnicodeAndDeadKeyCharactersThroughThePty() throws Exception {
 		LangPlatform platform = LangPlatform.getCurrentPlatform();
 		assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+		LangPlatform busyBoxPlatform = BusyBoxPlatform.getCompatiblePlatform(platform,
+				System.getProperty("os.version"));
+		assumeTrue(busyBoxPlatform != LangPlatform.WINDOWSX86, "The Windows x86 BusyBox build is not Unicode");
 
 		String expected = "SIMPLEIDE_UNICODE_OK:~\u00B4\u00E1\u00E9\u00ED\u00F3\u00FA\u00E3\u00F5\u00E7";
 		Files.writeString(tempDirectory.resolve("unicode.txt"), expected + "\n", StandardCharsets.UTF_8);

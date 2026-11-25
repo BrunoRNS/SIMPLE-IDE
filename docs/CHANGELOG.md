@@ -87,6 +87,8 @@ listed above and the Material Icon Theme.
   that leaked an extra character and dropped the composed one.
 - Terminal text selection and `Ctrl+Shift+C`/`Ctrl+Shift+V` copy and paste are covered
   by integration tests, plus UTF-8 input through the PTY.
+- Stopping a running language program no longer reports a bogus process startup
+  failure when its output stream closes during shutdown.
 - Source Control Git operations no longer freeze the window. Every Git command runs
   on the `ThreadMaster` background pool and returns to the EDT only to update the
   panel or show an error popup.

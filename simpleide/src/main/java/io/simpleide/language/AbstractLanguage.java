@@ -127,6 +127,14 @@ public abstract class AbstractLanguage implements Runnable {
 			}
 		}
 		catch (IOException e) {
+			if (stopped) {
+				// The user stopped the process, which closes its output stream while the
+				// reader thread may still be blocked on it. This is an expected shutdown,
+				// not a process startup failure.
+				LOGGER.info("[IDE] Process manually interrupted by the user.");
+				finishExecution();
+				return;
+			}
 			stopCurrentProcess();
 			onExecutionFinished();
 			throw new ProcessFatalException("Process Did not Finish Successfully at startup", e);
@@ -232,15 +240,19 @@ public abstract class AbstractLanguage implements Runnable {
 			}
 		}
 		finally {
-			RunnableNode forwarder = inputForwarder;
-			inputForwarder = null;
-			if (forwarder != null) {
-				ThreadMaster.getInstance().removeNodeCascade(forwarder);
-			}
-			this.p = null;
-			this.stopped = false;
-			onExecutionFinished();
+			finishExecution();
 		}
+	}
+
+	private void finishExecution() {
+		RunnableNode forwarder = inputForwarder;
+		inputForwarder = null;
+		if (forwarder != null) {
+			ThreadMaster.getInstance().removeNodeCascade(forwarder);
+		}
+		this.p = null;
+		this.stopped = false;
+		onExecutionFinished();
 	}
 
 	protected void onExecutionFinished() {

@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.JButton;
 import javax.swing.JScrollBar;
 import javax.swing.JTabbedPane;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.plaf.FontUIResource;
@@ -365,7 +366,7 @@ class TerminalPanelTest {
 	}
 
 	@Test
-	void copiesAndPastesWithCtrlShiftShortcuts() throws Exception {
+	void copiesAndPastesWithTheConfiguredShortcuts() throws Exception {
 		assumeFalse(GraphicsEnvironment.isHeadless(), "Clipboard access requires a display");
 
 		RecordingTtyConnector connector = new RecordingTtyConnector("SELECT_ME ~ \u00B4\r\n");
@@ -376,27 +377,32 @@ class TerminalPanelTest {
 				.untilAsserted(() -> SwingUtilities.invokeAndWait(
 						() -> assertThat(panel.getTerminalTextBuffer().getLine(0).getText()).contains("SELECT_ME")));
 
+			TerminalSettingsProvider settings = new TerminalSettingsProvider();
+			KeyStroke copyStroke = settings.getCopyActionPresentation().getKeyStrokes().get(0);
+			KeyStroke pasteStroke = settings.getPasteActionPresentation().getKeyStrokes().get(0);
+
 			Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
 			SwingUtilities.invokeAndWait(() -> panel.selectAll());
 			SwingUtilities.invokeAndWait(() -> clipboard.setContents(new StringSelection("initial"), null));
 
-			SwingUtilities.invokeAndWait(
-					() -> panel.handleKeyEvent(new KeyEvent(panel, KeyEvent.KEY_PRESSED, System.currentTimeMillis(),
-							InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK, KeyEvent.VK_C, 'C')));
+			SwingUtilities.invokeAndWait(() -> panel.handleKeyEvent(shortcutEvent(panel, copyStroke)));
 			assertThat((String) clipboard.getData(DataFlavor.stringFlavor)).contains("SELECT_ME");
 
 			String pasted = "PASTE ~ \u00B4 \u00E7";
 			SwingUtilities.invokeAndWait(() -> clipboard.setContents(new StringSelection(pasted), null));
 			connector.clearWrites();
-			SwingUtilities.invokeAndWait(
-					() -> panel.handleKeyEvent(new KeyEvent(panel, KeyEvent.KEY_PRESSED, System.currentTimeMillis(),
-							InputEvent.CTRL_DOWN_MASK | InputEvent.SHIFT_DOWN_MASK, KeyEvent.VK_V, 'V')));
+			SwingUtilities.invokeAndWait(() -> panel.handleKeyEvent(shortcutEvent(panel, pasteStroke)));
 			await("the pasted text should reach the connector").atMost(5, TimeUnit.SECONDS)
 				.untilAsserted(() -> assertThat(connector.writes()).isEqualTo(pasted));
 		}
 		finally {
 			closeWidget(widget);
 		}
+	}
+
+	private static KeyEvent shortcutEvent(Component source, KeyStroke stroke) {
+		return new KeyEvent(source, KeyEvent.KEY_PRESSED, System.currentTimeMillis(), stroke.getModifiers(),
+				stroke.getKeyCode(), KeyEvent.CHAR_UNDEFINED);
 	}
 
 	private static TerminalView.ThemedTerminalWidget createStartedWidget(RecordingTtyConnector connector)
