@@ -217,8 +217,12 @@ List<Integer> lines = tab.getBreakpoints();
 sorted and notifies listeners registered with
 `setBreakpointListener(Consumer<List<Integer>>)`. `toggleBreakpointAtCaret()` is
 bound to F9 by `EditorActions`, and clicking the gutter toggles the clicked
-line. Breakpoints are read when Run or Debug starts; the debug session sends the
-selected file's lines to the adapter with `setBreakpoints`.
+line. The breakpoint column is the gutter's icon row header, a child component
+that consumes mouse events, so `EditorTab` installs the click and hover
+listeners on the gutter and on its children; the hovered line shows a
+translucent preview dot and selected lines show a solid dot. Breakpoints are read
+when Run or Debug starts; the debug session sends the selected file's lines to
+the adapter with `setBreakpoints`.
 
 ## Lifecycle
 

@@ -403,9 +403,14 @@ public class MainFrame extends JFrame implements Runnable {
 		if (!saveBeforeExecution(tab)) {
 			return;
 		}
+		Path program = tab.getFile().getPath();
+		if (!dapManager.supports(program)) {
+			showExecutionMessage("Debugging is not supported for " + tab.getFile().getName()
+					+ ". Open a Java, JavaScript, Python or Go file to debug.");
+			return;
+		}
 		outputTabs.setSelectedComponent(ioPanel);
 		ioPanel.beginDebug(null);
-		Path program = tab.getFile().getPath();
 		List<Integer> breakpoints = tab.getBreakpoints();
 		attachBreakpointListener(tab, program);
 		DapSession.Listener listener = new DapSession.Listener() {
@@ -432,10 +437,6 @@ public class MainFrame extends JFrame implements Runnable {
 				Thread.currentThread().interrupt();
 				SwingUtilities.invokeLater(() -> handleDebugFailure("Debug startup was interrupted."));
 			}
-			catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException error) {
-				SwingUtilities.invokeLater(
-						() -> handleDebugFailure("Unable to reach the Java language server: " + error.getMessage()));
-			}
 			catch (RuntimeException error) {
 				SwingUtilities
 					.invokeLater(() -> handleDebugFailure("Unable to start the debug session: " + error.getMessage()));
@@ -449,23 +450,28 @@ public class MainFrame extends JFrame implements Runnable {
 	 * a standalone adapter for the other languages.
 	 */
 	private DapSession startDebugSession(EditorTab tab, Path program, List<Integer> breakpoints,
-			DapSession.Listener listener) throws DapManager.DapUnavailableException, IOException, InterruptedException,
-			java.util.concurrent.ExecutionException, java.util.concurrent.TimeoutException {
+			DapSession.Listener listener) throws DapManager.DapUnavailableException, InterruptedException {
 		if (!dapManager.isLanguageServerDebug(program)) {
 			return dapManager.start(program, breakpoints, listener);
 		}
 		LspClient client = tab.getLanguageServer();
 		if (client == null) {
-			client = editorManager.connectLanguageServer(tab.getDocument())
-				.get(30, java.util.concurrent.TimeUnit.SECONDS);
+			try {
+				client = editorManager.connectLanguageServer(tab.getDocument())
+					.get(30, java.util.concurrent.TimeUnit.SECONDS);
+			}
+			catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException error) {
+				throw new DapManager.DapUnavailableException(
+						"Unable to reach the Java language server: " + error.getMessage(), error);
+			}
 		}
-		JavaDebugBridge.JavaDebugClient bridgeClient = (command, arguments) -> client.executeCommand(command,
+		LspClient activeClient = client;
+		JavaDebugBridge.JavaDebugClient bridgeClient = (command, arguments) -> activeClient.executeCommand(command,
 				arguments);
 		return dapManager.startJava(program, bridgeClient, breakpoints, listener);
 	}
 
 	private void handleDebugFailure(String message) {
-		debugAvailable = false;
 		dapSession = null;
 		detachBreakpointListener();
 		ioPanel.finishExecution();
@@ -473,7 +479,6 @@ public class MainFrame extends JFrame implements Runnable {
 				? "Debugging is not available: the debug adapter could not be installed." : message;
 		ioPanel.appendLine(OutputType.ERROR, explanation);
 		logger.error("Debugging is unavailable: {}", explanation);
-		applyDebugAvailability();
 		JOptionPane.showMessageDialog(this, explanation, "Debug unavailable", JOptionPane.ERROR_MESSAGE);
 	}
 

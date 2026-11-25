@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.Test;
 
@@ -33,6 +34,46 @@ class DapLanguageRegistryTest {
 		assertThat(registry.findForPlatform(LangPlatform.LINUXX64, "python").getTransport()).isEqualTo("tcp");
 		assertThat(registry.findForPlatform(LangPlatform.LINUXX64, "javascript").getTransport()).isEqualTo("tcp");
 		assertThat(registry.findForPlatform(LangPlatform.LINUXX64, "java").getTransport()).isEqualTo("jdtls");
+	}
+
+	@Test
+	void onlyAdvertisesTheFourDebuggableLanguages() {
+		DapRegistry registry = DapRegistry.loadDefault();
+
+		assertThat(registry.getLanguages()).containsExactlyInAnyOrder("javascript", "python", "go", "java");
+
+		DapManager manager = new DapManager(registry, LangPlatform.LINUXX64);
+		assertThat(manager.supports(Path.of("Main.java"))).isTrue();
+		assertThat(manager.supports(Path.of("app.py"))).isTrue();
+		assertThat(manager.supports(Path.of("index.js"))).isTrue();
+		assertThat(manager.supports(Path.of("main.go"))).isTrue();
+		assertThat(manager.supports(Path.of("notes.md"))).isFalse();
+		assertThat(manager.supports(Path.of("main.rs"))).isFalse();
+		assertThat(manager.supports(Path.of("Main.kt"))).isFalse();
+	}
+
+	@Test
+	void reportsAnUnsupportedOperatingSystemAndArchitecture() {
+		DapManager manager = new DapManager(DapRegistry.loadDefault(), LangPlatform.UNKNOWN);
+
+		assertThat(manager.isSupported()).isFalse();
+		assertThat(manager.supports(Path.of("app.js"))).isFalse();
+		assertThatThrownBy(() -> manager.prepare(Path.of("app.js")))
+			.isInstanceOf(DapManager.DapUnavailableException.class)
+			.hasMessageContaining("not supported");
+		assertThatThrownBy(() -> manager.start(Path.of("app.js"), List.of(), new DapSession.Listener() {
+		})).isInstanceOf(DapManager.DapUnavailableException.class).hasMessageContaining("not supported");
+	}
+
+	@Test
+	void languageServerLanguagesAreNotInstalledAsProcesses() {
+		DapManager manager = new DapManager(DapRegistry.loadDefault(), LangPlatform.LINUXX64);
+
+		assertThatThrownBy(() -> manager.prepare(Path.of("Main.java")))
+			.isInstanceOf(DapManager.DapUnavailableException.class)
+			.hasMessageContaining("language server");
+		assertThatThrownBy(() -> manager.start(Path.of("Main.java"), List.of(), new DapSession.Listener() {
+		})).isInstanceOf(DapManager.DapUnavailableException.class).hasMessageContaining("use startJava");
 	}
 
 	@Test

@@ -169,6 +169,7 @@ public abstract class AbstractLanguage implements Runnable {
 
 	private void startInputForwarder(Process process) {
 		RunnableNode forwarder = new RunnableNode(() -> {
+			boolean waitingForStdin = false;
 			try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()))) {
 				while (process.isAlive()) {
 					String line = InputHolder.INSTANCE.get(1);
@@ -176,6 +177,11 @@ public abstract class AbstractLanguage implements Runnable {
 						writer.write(line);
 						writer.newLine();
 						writer.flush();
+						waitingForStdin = false;
+					}
+					else if (!waitingForStdin && process.isAlive()) {
+						waitingForStdin = true;
+						Output.getInstance().publish(OutputType.OUTPUT, Output.WAITING_FOR_STDIN);
 					}
 				}
 			}

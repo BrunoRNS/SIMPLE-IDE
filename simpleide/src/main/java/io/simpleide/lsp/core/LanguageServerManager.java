@@ -24,6 +24,7 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.dap.JavaDebugInstaller;
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.client.LspServerStartupException;
@@ -391,6 +392,24 @@ public final class LanguageServerManager implements AutoCloseable {
 			}
 		}
 
+		private Map<String, Object> initializationOptions() {
+			if (!"java".equals(languageId)) {
+				return Map.of();
+			}
+			try {
+				Path bundle = JavaDebugInstaller.install();
+				return Map.of("bundles", List.of(bundle.toString()));
+			}
+			catch (IOException error) {
+				LOGGER.warn("Unable to install the Java debug adapter; Java debugging will be unavailable.", error);
+				return Map.of();
+			}
+			catch (InterruptedException error) {
+				Thread.currentThread().interrupt();
+				return Map.of();
+			}
+		}
+
 		private void startAttempt(List<String> command, int attempt) {
 			if (closed) {
 				closeActiveClient();
@@ -406,7 +425,7 @@ public final class LanguageServerManager implements AutoCloseable {
 					if (handler != null) {
 						handler.accept(diagnostics);
 					}
-				}, environment, workerPool);
+				}, environment, workerPool, initializationOptions());
 			}
 			catch (IOException | RuntimeException error) {
 				handleStartupFailure(error, attempt);

@@ -1,96 +1,349 @@
 package io.simpleide.dap;
 
-import java.io.BufferedOutputStream;
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 /**
- * Minimal Debug Adapter Protocol server used by the DAP session tests.
+ * Scripted Debug Adapter Protocol server used by the DAP integration tests.
  *
  * <p>
- * The server speaks the DAP framing over standard input/output or TCP and answers the
- * requests a client sends during startup: {@code initialize}, {@code launch},
- * {@code setBreakpoints}, {@code configurationDone} and {@code threads}. After
- * configuration is done it emits a {@code stopped} event and then a {@code terminated}
- * event, so tests can assert that {@link DapSession} completes the handshake and reports
- * execution state changes. It is launched as a child process, which keeps the tests
- * independent of any external debug adapter.
+ * The server speaks real DAP framing over standard input/output or TCP and behaves like a
+ * small but complete debug adapter: it completes the {@code initialize} handshake,
+ * answers {@code launch}, records {@code setBreakpoints}, reports a {@code stopped} event
+ * after {@code configurationDone}, and answers every execution control request
+ * ({@code continue}, {@code next}, {@code stepIn}, {@code stepOut}, {@code pause},
+ * {@code threads} and {@code stackTrace}) with the events a real adapter emits.
+ *
+ * <p>
+ * Every control request is echoed as a {@code stdout} output event ({@code {CONTROL}
+ * next} and so on), so tests can observe from the IDE output queue that the adapter
+ * really received the command. The same technique reports the breakpoint set the client
+ * sent. When started with {@code --stdin-echo <classpath>} the adapter asks the client to
+ * start {@link EchoStdin} through {@code runInTerminal}, which lets tests exercise real
+ * standard input forwarding against a live debuggee process.
+ *
+ * <p>
+ * It is launched as a child process, which keeps the tests independent of any external
+ * debug adapter.
  *
  * @author BrunoRNS
  * @since v1.1.0
  */
 public final class FakeDapServer {
 
-	private static int sequence;
+	private static final ObjectMapper MAPPER = new ObjectMapper();
 
-	private static String lastCommand = "";
+	private final InputStream input;
 
-	private FakeDapServer() {
+	private final OutputStream output;
+
+	private final String echoClasspath;
+
+	private final boolean terminateAfterStop;
+
+	private final List<Integer> breakpoints = new ArrayList<>();
+
+	private int sequence;
+
+	private int currentLine = 1;
+
+	private boolean terminatedSent;
+
+	FakeDapServer(InputStream input, OutputStream output, String echoClasspath, boolean terminateAfterStop) {
+		this.input = new BufferedInputStream(input);
+		this.output = output;
+		this.echoClasspath = echoClasspath;
+		this.terminateAfterStop = terminateAfterStop;
 	}
 
 	/**
-	 * Runs the fake server.
-	 * @param args {@code tcp <port>} for a TCP server, or no arguments for stdio
+	 * Runs the fake adapter.
+	 * @param args {@code tcp <port>} for a TCP server (or no arguments for stdio), plus
+	 * optional {@code --stdin-echo <classpath>}
 	 * @throws IOException when the transport cannot be opened
 	 * @author BrunoRNS
 	 * @since v1.1.0
 	 */
 	public static void main(String[] args) throws IOException {
-		if (args.length >= 2 && "tcp".equals(args[0])) {
-			int port = Integer.parseInt(args[1]);
-			try (ServerSocket serverSocket = new ServerSocket(port)) {
-				try (Socket socket = serverSocket.accept()) {
-					serve(socket.getInputStream(), socket.getOutputStream());
+		int port = 0;
+		String echoClasspath = null;
+		boolean tcp = false;
+		boolean terminateAfterStop = false;
+		for (int index = 0; index < args.length; index++) {
+			switch (args[index]) {
+				case "tcp" -> {
+					tcp = true;
+					if (index + 1 < args.length) {
+						port = Integer.parseInt(args[++index]);
+					}
+				}
+				case "--stdin-echo" -> {
+					if (index + 1 < args.length) {
+						echoClasspath = args[++index];
+					}
+				}
+				case "--terminate-after-stop" -> terminateAfterStop = true;
+				default -> {
+					// Unknown arguments are ignored so the adapter stays launchable from
+					// registry templates that append extra options.
 				}
 			}
 		}
-		else {
-			serve(System.in, System.out);
+		if (!tcp) {
+			new FakeDapServer(System.in, System.out, echoClasspath, terminateAfterStop).serve();
+			return;
+		}
+		try (ServerSocket serverSocket = new ServerSocket(port); Socket socket = serverSocket.accept()) {
+			new FakeDapServer(socket.getInputStream(), socket.getOutputStream(), echoClasspath, terminateAfterStop)
+				.serve();
 		}
 	}
 
-	private static void serve(InputStream input, OutputStream output) throws IOException {
-		BufferedOutputStream writer = new BufferedOutputStream(output);
-		byte[] buffer = new byte[8192];
-		int pending = 0;
-		while (true) {
-			int read = input.read(buffer);
-			if (read < 0) {
-				return;
+	private void serve() throws IOException {
+		JsonNode message;
+		while ((message = readMessage()) != null) {
+			if ("request".equals(message.path("type").asText())) {
+				handleRequest(message);
 			}
-			pending = process(writer, buffer, read, pending);
+			// Responses to requests issued by the client (runInTerminal) need no answer.
+		}
+		output.flush();
+	}
+
+	private void handleRequest(JsonNode message) throws IOException {
+		String command = message.path("command").asText();
+		int requestSequence = message.path("seq").asInt();
+		switch (command) {
+			case "initialize" -> {
+				ObjectNode body = MAPPER.createObjectNode();
+				body.put("supportsConfigurationDoneRequest", true);
+				body.put("supportsTerminateRequest", true);
+				body.put("supportsRunInTerminalRequest", true);
+				respond(requestSequence, command, body);
+				event("initialized", MAPPER.createObjectNode());
+			}
+			case "launch" -> {
+				respond(requestSequence, command, null);
+				JsonNode arguments = message.path("arguments");
+				if (arguments.hasNonNull("mainClass")) {
+					publish("{LAUNCH} mainClass=" + arguments.path("mainClass").asText() + " projectName="
+							+ arguments.path("projectName").asText());
+				}
+				if (echoClasspath != null) {
+					requestRunInTerminal();
+				}
+			}
+			case "setBreakpoints" -> {
+				breakpoints.clear();
+				JsonNode requested = message.path("arguments").path("breakpoints");
+				ArrayNode verified = MAPPER.createArrayNode();
+				int id = 1;
+				for (JsonNode breakpoint : requested) {
+					int line = breakpoint.path("line").asInt();
+					breakpoints.add(line);
+					ObjectNode entry = MAPPER.createObjectNode();
+					entry.put("id", id++);
+					entry.put("verified", true);
+					entry.put("line", line);
+					verified.add(entry);
+				}
+				ObjectNode body = MAPPER.createObjectNode();
+				body.set("breakpoints", verified);
+				respond(requestSequence, command, body);
+				publish("{BREAKPOINTS} " + joinedBreakpoints());
+			}
+			case "configurationDone" -> {
+				respond(requestSequence, command, null);
+				publish("{CONFIGURED}");
+				stopped("breakpoint");
+				if (terminateAfterStop) {
+					terminated();
+				}
+			}
+			case "continue" -> {
+				ObjectNode body = MAPPER.createObjectNode();
+				body.put("allThreadsContinued", true);
+				respond(requestSequence, command, body);
+				publish("{CONTROL} continue");
+				event("continued", MAPPER.createObjectNode());
+				advance();
+				stopped(breakpoints.isEmpty() ? "step" : "breakpoint");
+			}
+			case "next", "stepIn", "stepOut" -> {
+				respond(requestSequence, command, null);
+				publish("{CONTROL} " + command);
+				advance();
+				stopped("step");
+			}
+			case "pause" -> {
+				respond(requestSequence, command, null);
+				publish("{CONTROL} pause");
+				stopped("pause");
+			}
+			case "threads" -> {
+				ObjectNode thread = MAPPER.createObjectNode();
+				thread.put("id", 1);
+				thread.put("name", "main");
+				ObjectNode body = MAPPER.createObjectNode();
+				ArrayNode threads = MAPPER.createArrayNode();
+				threads.add(thread);
+				body.set("threads", threads);
+				respond(requestSequence, command, body);
+			}
+			case "stackTrace" -> {
+				ObjectNode frame = MAPPER.createObjectNode();
+				frame.put("id", 1);
+				frame.put("name", "main");
+				frame.put("line", currentLine);
+				frame.put("column", 1);
+				ObjectNode body = MAPPER.createObjectNode();
+				ArrayNode frames = MAPPER.createArrayNode();
+				frames.add(frame);
+				body.set("stackFrames", frames);
+				body.put("totalFrames", 1);
+				respond(requestSequence, command, body);
+			}
+			case "disconnect" -> {
+				respond(requestSequence, command, null);
+				terminated();
+				output.flush();
+				System.exit(0);
+			}
+			default -> respond(requestSequence, command, null);
 		}
 	}
 
-	private static int process(BufferedOutputStream writer, byte[] buffer, int read, int pending) throws IOException {
-		byte[] data = new byte[pending + read];
-		System.arraycopy(buffer, 0, data, 0, pending);
-		System.arraycopy(buffer, pending, data, pending, read);
-		int offset = 0;
-		while (true) {
-			int headerEnd = indexOf(data, offset, "\r\n\r\n");
-			if (headerEnd < 0) {
-				break;
+	private void advance() {
+		currentLine++;
+	}
+
+	private String joinedBreakpoints() {
+		StringBuilder text = new StringBuilder();
+		for (Integer line : breakpoints) {
+			if (text.length() > 0) {
+				text.append(',');
 			}
-			String header = new String(data, offset, headerEnd - offset, StandardCharsets.UTF_8);
-			int length = contentLength(header);
-			int bodyStart = headerEnd + 4;
-			if (length < 0 || data.length < bodyStart + length) {
-				break;
-			}
-			String body = new String(data, bodyStart, length, StandardCharsets.UTF_8);
-			handle(writer, body);
-			offset = bodyStart + length;
+			text.append(line);
 		}
-		int remaining = data.length - offset;
-		byte[] leftover = new byte[remaining];
-		System.arraycopy(data, offset, leftover, 0, remaining);
-		System.arraycopy(leftover, 0, buffer, 0, remaining);
-		return remaining;
+		return text.toString();
+	}
+
+	private void requestRunInTerminal() throws IOException {
+		String executable = System.getProperty("os.name").toLowerCase(Locale.ROOT).contains("win") ? "java.exe"
+				: "java";
+		String javaExecutable = Path.of(System.getProperty("java.home"), "bin", executable).toString();
+		ObjectNode arguments = MAPPER.createObjectNode();
+		arguments.put("kind", "integrated");
+		arguments.put("title", "Echo stdin");
+		ArrayNode args = arguments.putArray("args");
+		args.add(javaExecutable);
+		args.add("-cp");
+		args.add(echoClasspath);
+		args.add(EchoStdin.class.getName());
+
+		ObjectNode request = MAPPER.createObjectNode();
+		request.put("seq", ++sequence);
+		request.put("type", "request");
+		request.put("command", "runInTerminal");
+		request.set("arguments", arguments);
+		send(request);
+	}
+
+	private void stopped(String reason) throws IOException {
+		ObjectNode body = MAPPER.createObjectNode();
+		body.put("reason", reason);
+		body.put("threadId", 1);
+		body.put("allThreadsStopped", true);
+		ObjectNode event = MAPPER.createObjectNode();
+		event.put("type", "event");
+		event.put("event", "stopped");
+		event.set("body", body);
+		send(event);
+	}
+
+	private void terminated() throws IOException {
+		if (terminatedSent) {
+			return;
+		}
+		terminatedSent = true;
+		event("terminated", MAPPER.createObjectNode());
+	}
+
+	private void publish(String text) throws IOException {
+		ObjectNode body = MAPPER.createObjectNode();
+		body.put("category", "stdout");
+		body.put("output", text + "\n");
+		event("output", body);
+	}
+
+	private void event(String name, ObjectNode body) throws IOException {
+		ObjectNode node = MAPPER.createObjectNode();
+		node.put("seq", ++sequence);
+		node.put("type", "event");
+		node.put("event", name);
+		if (body != null && !body.isEmpty()) {
+			node.set("body", body);
+		}
+		send(node);
+	}
+
+	private void respond(int requestSequence, String command, ObjectNode body) throws IOException {
+		ObjectNode node = MAPPER.createObjectNode();
+		node.put("seq", ++sequence);
+		node.put("type", "response");
+		node.put("request_seq", requestSequence);
+		node.put("success", true);
+		node.put("command", command);
+		if (body != null) {
+			node.set("body", body);
+		}
+		send(node);
+	}
+
+	private void send(JsonNode node) throws IOException {
+		byte[] body = MAPPER.writeValueAsString(node).getBytes(StandardCharsets.UTF_8);
+		output.write(("Content-Length: " + body.length + "\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+		output.write(body);
+		output.flush();
+	}
+
+	private JsonNode readMessage() throws IOException {
+		StringBuilder header = new StringBuilder();
+		int read;
+		while ((read = input.read()) != -1) {
+			header.append((char) read);
+			if (header.length() >= 4 && header.charAt(header.length() - 4) == '\r'
+					&& header.charAt(header.length() - 3) == '\n' && header.charAt(header.length() - 2) == '\r'
+					&& header.charAt(header.length() - 1) == '\n') {
+				break;
+			}
+		}
+		if (read == -1) {
+			return null;
+		}
+		int length = contentLength(header.toString());
+		if (length < 0) {
+			return null;
+		}
+		byte[] body = input.readNBytes(length);
+		if (body.length < length) {
+			return null;
+		}
+		return MAPPER.readTree(body);
 	}
 
 	private static int contentLength(String header) {
@@ -106,100 +359,6 @@ public final class FakeDapServer {
 			}
 		}
 		return -1;
-	}
-
-	private static int indexOf(byte[] data, int from, String needle) {
-		byte[] target = needle.getBytes(StandardCharsets.UTF_8);
-		for (int index = from; index <= data.length - target.length; index++) {
-			boolean matches = true;
-			for (int offset = 0; offset < target.length; offset++) {
-				if (data[index + offset] != target[offset]) {
-					matches = false;
-					break;
-				}
-			}
-			if (matches) {
-				return index;
-			}
-		}
-		return -1;
-	}
-
-	private static void handle(BufferedOutputStream writer, String body) throws IOException {
-		String command = extract(body, "\"command\"");
-		if (command == null) {
-			return;
-		}
-		lastCommand = command;
-		int requestSeq = extractInt(body, "\"seq\"");
-		switch (command) {
-			case "initialize" -> {
-				respond(writer, requestSeq, "{\"supportsConfigurationDoneRequest\":true}");
-				send(writer, "{\"type\":\"event\",\"event\":\"initialized\",\"body\":{}}");
-			}
-			case "setBreakpoints" -> respond(writer, requestSeq,
-					"{\"breakpoints\":[{\"verified\":true,\"line\":1},{\"verified\":true,\"line\":2}]}");
-			case "configurationDone" -> {
-				respond(writer, requestSeq, "{}");
-				send(writer,
-						"{\"type\":\"event\",\"event\":\"stopped\",\"body\":{\"reason\":\"breakpoint\",\"threadId\":1}}");
-				send(writer, "{\"type\":\"event\",\"event\":\"terminated\",\"body\":{}}");
-			}
-			case "threads" -> respond(writer, requestSeq, "{\"threads\":[{\"id\":1,\"name\":\"main\"}]}");
-			case "disconnect" -> {
-				respond(writer, requestSeq, "{}");
-				writer.flush();
-				System.exit(0);
-			}
-			default -> respond(writer, requestSeq, "{}");
-		}
-	}
-
-	private static void respond(BufferedOutputStream writer, int requestSeq, String result) throws IOException {
-		send(writer, "{\"type\":\"response\",\"seq\":" + (++sequence) + ",\"request_seq\":" + requestSeq
-				+ ",\"success\":true,\"command\":\"" + lastCommand + "\",\"body\":" + result + "}");
-	}
-
-	private static void send(BufferedOutputStream writer, String json) throws IOException {
-		byte[] body = json.getBytes(StandardCharsets.UTF_8);
-		String header = "Content-Length: " + body.length + "\r\n\r\n";
-		writer.write(header.getBytes(StandardCharsets.UTF_8));
-		writer.write(body);
-		writer.flush();
-	}
-
-	private static String extract(String body, String key) {
-		int index = body.indexOf(key);
-		if (index < 0) {
-			return null;
-		}
-		int start = body.indexOf('"', index + key.length());
-		if (start < 0) {
-			return null;
-		}
-		int end = body.indexOf('"', start + 1);
-		return end < 0 ? null : body.substring(start + 1, end);
-	}
-
-	private static int extractInt(String body, String key) {
-		int index = body.indexOf(key);
-		if (index < 0) {
-			return 0;
-		}
-		int start = index + key.length();
-		while (start < body.length() && !Character.isDigit(body.charAt(start))) {
-			start++;
-		}
-		int end = start;
-		while (end < body.length() && Character.isDigit(body.charAt(end))) {
-			end++;
-		}
-		try {
-			return Integer.parseInt(body.substring(start, end));
-		}
-		catch (NumberFormatException error) {
-			return 0;
-		}
 	}
 
 }

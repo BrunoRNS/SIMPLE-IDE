@@ -325,7 +325,7 @@ public class EditorTab extends JPanel {
 		if (scrollPane == null || scrollPane.getGutter() == null) {
 			return;
 		}
-		scrollPane.getGutter().addMouseListener(new MouseAdapter() {
+		MouseAdapter clickListener = new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent event) {
 				if (!SwingUtilities.isLeftMouseButton(event)) {
@@ -341,14 +341,29 @@ public class EditorTab extends JPanel {
 			public void mouseExited(MouseEvent event) {
 				editor.setHoverLine(0);
 			}
-		});
-		scrollPane.getGutter().addMouseMotionListener(new MouseAdapter() {
+		};
+		MouseAdapter hoverListener = new MouseAdapter() {
 			@Override
 			public void mouseMoved(MouseEvent event) {
 				Integer line = lineAtGutterPoint(event);
 				editor.setHoverLine(line == null ? 0 : line);
 			}
-		});
+		};
+		// The breakpoint column is drawn by the gutter's icon row header, which is a
+		// child component: mouse events over it never reach the gutter itself, so the
+		// listeners are installed on the gutter and on every one of its children.
+		installGutterListeners(scrollPane.getGutter(), clickListener, hoverListener);
+	}
+
+	private void installGutterListeners(java.awt.Component component, MouseAdapter clickListener,
+			MouseAdapter hoverListener) {
+		component.addMouseListener(clickListener);
+		component.addMouseMotionListener(hoverListener);
+		if (component instanceof java.awt.Container container) {
+			for (java.awt.Component child : container.getComponents()) {
+				installGutterListeners(child, clickListener, hoverListener);
+			}
+		}
 	}
 
 	/**

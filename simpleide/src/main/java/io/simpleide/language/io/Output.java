@@ -36,6 +36,21 @@ import io.simpleide.language.io.holder.OutputHolder;
  */
 public class Output {
 
+	/**
+	 * Marker published when a running program is waiting for standard input.
+	 */
+	public static final String WAITING_FOR_STDIN = "{WAITING FOR STDIN}";
+
+	/**
+	 * Marker published when a debug session completed the protocol handshake.
+	 */
+	public static final String INITIALIZED = "{INITIALIZED}";
+
+	/**
+	 * Marker published when a debug session finished.
+	 */
+	public static final String FINISHED = "{FINISHED}";
+
 	private static final Logger LOGGER = LoggerFactory.getLogger(Output.class);
 
 	private final BlockingQueue<String> queue = new LinkedBlockingQueue<>();

@@ -35,9 +35,11 @@
       "transport": "tcp",
       "arguments": [
         "-m",
-        "debugpy",
-        "--listen",
-        "127.0.0.1:${port}"
+        "debugpy.adapter",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "${port}"
       ],
       "launch": {
         "type": "python",

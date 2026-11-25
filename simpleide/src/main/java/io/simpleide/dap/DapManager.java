@@ -25,6 +25,12 @@ import io.simpleide.language.config.LangPlatform;
  */
 public final class DapManager {
 
+	/**
+	 * Transport used by adapters hosted by a language server instead of a downloaded
+	 * process, such as the Java debug adapter inside the JDT language server.
+	 */
+	public static final String JDTLS_TRANSPORT = "jdtls";
+
 	private final DapRegistry registry;
 
 	private final LangPlatform platform;
@@ -138,6 +144,10 @@ public final class DapManager {
 			throw new DapUnavailableException(
 					"Debugging " + language + " is not supported on " + platform.getDisplayName() + ".");
 		}
+		if (JDTLS_TRANSPORT.equals(adapter.getTransport())) {
+			throw new DapUnavailableException(
+					"Debugging " + language + " runs inside the language server, which has no download to install.");
+		}
 		return prepare(adapter);
 	}
 
@@ -174,6 +184,10 @@ public final class DapManager {
 	 */
 	public DapSession start(Path program, List<Integer> breakpoints, DapSession.Listener listener)
 			throws DapUnavailableException {
+		if (isLanguageServerDebug(program)) {
+			throw new DapUnavailableException(
+					"Debugging " + languageOf(program) + " runs through the language server; use startJava.");
+		}
 		PreparedAdapter prepared = prepare(program);
 		DapSession session = new DapSession(prepared.adapter(), prepared.installDirectory(), program, listener);
 		try {
@@ -248,20 +262,8 @@ public final class DapManager {
 			return false;
 		}
 		DapAdapter adapter = registry.findForPlatform(platform, language);
-		return adapter != null && "jdtls".equals(adapter.getTransport());
+		return adapter != null && JDTLS_TRANSPORT.equals(adapter.getTransport());
 	}
-
-	/**
-	 * Starts a Java debug session through the running JDT language server.
-	 * @param program source file
-	 * @param client initialized Java language-server client
-	 * @param breakpoints initial line breakpoints
-	 * @param listener listener for execution state changes
-	 * @return the started session
-	 * @throws DapUnavailableException when the JDT debug bridge cannot start a session
-	 * @author BrunoRNS
-	 * @since v1.1.0
-	 */
 
 	/**
 	 * Installed adapter ready to launch a session.
@@ -269,8 +271,6 @@ public final class DapManager {
 	 * @param adapter adapter definition
 	 * @param download platform download entry
 	 * @param installDirectory installation directory
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 * @author BrunoRNS
 	 * @since v1.1.0
 	 */

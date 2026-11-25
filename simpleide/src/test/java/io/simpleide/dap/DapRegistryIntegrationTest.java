@@ -4,6 +4,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import io.simpleide.language.config.LangPlatform;
@@ -13,6 +14,7 @@ import io.simpleide.language.config.LangPlatform;
  * system and architecture must resolve to a debug adapter, and each adapter must ship
  * downloads for every platform it declares support for.
  */
+@Tag("debug")
 class DapRegistryIntegrationTest {
 
 	@Test

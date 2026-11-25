@@ -11,7 +11,7 @@ PKG_DIR := simpleide/target/pkg
 VERSION := $(shell sed -n 's/^version=//p' simpleide/src/main/resources/simpleide.properties 2>/dev/null | tr -d '\r')
 JAVA_OPTS ?= -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED
 
-.PHONY: all build test test-nolang jar pkg pkg-verify change-version run clean format check-format format-check verify help
+.PHONY: all build test test-nolang test-debug jar pkg pkg-verify change-version run clean format check-format format-check verify help
 
 all: test jar
 
@@ -21,11 +21,15 @@ build:
 
 # Run the complete test suite.
 test: check-format
-	$(MVNW) -B test
+	$(MVNW) -B -DexcludedGroups=debug test
 
 # Run the test suite without tests that require external language toolchains.
 test-nolang: check-format
-	$(MVNW) -B -DexcludedGroups=language-tools test
+	$(MVNW) -B -DexcludedGroups=debug,language-tools test
+
+# Run only debug integration tests; the CI workflow supplies the newest toolchains.
+test-debug: check-format
+	$(MVNW) -B -Dgroups=debug -DexcludedGroups= -Dsimpleide.java.debug.real=true test
 
 # Package the executable fat JAR. Tests are intentionally not part of this target.
 jar:
@@ -84,6 +88,7 @@ help:
 	@echo "  make build         Compile all modules (no tests, no packages)"
 	@echo "  make test          Run the full test suite"
 	@echo "  make test-nolang   Run tests without external language toolchains"
+	@echo "  make test-debug    Run only debug integration tests"
 	@echo "  make jar           Package the executable fat JAR"
 	@echo "  make pkg           Build every release package for this OS/architecture"
 	@echo "  make pkg-verify    Build packages and validate the produced executables"

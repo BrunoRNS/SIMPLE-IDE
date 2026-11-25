@@ -188,7 +188,7 @@ public final class JavaDebugBridge {
 
 	private static List<Map<String, Object>> resolveMainClasses(JavaDebugClient client, Path program)
 			throws IOException, InterruptedException {
-		Object result = invoke(client, RESOLVE_MAIN_CLASS, List.of(List.of(program.toUri().toString())));
+		Object result = invoke(client, RESOLVE_MAIN_CLASS, List.of(program.toUri().toString()));
 		List<Map<String, Object>> entries = new ArrayList<>();
 		if (result instanceof List<?> list) {
 			for (Object element : list) {
