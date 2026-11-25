@@ -18,6 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -289,7 +290,7 @@ public final class DapSession implements AutoCloseable {
 		initialize();
 		protocolStarted = true;
 		CompletableFuture<Void> launchRequest = launch();
-		awaitInitializedEvent();
+		awaitInitializedEvent(launchRequest);
 		await(sendBreakpoints(program, breakpoints));
 		if (capabilities != null && Boolean.TRUE.equals(capabilities.getSupportsConfigurationDoneRequest())) {
 			await(server.configurationDone(new ConfigurationDoneArguments()));
@@ -316,13 +317,23 @@ public final class DapSession implements AutoCloseable {
 	 * send it only once the launch request arrives. Since the event only delays the
 	 * launch request, a bounded wait keeps those adapters working instead of blocking
 	 * startup.
+	 *
+	 * <p>
+	 * A failed launch request ends the wait immediately and is reported to the user.
+	 * Adapters such as delve reject the launch before the debugger exists, so every later
+	 * request (breakpoints, configurationDone) would fail with the unrelated message
+	 * {@code No debug session started} instead of the real problem, for example a Go
+	 * toolchain too old for the bundled adapter.
+	 * @param launchRequest pending response to the launch request
+	 * @throws IOException when the adapter rejects the launch request
 	 * @throws InterruptedException when the calling thread is interrupted
 	 * @author BrunoRNS
 	 * @since v1.1.0
 	 */
-	private void awaitInitializedEvent() throws InterruptedException {
+	private void awaitInitializedEvent(CompletableFuture<Void> launchRequest) throws IOException, InterruptedException {
+		CompletableFuture<Object> firstOutcome = CompletableFuture.anyOf(initialized, launchRequest);
 		try {
-			initialized.get(INITIALIZED_EVENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			firstOutcome.get(INITIALIZED_EVENT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 		}
 		catch (InterruptedException error) {
 			Thread.currentThread().interrupt();
@@ -334,6 +345,21 @@ public final class DapSession implements AutoCloseable {
 		catch (ExecutionException error) {
 			LOGGER.debug("The debug adapter failed to initialize.", error);
 		}
+		if (launchRequest.isCompletedExceptionally()) {
+			reportLaunchFailure(launchRequest);
+		}
+	}
+
+	private static void reportLaunchFailure(CompletableFuture<Void> launchRequest) throws IOException {
+		Throwable failure;
+		try {
+			launchRequest.join();
+			return;
+		}
+		catch (CompletionException error) {
+			failure = error.getCause() == null ? error : error.getCause();
+		}
+		throw new IOException("The debug adapter rejected the launch request: " + failure.getMessage(), failure);
 	}
 
 	/**

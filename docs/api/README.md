@@ -40,6 +40,8 @@ not cover a use case.
 | `io.simpleide.api.HexEditor` | Chunked binary/hex editor with visible ASCII rows | No | Creates Swing components |
 | `io.simpleide.api.Threads` | Manages EDT and background tasks | Yes | No application frame |
 | `io.simpleide.api.Languages` | Language discovery and execution | Yes | No |
+| `io.simpleide.api.LanguageServers` | Connects files to shared language servers and delivers diagnostics | Yes | No |
+| `io.simpleide.api.Debugger` | Starts standalone and language-server debug sessions | Yes, on start | No |
 | `io.simpleide.api.Terminals` | BusyBox terminal panel and controller | Yes | Creates Swing components |
 | `io.simpleide.api.SimpleIDE` | Convenience entry point | Yes, on demand | Launches full IDE |
 

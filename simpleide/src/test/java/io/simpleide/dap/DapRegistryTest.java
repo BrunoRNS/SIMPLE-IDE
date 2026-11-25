@@ -1,5 +1,7 @@
 package io.simpleide.dap;
 
+import java.nio.file.Path;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -48,6 +50,62 @@ class DapRegistryTest {
 		assertThat(adapter.downloadFor(LangPlatform.LINUXX64)).isNotNull();
 		assertThat(adapter.downloadFor(LangPlatform.MACOSAARCH64)).isNotNull();
 		assertThat(registry.supports(LangPlatform.WINDOWSX64UNICODE)).isFalse();
+	}
+
+	@Test
+	void keepsBooleanAndNumericLaunchOptionsAsNativeJsonTypes() {
+		String registryJson = """
+				{
+				  "adapters": [
+				    {
+				      "id": "python-like",
+				      "name": "Python-like",
+				      "command": "python3",
+				      "launch": {
+				        "console": "integratedTerminal",
+				        "justMyCode": false,
+				        "trace": true,
+				        "retries": 2,
+				        "program": "${program}",
+				        "cwd": "${fileDir}"
+				      },
+				      "downloads": [
+				        {"os": "linux", "arch": "x64", "url": "https://example.com/a.zip"}
+				      ]
+				    }
+				  ]
+				}
+				""";
+		DapAdapter adapter = DapRegistry.parse(registryJson).getAdapters().get(0);
+
+		assertThat(adapter.getLaunchArguments()).containsEntry("justMyCode", Boolean.FALSE)
+			.containsEntry("trace", Boolean.TRUE)
+			.containsEntry("retries", 2);
+		assertThat(adapter.launchArguments(Path.of("/tmp/main.py"))).containsEntry("program", "/tmp/main.py")
+			.containsEntry("cwd", "/tmp")
+			.containsEntry("justMyCode", Boolean.FALSE);
+	}
+
+	@Test
+	void rejectsUnsupportedLaunchPropertyTypes() {
+		String registryJson = """
+				{
+				  "adapters": [
+				    {
+				      "id": "broken",
+				      "name": "Broken",
+				      "command": "node",
+				      "launch": {"args": ["-x"]},
+				      "downloads": [
+				        {"os": "linux", "arch": "x64", "url": "https://example.com/a.zip"}
+				      ]
+				    }
+				  ]
+				}
+				""";
+
+		assertThatThrownBy(() -> DapRegistry.parse(registryJson)).isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("launch properties");
 	}
 
 	@Test

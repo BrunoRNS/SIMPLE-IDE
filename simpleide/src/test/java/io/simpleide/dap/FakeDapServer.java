@@ -55,6 +55,12 @@ public final class FakeDapServer {
 
 	private final boolean terminateAfterStop;
 
+	/**
+	 * Message used to reject the launch request instead of starting a session, or
+	 * {@code null} when the adapter behaves normally.
+	 */
+	private final String launchFailure;
+
 	private final List<Integer> breakpoints = new ArrayList<>();
 
 	private int sequence;
@@ -64,16 +70,22 @@ public final class FakeDapServer {
 	private boolean terminatedSent;
 
 	FakeDapServer(InputStream input, OutputStream output, String echoClasspath, boolean terminateAfterStop) {
+		this(input, output, echoClasspath, terminateAfterStop, null);
+	}
+
+	FakeDapServer(InputStream input, OutputStream output, String echoClasspath, boolean terminateAfterStop,
+			String launchFailure) {
 		this.input = new BufferedInputStream(input);
 		this.output = output;
 		this.echoClasspath = echoClasspath;
 		this.terminateAfterStop = terminateAfterStop;
+		this.launchFailure = launchFailure;
 	}
 
 	/**
 	 * Runs the fake adapter.
 	 * @param args {@code tcp <port>} for a TCP server (or no arguments for stdio), plus
-	 * optional {@code --stdin-echo <classpath>}
+	 * optional {@code --stdin-echo <classpath>} and {@code --fail-launch <message>}
 	 * @throws IOException when the transport cannot be opened
 	 * @author BrunoRNS
 	 * @since v1.1.0
@@ -81,6 +93,7 @@ public final class FakeDapServer {
 	public static void main(String[] args) throws IOException {
 		int port = 0;
 		String echoClasspath = null;
+		String launchFailure = null;
 		boolean tcp = false;
 		boolean terminateAfterStop = false;
 		for (int index = 0; index < args.length; index++) {
@@ -96,6 +109,11 @@ public final class FakeDapServer {
 						echoClasspath = args[++index];
 					}
 				}
+				case "--fail-launch" -> {
+					if (index + 1 < args.length) {
+						launchFailure = args[++index];
+					}
+				}
 				case "--terminate-after-stop" -> terminateAfterStop = true;
 				default -> {
 					// Unknown arguments are ignored so the adapter stays launchable from
@@ -104,11 +122,12 @@ public final class FakeDapServer {
 			}
 		}
 		if (!tcp) {
-			new FakeDapServer(System.in, System.out, echoClasspath, terminateAfterStop).serve();
+			new FakeDapServer(System.in, System.out, echoClasspath, terminateAfterStop, launchFailure).serve();
 			return;
 		}
 		try (ServerSocket serverSocket = new ServerSocket(port); Socket socket = serverSocket.accept()) {
-			new FakeDapServer(socket.getInputStream(), socket.getOutputStream(), echoClasspath, terminateAfterStop)
+			new FakeDapServer(socket.getInputStream(), socket.getOutputStream(), echoClasspath, terminateAfterStop,
+					launchFailure)
 				.serve();
 		}
 	}
@@ -134,9 +153,18 @@ public final class FakeDapServer {
 				body.put("supportsTerminateRequest", true);
 				body.put("supportsRunInTerminalRequest", true);
 				respond(requestSequence, command, body);
-				event("initialized", MAPPER.createObjectNode());
+				if (launchFailure == null) {
+					event("initialized", MAPPER.createObjectNode());
+				}
 			}
 			case "launch" -> {
+				if (launchFailure != null) {
+					// Adapters such as delve reject the launch before the debugger
+					// exists,
+					// so no initialized event and no session are ever created.
+					respondError(requestSequence, command, launchFailure);
+					return;
+				}
 				respond(requestSequence, command, null);
 				JsonNode arguments = message.path("arguments");
 				if (arguments.hasNonNull("mainClass")) {
@@ -311,6 +339,22 @@ public final class FakeDapServer {
 		if (body != null) {
 			node.set("body", body);
 		}
+		send(node);
+	}
+
+	private void respondError(int requestSequence, String command, String message) throws IOException {
+		ObjectNode node = MAPPER.createObjectNode();
+		node.put("seq", ++sequence);
+		node.put("type", "response");
+		node.put("request_seq", requestSequence);
+		node.put("success", false);
+		node.put("command", command);
+		node.put("message", message);
+		ObjectNode error = MAPPER.createObjectNode();
+		error.put("id", 3000);
+		error.put("format", message);
+		error.put("showUser", true);
+		node.set("body", MAPPER.createObjectNode().set("error", error));
 		send(node);
 	}
 

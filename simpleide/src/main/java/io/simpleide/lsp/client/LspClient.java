@@ -97,7 +97,12 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LspClient.class);
 
-	private static final long INITIALIZATION_TIMEOUT_SECONDS = 60;
+	/**
+	 * Servers that build an index of the workspace during initialization, such as
+	 * kotlin-language-server and groovy-language-server, need longer than a minute on a
+	 * cold cache before they answer the {@code initialize} request.
+	 */
+	private static final long INITIALIZATION_TIMEOUT_SECONDS = 180;
 
 	private static final int MAX_RECENT_ERROR_LINES = 20;
 

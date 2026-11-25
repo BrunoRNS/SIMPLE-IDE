@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -393,21 +394,21 @@ public final class LanguageServerManager implements AutoCloseable {
 		}
 
 		private Map<String, Object> initializationOptions() {
+			Map<String, Object> options = new HashMap<>(LspManager.getInitializationOptions(languageId, root));
 			if (!"java".equals(languageId)) {
-				return Map.of();
+				return options;
 			}
 			try {
 				Path bundle = JavaDebugInstaller.install();
-				return Map.of("bundles", List.of(bundle.toString()));
+				options.put("bundles", List.of(bundle.toString()));
 			}
 			catch (IOException error) {
 				LOGGER.warn("Unable to install the Java debug adapter; Java debugging will be unavailable.", error);
-				return Map.of();
 			}
 			catch (InterruptedException error) {
 				Thread.currentThread().interrupt();
-				return Map.of();
 			}
+			return options;
 		}
 
 		private void startAttempt(List<String> command, int attempt) {

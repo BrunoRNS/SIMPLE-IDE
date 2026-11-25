@@ -12,6 +12,7 @@ import java.util.Objects;
 
 import jakarta.json.Json;
 import jakarta.json.JsonArray;
+import jakarta.json.JsonNumber;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
 import jakarta.json.JsonString;
@@ -126,7 +127,7 @@ public final class DapRegistry {
 					requiredString(download, "url"), optionalString(download, "archiveType", null)));
 		}
 		return new DapAdapter(id, name, version, languageId, command, arguments, downloads, transport,
-				readStringMap(object, "launch"), readStringMap(object, "environment"));
+				readLaunchMap(object, "launch"), readStringMap(object, "environment"));
 	}
 
 	private static String requiredString(JsonObject object, String key) {
@@ -161,6 +162,45 @@ public final class DapRegistry {
 			values.add(((JsonString) value).getString());
 		}
 		return values;
+	}
+
+	/**
+	 * Reads launch properties, keeping JSON strings, booleans and numbers as their native
+	 * types. Adapters such as debugpy require boolean options (for example
+	 * {@code justMyCode}) and comparing them as strings would be rejected by the adapter.
+	 * @param object registry object that contains the property
+	 * @param key property name
+	 * @return the parsed launch properties
+	 */
+	private static Map<String, Object> readLaunchMap(JsonObject object, String key) {
+		JsonObject source = object.getJsonObject(key);
+		if (source == null) {
+			return Map.of();
+		}
+		Map<String, Object> values = new LinkedHashMap<>();
+		for (Map.Entry<String, JsonValue> entry : source.entrySet()) {
+			JsonValue value = entry.getValue();
+			switch (value.getValueType()) {
+				case STRING -> values.put(entry.getKey(), ((JsonString) value).getString());
+				case TRUE -> values.put(entry.getKey(), Boolean.TRUE);
+				case FALSE -> values.put(entry.getKey(), Boolean.FALSE);
+				case NUMBER -> values.put(entry.getKey(), readNumber(value));
+				default -> throw new IllegalArgumentException(
+						"DAP registry launch properties must be strings, booleans or numbers: " + key);
+			}
+		}
+		return values;
+	}
+
+	private static Object readNumber(JsonValue value) {
+		if (value instanceof JsonNumber number) {
+			double decimal = number.doubleValue();
+			if (decimal == Math.rint(decimal) && decimal >= Integer.MIN_VALUE && decimal <= Integer.MAX_VALUE) {
+				return (int) decimal;
+			}
+			return decimal;
+		}
+		return value.toString();
 	}
 
 	private static Map<String, String> readStringMap(JsonObject object, String key) {

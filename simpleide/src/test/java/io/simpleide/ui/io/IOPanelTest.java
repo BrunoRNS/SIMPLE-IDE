@@ -2,7 +2,10 @@ package io.simpleide.ui.io;
 
 import java.awt.Color;
 
+import javax.swing.JButton;
+import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
+import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.StyledDocument;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -84,6 +87,39 @@ class IOPanelTest {
 		panel.finishExecution();
 		assertThat(panel.isDebugMode()).isFalse();
 		assertThat(panel.getDebugControls().isVisible()).isFalse();
+	}
+
+	@Test
+	void showsOnlyTheStopButtonWhileRunningWithoutDebug() {
+		IOPanel panel = new IOPanel();
+		TestLanguage language = new TestLanguage();
+		assertThat(panel.getRunControls().isVisible()).isFalse();
+
+		panel.beginRun(language);
+		assertThat(panel.getRunControls().isVisible()).isTrue();
+		assertThat(panel.getRunControls().getComponentCount()).isEqualTo(1);
+		assertThat(((JButton) panel.getRunControls().getComponent(0)).getText()).isEqualTo("Stop");
+		assertThat(panel.getDebugControls().isVisible()).isFalse();
+
+		panel.finishExecution();
+		assertThat(panel.getRunControls().isVisible()).isFalse();
+	}
+
+	@Test
+	void letsTheOutputBeSelectedAndCopiedWithCtrlC() throws Exception {
+		IOPanel panel = new IOPanel();
+		SwingUtilities.invokeAndWait(() -> panel.appendLine(OutputType.OUTPUT, "copyable line"));
+
+		var outputPane = panel.getOutputPane();
+		assertThat(outputPane.isEditable()).isFalse();
+		assertThat(outputPane.isFocusable()).isTrue();
+		assertThat(outputPane.getInputMap().get(KeyStroke.getKeyStroke("control C")))
+			.isEqualTo(DefaultEditorKit.copyAction);
+		assertThat(outputPane.getActionMap().get(DefaultEditorKit.copyAction)).isNotNull();
+		assertThat(outputPane.getComponentPopupMenu()).isNotNull();
+
+		SwingUtilities.invokeAndWait(outputPane::selectAll);
+		assertThat(outputPane.getSelectedText()).contains("[OUTPUT] copyable line");
 	}
 
 	private static void drainInput() throws InterruptedException {

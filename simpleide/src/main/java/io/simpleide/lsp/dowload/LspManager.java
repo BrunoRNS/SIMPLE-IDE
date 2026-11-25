@@ -8,12 +8,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -55,6 +57,12 @@ public class LspManager {
 	private static final Logger LOGGER = LoggerFactory.getLogger(LspManager.class);
 
 	private static final Pattern VERSION_PATTERN = Pattern.compile("(?<!\\d)(\\d+(?:\\.\\d+)*)(?!\\d)");
+
+	private static final String RUST_PROJECT_FILE = "rust-project.json";
+
+	private static final String LOOSE_CSHARP_PROJECT_FILE = "SimpleIdeLooseFiles.csproj";
+
+	private static final AtomicBoolean RUST_SOURCES_WARNING = new AtomicBoolean();
 
 	/**
 	 * Returns the launch command for a language without a workspace root or status
@@ -236,14 +244,115 @@ public class LspManager {
 		return Optional.empty();
 	}
 
+	/**
+	 * Returns the extra initialization options a language server needs.
+	 *
+	 * <p>
+	 * rust-analyzer only discovers Cargo projects, so a standalone {@code .rs} file
+	 * outside one initializes without offering completion. When the workspace has no
+	 * {@code Cargo.toml} or {@code rust-project.json}, the loose {@code .rs} files are
+	 * passed as {@code linkedProjects}; rust-analyzer treats each of them as a standalone
+	 * file and resolves the standard library from the toolchain.
+	 * @param language LSP language identifier
+	 * @param workspaceRoot workspace root passed to the server, may be {@code null}
+	 * @return initialization options, empty when the server needs none
+	 */
+	public static Map<String, Object> getInitializationOptions(String language, Path workspaceRoot) {
+		if (!"rust".equals(language) || workspaceRoot == null) {
+			return Map.of();
+		}
+		Path root = workspaceRoot.toAbsolutePath().normalize();
+		if (Files.exists(root.resolve("Cargo.toml")) || Files.isRegularFile(root.resolve(RUST_PROJECT_FILE))) {
+			return Map.of();
+		}
+
+		List<String> sources;
+		try (var paths = Files.list(root)) {
+			sources = paths.filter(Files::isRegularFile)
+				.filter(path -> path.getFileName().toString().endsWith(".rs"))
+				.map(path -> path.toAbsolutePath().normalize().toString())
+				.sorted()
+				.toList();
+		}
+		catch (IOException error) {
+			LOGGER.warn("Unable to list the standalone Rust files in {}.", root, error);
+			return Map.of();
+		}
+		if (sources.isEmpty()) {
+			return Map.of();
+		}
+		warnWhenRustSourcesAreMissing();
+		return Map.of("linkedProjects", sources);
+	}
+
+	private static void warnWhenRustSourcesAreMissing() {
+		if (!RUST_SOURCES_WARNING.compareAndSet(false, true)) {
+			return;
+		}
+		Path sysroot = rustcSysroot();
+		if (sysroot != null && Files
+			.isDirectory(sysroot.resolve("lib").resolve("rustlib").resolve("src").resolve("rust").resolve("library"))) {
+			return;
+		}
+		LOGGER.warn("The rust-src component is missing; Rust completions for standalone files will be limited. "
+				+ "Install it with 'rustup component add rust-src'.");
+	}
+
+	private static Path rustcSysroot() {
+		Path outputFile;
+		try {
+			outputFile = Files.createTempFile("simpleide-rustc-sysroot-", ".log");
+		}
+		catch (IOException error) {
+			return null;
+		}
+		Process process = null;
+		try {
+			process = new ProcessBuilder("rustc", "--print", "sysroot").redirectErrorStream(true)
+				.redirectOutput(outputFile.toFile())
+				.start();
+			if (!process.waitFor(10, TimeUnit.SECONDS) || process.exitValue() != 0) {
+				return null;
+			}
+			String output = Files.readString(outputFile, StandardCharsets.UTF_8).trim();
+			return output.isBlank() ? null : Paths.get(output);
+		}
+		catch (InterruptedException error) {
+			Thread.currentThread().interrupt();
+			return null;
+		}
+		catch (IOException error) {
+			return null;
+		}
+		finally {
+			if (process != null && process.isAlive()) {
+				process.destroyForcibly();
+			}
+			try {
+				Files.deleteIfExists(outputFile);
+			}
+			catch (IOException error) {
+				outputFile.toFile().deleteOnExit();
+			}
+		}
+	}
+
+	private static Path workspaceDataDirectory(Path workspaceRoot) {
+		String workspaceKey = workspaceRoot == null ? "default" : workspaceRoot.toAbsolutePath().normalize().toString();
+		return Paths.get(System.getProperty("user.home"), ".cache", "simpleide", "lsp",
+				UUID.nameUUIDFromBytes(workspaceKey.getBytes(StandardCharsets.UTF_8)).toString());
+	}
+
 	static List<String> createCommand(LspServer server, Path workspaceRoot) {
 		if (server.getCommand() == null || server.getCommand().isBlank()) {
 			throw new IllegalStateException("No launch command configured for " + server.getName());
 		}
 		Path installDirectory = LspInstaller.getInstallDirectory(server);
-		String workspaceKey = workspaceRoot == null ? "default" : workspaceRoot.toAbsolutePath().normalize().toString();
-		Path workspaceData = Paths.get(System.getProperty("user.home"), ".cache", "simpleide", "lsp",
-				UUID.nameUUIDFromBytes(workspaceKey.getBytes(StandardCharsets.UTF_8)).toString());
+		String workspacePath = workspaceRoot == null ? "" : workspaceRoot.toAbsolutePath().normalize().toString();
+		Path workspaceData = workspaceDataDirectory(workspaceRoot);
+		if ("csharp".equals(server.getLanguageId())) {
+			looseCSharpProject(workspaceRoot);
+		}
 		String platformConfiguration = switch (LangPlatform.getCurrentPlatform().getOs()) {
 			case "windows" -> "config_win";
 			case "macos" -> "config_mac";
@@ -253,14 +362,93 @@ public class LspManager {
 
 		List<String> command = new ArrayList<>();
 		command.addAll(resolveArgument(resolveJavaCommand(server.getCommand()), installDirectory, workspaceData,
-				server.getVersion(), platformConfiguration));
+				workspacePath, server.getVersion(), platformConfiguration));
 		if (server.getArguments() != null) {
 			for (String argument : server.getArguments()) {
-				command.addAll(resolveArgument(argument, installDirectory, workspaceData, server.getVersion(),
-						platformConfiguration));
+				command.addAll(resolveArgument(argument, installDirectory, workspaceData, workspacePath,
+						server.getVersion(), platformConfiguration));
 			}
 		}
 		return command;
+	}
+
+	/**
+	 * Writes a project file for loose C# files.
+	 *
+	 * <p>
+	 * OmniSharp only analyzes files that belong to a project, so it answers no completion
+	 * for a loose {@code .cs} file. When the workspace has no {@code .sln},
+	 * {@code .csproj} or {@code .csx}, a project including the loose files is written
+	 * next to them. OmniSharp resolves projects from the document root, so the file has
+	 * to live in the workspace; it is only created when the folder has no C# project of
+	 * its own.
+	 * @param workspaceRoot workspace root passed to the server, may be {@code null}
+	 */
+	private static void looseCSharpProject(Path workspaceRoot) {
+		if (workspaceRoot == null) {
+			return;
+		}
+		Path root = workspaceRoot.toAbsolutePath().normalize();
+		List<Path> sources;
+		try (var paths = Files.list(root)) {
+			List<Path> entries = paths.toList();
+			boolean hasProject = entries.stream()
+				.map(path -> path.getFileName().toString())
+				.anyMatch(name -> name.endsWith(".sln") || name.endsWith(".csproj") || name.endsWith(".csx"));
+			if (hasProject) {
+				return;
+			}
+			sources = entries.stream()
+				.filter(Files::isRegularFile)
+				.filter(path -> path.getFileName().toString().endsWith(".cs"))
+				.sorted()
+				.toList();
+		}
+		catch (IOException error) {
+			LOGGER.warn("Unable to list the C# files in {}.", root, error);
+			return;
+		}
+		if (sources.isEmpty()) {
+			return;
+		}
+
+		try {
+			Files.writeString(root.resolve(LOOSE_CSHARP_PROJECT_FILE), looseCSharpProjectFile(sources),
+					StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+		}
+		catch (IOException error) {
+			LOGGER.warn("Unable to create a C# project for the loose files in {}; OmniSharp will not analyze them.",
+					root, error);
+		}
+	}
+
+	private static String looseCSharpProjectFile(List<Path> sources) {
+		StringBuilder project = new StringBuilder();
+		project.append("<?xml version=\"1.0\" encoding=\"utf-8\"?>\n")
+			.append("<Project ToolsVersion=\"15.0\" ")
+			.append("xmlns=\"http://schemas.microsoft.com/developer/msbuild/2003\">\n")
+			.append("  <Import Project=\"$(MSBuildExtensionsPath)\\$(MSBuildToolsVersion)\\Microsoft.Common.props\"")
+			.append(" Condition=\"Exists('$(MSBuildExtensionsPath)\\$(MSBuildToolsVersion)\\Microsoft.Common.props')\" />\n")
+			.append("  <PropertyGroup>\n")
+			.append("    <OutputType>Exe</OutputType>\n")
+			.append("    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>\n")
+			.append("    <RootNamespace>SimpleIdeLooseFiles</RootNamespace>\n")
+			.append("    <AssemblyName>SimpleIdeLooseFiles</AssemblyName>\n")
+			.append("  </PropertyGroup>\n")
+			.append("  <ItemGroup>\n");
+		for (Path source : sources) {
+			project.append("    <Compile Include=\"")
+				.append(escapeXmlAttribute(source.getFileName().toString()))
+				.append("\" />\n");
+		}
+		project.append("  </ItemGroup>\n")
+			.append("  <Import Project=\"$(MSBuildToolsPath)\\Microsoft.CSharp.targets\" />\n")
+			.append("</Project>\n");
+		return project.toString();
+	}
+
+	private static String escapeXmlAttribute(String value) {
+		return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
 	}
 
 	private static String resolveJavaCommand(String command) {
@@ -271,7 +459,7 @@ public class LspManager {
 	}
 
 	private static List<String> resolveArgument(String argument, Path installDirectory, Path workspaceData,
-			String version, String platformConfiguration) {
+			String workspacePath, String version, String platformConfiguration) {
 		if (argument.contains("${workspaceData}")) {
 			try {
 				Files.createDirectories(workspaceData);
@@ -282,6 +470,7 @@ public class LspManager {
 		}
 		String resolved = argument.replace("${installDir}", installDirectory.toAbsolutePath().toString())
 			.replace("${workspaceData}", workspaceData.toString())
+			.replace("${workspaceRoot}", workspacePath)
 			.replace("${version}", version)
 			.replace("${platformConfig}", platformConfiguration);
 		if (resolved.contains("${")) {

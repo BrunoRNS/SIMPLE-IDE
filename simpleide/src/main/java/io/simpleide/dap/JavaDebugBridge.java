@@ -1,8 +1,10 @@
 package io.simpleide.dap;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -11,6 +13,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
+
+import javax.tools.JavaCompiler;
+import javax.tools.ToolProvider;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -124,10 +130,17 @@ public final class JavaDebugBridge {
 
 	/**
 	 * Builds the DAP launch properties for a Java source file.
+	 *
+	 * <p>
+	 * When the language server resolves a main class (the file belongs to a project), the
+	 * server class path is used unchanged. A loose file that the language server knows
+	 * nothing about is compiled here instead, so the debuggee class named in
+	 * {@code mainClass} really exists.
 	 * @param client language-server command client
 	 * @param program Java source file
 	 * @return the launch properties sent in the DAP {@code launch} request
-	 * @throws IOException when the main class or class path cannot be resolved
+	 * @throws IOException when the main class, the class path or a loose file cannot be
+	 * resolved or compiled
 	 * @author BrunoRNS
 	 * @since v1.1.0
 	 */
@@ -148,19 +161,33 @@ public final class JavaDebugBridge {
 		Map<String, Object> selected = selectMainClass(mainClasses, program.getFileName().toString());
 		String mainClass = selected == null ? null : asString(selected.get("mainClass"));
 		String projectName = selected == null ? null : asString(selected.get("projectName"));
-		if (mainClass == null || mainClass.isBlank()) {
-			throw new IOException(
-					"The Java language server could not resolve a main class for " + program.getFileName() + ".");
-		}
-		arguments.put("mainClass", mainClass);
-		if (projectName != null && !projectName.isBlank()) {
-			arguments.put("projectName", projectName);
+		if (mainClass != null && !mainClass.isBlank()) {
+			arguments.put("mainClass", mainClass);
+			if (projectName != null && !projectName.isBlank()) {
+				arguments.put("projectName", projectName);
+			}
+			addServerClassPath(client, arguments, mainClass, projectName, parent);
+			return arguments;
 		}
 
+		LooseFile looseFile = compileLooseFile(program);
+		arguments.put("mainClass", looseFile.mainClass());
+		arguments.put("classPaths", List.of(looseFile.classes().toString()));
+		return arguments;
+	}
+
+	private static void addServerClassPath(JavaDebugClient client, Map<String, Object> arguments, String mainClass,
+			String projectName, Path parent) throws IOException, InterruptedException {
 		List<String> modulePaths = new ArrayList<>();
 		List<String> classPaths = new ArrayList<>();
-		Object classpathResult = invoke(client, RESOLVE_CLASSPATH,
-				List.of(mainClass, projectName == null ? "" : projectName));
+		Object classpathResult = null;
+		try {
+			classpathResult = invoke(client, RESOLVE_CLASSPATH,
+					List.of(mainClass, projectName == null ? "" : projectName));
+		}
+		catch (Exception ignored) {
+			classpathResult = null;
+		}
 		if (classpathResult instanceof List<?> entries) {
 			if (entries.size() > 0 && entries.get(0) instanceof List<?> modules) {
 				for (Object module : modules) {
@@ -180,10 +207,76 @@ public final class JavaDebugBridge {
 		if (!modulePaths.isEmpty()) {
 			arguments.put("modulePaths", modulePaths);
 		}
+		if (classPaths.isEmpty() && parent != null) {
+			classPaths.add(parent.toString());
+		}
 		if (!classPaths.isEmpty()) {
 			arguments.put("classPaths", classPaths);
 		}
-		return arguments;
+	}
+
+	/**
+	 * Compiles a Java file the language server does not consider part of a project.
+	 * @param program Java source file
+	 * @return the compiled main class and its output directory
+	 * @throws IOException when no compiler is available, the file does not compile or no
+	 * class name can be derived
+	 */
+	private static LooseFile compileLooseFile(Path program) throws IOException {
+		JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+		if (compiler == null) {
+			throw new IOException("No Java compiler is available to build " + program.getFileName()
+					+ "; run the IDE on a JDK to debug loose Java files.");
+		}
+		Path classes = Files.createTempDirectory("simpleide-java-debug-");
+		int status = compiler.run(null, null, null, "-d", classes.toString(), program.toString());
+		if (status != 0) {
+			throw new IOException(
+					"Could not compile " + program.getFileName() + "; fix the compilation errors before debugging.");
+		}
+		List<String> classNames = compiledClassNames(classes);
+		if (classNames.isEmpty()) {
+			throw new IOException(program.getFileName() + " did not produce any class to debug.");
+		}
+		String baseName = program.getFileName().toString();
+		baseName = baseName.contains(".") ? baseName.substring(0, baseName.lastIndexOf('.')) : baseName;
+		String mainClass = baseName;
+		for (String className : classNames) {
+			String simpleName = className.contains(".") ? className.substring(className.lastIndexOf('.') + 1)
+					: className;
+			if (simpleName.equals(baseName)) {
+				mainClass = className;
+				break;
+			}
+		}
+		LOGGER.debug("Compiled loose Java file {} into {} as {}.", program, classes, mainClass);
+		return new LooseFile(mainClass, classes);
+	}
+
+	private static List<String> compiledClassNames(Path classes) throws IOException {
+		List<String> names = new ArrayList<>();
+		try (Stream<Path> files = Files.walk(classes)) {
+			for (Path file : files.filter(path -> path.toString().endsWith(".class"))
+				.sorted(Comparator.naturalOrder())
+				.toList()) {
+				String relative = classes.relativize(file).toString();
+				if (relative.contains("$")) {
+					continue;
+				}
+				String name = relative.substring(0, relative.length() - ".class".length());
+				names.add(name.replace(file.getFileSystem().getSeparator(), "."));
+			}
+		}
+		return names;
+	}
+
+	/**
+	 * Result of compiling a loose Java file.
+	 *
+	 * @param mainClass binary name of the class to launch
+	 * @param classes directory holding the compiled classes
+	 */
+	private record LooseFile(String mainClass, Path classes) {
 	}
 
 	private static List<Map<String, Object>> resolveMainClasses(JavaDebugClient client, Path program)

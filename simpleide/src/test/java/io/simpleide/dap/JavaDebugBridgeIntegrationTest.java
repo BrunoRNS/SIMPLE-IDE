@@ -121,12 +121,35 @@ class JavaDebugBridgeIntegrationTest {
 	}
 
 	@Test
-	void failsWhenNoMainClassCanBeResolved() throws Exception {
+	void compilesALooseJavaFileAndLaunchesTheCompiledClass() throws Exception {
 		StubJavaClient client = new StubJavaClient(1234);
 		client.mainClasses = List.of();
+		Path program = Files.writeString(tempDirectory.resolve("Main.java"), """
+				public class Main {
+				    public static void main(String[] args) {
+				        System.out.println("loose");
+				    }
+				}
+				""");
 
-		assertThatThrownBy(() -> JavaDebugBridge.launchArguments(client, program())).isInstanceOf(IOException.class)
-			.hasMessageContaining("could not resolve a main class");
+		Map<String, Object> arguments = JavaDebugBridge.launchArguments(client, program);
+
+		assertThat(arguments).containsEntry("mainClass", "Main");
+		List<?> classPaths = (List<?>) arguments.get("classPaths");
+		assertThat(classPaths).hasSize(1);
+		assertThat(Path.of(classPaths.get(0).toString()).resolve("Main.class")).exists();
+		assertThat(client.commands).containsExactly(JavaDebugBridge.RESOLVE_MAIN_CLASS);
+	}
+
+	@Test
+	void failsWhenALooseJavaFileDoesNotCompile() throws Exception {
+		StubJavaClient client = new StubJavaClient(1234);
+		client.mainClasses = List.of();
+		Path program = Files.writeString(tempDirectory.resolve("Broken.java"),
+				"public class Broken {\n\tpublic static void main(String[] args) {\n\t\tthis is not java\n\t}\n}\n");
+
+		assertThatThrownBy(() -> JavaDebugBridge.launchArguments(client, program)).isInstanceOf(IOException.class)
+			.hasMessageContaining("Could not compile");
 	}
 
 	@Test

@@ -16,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.language.io.Input;
 import io.simpleide.language.io.Output;
 
 /**
@@ -90,6 +91,63 @@ class PythonDebugAdapterIntegrationTest {
 			await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> assertThat(events).contains("terminated"));
 			await().atMost(60, TimeUnit.SECONDS)
 				.untilAsserted(() -> assertThat(published).anyMatch(line -> line.contains("doubled=2")));
+		}
+		finally {
+			session.close();
+		}
+	}
+
+	@Test
+	void stepsIntoAFunctionAndForwardsStandardInput() throws Exception {
+		DapAdapter adapter = registeredAdapter();
+		int pythonFeature = pythonFeature();
+		assumeTrue(pythonFeature >= 8, "debugpy requires Python 3.8 or newer; detected Python 3." + pythonFeature
+				+ ". Debian 10 ships Python 3.7, so install a newer interpreter or use Debian 11+.");
+		Path program = Files.writeString(tempDirectory.resolve("input.py"), """
+				def read_value():
+				    return input()
+
+				value = read_value()
+				print(f'value={value}')
+				""");
+		DapManager manager = new DapManager(DapRegistry.loadDefault(), LangPlatform.getCurrentPlatform());
+		DapManager.PreparedAdapter prepared;
+		try {
+			prepared = manager.prepare(program);
+		}
+		catch (DapManager.DapUnavailableException error) {
+			assumeTrue(false, "The debugpy adapter could not be installed: " + error.getMessage());
+			return;
+		}
+		assertThat(prepared.adapter().getId()).isEqualTo(adapter.getId());
+
+		DapSession session = new DapSession(prepared.adapter(), prepared.installDirectory(), program,
+				new DapSession.Listener() {
+					@Override
+					public void onStopped(int threadId, String reason) {
+						events.add("stopped:" + reason);
+					}
+
+					@Override
+					public void onTerminated() {
+						events.add("terminated");
+					}
+				});
+		try (AutoCloseable subscription = outputSubscription) {
+			session.start(List.of(4));
+			await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> assertThat(events).contains("stopped:breakpoint"));
+
+			session.stepInto();
+			await().atMost(60, TimeUnit.SECONDS)
+				.untilAsserted(() -> assertThat(events.stream().filter(event -> event.startsWith("stopped:")).count())
+					.isGreaterThanOrEqualTo(2));
+
+			String answer = "answer-" + System.nanoTime();
+			Input.getInstance().set(answer);
+			session.resume();
+			await().atMost(60, TimeUnit.SECONDS).untilAsserted(() -> assertThat(events).contains("terminated"));
+			await().atMost(60, TimeUnit.SECONDS)
+				.untilAsserted(() -> assertThat(published).anyMatch(line -> line.contains("value=" + answer)));
 		}
 		finally {
 			session.close();

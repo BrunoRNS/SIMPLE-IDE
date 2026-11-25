@@ -50,7 +50,9 @@ platform:
 ```
 
 Command arguments support `${installDir}`, `${program}` and `${port}`; launch
-properties support `${program}` and `${fileDir}`. Platform matching uses
+property strings support `${program}` and `${fileDir}`. Launch values may also be
+booleans or numbers (for example Python's `justMyCode: false`), and they are sent
+to the adapter with their JSON type preserved. Platform matching uses
 `LangPlatform` values: `windows`, `linux` or `macos` combined with `x86`, `x64`,
 `arm64` or `aarch64`; `amd64` is accepted as an alias of `x64`.
 
@@ -59,14 +61,32 @@ properties support `${program}` and `${fileDir}`. Platform matching uses
 | Language | Adapter | Transport | How it starts |
 | --- | --- | --- | --- |
 | JavaScript | `js-debug` | `tcp` | IDE picks a free port and passes it as an argument |
-| Python | `debugpy` | `tcp` | `python3 -m debugpy --listen 127.0.0.1:${port}` |
-| Go | `delve` | `tcp` | `dlv dap --listen 127.0.0.1:${port}` |
+| Python | `debugpy` | `tcp` | `python3 -m debugpy --listen 127.0.0.1:${port}`; uses `console: integratedTerminal` so `input()` is forwarded through the I/O tab, and `justMyCode: false` so stepping enters library code |
+| Go | `delve` | `tcp` | `dlv dap --listen 127.0.0.1:${port} --check-go-version=false`; launches with `mode: debug`, `outputMode: remote` and the source file, so standalone files without a `go.mod` work |
 | Java | `vscode-java-debug` in JDT LS | `jdtls` | Language server command, no download |
 
 Adapters that speak DAP on their standard input/output use the `stdio` transport.
 Server-style adapters bind different loopback addresses: `debugpy` and `delve`
 listen on IPv4 while the JavaScript adapter listens on IPv6, and the IDE tries
 both `127.0.0.1` and `::1` when connecting.
+
+### Go and older toolchains
+
+Delve is built against a specific Go release and by default refuses to launch when
+the local Go toolchain is older than the one it was built with, answering
+`Go version go1.22.2 is too old for this version of Delve`. The bundled adapter is
+therefore started with `--check-go-version=false`, so a machine with an older Go
+installed can still debug; the IDE only ships one Delve build per platform, and
+without the flag debugging would be unusable until Go was upgraded.
+
+Two more delve details matter:
+
+- `dlv dap` does not support `--accept-multiclient`; the flag only produces a
+  warning, so it is not passed at all.
+- With the default `outputMode`, delve writes the debuggee's standard output to
+  its own standard output, where the IDE cannot see it. The Go adapter launches
+  with `outputMode: remote`, so the program output arrives as DAP `output` events
+  and shows up in the I/O tab like any other language.
 
 ## Child debug sessions
 
@@ -75,8 +95,8 @@ sends a `startDebugging` request and expects the IDE to open the child session.
 `DapSession` opens that child session on the same adapter port, inherits the
 breakpoints and forwards its events, and execution controls follow the session
 that actually stopped. Thread identifier `0` is accepted, and the `initialized`
-event is awaited for at most five seconds so adapters that emit it after the
-launch request still start.
+event is awaited for at most 90 seconds so adapters that build the program first,
+like delve, still start.
 
 ## Installing and launching
 
@@ -107,8 +127,20 @@ The language server already connected to the editor tab is reused; when the tab
 has none yet, `EditorManager.connectLanguageServer` connects one. Java debugging
 therefore requires an Eclipse JDT language server with the `vscode-java-debug`
 plugin loaded. Without it the commands are not registered and the IDE reports
-that the language server rejected the command. Neither JDT LS nor the plugin is
-downloaded by the IDE.
+that the language server rejected the command. The IDE downloads the
+`vscode-java-debug` bundle and passes it to the server in
+`initializationOptions.bundles`; the language server itself still has to be
+available.
+
+### Files outside a project
+
+JDT LS does not report a main class for a loose `.java` file, because the file is
+not part of any project and nothing compiles it. A Run/Debug request for such a
+file therefore compiles the file with the JDK compiler into a temporary
+directory, picks the compiled class named like the file (or the first top-level
+class), and sends that directory as the only `classPaths` entry. If the file does
+not compile, the IDE reports the failure instead of launching a class that does
+not exist.
 
 ## Breakpoints
 
@@ -144,6 +176,25 @@ buttons shown by `IOPanel` while a debug session is active. Step requests are
 ignored while the program is running; the I/O tab prints that execution is
 running.
 
+The output pane is read-only but selectable: the text can be copied with
+`Ctrl+C` (or `Cmd+C`) and from its context menu, and the same menu offers
+*Select All*.
+
+A failed `launch` request ends session startup immediately and its message is
+reported to the user. Adapters reject the launch before the debugger exists and
+then answer every later request with `No debug session started`, so waiting for
+the `initialized` event would otherwise report a misleading error after 90
+seconds instead of the real cause, such as a build error or an unsupported Go
+version.
+
+## Running without debugging
+
+The I/O tab shows a single **Stop** button while a program started with Run (no
+debug session) is alive. It stops the language process through
+`AbstractLanguage.forceStop` on a worker thread, so the event dispatch thread is
+not blocked while the process dies, and the panel returns to its idle state when
+the language reports the interruption.
+
 ## Tests
 
 - `DapRegistryTest` covers registry parsing, platform/architecture matching,
@@ -157,13 +208,26 @@ running.
 - `DapInstallerTest` covers installed-version markers and cleanup after a
   rejected insecure download.
 - `DapSessionIntegrationTest` starts a real adapter process over `stdio` and
-  `tcp` and exercises the whole session, including the execution controls and the
-  output markers.
+  `tcp` and exercises the whole session, including the execution controls, the
+  output markers and a rejected `launch` request that is reported immediately.
+- `GoDebugAdapterIntegrationTest` debugs a real Go program with the installed
+  delve adapter, both inside a module and as a standalone file without a
+  `go.mod`: it stops at a breakpoint, resumes and checks the program output. It
+  also asserts the adapter runs with `--check-go-version=false` and without
+  `--accept-multiclient`.
 - `DapIOPanelIntegrationTest` clicks every debug button against a live adapter.
 - `JavaDebugBridgeIntegrationTest` runs the Java path against a real TCP adapter
-  and a stubbed language-server client.
+  and a stubbed language-server client, including the loose-file compilation
+  fallback and its compile-error message.
+- `JavaRealDebugIntegrationTest` debugs a real loose `Main.java` through JDT LS:
+  it stops at a breakpoint, resumes and checks the program output. It is skipped
+  unless the build enables it with `-Dsimpleide.java.debug.real=true`, which
+  `make test-debug` does.
 - `JsDebugAdapterIntegrationTest` debugs a real Node.js program with the installed
   `js-debug` adapter (tagged `language-tools`, skipped without `node`, without the
   adapter, or on an operating system and architecture with no registered adapter).
-- `IOPanelTest` and `InputForwarderTest` cover output colouring, input forwarding
-  and debug-mode controls.
+- `IOPanelTest` and `InputForwarderTest` cover output colouring, selectable and
+  copyable output, input forwarding and debug-mode controls.
+- `IOPanelRunStopIntegrationTest` starts a real long-running program with Run and
+  presses the Stop button of the I/O tab, checking that the process is killed and
+  that the panel returns to its idle state.

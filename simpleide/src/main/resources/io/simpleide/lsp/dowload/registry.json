@@ -125,52 +125,25 @@
       ]
     },
     {
-      "id": "csharp-language-server",
-      "version": "0.28.0",
-      "name": "csharp-ls",
-      "languageId": "csharp",
-      "arch": ["x86_64", "aarch64", "arm64"],
-      "os": ["MACOS", "LINUX"],
-      "minimumVersion": "10",
-      "versionCommand": "dotnet",
-      "versionArguments": ["--version"],
-      "latestVersionApi": "https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json",
-      "latestVersionListPath": "versions",
-      "installCommand": "dotnet",
-      "installArguments": [
-        "tool",
-        "install",
-        "csharp-ls",
-        "--tool-path",
-        "${installDir}/tools",
-        "--version",
-        "${version}"
-      ],
-      "command": "${installDir}/tools/csharp-ls"
-    },
-    {
-      "id": "csharp-language-server-windows",
-      "version": "0.28.0",
-      "name": "csharp-ls",
+      "id": "omnisharp-mono",
+      "version": "1.39.12",
+      "name": "omnisharp",
       "languageId": "csharp",
       "arch": ["x86", "x86_64", "aarch64", "arm64"],
-      "os": ["WINDOWS"],
-      "minimumVersion": "10",
-      "versionCommand": "dotnet",
+      "os": ["MACOS", "LINUX", "WINDOWS"],
+      "minimumVersion": "6",
+      "versionCommand": "mono",
       "versionArguments": ["--version"],
-      "latestVersionApi": "https://api.nuget.org/v3-flatcontainer/csharp-ls/index.json",
-      "latestVersionListPath": "versions",
-      "installCommand": "dotnet",
-      "installArguments": [
-        "tool",
-        "install",
-        "csharp-ls",
-        "--tool-path",
-        "${installDir}/tools",
-        "--version",
-        "${version}"
-      ],
-      "command": "${installDir}/tools/csharp-ls.exe"
+      "url": "https://github.com/OmniSharp/omnisharp-roslyn/releases/download/v1.39.12/omnisharp-mono.tar.gz",
+      "typeFile": "tar.gz",
+      "command": "mono",
+      "arguments": [
+        "${installDir}/OmniSharp.exe",
+        "--languageserver",
+        "--stdio",
+        "-s",
+        "${workspaceRoot}"
+      ]
     },
     {
       "id": "clangd-c",
@@ -285,14 +258,15 @@
       "postInstallCommand": "bash",
       "postInstallArguments": [
         "${installDir}/groovy-language-server-347d098a928707223ce44b52cc45174a6327a5f3/gradlew",
+        "-p",
+        "${installDir}/groovy-language-server-347d098a928707223ce44b52cc45174a6327a5f3",
         "--no-daemon",
-        "--quiet",
         "shadowJar"
       ],
       "command": "java",
       "arguments": [
         "-jar",
-        "${installDir}/groovy-language-server-347d098a928707223ce44b52cc45174a6327a5f3/build/libs/groovy-language-server-all.jar"
+        "${installDir}/**/*-all.jar"
       ]
     },
     {
@@ -425,6 +399,48 @@
       "versionArguments": ["version"],
       "latestVersionApi": "https://proxy.golang.org/golang.org/x/tools/@latest",
       "latestVersionPath": "Version",
+      "installCommand": "go",
+      "installArguments": [
+        "install",
+        "golang.org/x/tools/gopls@${version}"
+      ],
+      "installEnvironment": {
+        "GOBIN": "${installDir}"
+      },
+      "command": "${installDir}/gopls.exe",
+      "arguments": ["serve"]
+    },
+    {
+      "id": "go-gopls-legacy",
+      "version": "v0.16.2",
+      "name": "gopls",
+      "languageId": "go",
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
+      "os": ["MACOS", "LINUX"],
+      "minimumVersion": "1.21",
+      "versionCommand": "go",
+      "versionArguments": ["version"],
+      "installCommand": "go",
+      "installArguments": [
+        "install",
+        "golang.org/x/tools/gopls@${version}"
+      ],
+      "installEnvironment": {
+        "GOBIN": "${installDir}"
+      },
+      "command": "${installDir}/gopls",
+      "arguments": ["serve"]
+    },
+    {
+      "id": "go-gopls-legacy-windows",
+      "version": "v0.16.2",
+      "name": "gopls",
+      "languageId": "go",
+      "arch": ["x86", "x86_64", "aarch64", "arm64"],
+      "os": ["WINDOWS"],
+      "minimumVersion": "1.21",
+      "versionCommand": "go",
+      "versionArguments": ["version"],
       "installCommand": "go",
       "installArguments": [
         "install",

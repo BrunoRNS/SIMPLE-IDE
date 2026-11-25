@@ -12,6 +12,7 @@ import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import org.eclipse.lsp4j.TextDocumentItem;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -21,6 +22,7 @@ import io.simpleide.language.config.LangPlatform;
 import io.simpleide.language.io.Output;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.dowload.LspManager;
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Debugs a real Java program through Eclipse JDT LS and the {@code vscode-java-debug}
@@ -41,6 +43,12 @@ import io.simpleide.lsp.dowload.LspManager;
 @Tag("language-tools")
 @Tag("debug")
 class JavaRealDebugIntegrationTest {
+
+	@BeforeAll
+	@SuppressWarnings("unused")
+	static void initializeThreadManager() {
+		ThreadMaster.getInstance().initialize();
+	}
 
 	@TempDir
 	Path tempDirectory;

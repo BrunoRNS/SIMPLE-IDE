@@ -8,10 +8,13 @@ import java.awt.GridLayout;
 import java.util.Objects;
 import java.util.function.Consumer;
 
+import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTextArea;
@@ -20,6 +23,7 @@ import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.text.BadLocationException;
+import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.SimpleAttributeSet;
 import javax.swing.text.StyleConstants;
 import javax.swing.text.StyledDocument;
@@ -29,9 +33,12 @@ import org.slf4j.LoggerFactory;
 
 import io.simpleide.dap.DapSession;
 import io.simpleide.language.AbstractLanguage;
+import io.simpleide.language.exceptions.ProcessFatalException;
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.ThemeColors;
 
 /**
@@ -42,8 +49,13 @@ import io.simpleide.ui.ThemeColors;
  * {@link io.simpleide.language.io.Input} queue while the program runs. The lower text
  * pane displays output events from the shared {@link Output} queue, prefixing each line
  * with {@code [OUTPUT]}, {@code [ERROR]} or {@code [DEBUG]} and colouring it with the
- * active theme. When a debug session is running, the panel also shows continue, pause,
- * step and stop buttons that drive the {@link DapSession}.
+ * active theme. The pane is read-only but selectable, so its text can be copied with
+ * {@code Ctrl+C} or the context menu.
+ *
+ * <p>
+ * When a program runs without debugging the panel shows a single Stop button that
+ * terminates the language process. When a debug session is running it also shows
+ * continue, pause, step and stop buttons that drive the {@link DapSession}.
  *
  * <p>
  * Covered by {@code IOPanelTest}.
@@ -61,6 +73,8 @@ public final class IOPanel extends JPanel {
 
 	private final JPanel debugControls = new JPanel(new GridLayout(1, 0, 6, 0));
 
+	private final JPanel runControls = new JPanel(new GridLayout(1, 0, 6, 0));
+
 	private final JButton continueButton = controlButton("Continue", DapSession::resume);
 
 	private final JButton pauseButton = controlButton("Pause", DapSession::pause);
@@ -72,6 +86,8 @@ public final class IOPanel extends JPanel {
 	private final JButton stepOutButton = controlButton("Step Out", DapSession::stepOut);
 
 	private final JButton stopButton = controlButton("Stop", DapSession::close);
+
+	private final JButton runStopButton = new JButton("Stop");
 
 	private InputForwarder forwarder;
 
@@ -104,7 +120,7 @@ public final class IOPanel extends JPanel {
 		split.setContinuousLayout(true);
 		split.setBorder(BorderFactory.createEmptyBorder());
 		add(split, BorderLayout.CENTER);
-		add(createDebugControls(), BorderLayout.SOUTH);
+		add(createControls(), BorderLayout.SOUTH);
 
 		inputArea.getInputMap().put(KeyStroke.getKeyStroke("ENTER"), "simpleide.io.submit");
 		inputArea.getActionMap().put("simpleide.io.submit", new javax.swing.AbstractAction() {
@@ -115,6 +131,7 @@ public final class IOPanel extends JPanel {
 		});
 		applyTheme();
 		setDebugMode(false);
+		runControls.setVisible(false);
 	}
 
 	private JPanel createInputSection() {
@@ -140,9 +157,10 @@ public final class IOPanel extends JPanel {
 		section.add(sectionTitle("OUTPUT"), BorderLayout.NORTH);
 
 		outputPane.setEditable(false);
-		outputPane.setFocusable(false);
-		outputPane.setToolTipText("Program output");
+		outputPane.setFocusable(true);
+		outputPane.setToolTipText("Program output (select text and press Ctrl+C to copy)");
 		outputPane.getAccessibleContext().setAccessibleName("Program output");
+		installOutputCopySupport();
 		JScrollPane scroll = new JScrollPane(outputPane);
 		scroll.setBorder(BorderFactory.createLineBorder(ThemeColors.ui("Component.borderColor", "Separator.foreground"),
 				1, true));
@@ -150,7 +168,7 @@ public final class IOPanel extends JPanel {
 		return section;
 	}
 
-	private JPanel createDebugControls() {
+	private JPanel createControls() {
 		debugControls.setOpaque(false);
 		debugControls.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
 		debugControls.add(continueButton);
@@ -160,7 +178,49 @@ public final class IOPanel extends JPanel {
 		debugControls.add(stepOutButton);
 		debugControls.add(stopButton);
 		debugControls.setPreferredSize(new Dimension(0, 32));
-		return debugControls;
+
+		runControls.setOpaque(false);
+		runControls.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
+		runStopButton.setToolTipText("Stop the running program");
+		runStopButton.setActionCommand("stop-run");
+		runStopButton.addActionListener(new ActionNode(event -> stopLanguage()));
+		runControls.add(runStopButton);
+		runControls.setPreferredSize(new Dimension(0, 32));
+
+		JPanel host = new JPanel(new BorderLayout());
+		host.setOpaque(false);
+		host.add(debugControls, BorderLayout.CENTER);
+		host.add(runControls, BorderLayout.CENTER);
+		return host;
+	}
+
+	/**
+	 * Makes the read-only output pane selectable and copyable from the keyboard, the
+	 * context menu and the platform copy shortcut.
+	 */
+	private void installOutputCopySupport() {
+		outputPane.getInputMap().put(KeyStroke.getKeyStroke("control C"), DefaultEditorKit.copyAction);
+		outputPane.getInputMap().put(KeyStroke.getKeyStroke("meta C"), DefaultEditorKit.copyAction);
+		outputPane.getActionMap().put(DefaultEditorKit.copyAction, new AbstractAction() {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent event) {
+				outputPane.copy();
+			}
+		});
+		JPopupMenu menu = new JPopupMenu();
+		menu.add(new JMenuItem(new AbstractAction("Copy") {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent event) {
+				outputPane.copy();
+			}
+		}));
+		menu.add(new JMenuItem(new AbstractAction("Select All") {
+			@Override
+			public void actionPerformed(java.awt.event.ActionEvent event) {
+				outputPane.selectAll();
+			}
+		}));
+		outputPane.setComponentPopupMenu(menu);
 	}
 
 	private JLabel sectionTitle(String text) {
@@ -232,6 +292,7 @@ public final class IOPanel extends JPanel {
 			language.addExecutionListener(executionListener);
 		}
 		setDebugMode(debug);
+		runControls.setVisible(!debug);
 		inputArea.requestFocusInWindow();
 	}
 
@@ -267,6 +328,36 @@ public final class IOPanel extends JPanel {
 		if (debugMode) {
 			setDebugMode(false);
 		}
+		runControls.setVisible(false);
+	}
+
+	/**
+	 * Stops the language process launched without debugging.
+	 *
+	 * <p>
+	 * The language waits for the process to die, so the termination runs off the event
+	 * dispatch thread; the language execution listener then resets the panel.
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	private void stopLanguage() {
+		AbstractLanguage active = language;
+		if (active == null) {
+			return;
+		}
+		RunnableNode stopNode = new RunnableNode(() -> {
+			try {
+				active.forceStop();
+			}
+			catch (ProcessFatalException error) {
+				LOGGER.warn("Unable to stop the running language process.", error);
+				Output.getInstance()
+					.publish(OutputType.ERROR, "Unable to stop the running program: " + error.getMessage());
+			}
+		});
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.initialize();
+		threadMaster.register(stopNode);
 	}
 
 	/**
@@ -449,6 +540,16 @@ public final class IOPanel extends JPanel {
 	 */
 	public JPanel getDebugControls() {
 		return debugControls;
+	}
+
+	/**
+	 * Returns the controls shown while a program runs without debugging.
+	 * @return the panel holding the Stop button used by plain runs
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public JPanel getRunControls() {
+		return runControls;
 	}
 
 	/**

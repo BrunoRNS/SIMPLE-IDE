@@ -39,7 +39,7 @@ public final class DapAdapter {
 
 	private final String transport;
 
-	private final Map<String, String> launchArguments;
+	private final Map<String, Object> launchArguments;
 
 	private final Map<String, String> environment;
 
@@ -90,7 +90,7 @@ public final class DapAdapter {
 	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
-			List<DapDownload> downloads, String transport, Map<String, String> launchArguments) {
+			List<DapDownload> downloads, String transport, Map<String, ?> launchArguments) {
 		this(id, name, version, command, arguments, downloads, transport, launchArguments, Map.of());
 	}
 
@@ -109,7 +109,7 @@ public final class DapAdapter {
 	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
-			List<DapDownload> downloads, String transport, Map<String, String> launchArguments,
+			List<DapDownload> downloads, String transport, Map<String, ?> launchArguments,
 			Map<String, String> environment) {
 		this(id, name, version, null, command, arguments, downloads, transport, launchArguments, environment);
 	}
@@ -130,7 +130,7 @@ public final class DapAdapter {
 	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String languageId, String command, List<String> arguments,
-			List<DapDownload> downloads, String transport, Map<String, String> launchArguments,
+			List<DapDownload> downloads, String transport, Map<String, ?> launchArguments,
 			Map<String, String> environment) {
 		this.id = Objects.requireNonNull(id, "id");
 		this.name = Objects.requireNonNull(name, "name");
@@ -140,7 +140,11 @@ public final class DapAdapter {
 		this.arguments = List.copyOf(arguments == null ? List.of() : arguments);
 		this.downloads = List.copyOf(downloads == null ? List.of() : downloads);
 		this.transport = transport == null || transport.isBlank() ? "stdio" : transport.toLowerCase();
-		this.launchArguments = Map.copyOf(launchArguments == null ? Map.of() : new LinkedHashMap<>(launchArguments));
+		Map<String, Object> resolvedLaunchArguments = new LinkedHashMap<>();
+		if (launchArguments != null) {
+			launchArguments.forEach(resolvedLaunchArguments::put);
+		}
+		this.launchArguments = Map.copyOf(resolvedLaunchArguments);
 		this.environment = Map.copyOf(environment == null ? Map.of() : new LinkedHashMap<>(environment));
 	}
 
@@ -315,7 +319,7 @@ public final class DapAdapter {
 	 * @author BrunoRNS
 	 * @since v1.1.0
 	 */
-	public Map<String, String> getLaunchArguments() {
+	public Map<String, Object> getLaunchArguments() {
 		return launchArguments;
 	}
 
@@ -332,9 +336,10 @@ public final class DapAdapter {
 		Path parent = program == null ? null : program.getParent();
 		String fileDirectory = parent == null ? "." : parent.toString();
 		Map<String, Object> resolved = new LinkedHashMap<>();
-		for (Map.Entry<String, String> entry : launchArguments.entrySet()) {
-			resolved.put(entry.getKey(),
-					entry.getValue().replace("${program}", programPath).replace("${fileDir}", fileDirectory));
+		for (Map.Entry<String, Object> entry : launchArguments.entrySet()) {
+			Object value = entry.getValue();
+			resolved.put(entry.getKey(), value instanceof String text
+					? text.replace("${program}", programPath).replace("${fileDir}", fileDirectory) : value);
 		}
 		return resolved;
 	}

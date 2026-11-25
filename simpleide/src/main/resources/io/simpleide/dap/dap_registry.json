@@ -43,7 +43,8 @@
       ],
       "launch": {
         "type": "python",
-        "console": "internalConsole"
+        "console": "integratedTerminal",
+        "justMyCode": false
       },
       "environment": {
         "PYTHONPATH": "${installDir}/extension/bundled/libs"
@@ -72,11 +73,12 @@
         "127.0.0.1:${port}",
         "--log-dest",
         "${installDir}/delve.log",
-        "--accept-multiclient"
+        "--check-go-version=false"
       ],
       "launch": {
         "mode": "debug",
-        "program": "${fileDir}"
+        "outputMode": "remote",
+        "program": "${program}"
       },
       "downloads": [
         { "os": "linux", "arch": "x86", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_linux_386.tar.gz", "archiveType": "tar.gz" },

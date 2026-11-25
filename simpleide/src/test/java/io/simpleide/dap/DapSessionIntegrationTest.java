@@ -159,6 +159,23 @@ class DapSessionIntegrationTest {
 	}
 
 	@Test
+	void reportsTheLaunchErrorInsteadOfWaitingForTheInitializedEvent() throws Exception {
+		String message = "Failed to launch: Go version go1.22.2 is too old for this version of Delve";
+		DapSession session = new DapSession(adapterFailingLaunch(message), tempDirectory, program(), listener());
+		long start = System.nanoTime();
+		try {
+			assertThatThrownBy(() -> session.start(List.of(1))).isInstanceOf(IOException.class)
+				.hasMessageContaining("rejected the launch request")
+				.hasMessageContaining("too old for this version of Delve");
+		}
+		finally {
+			session.close();
+		}
+		long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+		assertThat(elapsedMillis).as("milliseconds until the launch error surfaced").isLessThan(25_000);
+	}
+
+	@Test
 	void reportsAnUnlaunchableAdapterAsIOException() throws Exception {
 		DapAdapter adapter = new DapAdapter("missing", "Missing adapter", "1.0.0", "missing",
 				List.of("this-command-does-not-exist"), List.of(), "stdio", Map.of(), Map.of());
@@ -188,6 +205,12 @@ class DapSessionIntegrationTest {
 		}
 		return new DapAdapter("fake", "Fake debug adapter", "1.0.0", "fake", javaExecutable(), arguments, List.of(),
 				transport, Map.of(), Map.of());
+	}
+
+	private DapAdapter adapterFailingLaunch(String message) {
+		return new DapAdapter("fake", "Fake debug adapter", "1.0.0", javaExecutable(),
+				List.of("-cp", classpath(), FakeDapServer.class.getName(), "--fail-launch", message), List.of(),
+				"stdio", Map.of(), Map.of());
 	}
 
 	private DapAdapter adapterWithStdinEcho() {

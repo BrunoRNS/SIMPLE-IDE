@@ -38,5 +38,43 @@ jobs:
         with:
           python-version: "3.x"
 
+      # rust-analyzer cannot load the standard library without the rust-src
+      # component, and then answers every completion request with null.
+      - name: Set up Rust with rust-src
+        run: |
+          rustup toolchain install stable --profile minimal --component rust-src
+          rustup default stable
+
+      # OmniSharp analyzes loose .cs files only when Mono's MSBuild instance is
+      # available; without it the C# language-server test skips. The Ubuntu
+      # archive does not ship msbuild, so Mono comes from the project's own
+      # repository, whose stable-focal suite also serves newer Ubuntu releases.
+      - name: Set up Mono with MSBuild for the C# language server
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates gnupg
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo gpg --homedir /tmp --no-default-keyring \
+            --keyring /etc/apt/keyrings/xamarin-mono-archive.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys 3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF
+          echo "deb [signed-by=/etc/apt/keyrings/xamarin-mono-archive.gpg] https://download.mono-project.com/repo/ubuntu stable-focal main" \
+            | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
+          sudo apt-get update
+          sudo apt-get install -y mono-complete
+          mono --version | head -1
+          msbuild --version | head -3
+
+      # Fast, no-toolchain checks for the Java completion popup: the IDE
+      # snippets must join a real server response and never hide it.
+      - name: Run Java completion and snippet tests
+        run: ./mvnw -B -pl simpleide -Dtest='LspEditorSupportSnippetsTest,JavaLspSnippetsTest,LspCompletionProviderTest' test
+
+      # Includes JavaRealDebugIntegrationTest, which debugs a loose Java file
+      # through JDT LS (make test-debug sets -Dsimpleide.java.debug.real=true).
       - name: Run debug integration tests
         run: make test-debug
+
+      # Includes Java loose-file completion and syntax diagnostics.
+      - name: Run language-server integration tests
+        run: make test-lsp
