@@ -17,7 +17,7 @@ or Wolfi) are **not supported**. The bundled JDK, the terminal binaries and the
 | Architecture | `x86` (32-bit), `x64` or `arm64` | The terminal ships one BusyBox binary per architecture |
 | Java | JDK 17+ | The application is compiled for Java 17 and runs on 17, 21, 25 and 27 |
 | Display | X11 or Wayland with XWayland | Swing runs through the X11 protocol |
-| Audio/video (optional) | glibc 2.17+ on `x64` | OpenJFX x64 native libraries; Linux `arm64` always uses the `nojavafx` variant. See [Audio and video playback](#audio-and-video-playback) |
+| Audio/video (optional) | glibc 2.17+ on `x64`; glibc 2.34+ on `arm64` | OpenJFX native libraries. JavaFX on `arm64` needs Debian 12+; the `nojavafx` baseline still needs only glibc 2.28. See [Audio and video playback](#audio-and-video-playback) |
 
 The 32-bit build is the strictest one: its pty4j native library requires
 glibc 2.28+, so that version is the overall minimum. Oracle certifies JDK 27 on
@@ -62,15 +62,16 @@ ldd --version | head -n 1
 ```
 
 If the command reports a version lower than 2.28, upgrade the distribution
-before running Simple IDE.
+before running Simple IDE. On `arm64`, upgrade to glibc 2.34+ (Debian 12+)
+before selecting a `javafx22` or `javafx23` package.
 
 ## Package support
 
-| Architecture | Static zip | `.deb` / `.rpm` | JDK versions validated in CI |
-| --- | --- | --- | --- |
-| `x64` | Yes | Yes | 17, 21, 25, 27 |
-| `arm64` | Yes | Yes | 17, 21, 25, 27 |
-| `x86` (32-bit) | Yes | Yes | 17 |
+| Architecture | Static zip | `.deb` / `.rpm` | Release variants | JDK versions validated in CI |
+| --- | --- | --- | --- | --- |
+| `x64` (amd64) | Yes | Yes | `javafx23`, `javafx22`, `nojavafx` | 17, 21, 25, 27 |
+| `arm64` | Yes | Yes | `javafx23` (Debian 12+), `javafx22` (Debian 12+), `nojavafx` (Debian 10+) | 17, 21, 25, 27 for the baseline; 17/21 for JavaFX release builds |
+| `x86` (32-bit) | Yes | Yes | `nojavafx` | 17 |
 
 Current JDK vendors no longer publish 32-bit Linux builds for Java 21 and
 newer, so the 32-bit packages are validated with JDK 17. Package validation
@@ -110,11 +111,15 @@ The build has three media variants:
 | --- | --- | --- |
 | 17 through 20 | `javafx22` | Linux `x64` |
 | 21 or newer | `javafx23` | Linux `x64` |
-| Any | `nojavafx` | Linux `arm64`, Linux `x86`, or an explicit `nojavafx` |
+| Any | `nojavafx` | Linux `arm64` (automatic), Linux `x86`, or an explicit `nojavafx` |
 
-Linux `arm64` is always `nojavafx`, even if `javafx22` or `javafx23` is forced.
-The same applies to Linux `x86`: the forced profiles require a supported
-OS/architecture, so no OpenJFX dependency is added.
+Automatic Linux `arm64` builds are `nojavafx` to keep the Debian 10 glibc 2.28
+baseline honest. Unlike Linux `x86`, however, `arm64` has forced
+`javafx22`/`javafx23` profiles: they are used by the release workflow on Debian
+12 and can be requested locally with `SIMPLEIDE_MEDIA_VARIANT`. The script
+rejects a forced JavaFX build below glibc 2.34 and rejects `javafx23` below JDK
+21 instead of silently downgrading to `nojavafx`. Linux `x86` still has no
+usable OpenJFX natives, so forced variants resolve to `nojavafx` there.
 
 Set `SIMPLEIDE_MEDIA_VARIANT=nojavafx|javafx22|javafx23` to override the
 automatic choice. `SIMPLEIDE_JAVAFX_DISABLE=1` is a legacy alias for
@@ -128,17 +133,17 @@ Maven consumer contract is documented in
 The repository was audited against the native libraries shipped in the OpenJFX
 artifacts:
 
-| OpenJFX | `linux` (x64) max symbol | FFmpeg plug-ins |
-| --- | --- | --- |
-| 22.0.2 | `GLIBC_2.17` | `libavcodec`/`libavformat` 56 through 60 |
-| 23.0.2 | `GLIBC_2.17` | `libavcodec`/`libavformat` 56 through 61 |
+| OpenJFX | `linux` (x64) max symbol | `linux-aarch64` max symbol | FFmpeg plug-ins |
+| --- | --- | --- | --- |
+| 22.0.2 | `GLIBC_2.17` | `GLIBC_2.34` | `libavcodec`/`libavformat` 56 through 60 |
+| 23.0.2 | `GLIBC_2.17` | `GLIBC_2.34` | `libavcodec`/`libavformat` 56 through 61 |
 
 The application requires glibc 2.28. On `x64`, the JavaFX natives need only
-glibc 2.17, so they work on every supported distribution. Linux `arm64` does not
-ship a JavaFX variant: the OpenJFX `arm64` natives need glibc 2.34, which is
-newer than the release baseline, so the project always builds `arm64` with
-`nojavafx`. The rest of the IDE runs normally and media files use the hex
-editor.
+glibc 2.17, so they work on every supported distribution. On `arm64`, the
+OpenJFX natives need glibc 2.34: Debian 12 (bookworm, glibc 2.36) is the oldest
+release used for those packages. The `nojavafx` `arm64` packages stay on Debian
+10 (glibc 2.28). The rest of the IDE runs normally in both cases; only media
+playback changes.
 
 On Linux, JavaFX media loads the system FFmpeg shared libraries. Uncompressed
 PCM formats use the bundled media stack, but MP3, AAC and H.264/H.265 playback
@@ -193,40 +198,53 @@ configuration.
 
 - In a headless session the viewers show that a graphical environment is
   required, and playback tests are skipped.
-- The Maven build does not resolve JavaFX on Linux `arm64`, 32-bit `x86` Linux,
-  32-bit Windows, Windows `arm64` or unsupported architectures.
+- The automatic Maven build does not resolve JavaFX on Linux `arm64`, 32-bit
+  `x86` Linux, 32-bit Windows, Windows `arm64` or unsupported architectures.
+  Forced `javafx22`/`javafx23` profiles exist for Linux `arm64`.
 - Linux packages are suffixed with the selected variant: `-javafx22`,
   `-javafx23` or `-nojavafx` (for example
-  `simpleide-v1.1.0-linux-x64-javafx23.deb`). Linux `arm64` and `x86` packages
-  are always `-nojavafx`.
-- Every Linux package is built on the Debian 10 glibc 2.28 baseline. Because
-  Linux `arm64` never enables JavaFX, no newer glibc image is required for that
-  architecture.
+  `simpleide-v1.1.0-linux-x64-javafx23.deb` or
+  `simpleide-v1.1.0-linux-arm64-javafx22.deb`). Linux `x86` packages are always
+  `-nojavafx`.
+- The `x64` packages and the `arm64` `nojavafx` package are built on the Debian
+  10 glibc 2.28 baseline. The `arm64` `javafx22` and `javafx23` packages are
+  built on Debian 12 because their OpenJFX natives need glibc 2.34.
 
 ## Continuous integration
 
-Every Linux workflow builds and tests inside an explicit Debian 10 container so
-the minimum glibc is exercised on real hardware or emulation:
+The pull-request workflows build and test inside an explicit Debian 10 container
+so the minimum glibc is exercised on real hardware or emulation. The release
+workflow adds Debian 12 jobs for the JavaFX `arm64` variants:
 
 | Workflow | Container platform | Architecture | Container image |
 | --- | --- | --- | --- |
 | `.github/workflows/linux64.yml` | `linux/amd64` | `x64` | `debian:10` |
 | `.github/workflows/linux32.yml` | `linux/386` | `x86` | `debian:10` |
 | `.github/workflows/linuxarm.yml` | `linux/arm64` | `arm64` | `debian:10` |
+| `.github/workflows/release.yml` | `linux/amd64` | `x64` (`nojavafx`/`javafx22`/`javafx23`) | `debian:10` |
+| `.github/workflows/release.yml` | `linux/arm64` | `arm64` (`nojavafx`) | `debian:10` |
+| `.github/workflows/release.yml` | `linux/arm64` | `arm64` (`javafx22`/`javafx23`) | `debian:12` |
 
 The repository is checked out on the runner and mounted into the container.
 Every language toolchain (JDK, Go, Node.js, GCC, Mono, Rust and Python) and the
 media runtime libraries (GTK 3, ALSA and FFmpeg) are installed inside that
 container by `scripts/ci/linux-debian.sh`, so the tests do not depend on the
-runner image. The container image is selected with `SIMPLEIDE_DEBIAN_IMAGE`;
-all Linux jobs use Debian 10 because Linux `arm64` always builds the `nojavafx`
-variant. All containers use host networking. The 32-bit
+runner image. The container image is selected with `SIMPLEIDE_DEBIAN_IMAGE`,
+and the media variant is forwarded with `SIMPLEIDE_MEDIA_VARIANT`. All
+containers use host networking. The 32-bit
 job additionally passes `--security-opt seccomp=unconfined`: newer runner
 images ship a Docker default seccomp profile that denies `socketcall(2)`, and
 Debian's i386 glibc still creates sockets through that syscall. Without the
 override the 32-bit container has no network and apt reports a misleading DNS
 failure for `archive.debian.org`. Alpine is not used because GitHub JavaScript
 actions cannot run in a 32-bit container and the JDK cannot run on musl.
+
+## Downloading the right package
+
+The repository provides `scripts/install-simpleide.sh` for Linux and macOS. It
+checks glibc, architecture and macOS version, then downloads the best published
+asset (`javafx23` → `javafx22` → `nojavafx`) without extracting or running it.
+See [Script installation](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Install).
 
 ## References
 

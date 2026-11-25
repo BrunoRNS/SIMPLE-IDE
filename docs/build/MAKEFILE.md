@@ -16,10 +16,11 @@ target names and keeps the fat JAR and package paths in one place.
   `Compress-Archive` is used on Windows.
 - External language toolchains for the full test suite. See
   [Runtime tools](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime).
-- Optional audio/video support on Linux `x64`: GTK 3, ALSA and FFmpeg. `make`
-  selects JavaFX 22 on JDK 17–20 and JavaFX 23 on JDK 21+ on supported
-  platforms. Linux `arm64` and `x86`, Windows `x86` and Windows `arm64` always
-  build `nojavafx` and open media files in the hex editor. See
+- Optional audio/video support on Linux: GTK 3, ALSA and FFmpeg. `make` selects
+  JavaFX 22 on JDK 17–20 and JavaFX 23 on JDK 21+ on supported platforms.
+  Automatic Linux `arm64` builds stay `nojavafx` for the glibc 2.28 baseline;
+  forced JavaFX variants there need glibc 2.34+ (Debian 12+). Linux `x86`,
+  Windows `x86` and Windows `arm64` always build `nojavafx`. See
   [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media)
   and
   [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux#audio-and-video-playback).

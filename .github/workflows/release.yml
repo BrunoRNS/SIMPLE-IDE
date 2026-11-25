@@ -80,44 +80,66 @@ jobs:
           retention-days: 1
 
   linux-packages:
-    name: Package Linux ${{ matrix.pkg_arch }} (JDK ${{ matrix.java }})
+    name: Package Linux ${{ matrix.pkg_arch }} (${{ matrix.variant }}, JDK ${{ matrix.java }})
     needs: metadata
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
         include:
+          # x64 (amd64): the JavaFX natives use only glibc 2.17, so all three
+          # variants can be built on the Debian 10 (glibc 2.28) baseline.
           - runner: ubuntu-latest
             container_platform: linux/amd64
             pkg_arch: x64
             java: "17"
             image: debian:10
+            variant: javafx22
+
+          - runner: ubuntu-latest
+            container_platform: linux/amd64
+            pkg_arch: x64
+            java: "17"
+            image: debian:10
+            variant: nojavafx
 
           - runner: ubuntu-latest
             container_platform: linux/amd64
             pkg_arch: x64
             java: "21"
             image: debian:10
+            variant: javafx23
 
+          # arm64 nojavafx keeps the Debian 10 (glibc 2.28) baseline. OpenJFX
+          # arm64 natives require glibc 2.34, so JavaFX 22/23 packages are built
+          # on Debian 12 (glibc 2.36). JavaFX 23 is built with JDK 21.
           - runner: ubuntu-24.04-arm
             container_platform: linux/arm64
             pkg_arch: arm64
             java: "17"
             image: debian:10
+            variant: nojavafx
 
-          # OpenJFX arm64 natives require glibc 2.34, so the JavaFX 23 arm64
-          # package is built on Debian 12 (glibc 2.36).
+          - runner: ubuntu-24.04-arm
+            container_platform: linux/arm64
+            pkg_arch: arm64
+            java: "17"
+            image: debian:12
+            variant: javafx22
+
           - runner: ubuntu-24.04-arm
             container_platform: linux/arm64
             pkg_arch: arm64
             java: "21"
             image: debian:12
+            variant: javafx23
 
           - runner: ubuntu-latest
             container_platform: linux/386
             pkg_arch: x86
             java: "17"
             image: debian:10
+            variant: nojavafx
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -129,6 +151,7 @@ jobs:
         env:
           SIMPLEIDE_CI_JAVA: ${{ matrix.java }}
           SIMPLEIDE_CI_ARCH: ${{ matrix.pkg_arch }}
+          SIMPLEIDE_MEDIA_VARIANT: ${{ matrix.variant }}
           SIMPLEIDE_DEBIAN_IMAGE: ${{ matrix.image }}
         run: |
           set -eu
@@ -139,8 +162,8 @@ jobs:
       - name: Upload Linux package artifact
         uses: actions/upload-artifact@v7
         with:
-          name: package-linux-${{ matrix.pkg_arch }}-jdk${{ matrix.java }}
-          path: simpleide/target/pkg/simpleide-v*-linux-${{ matrix.pkg_arch }}-*.*
+          name: package-linux-${{ matrix.pkg_arch }}-${{ matrix.variant }}-jdk${{ matrix.java }}
+          path: simpleide/target/pkg/simpleide-v*-linux-${{ matrix.pkg_arch }}-${{ matrix.variant }}.*
           if-no-files-found: error
           retention-days: 1
 

@@ -27,8 +27,8 @@ Consumers select the media variant with a Maven user property:
 | --- | --- |
 | absent | Automatic selection from the consumer JDK and OS/architecture |
 | `nojavafx` | No OpenJFX dependencies; media files use the hex editor |
-| `javafx22` | OpenJFX 22.0.2 on a supported platform |
-| `javafx23` | OpenJFX 23.0.2 on a supported platform |
+| `javafx22` | OpenJFX 22.0.2 on a supported platform (Linux arm64 needs glibc 2.34+) |
+| `javafx23` | OpenJFX 23.0.2 on a supported platform (JDK 21+; Linux arm64 needs glibc 2.34+) |
 
 The property is evaluated by the profiles in the published `simpleide` module
 POM, so it controls the transitive dependencies that Maven resolves for a
@@ -51,9 +51,13 @@ mvn -Dsimpleide.media.variant=nojavafx package
 # Pin JavaFX 22 even on JDK 21+.
 mvn -Dsimpleide.media.variant=javafx22 package
 
-# Pin JavaFX 23.
+# Pin JavaFX 23. Requires JDK 21 or newer.
 mvn -Dsimpleide.media.variant=javafx23 package
 ```
+
+On Linux arm64, use a forced JavaFX variant only on glibc 2.34+ (Debian 12+).
+The automatic choice stays `nojavafx` on that architecture so the glibc 2.28
+release baseline is not broken.
 
 Pin the variant for every build of a project in `.mvn/maven.config`:
 
@@ -66,7 +70,58 @@ system properties during profile activation.
 
 > **Important:** Maven activates these profiles from user properties and system
 > properties, not from `<properties>` declared in your own `pom.xml`. Put the
-> value on the command line, in `.mvn/maven.config` or in `MAVEN_OPTS`.
+> value on the command line, in `.mvn/maven.config` or in `MAVEN_OPTS`. This is
+> the advanced route; the simpler POM-only alternative is below.
+
+### Pin a variant in the consumer POM (no `-D`)
+
+You can fix the variant in `pom.xml` without any command-line flag by excluding
+the transitive OpenJFX modules and declaring the modules you want. The wildcard
+exclusion requires Maven 3.2.1+:
+
+```xml
+<properties>
+  <javafx.version>23.0.2</javafx.version><!-- 22.0.2 for javafx22 -->
+  <javafx.platform>linux</javafx.platform><!-- linux-aarch64, mac, mac-aarch64 or win -->
+</properties>
+
+<dependency>
+  <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
+  <artifactId>simpleide</artifactId>
+  <version>v1.1.0</version>
+  <exclusions>
+    <exclusion>
+      <groupId>org.openjfx</groupId>
+      <artifactId>*</artifactId>
+    </exclusion>
+  </exclusions>
+</dependency>
+
+<!-- Only for javafx22/javafx23; omit all three for nojavafx. -->
+<dependency>
+  <groupId>org.openjfx</groupId>
+  <artifactId>javafx-controls</artifactId>
+  <version>${javafx.version}</version>
+  <classifier>${javafx.platform}</classifier>
+</dependency>
+<dependency>
+  <groupId>org.openjfx</groupId>
+  <artifactId>javafx-media</artifactId>
+  <version>${javafx.version}</version>
+  <classifier>${javafx.platform}</classifier>
+</dependency>
+<dependency>
+  <groupId>org.openjfx</groupId>
+  <artifactId>javafx-swing</artifactId>
+  <version>${javafx.version}</version>
+  <classifier>${javafx.platform}</classifier>
+</dependency>
+```
+
+For `nojavafx`, keep only the exclusion. For `javafx22` use version `22.0.2`;
+for `javafx23` use `23.0.2` and JDK 21+. On Linux arm64, JavaFX modules require
+glibc 2.34+ (Debian 12+). This works with the JitPack root coordinate too: add
+the exclusion to the `com.github.BrunoRNS:SIMPLE-IDE` dependency.
 
 ### Automatic selection
 
@@ -81,30 +136,48 @@ When `simpleide.media.variant` is absent, the profiles choose a version:
 "Supported platform" means that OpenJFX publishes native artifacts and the
 project enables them:
 
-| Operating system | Architecture | Automatic variant |
-| --- | --- | --- |
-| Linux | `x64` (`amd64`) | `javafx22` or `javafx23` |
-| Linux | `arm64` (`aarch64`) | `nojavafx` (always, by policy) |
-| Linux | `x86` (32-bit) | `nojavafx` |
-| macOS | `x64` (`x86_64`) | `javafx22` or `javafx23` |
-| macOS | `arm64` (`aarch64`) | `javafx22` or `javafx23` |
-| Windows | `x64` (`amd64`) | `javafx22` or `javafx23` |
-| Windows | `x86` (32-bit) | `nojavafx` |
-| Windows | `arm64` (`aarch64`) | `nojavafx` |
+| Operating system | Architecture | Automatic variant | Forced JavaFX available |
+| --- | --- | --- | --- |
+| Linux | `x64` (`amd64`) | `javafx22` or `javafx23` | Yes (glibc 2.28+) |
+| Linux | `arm64` (`aarch64`) | `nojavafx` (baseline policy) | Yes, with glibc 2.34+ (Debian 12+) |
+| Linux | `x86` (32-bit) | `nojavafx` | No |
+| macOS | `x64` (`x86_64`) | `javafx22` or `javafx23` | Yes |
+| macOS | `arm64` (`aarch64`) | `javafx22` or `javafx23` | Yes |
+| Windows | `x64` (`amd64`) | `javafx22` or `javafx23` | Yes |
+| Windows | `x86` (32-bit) | `nojavafx` | No |
+| Windows | `arm64` (`aarch64`) | `nojavafx` | No |
 
 Forced variants on an unsupported platform still resolve to `nojavafx`. The
 forced profiles require a matching OS/architecture, so no OpenJFX dependency is
-added. In particular, `-Dsimpleide.media.variant=javafx23` on Linux `arm64`
-never downloads OpenJFX.
+added. Linux `arm64` is the exception: it has explicit `javafx22`/`javafx23`
+profiles, enabled only when the build environment has glibc 2.34 or newer.
 
-### Why Linux arm64 is always `nojavafx`
+### Linux arm64: baseline and forced JavaFX
 
-Linux `arm64` is a first-class application platform, but the project policy is
-to ship it without JavaFX. The OpenJFX `arm64` natives need a newer glibc than
-the rest of the application, and the release baseline is deliberately kept at
-glibc 2.28. Building and testing the whole `arm64` matrix without JavaFX keeps
-that baseline honest. The rest of the IDE, including the hex editor, works
-normally.
+Linux `arm64` is a first-class application platform. Its automatic variant is
+`nojavafx` because the OpenJFX `arm64` natives need glibc 2.34, while the
+project baseline is glibc 2.28 (Debian 10). The CI workflow and the default
+release package preserve that baseline.
+
+For systems that do satisfy the newer requirement, forced profiles enable
+media playback:
+
+| Variant | Linux arm64 requirement |
+| --- | --- |
+| `nojavafx` | glibc 2.28+ (Debian 10+) |
+| `javafx22` | glibc 2.34+ (Debian 12+) |
+| `javafx23` | glibc 2.34+ (Debian 12+), JDK 21+ build |
+
+`scripts/javafx-version.sh` validates the glibc version and the JDK for `make`
+and release builds: an impossible forced combination fails with a clear error
+instead of silently producing a mislabeled package. Maven itself resolves the
+OpenJFX artifacts from the forced POM profiles; consumers must check their own
+glibc. The rest of the IDE, including the hex editor, works normally in every
+case.
+
+macOS packages have a similar JDK-dependent floor: the `javafx23` `.dmg` is
+built with JDK 21 and declares macOS 12, while the `javafx22` `.dmg` is built
+with JDK 17 and declares macOS 11 (Big Sur).
 
 ### Gradle
 
@@ -115,7 +188,9 @@ Gradle consumers must therefore declare the OpenJFX modules explicitly:
 
 ```groovy
 dependencies {
-    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simpleide:v1.1.0'
+    implementation('com.github.BrunoRNS.SIMPLE-IDE:simpleide:v1.1.0') {
+        exclude group: 'org.openjfx'
+    }
 
     // Add only the modules you want, with the platform classifier.
     def javafxVersion = '23.0.2'
@@ -142,8 +217,9 @@ install:
 ```
 
 JDK 17 makes the published viewer classes compile against the JavaFX 22
-baseline. The consumer still chooses the runtime variant with
-`-Dsimpleide.media.variant`. If JitPack builds with a newer JDK, the automatic
+baseline. The consumer still chooses the runtime dependencies through the POM
+snippet above or, in the advanced route, with `-Dsimpleide.media.variant`. If
+JitPack builds with a newer JDK, the automatic
 variant in the consumer build is still calculated from the consumer's own JDK,
 because the profiles live in the dependency POM.
 
@@ -178,8 +254,8 @@ active profile. Profiles are grouped by purpose:
 | `media-auto-platform-amd64` | `os.arch=amd64`, property absent | Linux/Windows x64 dependencies and source roots |
 | `media-auto-platform-macos-x64` | macOS, `os.arch=x86_64`, property absent | macOS Intel dependencies and source roots |
 | `media-auto-platform-macos-arm64` | macOS, `os.arch=aarch64`, property absent | macOS Apple Silicon dependencies and source roots |
-| `media-force-javafx22-*` | property `javafx22` plus OS/arch | Pin 22 on that platform |
-| `media-force-javafx23-*` | property `javafx23` plus OS/arch | Pin 23 on that platform |
+| `media-force-javafx22-*` | property `javafx22` plus OS/arch | Pin 22 on that platform (including Linux arm64) |
+| `media-force-javafx23-*` | property `javafx23` plus OS/arch | Pin 23 on that platform (including Linux arm64) |
 | `media-force-nojavafx` | property `nojavafx` | No dependencies, no JavaFX source roots |
 
 Each active platform profile does three things:
@@ -202,9 +278,10 @@ To enable a new platform:
 1. Add an automatic platform profile (`media-auto-platform-<name>`) with the
    dependencies and source roots shown above.
 2. Add matching forced profiles for `javafx22` and `javafx23`.
-3. Update `scripts/javafx-version.sh` so `make` and the packaging scripts agree.
+3. Update `scripts/javafx-version.sh` so `make` and the packaging scripts agree,
+   including the glibc/JDK preconditions for forced variants.
 4. Update `scripts/ci/test-consumer-profiles.py` so the consumer contract test
-   knows whether the platform is supported.
+   knows whether automatic and forced variants are supported.
 5. Update this page, [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux) and the release notes.
 
 ## Runtime behavior
@@ -241,14 +318,19 @@ Examples:
 ```sh
 make test                                  # automatic
 SIMPLEIDE_MEDIA_VARIANT=nojavafx make jar  # no JavaFX
-SIMPLEIDE_MEDIA_VARIANT=javafx23 make pkg  # pin JavaFX 23
+SIMPLEIDE_MEDIA_VARIANT=javafx23 make pkg  # pin JavaFX 23 (JDK 21+)
+# On Linux arm64 with glibc 2.34+ (Debian 12+):
+SIMPLEIDE_MEDIA_VARIANT=javafx22 make pkg
 ```
 
 Release packages carry the variant in the file name:
 
 ```text
 simpleide-v1.1.0-linux-x64-javafx23.deb
+simpleide-v1.1.0-linux-x64-nojavafx.deb
 simpleide-v1.1.0-linux-x86-nojavafx.deb
+simpleide-v1.1.0-linux-arm64-javafx22.deb   # Debian 12+
+simpleide-v1.1.0-linux-arm64-javafx23.deb   # Debian 12+, JDK 21 build
 simpleide-v1.1.0-windows-x64-javafx22.msi
 ```
 
@@ -261,6 +343,8 @@ libraries.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | `NoClassDefFoundError: javafx/...` at runtime | The consumer forced `javafx22`/`javafx23` but the platform is unsupported, so no OpenJFX was resolved | Use the automatic variant on a supported platform, or run with `nojavafx` |
+| `error: JavaFX on Linux arm64 requires glibc 2.34+` during `make` | A forced JavaFX build was requested on the Debian 10 baseline | Build on Debian 12+, use `nojavafx`, or let `auto` select `nojavafx` |
+| `error: javafx23 requires JDK 21 or newer` during `make` | JavaFX 23 was forced with JDK 17–20 | Use JDK 21+ or select `javafx22`/`nojavafx` |
 | `dependency:tree` has no `org.openjfx` entries | Property absent on an unsupported platform, or `nojavafx` was forced | Check `java -XshowSettings:properties -version` for `os.arch` and the JDK version |
 | `-Dsimpleide.media.variant` seems ignored | It was declared in the consumer POM `<properties>` | Pass it on the command line, in `.mvn/maven.config` or in `MAVEN_OPTS` |
 | Media opens in the hex editor | No JavaFX classes, headless session, or unsupported platform | Install the JavaFX package variant or use a supported platform |

@@ -4,10 +4,11 @@
 #
 # Debian 10 (buster, glibc 2.28) is the oldest distribution whose glibc
 # satisfies every bundled dependency, including the 32-bit pty4j native library
-# and the newer JDKs. Linux arm64 builds always use the nojavafx media variant,
-# so no OpenJFX native artifacts are required here.
-# Alpine is intentionally not supported: its musl libc cannot run the
-# glibc-linked JDK and native terminal binaries.
+# and the newer JDKs. Linux arm64 nojavafx builds stay on that baseline; release
+# jobs that force javafx22 or javafx23 on arm64 use Debian 12 (glibc 2.36),
+# because the OpenJFX arm64 natives need glibc 2.34. Alpine is intentionally not
+# supported: its musl libc cannot run the glibc-linked JDK and native terminal
+# binaries.
 #
 # Usage (inside the container, from the repository root):
 #
@@ -20,9 +21,10 @@
 #
 # Environment:
 #
-#   SIMPLEIDE_CI_JAVA   JDK feature release to install (default: 17).
-#   SIMPLEIDE_CI_ARCH   Expected package architecture: x86, x64 or arm64.
-#                       Derived from dpkg when omitted.
+#   SIMPLEIDE_CI_JAVA        JDK feature release to install (default: 17).
+#   SIMPLEIDE_CI_ARCH        Expected package architecture: x86, x64 or arm64.
+#                            Derived from dpkg when omitted.
+#   SIMPLEIDE_MEDIA_VARIANT  Force nojavafx, javafx22 or javafx23 (optional).
 #
 # The container runs as root; the repository is expected to be bind-mounted at
 # the current working directory.

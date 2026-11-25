@@ -39,9 +39,10 @@ import org.slf4j.LoggerFactory;
  * <p>
  * This class is compiled only on platforms that publish JavaFX native artifacts and are
  * enabled by the selected Maven variant: Linux x64, macOS x64/arm64 and Windows x64.
- * Linux arm64 always builds without JavaFX. Use {@link MediaPlaybacks#video(Path)} to
- * create it through the platform-neutral API; that factory returns {@code null} where
- * playback is unavailable.
+ * Linux arm64 uses nojavafx automatically and supports forced JavaFX variants only
+ * with glibc 2.34+ (Debian 12+). Use {@link MediaPlaybacks#video(Path)} to create it
+ * through the platform-neutral API; that factory returns {@code null} where playback
+ * is unavailable.
  *
  * @author luisotavio13
  * @since v1.1.0

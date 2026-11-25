@@ -18,17 +18,19 @@
 #   JDK 17-20  javafx22 on a supported platform
 #   otherwise  nojavafx
 #
-# OpenJFX publishes native artifacts for Linux x64, Windows x64, macOS x64 and
-# macOS arm64. Linux arm64 is always nojavafx by project policy: the arm64
-# natives need a much newer glibc than the release baseline, so the default and
-# release builds must not depend on them. Linux x86, Windows x86 and Windows
-# arm64 have no usable OpenJFX natives and also use nojavafx.
+# OpenJFX publishes native artifacts for Linux x64/arm64, Windows x64, macOS
+# x64 and macOS arm64. The automatic choice stays nojavafx on Linux arm64 so
+# that the glibc 2.28 (Debian 10) baseline is preserved. A forced javafx22 or
+# javafx23 build is allowed there only with glibc 2.34+ (Debian 12+), because
+# the arm64 natives require it. Linux x86, Windows x86 and Windows arm64 have no
+# usable OpenJFX natives and also use nojavafx.
 #
 # Environment:
 #
 #   SIMPLEIDE_MEDIA_VARIANT=auto|nojavafx|javafx22|javafx23
-#       Force a variant. On an unsupported platform (including Linux arm64)
-#       the result is still nojavafx.
+#       Force a variant. On an unsupported platform the result is still
+#       nojavafx; Linux arm64 accepts forced JavaFX only with glibc 2.34+.
+#       javafx23 also requires JDK 21 or newer.
 #   SIMPLEIDE_JAVAFX_DISABLE=1
 #       Backwards-compatible alias for SIMPLEIDE_MEDIA_VARIANT=nojavafx.
 #   SIMPLEIDE_JAVAFX_VERSION=<version>
@@ -99,13 +101,6 @@ case "$JAVA_ARCH" in
 	*) ARCH=$JAVA_ARCH ;;
 esac
 
-# Linux arm64 is always built without JavaFX. Keep this check before the forced
-# variant branch so the policy cannot be overridden accidentally.
-if [ "$OS" = "Linux" ] && [ "$ARCH" = "aarch64" ]; then
-	echo nojavafx
-	exit 0
-fi
-
 version_ge() {
 	awk -v a="$1" -v b="$2" 'BEGIN {
 		na = split(a, x, ".")
@@ -120,16 +115,55 @@ version_ge() {
 	}'
 }
 
+case "$JDK_MAJOR" in
+	''|*[!0-9]*)
+		echo "error: unable to read the JDK version from java" >&2
+		exit 2
+		;;
+esac
+
+check_javafx23_jdk() {
+	if [ "$JDK_MAJOR" -lt 21 ]; then
+		echo "error: javafx23 requires JDK 21 or newer (found JDK $JDK_MAJOR)" >&2
+		exit 2
+	fi
+}
+
+GLIBC_VERSION=
+if [ "$OS" = "Linux" ]; then
+	GLIBC_VERSION=$(getconf GNU_LIBC_VERSION 2>/dev/null | awk 'NR == 1 { print $2 }') || GLIBC_VERSION=
+fi
+
+# Linux arm64 keeps the nojavafx baseline for automatic builds. Forced JavaFX
+# builds are allowed only when the newer arm64 natives can run (glibc 2.34+,
+# Debian 12+); silently downgrading would produce a mislabeled package.
+if [ "$OS" = "Linux" ] && [ "$ARCH" = "aarch64" ]; then
+	case "$REQUESTED" in
+		javafx22|javafx23)
+			if ! version_ge "$GLIBC_VERSION" 2.34; then
+				echo "error: JavaFX on Linux arm64 requires glibc 2.34+ (Debian 12+); found '${GLIBC_VERSION:-unknown}'" >&2
+				exit 2
+			fi
+			if [ "$REQUESTED" = "javafx23" ]; then
+				check_javafx23_jdk
+			fi
+			echo "$REQUESTED"
+			;;
+		*)
+			# auto and nojavafx both preserve the Debian 10 baseline.
+			echo nojavafx
+			;;
+	esac
+	exit 0
+fi
+
 SUPPORTED=0
 case "$OS" in
 	Linux)
-		# OpenJFX x64 natives use glibc 2.17; this also matches the minimum that
-		# the project already requires from the JDK.
-		if [ "$ARCH" = "x86_64" ]; then
-			GLIBC_VERSION=$(getconf GNU_LIBC_VERSION 2>/dev/null | awk 'NR == 1 { print $2 }') || GLIBC_VERSION=
-			if [ -n "$GLIBC_VERSION" ] && version_ge "$GLIBC_VERSION" 2.17; then
-				SUPPORTED=1
-			fi
+		# OpenJFX x64 natives use glibc 2.17; the application itself still
+		# requires glibc 2.28 (see docs/reference/LINUX.md).
+		if [ "$ARCH" = "x86_64" ] && version_ge "$GLIBC_VERSION" 2.17; then
+			SUPPORTED=1
 		fi
 		;;
 	Darwin)
@@ -146,8 +180,12 @@ esac
 
 if [ "$REQUESTED" != "auto" ]; then
 	if [ "$SUPPORTED" = "1" ]; then
+		if [ "$REQUESTED" = "javafx23" ]; then
+			check_javafx23_jdk
+		fi
 		echo "$REQUESTED"
 	else
+		# Unsupported platforms keep the documented nojavafx fallback.
 		echo nojavafx
 	fi
 	exit 0

@@ -16,7 +16,8 @@ JAVA_OPTS ?= -Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED
 # Audio/video playback is optional. scripts/javafx-version.sh selects the
 # nojavafx, javafx22 or javafx23 variant from the current JDK and platform.
 # Override it with SIMPLEIDE_MEDIA_VARIANT=nojavafx|javafx22|javafx23. Linux
-# arm64 always resolves to nojavafx. See docs/reference/JAVAFX-MEDIA.md.
+# arm64 resolves to nojavafx automatically; forced JavaFX variants there need
+# glibc 2.34+ (Debian 12+). See docs/reference/JAVAFX-MEDIA.md.
 MEDIA_VARIANT := $(shell sh scripts/javafx-version.sh)
 ifeq ($(filter $(MEDIA_VARIANT),nojavafx javafx22 javafx23),)
 $(error scripts/javafx-version.sh returned an unsupported variant: $(MEDIA_VARIANT))

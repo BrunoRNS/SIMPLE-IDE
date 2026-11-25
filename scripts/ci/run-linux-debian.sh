@@ -18,10 +18,12 @@
 #   SIMPLEIDE_EXPECTED_PLATFORM
 #   SIMPLEIDE_CI_JAVA
 #   SIMPLEIDE_CI_ARCH
+#   SIMPLEIDE_MEDIA_VARIANT
 #
 # The container image defaults to debian:10. Set SIMPLEIDE_DEBIAN_IMAGE to run
-# the same tasks on a newer glibc. Linux arm64 always uses the nojavafx media
-# variant, so it does not need a newer glibc for OpenJFX natives.
+# the same tasks on a newer glibc. Linux arm64 uses debian:10 for the nojavafx
+# baseline and debian:12 for forced javafx22/javafx23 builds, whose OpenJFX
+# natives need glibc 2.34.
 
 set -euo pipefail
 
@@ -56,6 +58,7 @@ docker run --rm \
 	-e SIMPLEIDE_EXPECTED_PLATFORM \
 	-e SIMPLEIDE_CI_JAVA \
 	-e SIMPLEIDE_CI_ARCH \
+	-e SIMPLEIDE_MEDIA_VARIANT \
 	-v "$PWD:/workspace" \
 	-v "$HOME/.m2:/root/.m2" \
 	-w /workspace \

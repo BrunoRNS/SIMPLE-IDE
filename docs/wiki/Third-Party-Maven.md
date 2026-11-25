@@ -54,9 +54,11 @@ and Java on `PATH` (or `JAVA_HOME`).
 
 The JavaFX dependencies are optional and consumer-selectable. Maven chooses
 JavaFX 22 on JDK 17–20 and JavaFX 23 on JDK 21+ on Linux `x64`, Windows `x64`,
-macOS `x64` and macOS `arm64`. Linux `arm64` always uses the `nojavafx` variant;
-Linux `x86`, Windows `x86` and Windows `arm64` have no usable OpenJFX natives.
-Consumers can force a variant with
+macOS `x64` and macOS `arm64`. Automatic Linux `arm64` builds use `nojavafx`
+to preserve the glibc 2.28 baseline; forced JavaFX 22/23 profiles exist for glibc
+2.34+ (Debian 12+). Linux `x86`, Windows `x86` and Windows `arm64` have no usable
+OpenJFX natives. Consumers can pin a variant in the POM with explicit OpenJFX
+dependencies or force it with
 `-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`. In every other
 configuration the fat JAR has no JavaFX classes and media files open in the hex
 editor. The selection is implemented by the Maven profiles in

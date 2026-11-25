@@ -11,11 +11,16 @@ changes first. Version 1.1.0 is still in development, so its changes remain unde
 ### Added
 
 - Optional audio and video playback in read-only editor tabs through JavaFX, with a
-  platform-neutral `MediaPlayback` API and a hex-editor fallback. Maven consumers choose
-  `nojavafx`, `javafx22` or `javafx23` with `-Dsimpleide.media.variant`; without the
-  property the variant is derived from the consumer JDK and OS/architecture. Linux
-  `arm64` always uses `nojavafx`. See
+  platform-neutral `MediaPlayback` API and a hex-editor fallback. Consumers can pin
+  `nojavafx`, `jfx22` or `jfx23` directly in `pom.xml` with explicit OpenJFX
+  dependencies; the advanced `-Dsimpleide.media.variant` property and automatic
+  JDK/OS selection remain available. Linux `arm64` uses `nojavafx` automatically
+  and supports JavaFX variants on glibc 2.34+ (Debian 12+). See
   [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+- Release packages for Linux `x64` and `arm64` in all three media variants, with
+  JavaFX `arm64` builds based on Debian 12, plus download-only helper scripts for
+  Linux, macOS and Windows. See
+  [Script installation](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Install).
 - `make test-consumer` and `scripts/ci/test-consumer-profiles.py` verify the consumer
   variant contract for automatic selection and the three forced variants on every
   supported OS/architecture.

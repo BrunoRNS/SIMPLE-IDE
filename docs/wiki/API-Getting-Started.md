@@ -41,9 +41,11 @@ RSyntaxTextArea, FlatLaf, LSP4J or pty4j separately. For a standalone executable
 download the release fat JAR described in [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts).
 
 JavaFX media is optional. Maven selects `javafx22` or `javafx23` from your JDK
-and OS/architecture; pass `-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`
-to force a variant. Gradle does not evaluate those POM profiles, so declare the
-OpenJFX modules explicitly if you need playback. See
+and OS/architecture. To pin `nojavafx`, `jfx22` or `jfx23` in `pom.xml` without
+a command-line flag, exclude the transitive OpenJFX modules and declare the
+wanted modules explicitly (the same approach Gradle uses). The advanced
+`-Dsimpleide.media.variant=nojavafx|javafx22|javafx23` route and the full matrix
+are in
 [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
 
 ## 2. Create a standalone editor

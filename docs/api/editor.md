@@ -88,15 +88,16 @@ the hex editor.
 | Platform | Media playback |
 | --- | --- |
 | Linux `x64` | Yes, with a graphical session, GTK 3, ALSA or PulseAudio and system FFmpeg |
-| Linux `arm64` | No; the project always builds the `nojavafx` variant on this platform |
+| Linux `arm64` | Automatic builds use `nojavafx`; JavaFX works with a glibc 2.34+ (Debian 12+) `javafx22`/`javafx23` variant |
 | macOS `x64` and `arm64` | Yes, with a graphical session and JavaFX codecs |
 | Windows `x64` | Yes, with a graphical session and JavaFX codecs |
 | Linux `x86` (32-bit) | No; files open in `HexEditor` with a log warning |
 | Windows `x86` and `arm64` | No; files open in `HexEditor` with a log warning |
 
 The Maven build selects JavaFX 22.0.2 on JDK 17 through 20 and JavaFX 23.0.2 on
-JDK 21 and newer on a supported platform. Consumers can force a variant with
-`-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`; forced variants on an
+JDK 21 and newer on a supported platform. Consumers can pin a variant directly in
+`pom.xml` with explicit OpenJFX dependencies (see the README), or use the advanced
+`-Dsimpleide.media.variant=nojavafx|javafx22|javafx23` property; selections on an
 unsupported platform still resolve to `nojavafx`. The same source compiles and
 runs against both versions. On Linux the runtime also needs the native libraries
 listed in

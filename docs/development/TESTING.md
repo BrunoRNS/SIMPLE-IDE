@@ -62,7 +62,7 @@ Windows.
   construction: JavaFX loads media asynchronously, so that state is racy.
 - `EditorManagerTest` verifies both paths: the media viewer when
   `MediaPlaybacks.isAvailable()` is true, and the hex-editor fallback otherwise
-  (`nojavafx` builds, Linux `arm64`/`x86`, Windows `x86`/`arm64`).
+  (`nojavafx` builds, automatic Linux `arm64`/`x86`, Windows `x86`/`arm64`).
 
 Run the media tests on a desktop session with:
 

@@ -13,9 +13,13 @@
 #
 # The expected result is derived from the consumer JDK and OS/architecture:
 #
-#   supported platform + JDK 21+    auto -> JavaFX 23
-#   supported platform + JDK 17-20  auto -> JavaFX 22
-#   unsupported platform/Linux arm64/forced nojavafx -> no OpenJFX dependencies
+#   automatic platform + JDK 21+        auto -> JavaFX 23
+#   automatic platform + JDK 17-20      auto -> JavaFX 22
+#   forced platform/Linux arm64         javafx22/javafx23 -> requested version
+#   unsupported platform/forced nojavafx -> no OpenJFX dependencies
+#
+# Linux arm64 has no automatic JavaFX profile (the glibc 2.28 baseline), but it
+# does have forced javafx22/javafx23 profiles for glibc 2.34+ consumers.
 #
 # This catches profile-activation regressions that unit tests cannot see because
 # they do not exercise the published (dependency) POM.
@@ -135,16 +139,25 @@ def platform_key(properties: dict[str, str]) -> tuple[str, str]:
     return operating_system, normalized_arch
 
 
-def is_supported(operating_system: str, arch: str) -> bool:
-    """Mirrors the platform policy in simpleide/pom.xml."""
+def is_auto_supported(operating_system: str, arch: str) -> bool:
+    """Mirrors the automatic platform profiles in simpleide/pom.xml."""
     if operating_system == "linux":
-        # Linux arm64 is always nojavafx by policy; Linux x86 has no natives.
+        # Linux arm64 stays nojavafx automatically to preserve the glibc 2.28
+        # baseline; Linux x86 has no OpenJFX natives.
         return arch == "x64"
     if operating_system == "windows":
         return arch == "x64"
     if operating_system == "macos":
         return arch in ("x64", "arm64")
     return False
+
+
+def is_forced_supported(operating_system: str, arch: str) -> bool:
+    """Mirrors the forced javafx22/javafx23 profiles in simpleide/pom.xml."""
+    if is_auto_supported(operating_system, arch):
+        return True
+    # Forced JavaFX is available on Linux arm64 for glibc 2.34+ consumers.
+    return operating_system == "linux" and arch == "arm64"
 
 
 def expected_version(case: str, supported: bool, major: int, versions: dict[str, str]) -> str | None:
@@ -172,7 +185,8 @@ def main() -> int:
     properties = java_properties()
     major = jdk_major(properties)
     operating_system, arch = platform_key(properties)
-    supported = is_supported(operating_system, arch)
+    auto_supported = is_auto_supported(operating_system, arch)
+    forced_supported = is_forced_supported(operating_system, arch)
     versions = {"javafx22": "22.0.2", "javafx23": "23.0.2"}
 
     maven = REPO / ("mvnw.cmd" if os.name == "nt" else "mvnw")
@@ -180,7 +194,8 @@ def main() -> int:
         raise SystemExit(f"Maven wrapper not found: {maven}")
 
     print(f"Consumer variant tests: JDK {major}, {operating_system}-{arch}")
-    print(f"Platform policy: {'JavaFX supported' if supported else 'always nojavafx'}")
+    print(f"Automatic JavaFX: {'yes' if auto_supported else 'no (nojavafx baseline)'}")
+    print(f"Forced JavaFX: {'yes' if forced_supported else 'no'}")
 
     if not args.skip_install:
         run([str(maven), "-B", "-DskipTests", "install"], REPO, args.verbose)
@@ -228,7 +243,8 @@ def main() -> int:
             for match in OPENJFX_PATTERN.finditer(tree):
                 resolved.setdefault(match.group(1), set()).add(match.group(2))
 
-            expected = expected_version(case, supported, major, versions)
+            case_supported = auto_supported if case == "auto" else forced_supported
+            expected = expected_version(case, case_supported, major, versions)
             if expected is None:
                 if resolved:
                     failures.append(f"{case}: expected no OpenJFX dependencies, found {resolved}")

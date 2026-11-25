@@ -15,8 +15,9 @@ jobs:
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-arm64
-      # Linux arm64 always builds the nojavafx media variant, so every JDK
-      # exercises the Debian 10 (glibc 2.28) baseline.
+      # This workflow exercises the automatic Linux arm64 nojavafx variant on
+      # the Debian 10 (glibc 2.28) baseline. Forced JavaFX 22/23 arm64 packages
+      # are built by release.yml on Debian 12 (glibc 2.34+).
 
     strategy:
       fail-fast: false
