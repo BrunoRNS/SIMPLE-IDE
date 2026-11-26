@@ -30,13 +30,44 @@ class ExecuteMenuTest {
 			menu.applySettings(new IdeSettings());
 
 			assertThat(menu.getText()).isEqualTo("Execute");
-			assertThat(menu.getItemCount()).isEqualTo(2);
+			assertThat(menu.getItemCount()).isEqualTo(3);
 			JMenuItem run = menu.getItem(0);
 			JMenuItem debug = menu.getItem(1);
+			JMenuItem stop = menu.getItem(2);
 			assertThat(run.getText()).isEqualTo("Run");
 			assertThat(debug.getText()).isEqualTo("Debug");
+			assertThat(stop.getText()).isEqualTo("Stop");
 			assertThat(run.getAccelerator()).isEqualTo(KeyStroke.getKeyStroke("F5"));
 			assertThat(debug.getAccelerator()).isEqualTo(KeyStroke.getKeyStroke("ctrl F5"));
+		});
+	}
+
+	@Test
+	void stopItemRunsTheWiredAction() throws Exception {
+		CountDownLatch clicked = new CountDownLatch(1);
+		SwingUtilities.invokeAndWait(() -> {
+			ExecuteMenu menu = new ExecuteMenu(() -> {
+			}, () -> {
+			});
+			menu.setStopAction(clicked::countDown);
+			menu.getStopItem().doClick();
+		});
+
+		assertThat(clicked.await(10, TimeUnit.SECONDS)).isTrue();
+	}
+
+	@Test
+	void stopItemTogglesEnabledState() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			ExecuteMenu menu = new ExecuteMenu(() -> {
+			}, () -> {
+			});
+			assertThat(menu.getStopItem().isEnabled()).isTrue();
+			menu.setStopEnabled(false);
+			assertThat(menu.getStopItem().isEnabled()).isFalse();
+			assertThat(menu.getStopItem().getToolTipText()).isEqualTo(ExecuteMenu.STOP_IDLE_TOOLTIP);
+			menu.setStopEnabled(true);
+			assertThat(menu.getStopItem().isEnabled()).isTrue();
 		});
 	}
 

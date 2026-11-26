@@ -239,6 +239,22 @@ final class MainFrameExecutionController {
 		}
 	}
 
+	/**
+	 * Stops whatever is currently executing: an active debug session, or the language
+	 * process of a plain run. Safe to call when nothing is running.
+	 */
+	void stopProgram() {
+		DapSession active = dapSession;
+		if (active != null) {
+			dapSession = null;
+			detachBreakpointListener();
+			active.close();
+			frame.ioPanel.finishExecution();
+			return;
+		}
+		frame.ioPanel.stopRun();
+	}
+
 	private void showExecutionMessage(String message) {
 		frame.outputTabs.setSelectedComponent(frame.ioPanel);
 		frame.ioPanel.appendLine(OutputType.DEBUG, message);

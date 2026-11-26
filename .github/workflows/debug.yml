@@ -31,7 +31,9 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: stable
+          # Delve 1.27.2 requires Go 1.23 or newer; pin a concrete version so the
+          # debug integration tests are deterministic instead of following "stable".
+          go-version: "1.24.x"
 
       - name: Set up Node.js
         uses: actions/setup-node@v7

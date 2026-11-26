@@ -72,6 +72,12 @@ public final class IOPanel extends JPanel {
 
 	private final JPanel runControls = new JPanel(new GridLayout(1, 0, 6, 0));
 
+	/**
+	 * Holds either the debug controls or the run controls in its center slot, never both
+	 * at the same time.
+	 */
+	private final JPanel controlsHost = new JPanel(new BorderLayout());
+
 	private final JButton continueButton = controlButton("Continue", DapSession::resume);
 
 	private final JButton pauseButton = controlButton("Pause", DapSession::pause);
@@ -177,11 +183,9 @@ public final class IOPanel extends JPanel {
 		runControls.add(runStopButton);
 		runControls.setPreferredSize(new Dimension(0, 32));
 
-		JPanel host = new JPanel(new BorderLayout());
-		host.setOpaque(false);
-		host.add(debugControls, BorderLayout.CENTER);
-		host.add(runControls, BorderLayout.CENTER);
-		return host;
+		controlsHost.setOpaque(false);
+		controlsHost.add(debugControls, BorderLayout.CENTER);
+		return controlsHost;
 	}
 
 	/**
@@ -305,8 +309,13 @@ public final class IOPanel extends JPanel {
 	 *
 	 * <p>
 	 * The language waits for the process to die, so the termination runs off the event
-	 * dispatch thread; the language execution listener then resets the panel.
+	 * dispatch thread; the language execution listener then resets the panel. Safe to
+	 * call when nothing is running.
 	 */
+	public void stopRun() {
+		stopLanguage();
+	}
+
 	private void stopLanguage() {
 		AbstractLanguage active = language;
 		if (active == null) {
@@ -341,6 +350,12 @@ public final class IOPanel extends JPanel {
 	public void setDebugMode(boolean debug) {
 		debugMode = debug;
 		debugControls.setVisible(debug);
+		runControls.setVisible(!debug);
+		// Only the active controls occupy the center slot so they are laid out.
+		controlsHost.removeAll();
+		controlsHost.add(debug ? debugControls : runControls, BorderLayout.CENTER);
+		controlsHost.revalidate();
+		controlsHost.repaint();
 		revalidate();
 		repaint();
 	}

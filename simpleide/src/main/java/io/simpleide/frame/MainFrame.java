@@ -193,6 +193,9 @@ public class MainFrame extends JFrame implements Runnable {
 		MenuBarFactory.createMenuBar(this, workspaceController::createNewFile, workspaceController::createNewDirectory,
 				workspaceController::openFolder, workspaceController::closeFolder, editorManager::saveSelectedFile,
 				executionController::runProgram, executionController::debugProgram);
+		if (getJMenuBar() instanceof IdeMenuBar menuBar) {
+			menuBar.getExecuteMenu().setStopAction(executionController::stopProgram);
+		}
 		executionController.applyDebugAvailability();
 		ThemeManager.getInstance().register(this);
 		applySettings(settings);
