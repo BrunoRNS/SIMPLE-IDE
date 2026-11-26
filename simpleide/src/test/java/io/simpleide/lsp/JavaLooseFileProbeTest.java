@@ -1,5 +1,6 @@
 package io.simpleide.lsp;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import java.util.concurrent.TimeUnit;
 import javax.swing.SwingUtilities;
 
 import static org.awaitility.Awaitility.await;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionList;
@@ -26,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.dap.JavaDebugBridge;
+import io.simpleide.dap.JavaDebugInstaller;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.client.LspCompletionProvider;
 import io.simpleide.lsp.dowload.LspManager;
@@ -57,8 +60,20 @@ class JavaLooseFileProbeTest {
 		Path program = Files.writeString(tempDirectory.resolve("Main.java"), SOURCE);
 		List<String> diagnostics = new CopyOnWriteArrayList<>();
 		List<String> command = LspManager.getComandRun("java", tempDirectory);
+		// vscode.java.resolveMainClass is registered by the java-debug bundle, and
+		// the product always ships it through initializationOptions (see
+		// LanguageServerManager). Without it JDT LS answers "No
+		// delegateCommandHandler", so this probe passes the bundle as well.
+		Path bundle;
+		try {
+			bundle = JavaDebugInstaller.install();
+		}
+		catch (IOException | RuntimeException error) {
+			assumeTrue(false, "The Java debug bundle could not be installed: " + error.getMessage());
+			return;
+		}
 		LspClient client = new LspClient(command, tempDirectory, (params) -> record(params, diagnostics), Map.of(),
-				null, Map.of());
+				null, Map.of("bundles", List.of(bundle.toString())));
 		try {
 			client.getInitialized().get(180, TimeUnit.SECONDS);
 			System.out.println("PROBE initialized");
