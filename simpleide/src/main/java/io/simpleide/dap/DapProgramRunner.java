@@ -15,7 +15,6 @@ import org.eclipse.lsp4j.debug.RunInTerminalResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import io.simpleide.language.io.Input;
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
 import io.simpleide.thread.ManagedThreadPool;
@@ -119,7 +118,7 @@ final class DapProgramRunner {
 					new OutputStreamWriter(launched.getOutputStream(), StandardCharsets.UTF_8))) {
 				publishWaitingForStdin();
 				while (!session.sessionState.get().closed() && launched.isAlive()) {
-					String line = Input.getInstance().get(1);
+					String line = session.input.get(1);
 					if (line != null) {
 						writer.write(line);
 						writer.newLine();

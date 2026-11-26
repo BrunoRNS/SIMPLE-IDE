@@ -24,6 +24,7 @@ import org.eclipse.lsp4j.debug.services.IDebugProtocolServer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.language.io.Input;
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
 import io.simpleide.thread.ManagedThreadPool;
@@ -135,6 +136,12 @@ public final class DapSession implements AutoCloseable {
 
 	final DapProgramRunner programRunner = new DapProgramRunner(this);
 
+	/**
+	 * Queue used to forward lines to the debuggee. Tests may replace the process-wide
+	 * queue with an isolated one so concurrent sessions cannot steal each other's input.
+	 */
+	Input input = Input.getInstance();
+
 	private final DapExecutionControl control = new DapExecutionControl(this);
 
 	/**
@@ -185,6 +192,14 @@ public final class DapSession implements AutoCloseable {
 		this.externalPort = port;
 		this.externalLaunchArguments = launchArguments == null ? Map.of() : Map.copyOf(launchArguments);
 		this.parent = parent;
+	}
+
+	/**
+	 * Uses a specific input queue for this session instead of the process-wide one.
+	 * @param input queue that supplies lines for the debugged program
+	 */
+	void setInput(Input input) {
+		this.input = input == null ? Input.getInstance() : input;
 	}
 
 	/**

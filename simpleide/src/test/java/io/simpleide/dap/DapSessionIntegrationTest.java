@@ -139,16 +139,18 @@ class DapSessionIntegrationTest {
 
 	@Test
 	void forwardsTypedInputToTheLiveDebuggee() throws Exception {
+		Input input = new Input();
 		DapSession session = new DapSession(adapterWithStdinEcho(), tempDirectory, program(), listener());
+		session.setInput(input);
 		try {
 			session.start(List.of(1));
 
 			awaitOutput("[OUTPUT] " + Output.WAITING_FOR_STDIN);
 
-			Input.getInstance().set("hello from the test");
+			input.set("hello from the test");
 			awaitOutput("ECHO: hello from the test");
 
-			Input.getInstance().set("quit");
+			input.set("quit");
 			awaitOutput("ECHO: quit");
 		}
 		finally {
