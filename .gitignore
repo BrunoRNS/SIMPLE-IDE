@@ -89,3 +89,4 @@ target/
 *.out
 __pycache__/
 *.pyc
+.aider*

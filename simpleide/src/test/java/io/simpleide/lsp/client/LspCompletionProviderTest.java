@@ -36,6 +36,64 @@ class LspCompletionProviderTest {
 	}
 
 	@Test
+	void keepsServerCompletionsAlongsideTheJavaSnippets() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			Editor editor = new Editor();
+			editor.setText("ma");
+			editor.setCaretPosition(2);
+
+			LspCompletionProvider provider = new LspCompletionProvider();
+			java.util.List<CompletionItem> items = new java.util.ArrayList<>(
+					JavaLspSnippets.completions(editor.getText(), editor.getCaretPosition()));
+			for (String label : java.util.List.of("Math", "map", "marker")) {
+				items.add(new CompletionItem(label));
+			}
+			provider.setItems(items);
+
+			assertThat(provider.getCompletions(editor)).extracting(completion -> completion.getInputText())
+				.containsExactly("main", "map", "marker", "Math");
+		});
+	}
+
+	@Test
+	void keepsServerCompletionsVisibleWhenSnippetsAreMerged() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			Editor editor = new Editor();
+			editor.setText("class Main {\n    void run() {\n        Str\n    }\n}\n");
+			editor.setCaretPosition(editor.getText().indexOf("Str") + 3);
+
+			LspCompletionProvider provider = new LspCompletionProvider();
+			provider.setItems(LspEditorSupport.withSnippets("java", editor.getText(), editor.getCaretPosition(),
+					java.util.List.of(new CompletionItem("String"), new CompletionItem("StrictMath"))));
+
+			assertThat(provider.getCompletions(editor)).extracting(completion -> completion.getInputText())
+				.containsExactlyInAnyOrder("String", "StrictMath");
+		});
+	}
+
+	@Test
+	void keepsEveryCompletionWhenLabelsRepeatWithDifferentDescriptions() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			Editor editor = new Editor();
+			editor.setText("Ma");
+			editor.setCaretPosition(2);
+
+			LspCompletionProvider provider = new LspCompletionProvider();
+			java.util.List<CompletionItem> items = new java.util.ArrayList<>();
+			for (String detail : java.util.List.of("Application entry point", "A", "java.lang", "")) {
+				CompletionItem duplicate = new CompletionItem("Main");
+				duplicate.setDetail(detail);
+				items.add(duplicate);
+			}
+			items.add(new CompletionItem("Math"));
+			provider.setItems(items);
+
+			assertThat(provider.getCompletions(editor)).extracting(completion -> completion.getInputText())
+				.containsExactly("Main", "Main", "Main", "Main", "Math");
+		});
+	}
+
+	@Test
 	void usesLspTextEditRangeWhenReplacingCompletionPrefix() throws Exception {
 		SwingUtilities.invokeAndWait(() -> {
 			Editor editor = new Editor();

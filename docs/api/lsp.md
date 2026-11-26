@@ -32,20 +32,90 @@ The bundled registry contains entries for:
 | --- | --- | --- |
 | Java | Eclipse JDT Language Server | Selects the 17+ or 25+ build from the running JDK |
 | JavaScript | typescript-language-server | Requires Node.js and npm |
-| C# | csharp-ls | Requires .NET |
+| C# | OmniSharp (Mono) | Requires Mono 6+ with an MSBuild instance; no .NET SDK needed. A `SimpleIdeLooseFiles.csproj` is written for folders without a C# project |
 | C, C++ | clangd | Linux, macOS and Windows x64 |
-| Groovy | groovy-language-server | Requires Java 17+ |
+| Groovy | groovy-language-server | Requires Java 17+; built from source on install with `gradlew -p` |
 | Kotlin | kotlin-language-server | Requires Java 11+ |
 | Python | Pyright | Requires Python 3 and npm |
-| Go | gopls | Requires Go 1.26+ |
-| Rust | rust-analyzer | Platform-specific builds |
+| Go | gopls | Requires Go 1.26+; pinned gopls 0.16.2 for Go 1.21 to 1.25 |
+| Rust | rust-analyzer | Platform-specific builds; needs the `rust-src` component. Loose `.rs` files are passed through `linkedProjects` |
 
 Server definitions live in
 `simpleide/src/main/resources/io/simpleide/lsp/dowload/registry.json`. Each entry
 declares OS, architecture, minimum language version, version command, install
 strategy or URL, launch command and arguments.
 
+`LspServerIntegrationTest` starts each server for real. Two cases skip on
+runtimes the server itself cannot handle, instead of failing the suite:
+
+- Kotlin on JDK 25 and newer. kotlin-language-server 1.3.13 bundles a compiler
+  whose `JavaVersion.parse` rejects the four-part version string reported by
+  those JDKs (`IllegalArgumentException: 25.0.5.1`), so the server exits with
+  code 1 before answering `initialize`.
+- C# on Windows and macOS. OmniSharp there finds no MSBuild instance
+  (`MSBuildLocator` throws `PlatformNotSupportedException` under Mono), so the
+  server never answers `initialize`. The test still runs on Linux with Mono and
+  MSBuild installed, which is what the Debug CI workflow sets up.
+
+Server install commands run with piped streams. They must never inherit the
+IDE's standard streams: a child sharing them writes into the running JVM's
+native channel, which corrupts Surefire's forked JVM streams and lets a package
+manager steal the terminal input.
+
+### Extra Java snippets
+
+When a Java language server is connected, `LspEditorSupport` merges a few
+completion items of its own into every completion response: `psvm` and `main`
+insert `public static void main(String[] args) {}`, `sout` inserts
+`System.out.println()`, `fori` inserts `for (int i = 0; i < 0; i++) {}` and
+`scanner` inserts `final static Scanner SC = new Scanner(System.in);` at type
+level (or `final Scanner SC = ...` inside a method), adding the
+`java.util.Scanner` import through an additional text edit when it is missing.
+The items appear in the normal popup next to the server completions and only
+insert their text when accepted; they are offered for Java only, never after a
+member-access dot, and they are not expanded automatically.
+
+Snippets are only merged into a response that already contains server
+completions. An empty or failed response is passed through untouched, so a
+broken language server shows an empty popup instead of a list made up of the
+IDE's snippets, which used to hide the fact that JDT LS had answered nothing.
+`JavaLspSnippetsPopupIntegrationTest` starts the real JDT LS on a loose Java
+file, checks that it answers with completions, merges the snippets and asserts
+that the popup still lists server items next to `psvm` (tagged `lsp` and
+`language-tools`).
+
+`LspCompletionProvider` orders completions by their input text so entries with
+repeating labels and different descriptions stay in the list instead of
+breaking the sorted search the completion window relies on.
+
 ## Connect a server
+
+### Facade
+
+`io.simpleide.api.LanguageServers` wraps the shared manager, the registry and the
+file-to-language mapping in a few methods. Servers are installed on first use and
+one server process is shared per language and workspace.
+
+```java
+import io.simpleide.api.LanguageServers;
+import io.simpleide.lsp.client.LspClient;
+import java.nio.file.Path;
+
+Path file = Path.of("src/app.py");
+if (LanguageServers.isSupported(file)) {
+  LspClient client =
+      LanguageServers
+          .connect(file, diagnostics -> System.out.println(diagnostics.getDiagnostics()))
+          .join();
+}
+// When the embedding application exits:
+LanguageServers.shutdown();
+```
+
+`LanguageServers.languageIdOf(Path)` exposes the same language mapping used by
+the editor, and `disconnect(Path)` removes the diagnostics handler of one file.
+
+### Lower-level manager
 
 ```java
 import io.simpleide.api.Threads;
@@ -116,7 +186,7 @@ record LspStatus(String id, String serverName, State state) {}
 | `CHECKING_VERSION` | Comparing the installed language version with registry requirements |
 | `DOWNLOADING` | Downloading an archive |
 | `EXTRACTING` | Extracting an archive |
-| `INSTALLING` | Running npm, dotnet, go or another install command |
+| `INSTALLING` | Running npm, go or another install command |
 | `STARTING` | Starting the server process |
 | `RUNNING` | Server initialized |
 | `FAILED` | Install or start failed |
@@ -135,8 +205,10 @@ status id for direct `LspManager` calls. Do not block in the listener.
 
 The workspace data directory name is a UUID derived from the workspace path. The
 manager creates it through the server command template (`${workspaceData}`).
-Installation uses a sibling lock per directory, so concurrent editors do not
-download the same server twice.
+Command templates also support `${workspaceRoot}` for servers that take the
+workspace path as an argument, such as OmniSharp's `-s` option. Installation uses
+a sibling lock per directory, so concurrent editors do not download the same
+server twice.
 
 The marker file `.installed` contains the installed version. If the registry
 version changes, the manager downloads the new version.
@@ -182,6 +254,10 @@ message and optional code/source. `LspDiagnosticParser` converts them to RSTA
 squiggle underlines. A custom editor can keep the list and render it in its own
 way. Publish an empty list when a file becomes clean; do not leave stale
 diagnostics.
+
+JDT LS publishes diagnostics for loose `.java` files that belong to no project;
+`LspServerIntegrationTest.reportsSyntaxErrorsInALooseJavaFile` keeps that
+behavior covered (tagged `lsp`).
 
 ## Definition and formatting
 

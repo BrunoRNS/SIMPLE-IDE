@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -32,6 +33,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTabbedPane;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.text.BadLocationException;
@@ -43,6 +45,10 @@ import ch.qos.logback.classic.Logger;
 import org.freedesktop.dbus.exceptions.DBusException;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.api.Languages;
+import io.simpleide.dap.DapManager;
+import io.simpleide.dap.DapSession;
+import io.simpleide.dap.JavaDebugBridge;
 import io.simpleide.frame.layout.MainLayout;
 import io.simpleide.frame.log.LogPanel;
 import io.simpleide.frame.log.SwingLogAppender;
@@ -51,6 +57,9 @@ import io.simpleide.frame.popup.InfoPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.frame.utils.ApplicationIcon;
 import io.simpleide.frame.utils.LinuxStatusNotifierTray;
+import io.simpleide.language.AbstractLanguage;
+import io.simpleide.language.io.OutputType;
+import io.simpleide.lsp.client.LspClient;
 import io.simpleide.settings.IdeAction;
 import io.simpleide.settings.IdeSettings;
 import io.simpleide.settings.KeybindingManager;
@@ -65,6 +74,7 @@ import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorManager;
 import io.simpleide.ui.editor.EditorTab;
 import io.simpleide.ui.editor.LspStatusBar;
+import io.simpleide.ui.io.IOPanel;
 import io.simpleide.ui.menubar.MenuBarFactory;
 import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.menubar.menus.IdeMenuBar;
@@ -88,14 +98,14 @@ import io.simpleide.ui.treefile.Watcher;
  *
  * <p>
  * The frame wires the activity bar and its Explorer, Search and Settings views, the
- * editor manager, the Output, Debug Console and Terminal tabs, the status bar and the
- * menu bar together. It implements {@link Runnable} so it can be created on the Swing
+ * editor manager, the Output, Debug Console, Terminal and I/O tabs, the status bar and
+ * the menu bar together. It implements {@link Runnable} so it can be created on the Swing
  * Event Dispatch Thread by an {@code EDTNode}; every listener is routed through the
  * thread manager and every shortcut and settings change is persisted under
  * {@code ~/.simpleide/settings.json}.
  *
  * @author BrunoRNS
- * @since v1.0.0beta
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
  */
@@ -129,6 +139,18 @@ public class MainFrame extends JFrame implements Runnable {
 
 	private DebugConsolePanel debugConsolePanel;
 
+	private IOPanel ioPanel;
+
+	private JTabbedPane outputTabs;
+
+	private DapManager dapManager;
+
+	private DapSession dapSession;
+
+	private Editor debugEditor;
+
+	private volatile boolean debugAvailable;
+
 	private KeybindingManager keybindingManager;
 
 	private JSplitPane mainSplit;
@@ -150,6 +172,8 @@ public class MainFrame extends JFrame implements Runnable {
 	/**
 	 * Builds and displays the application window, including its sidebar, editors,
 	 * terminal, output and debug console.
+	 * @author BrunoRNS
+	 * @since v1.1.0
 	 */
 	@Override
 	public void run() {
@@ -168,10 +192,12 @@ public class MainFrame extends JFrame implements Runnable {
 		terminalController = new BusyBoxTerminalController(terminalPanel, this::terminalWorkingDirectory);
 
 		debugConsolePanel = new DebugConsolePanel();
-		JTabbedPane outputTabs = new JTabbedPane();
+		ioPanel = new IOPanel();
+		outputTabs = new JTabbedPane();
 		outputTabs.addTab("Output", logPane);
 		outputTabs.addTab("Debug Console", debugConsolePanel);
 		outputTabs.addTab("Terminal", terminalPanel);
+		outputTabs.addTab("I/O", ioPanel);
 
 		editorManager = new EditorManager(this::createNewFile, this::createNewDirectory, this::openFolder,
 				lspStatusBar::updateStatus);
@@ -199,9 +225,11 @@ public class MainFrame extends JFrame implements Runnable {
 
 		IdeSettings settings = SettingsService.getInstance().getSettings();
 		keybindingManager = new KeybindingManager(settings);
+		configureDebugAvailability();
 		installKeybindings();
 		MenuBarFactory.createMenuBar(this, this::createNewFile, this::createNewDirectory, this::openFolder,
-				this::closeFolder, editorManager::saveSelectedFile);
+				this::closeFolder, editorManager::saveSelectedFile, this::runProgram, this::debugProgram);
+		applyDebugAvailability();
 		ThemeManager.getInstance().register(this);
 		applySettings(settings);
 		SettingsService.getInstance().addListener(this::applySettings);
@@ -276,6 +304,10 @@ public class MainFrame extends JFrame implements Runnable {
 
 	private void handleWindowClosed(@SuppressWarnings("unused") WindowEvent event) {
 		try {
+			detachBreakpointListener();
+			if (dapSession != null) {
+				dapSession.close();
+			}
 			closeWatcher();
 			if (editorManager != null) {
 				editorManager.closeAll();
@@ -298,7 +330,197 @@ public class MainFrame extends JFrame implements Runnable {
 		actions.put(IdeAction.TOGGLE_SIDEBAR, this::toggleSidebar);
 		actions.put(IdeAction.WORKSPACE_SEARCH, () -> showSidebarView(SidebarView.SEARCH));
 		actions.put(IdeAction.OPEN_SETTINGS, () -> showSidebarView(SidebarView.SETTINGS));
+		actions.put(IdeAction.RUN, this::runProgram);
+		if (debugAvailable) {
+			actions.put(IdeAction.DEBUG, this::debugProgram);
+		}
 		keybindingManager.install(getRootPane(), actions);
+	}
+
+	private void configureDebugAvailability() {
+		try {
+			dapManager = DapManager.createDefault();
+			debugAvailable = dapManager.isSupported();
+		}
+		catch (DapManager.DapUnavailableException error) {
+			dapManager = null;
+			debugAvailable = false;
+			logger.warn("Debugging is unavailable: {}", error.getMessage());
+		}
+	}
+
+	private void applyDebugAvailability() {
+		if (getJMenuBar() instanceof IdeMenuBar menuBar) {
+			menuBar.setDebugEnabled(debugAvailable);
+		}
+		if (keybindingManager != null) {
+			installKeybindings();
+		}
+	}
+
+	private void runProgram() {
+		if (ioPanel.isExecutionActive()) {
+			showExecutionMessage("A program is already running. Stop it before starting another run.");
+			return;
+		}
+		EditorTab tab = editorManager.getSelectedEditorTab();
+		if (tab == null || tab.getEditor() == null) {
+			showExecutionMessage("Open a source file before running a program.");
+			return;
+		}
+		if (!saveBeforeExecution(tab)) {
+			return;
+		}
+		outputTabs.setSelectedComponent(ioPanel);
+		try {
+			AbstractLanguage language = Languages.create(tab.getFile().getPath());
+			ioPanel.beginRun(language);
+			language.startManaged();
+		}
+		catch (RuntimeException error) {
+			ioPanel.finishExecution();
+			String message = "Unable to run " + tab.getFile().getName() + ": " + error.getMessage();
+			ioPanel.appendLine(OutputType.ERROR, message);
+			logger.error("Unable to run {}.", tab.getFile().getPath(), error);
+			JOptionPane.showMessageDialog(this, message, "Run failed", JOptionPane.ERROR_MESSAGE);
+		}
+	}
+
+	private void debugProgram() {
+		if (!debugAvailable || dapManager == null) {
+			showExecutionMessage("Debugging is not available: no compatible debug adapter is installed.");
+			return;
+		}
+		if (ioPanel.isExecutionActive()) {
+			showExecutionMessage("A program is already running. Stop it before starting a debug session.");
+			return;
+		}
+		EditorTab tab = editorManager.getSelectedEditorTab();
+		if (tab == null || tab.getEditor() == null) {
+			showExecutionMessage("Open a source file before starting a debug session.");
+			return;
+		}
+		if (!saveBeforeExecution(tab)) {
+			return;
+		}
+		Path program = tab.getFile().getPath();
+		if (!dapManager.supports(program)) {
+			showExecutionMessage("Debugging is not supported for " + tab.getFile().getName()
+					+ ". Open a Java, JavaScript, Python or Go file to debug.");
+			return;
+		}
+		outputTabs.setSelectedComponent(ioPanel);
+		ioPanel.beginDebug(null);
+		List<Integer> breakpoints = tab.getBreakpoints();
+		attachBreakpointListener(tab, program);
+		DapSession.Listener listener = new DapSession.Listener() {
+			@Override
+			public void onTerminated() {
+				SwingUtilities.invokeLater(() -> {
+					dapSession = null;
+					detachBreakpointListener();
+					ioPanel.finishExecution();
+				});
+			}
+		};
+		RunnableNode startNode = new RunnableNode(() -> {
+			try {
+				DapSession session = startDebugSession(tab, program, breakpoints, listener);
+				dapSession = session;
+				session.setBreakpoints(program, tab.getBreakpoints());
+				SwingUtilities.invokeLater(() -> ioPanel.setSession(session));
+			}
+			catch (DapManager.DapUnavailableException error) {
+				SwingUtilities.invokeLater(() -> handleDebugFailure(error.getMessage()));
+			}
+			catch (InterruptedException error) {
+				Thread.currentThread().interrupt();
+				SwingUtilities.invokeLater(() -> handleDebugFailure("Debug startup was interrupted."));
+			}
+			catch (RuntimeException error) {
+				SwingUtilities
+					.invokeLater(() -> handleDebugFailure("Unable to start the debug session: " + error.getMessage()));
+			}
+		});
+		ThreadMaster.getInstance().register(startNode);
+	}
+
+	/**
+	 * Starts the debug session for a program, using the JDT language server for Java and
+	 * a standalone adapter for the other languages.
+	 */
+	private DapSession startDebugSession(EditorTab tab, Path program, List<Integer> breakpoints,
+			DapSession.Listener listener) throws DapManager.DapUnavailableException, InterruptedException {
+		if (!dapManager.isLanguageServerDebug(program)) {
+			return dapManager.start(program, breakpoints, listener);
+		}
+		LspClient client = tab.getLanguageServer();
+		if (client == null) {
+			try {
+				client = editorManager.connectLanguageServer(tab.getDocument())
+					.get(30, java.util.concurrent.TimeUnit.SECONDS);
+			}
+			catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException error) {
+				throw new DapManager.DapUnavailableException(
+						"Unable to reach the Java language server: " + error.getMessage(), error);
+			}
+		}
+		LspClient activeClient = client;
+		JavaDebugBridge.JavaDebugClient bridgeClient = (command, arguments) -> activeClient.executeCommand(command,
+				arguments);
+		return dapManager.startJava(program, bridgeClient, breakpoints, listener);
+	}
+
+	private void handleDebugFailure(String message) {
+		dapSession = null;
+		detachBreakpointListener();
+		ioPanel.finishExecution();
+		String explanation = message == null || message.isBlank()
+				? "Debugging is not available: the debug adapter could not be installed." : message;
+		ioPanel.appendLine(OutputType.ERROR, explanation);
+		logger.error("Debugging is unavailable: {}", explanation);
+		JOptionPane.showMessageDialog(this, explanation, "Debug unavailable", JOptionPane.ERROR_MESSAGE);
+	}
+
+	private boolean saveBeforeExecution(EditorTab tab) {
+		if (!tab.isEdit()) {
+			return true;
+		}
+		try {
+			tab.save();
+			return true;
+		}
+		catch (IOException error) {
+			String message = "Unable to save " + tab.getFile().getName() + " before execution: " + error.getMessage();
+			ioPanel.appendLine(OutputType.ERROR, message);
+			logger.error("Unable to save {} before execution.", tab.getFile().getPath(), error);
+			JOptionPane.showMessageDialog(this, message, "Execute failed", JOptionPane.ERROR_MESSAGE);
+			return false;
+		}
+	}
+
+	private void attachBreakpointListener(EditorTab tab, Path program) {
+		detachBreakpointListener();
+		debugEditor = tab.getEditor();
+		debugEditor.setBreakpointListener(lines -> {
+			DapSession activeSession = dapSession;
+			if (activeSession != null) {
+				activeSession.setBreakpoints(program, lines);
+			}
+		});
+	}
+
+	private void detachBreakpointListener() {
+		if (debugEditor != null) {
+			debugEditor.setBreakpointListener(null);
+			debugEditor = null;
+		}
+	}
+
+	private void showExecutionMessage(String message) {
+		outputTabs.setSelectedComponent(ioPanel);
+		ioPanel.appendLine(OutputType.DEBUG, message);
+		JOptionPane.showMessageDialog(this, message, "Execute", JOptionPane.INFORMATION_MESSAGE);
 	}
 
 	private void applySettings(IdeSettings settings) {

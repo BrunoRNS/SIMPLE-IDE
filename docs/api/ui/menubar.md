@@ -5,9 +5,9 @@
 
 ## Building the menu bar
 
-`MenuBarFactory.createMenuBar(frame, createFile, createFolder, setDirectory,
-saveFile)` installs an `IdeMenuBar` on the frame. Each callback is a `Runnable`
-supplied by the frame.
+`MenuBarFactory.createMenuBar(frame, createFile, createFolder, openFolder,
+closeFolder, saveFile, run, debug)` installs an `IdeMenuBar` on the frame. Each
+callback is a `Runnable` supplied by the frame.
 
 ```java
 import io.simpleide.ui.menubar.MenuBarFactory;
@@ -16,16 +16,28 @@ MenuBarFactory.createMenuBar(
     frame,
     () -> tree.createNewFile(),
     () -> tree.createNewDirectory(),
-    this::chooseDirectory,
-    editorManager::saveSelectedFile);
+    () -> tree.chooseDirectory(),
+    this::closeDirectory,
+    editorManager::saveSelectedFile,
+    this::runProgram,
+    this::debugProgram);
 ```
+
+The five-argument `IdeMenuBar` constructor and six-argument
+`MenuBarFactory.createMenuBar` overload remain available for hosts that do not
+offer the Execute menu.
 
 | Menu | Items |
 | --- | --- |
 | `FileMenu` | New File, Save (Ctrl+S), New Folder, Set directory |
 | `SettingsMenu` | Theme submenu and a global font size spinner |
+| `ExecuteMenu` | Run (F5), Debug (Ctrl+F5) |
 | `HelpMenu` | Keyboard Shortcuts, Machine Information, About Simple IDE |
 | `ThemeMenu` | Light, Dark, Dracula, Dracula Light, Brown and Brown Light radio items |
+
+Execute is inserted between Settings and Help. `ExecuteMenu.setDebugEnabled(false)`
+disables the Debug item and explains the reason in its tooltip; the frame calls
+this when no compatible debug adapter is registered or when installation fails.
 
 File and theme menu items dispatch through `ActionNode`, so the callbacks are
 tracked EDT nodes. The font size spinner uses `ChangeNode` and rewrites every

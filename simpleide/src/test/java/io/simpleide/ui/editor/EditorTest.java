@@ -8,6 +8,7 @@ import javax.swing.SwingUtilities;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+import org.fife.ui.rtextarea.RTextScrollPane;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -101,6 +102,29 @@ class EditorTest {
 		assertThat(Editor.syntaxStyleForFile("unknown.custom", TypeFile.TXT))
 			.isEqualTo(SyntaxConstants.SYNTAX_STYLE_NONE);
 		assertThat(LocalCompletionProviders.supports(SyntaxConstants.SYNTAX_STYLE_XML)).isFalse();
+	}
+
+	@Test
+	void breakpointsAreRegisteredAndVisibleInTheEditorGutter() throws Exception {
+		SwingUtilities.invokeAndWait(() -> {
+			Editor editor = new Editor();
+			editor.setText("line one\nline two\nline three\n");
+			RTextScrollPane scrollPane = new RTextScrollPane(editor);
+			editor.attachGutter(scrollPane.getGutter());
+
+			assertThat(scrollPane.getGutter().isIconRowHeaderEnabled()).isTrue();
+
+			assertThat(editor.toggleBreakpoint(1)).isTrue();
+			assertThat(editor.toggleBreakpoint(3)).isTrue();
+			assertThat(editor.getBreakpointLines()).containsExactly(1, 3);
+
+			assertThat(editor.toggleBreakpoint(1)).isFalse();
+			assertThat(editor.getBreakpointLines()).containsExactly(3);
+
+			editor.clearBreakpoints();
+			assertThat(editor.getBreakpointLines()).isEmpty();
+			assertThat(scrollPane.getGutter().isIconRowHeaderEnabled()).isTrue();
+		});
 	}
 
 }

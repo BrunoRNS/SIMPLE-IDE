@@ -600,6 +600,23 @@ public class EditorManager {
 		};
 	}
 
+	/**
+	 * Connects a document to its language server and returns the initialized client.
+	 *
+	 * <p>
+	 * Used by the debug integration to reach the JDT language server that hosts the Java
+	 * debug adapter. The returned future reuses the shared client when one already exists
+	 * for the document's workspace.
+	 * @param document document to connect
+	 * @return a future completed with the language server client
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public java.util.concurrent.CompletableFuture<LspClient> connectLanguageServer(Document document) {
+		return languageServers.connect(document, ignored -> {
+		});
+	}
+
 	static void completeLanguageServerConnection(EditorTab tab, LspClient client, Throwable error) {
 		if (error != null) {
 			Throwable cause = error;

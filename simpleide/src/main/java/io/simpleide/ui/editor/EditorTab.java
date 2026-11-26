@@ -1,7 +1,28 @@
+/**
+ * File tab showing editable text, an image viewer, or a binary hex editor with shared
+ * save tracking.
+ *
+ * <p>
+ * The tab loads a file into the editor, enables line numbers, marks itself edited when
+ * the document changes, saves through {@link FileService}, and switches between local
+ * completion and a connected language server. Closing the tab releases local support, the
+ * LSP binding and the document listener.
+ *
+ * <p>
+ * Covered by {@code EditorTabTest}.
+ *
+ * @author BrunoRNS
+ * @since v1.1.0
+ * @see <a href="https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
+ */
+
 package io.simpleide.ui.editor;
 
 import java.awt.BorderLayout;
 import java.awt.GraphicsEnvironment;
+import java.awt.Point;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -13,6 +34,7 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.text.BadLocationException;
 
 import org.eclipse.lsp4j.Diagnostic;
@@ -56,8 +78,8 @@ import io.simpleide.utils.service.FileService;
  * <p>
  * Covered by {@code EditorTabTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
  */
@@ -82,6 +104,8 @@ public class EditorTab extends JPanel {
 	private final FileService fileService = new FileService();
 
 	private LspEditorSupport lspSupport;
+
+	private volatile LspClient languageServer;
 
 	private boolean localLanguageSupportRegistered;
 
@@ -190,6 +214,8 @@ public class EditorTab extends JPanel {
 				editor.loadFile(file);
 				configIsEdit();
 				applyEditorOptions(editorTabSize, editorWordWrap, editorLineNumbers, editorShowWhitespace);
+				editor.attachGutter(scrollPane.getGutter());
+				installBreakpointMouseListener();
 			}
 		}
 		revalidate();
@@ -263,6 +289,109 @@ public class EditorTab extends JPanel {
 	}
 
 	/**
+	 * Returns the one-based line numbers with a breakpoint in this tab.
+	 * @return an immutable snapshot of the breakpoint lines, or an empty list for
+	 * non-text tabs
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public List<Integer> getBreakpoints() {
+		return editor == null ? List.of() : editor.getBreakpointLines();
+	}
+
+	/**
+	 * Toggles a breakpoint on a one-based line of this tab.
+	 * @param line one-based line number
+	 * @return {@code true} when a breakpoint now exists on the line
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean toggleBreakpoint(int line) {
+		return editor != null && editor.toggleBreakpoint(line);
+	}
+
+	/**
+	 * Removes every breakpoint from this tab.
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void clearBreakpoints() {
+		if (editor != null) {
+			editor.clearBreakpoints();
+		}
+	}
+
+	private void installBreakpointMouseListener() {
+		if (scrollPane == null || scrollPane.getGutter() == null) {
+			return;
+		}
+		MouseAdapter clickListener = new MouseAdapter() {
+			@Override
+			public void mouseClicked(MouseEvent event) {
+				if (!SwingUtilities.isLeftMouseButton(event)) {
+					return;
+				}
+				Integer line = lineAtGutterPoint(event);
+				if (line != null) {
+					editor.toggleBreakpoint(line);
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent event) {
+				editor.setHoverLine(0);
+			}
+		};
+		MouseAdapter hoverListener = new MouseAdapter() {
+			@Override
+			public void mouseMoved(MouseEvent event) {
+				Integer line = lineAtGutterPoint(event);
+				editor.setHoverLine(line == null ? 0 : line);
+			}
+		};
+		// The breakpoint column is drawn by the gutter's icon row header, which is a
+		// child component: mouse events over it never reach the gutter itself, so the
+		// listeners are installed on the gutter and on every one of its children.
+		installGutterListeners(scrollPane.getGutter(), clickListener, hoverListener);
+	}
+
+	private void installGutterListeners(java.awt.Component component, MouseAdapter clickListener,
+			MouseAdapter hoverListener) {
+		component.addMouseListener(clickListener);
+		component.addMouseMotionListener(hoverListener);
+		if (component instanceof java.awt.Container container) {
+			for (java.awt.Component child : container.getComponents()) {
+				installGutterListeners(child, clickListener, hoverListener);
+			}
+		}
+	}
+
+	/**
+	 * Maps a gutter mouse position to the one-based editor line under the pointer.
+	 * @param event gutter mouse event
+	 * @return the one-based line, or {@code null} when the position is not over a line
+	 */
+	private Integer lineAtGutterPoint(MouseEvent event) {
+		if (editor == null) {
+			return null;
+		}
+		Point point = SwingUtilities.convertPoint(event.getComponent(), event.getPoint(), editor);
+		// The gutter sits to the left of the text area, so the converted x is negative.
+		// Clamp it inside the editor so viewToModel2D resolves the vertical position.
+		point.x = Math.max(0, Math.min(point.x, Math.max(0, editor.getWidth() - 1)));
+		int offset = editor.viewToModel2D(point);
+		if (offset < 0 || offset > editor.getDocument().getLength()) {
+			return null;
+		}
+		try {
+			return editor.getLineOfOffset(offset) + 1;
+		}
+		catch (BadLocationException ignored) {
+			return null;
+		}
+	}
+
+	/**
 	 * Returns the image viewer when this tab displays an image, otherwise {@code null}.
 	 */
 	public ImageViewer getImageViewer() {
@@ -297,7 +426,19 @@ public class EditorTab extends JPanel {
 			return;
 		}
 		unregisterLocalLanguageSupport();
+		languageServer = client;
 		lspSupport = new LspEditorSupport(editor, document, client);
+	}
+
+	/**
+	 * Returns the language server connected to this tab, or {@code null} when none is
+	 * connected yet.
+	 * @return the connected language server client
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public LspClient getLanguageServer() {
+		return languageServer;
 	}
 
 	/**
@@ -524,6 +665,7 @@ public class EditorTab extends JPanel {
 		if (lspSupport != null) {
 			lspSupport.close();
 		}
+		languageServer = null;
 		if (largeTextViewer != null) {
 			largeTextViewer.close();
 		}

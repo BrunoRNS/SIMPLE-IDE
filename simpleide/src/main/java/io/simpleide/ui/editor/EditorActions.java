@@ -36,8 +36,8 @@ import io.simpleide.ui.treefile.SimpleIDEFile;
  * selects the reported range; failures and missing definitions are reported with the
  * application popups.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  */
 public final class EditorActions {
 
@@ -62,6 +62,8 @@ public final class EditorActions {
 				() -> tab.showSearchPanel(true));
 		bindEditorAction(editor, "simpleide.goToDefinitionF12", KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0),
 				() -> goToDefinition(tab));
+		bindEditorAction(editor, "simpleide.toggleBreakpoint", KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0),
+				editor::toggleBreakpointAtCaret);
 		editor.addMouseListener(new MouseNode().onClick(event -> {
 			if (event.getButton() != MouseEvent.BUTTON1 || !event.isControlDown()) {
 				return;
