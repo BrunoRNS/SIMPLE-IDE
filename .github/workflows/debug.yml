@@ -10,7 +10,12 @@ permissions:
 jobs:
   debug:
     name: Debug integration tests (latest toolchains)
-    runs-on: ubuntu-latest
+    # Pinned to 24.04: the Mono repository's only suite (stable-focal) ships Mono
+    # 6.12 plus msbuild, and Ubuntu 26.04's archive ships Mono 6.14 without
+    # msbuild. apt cannot install the 6.12 packages next to the 6.14 ones, so
+    # "apt-get install mono-complete" fails on ubuntu-latest with unmet
+    # dependencies. On 24.04 the same step installs 6.12 and msbuild 16.10.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
       - name: Check out repository
@@ -47,8 +52,10 @@ jobs:
 
       # OmniSharp analyzes loose .cs files only when Mono's MSBuild instance is
       # available; without it the C# language-server test skips. The Ubuntu
-      # archive does not ship msbuild, so Mono comes from the project's own
-      # repository, whose stable-focal suite also serves newer Ubuntu releases.
+      # archive does not ship msbuild even in 26.04, so Mono comes from the
+      # project's own repository. Its stable-focal suite is built for Mono 6.12
+      # and cannot be installed next to the archive's Mono 6.14, which is why
+      # this job stays on ubuntu-24.04.
       #
       # The signing key is downloaded over HTTPS instead of from
       # keyserver.ubuntu.com: an unreachable keyserver left no keyring behind,
