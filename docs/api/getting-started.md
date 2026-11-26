@@ -19,7 +19,7 @@ path is JitPack:
 <dependency>
   <groupId>com.github.BrunoRNS</groupId>
   <artifactId>SIMPLE-IDE</artifactId>
-  <version>v1.0.0beta</version>
+  <version>v1.1.0</version>
 </dependency>
 ```
 
@@ -31,7 +31,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.0.0beta'
+    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.1.0'
 }
 ```
 
@@ -41,7 +41,7 @@ RSyntaxTextArea, FlatLaf, LSP4J or pty4j separately. For a standalone executable
 download the release fat JAR described in [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts).
 
 JavaFX media is optional. Maven selects `javafx22` or `javafx23` from your JDK
-and OS/architecture. To pin `nojavafx`, `jfx22` or `jfx23` in `pom.xml` without
+and OS/architecture. To pin `nojavafx`, `javafx22` or `javafx23` in `pom.xml` without
 a command-line flag, exclude the transitive OpenJFX modules and declare the
 wanted modules explicitly (the same approach Gradle uses). The advanced
 `-Dsimpleide.media.variant=nojavafx|javafx22|javafx23` route and the full matrix

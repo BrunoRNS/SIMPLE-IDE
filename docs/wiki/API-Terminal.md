@@ -83,6 +83,31 @@ home/startup-directory fallback. Hosts that need a custom directory can provide 
 
 No system-wide BusyBox installation is required.
 
+## I/O tab
+
+The desktop terminal area also contains the `I/O` tab, placed to the right of
+`Terminal`. It is not a shell: `io.simpleide.ui.io.IOPanel` runs one program at a
+time and is opened automatically by the Execute menu.
+
+- The upper text area sends its content to the shared
+  `io.simpleide.language.io.Input` queue when the user presses Enter or submits
+  the text. `InputForwarder` keeps accepting lines until the program ends.
+- The lower text pane mirrors the shared `Output` queue. Lines are prefixed with
+  `[OUTPUT]`, `[ERROR]` or `[DEBUG]` and use the theme foreground, error colour
+  and debug/highlight colour respectively.
+- In debug mode the panel shows Continue, Pause, Step Over, Step Into, Step Out
+  and Stop buttons driven by a `io.simpleide.dap.DapSession`.
+- When a run finishes, the input forwarder and output subscription are released
+  through `AbstractLanguage.addExecutionListener`.
+
+The Execute menu sits between Settings and Help and contains `Run` (F5) and
+`Debug` (Ctrl+F5). Run executes the selected file with the language runner;
+Debug installs a Debug Adapter Protocol adapter, launches the program with a
+`launch` request and displays the debug controls in the I/O tab. If no adapter is
+registered for the platform, or if installation fails, the Debug item and its
+shortcut are disabled and the reason is shown to the user. See
+[DAP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-DAP).
+
 ## Lifecycle
 
 The controller exposes one public lifecycle method:
@@ -107,9 +132,18 @@ EDT.
 - Multiple tabs, up to five.
 - Add and close buttons.
 - Terminal output and input through JediTerm.
+- UTF-8 input, including dead-key and composed characters such as `~`, `´`, `á`,
+  `ã` and `ç`. The connector always writes UTF-8 to the PTY.
+- Mouse text selection. Drag with the primary button to select, then copy or paste.
+- Copy with `Ctrl+Shift+C` and paste with `Ctrl+Shift+V`. macOS uses `Cmd+C` and
+  `Cmd+V`. Plain `Ctrl+C` remains the terminal interrupt signal.
 - Platform-specific BusyBox shell.
 - Graceful termination followed by forced termination if needed.
 - Process-exit diagnostics in an error popup when a session fails unexpectedly.
+
+On macOS, Option acts as a compose key instead of sending a Meta escape prefix, so
+layouts that type accents and dead keys with Option work in the terminal. Use the
+terminal shortcuts above rather than Option-based Meta bindings.
 
 ## Limitations
 

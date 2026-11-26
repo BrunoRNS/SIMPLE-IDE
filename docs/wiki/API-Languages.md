@@ -133,6 +133,12 @@ Output includes merged standard output and standard error because the process
 redirects error into the output stream, and the language runner returns a
 non-zero exit as an error.
 
+For Swing consumers that need typed output, `Output.addListener(...)` delivers
+`OutputLine` values classified as `OUTPUT`, `ERROR` or `DEBUG`. Only `OUTPUT`
+lines are also added to the legacy string queue returned by `get(...)`, so
+diagnostic and error events do not change existing queue consumers' behavior.
+Listeners run on the publishing thread and should return quickly.
+
 ## Send input
 
 ```java

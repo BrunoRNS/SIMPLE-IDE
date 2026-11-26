@@ -8,7 +8,7 @@ publishes a GitHub release from the version in
 
 | Artifact | Produced by | Naming |
 | --- | --- | --- |
-| Executable fat JAR | `make jar` | `simpleide-v<version>-any-with-deps.jar` |
+| Executable fat JAR | Each OS/architecture/variant release build | `simpleide-v<version>-<os>-<arch>-<variant>-with-deps.jar` |
 | Portable static package (zipped jpackage app image, no install required) | `make pkg` on Linux and Windows CI | `simpleide-v<version>-<os>-<arch>-<variant>.zip` |
 | Linux `.deb` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>-<variant>.deb` |
 | Linux `.rpm` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>-<variant>.rpm` |
@@ -59,10 +59,15 @@ automatic JDK rule:
 | `arm64` `javafx23` (JDK 21) | `debian:12` | 2.34 (Debian 12+) | 2.34 |
 | `x86` `nojavafx` (JDK 17) | `debian:10` | 2.28 | none |
 
-Native macOS and Windows jobs keep the automatic JDK rule: JDK 17 produces
-`javafx22` and JDK 21 produces `javafx23`. Linux `x86`, Windows `x86` and
-Windows `arm64` produce `nojavafx`, which opens audio and video files in the hex
-editor. Consumers can force a variant with
+Native release jobs publish `nojavafx`, `javafx22` and `javafx23` for macOS
+`x64`/`arm64` and Windows `x64`. `javafx22` uses JDK 17; `javafx23` uses JDK
+21. Linux `x86`, Windows `x86` and Windows `arm64` publish only `nojavafx`,
+which opens media files in the hex editor. Each system/architecture/variant also
+gets its own executable fat JAR. The JavaFX `arm64` Linux builds use Debian 12
+(glibc 2.36; OpenJFX requires glibc 2.34+); Linux `x86` keeps Debian 10/glibc
+2.28. macOS JavaFX 23 packages require macOS 12+, while JavaFX 22 and nojavafx
+packages require macOS 11+. Windows JavaFX variants require Windows 10 on x64.
+Consumers can force a variant with
 `-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`; see
 [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
 
@@ -95,9 +100,10 @@ SIMPLEIDE_PKG_TYPE=exe make pkg    # Windows .exe
 SIMPLEIDE_PKG_TYPE=msi make pkg    # Windows .msi (x64 only)
 ```
 
-The release job uploads every artifact produced on each CI platform, so a
-release contains the fat JAR plus one static zip per supported platform, plus
-the Linux, macOS and `windows-x64` installers.
+The release job uploads every artifact produced on each CI platform, including
+one fat JAR and one set of packages for each supported media variant. This lets
+users select JavaFX or nojavafx independently of the automatically preferred
+variant.
 
 ## Downloading a release from a script
 

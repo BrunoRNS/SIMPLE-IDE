@@ -3,22 +3,29 @@
 All notable changes to this project are documented here. This changelog follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html), and lists the newest
-changes first. Version 1.1.0 is still in development, so its changes remain under
-`Unreleased` until that release is published.
+changes first. Version 1.1.0 records the release state. Later work belongs under
+`Unreleased / Next versions`.
 
-## [Unreleased]
+## v1.1.0 (released)
 
 ### Added
 
+- Run I/O tab with standard input/output and stop controls, an Execute menu for
+  run/debug actions, and DAP integration. See [Run I/O and debugging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Io-tab).
+- Git Source Control side panel with repository status, branch operations and
+  commit history. See [Git side panel](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Git-sidepanel).
 - Optional audio and video playback in read-only editor tabs through JavaFX, with a
   platform-neutral `MediaPlayback` API and a hex-editor fallback. Consumers can pin
-  `nojavafx`, `jfx22` or `jfx23` directly in `pom.xml` with explicit OpenJFX
+  `nojavafx`, `javafx22` or `javafx23` directly in `pom.xml` with explicit OpenJFX
   dependencies; the advanced `-Dsimpleide.media.variant` property and automatic
   JDK/OS selection remain available. Linux `arm64` uses `nojavafx` automatically
-  and supports JavaFX variants on glibc 2.34+ (Debian 12+). See
-  [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
-- Release packages for Linux `x64` and `arm64` in all three media variants, with
-  JavaFX `arm64` builds based on Debian 12, plus download-only helper scripts for
+  and supports JavaFX variants on glibc 2.34+ (Debian 12+). Audio uses the JavaFX
+  stack only; JSE-SPI and its dependencies are absent. See
+  [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media) and
+  [audio/video viewers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Mediaviewer).
+- Release packages and fat JARs for every supported OS/architecture/variant
+  combination. Linux JavaFX `arm64` builds use Debian 12. Download-only helper
+  scripts are available for
   Linux, macOS and Windows. See
   [Script installation](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Install).
 - `make test-consumer` and `scripts/ci/test-consumer-profiles.py` verify the consumer
@@ -94,4 +101,26 @@ Deprecated compatibility members will not receive new features and may be
 removed in a future major release. New integrations should use the replacements
 listed above and the Material Icon Theme.
 
-[Unreleased]: https://github.com/BrunoRNS/SIMPLE-IDE/compare/v1.0.0beta...HEAD
+### Fixed
+
+- The terminal accepts dead-key and accented characters. On macOS, Option now composes
+  `~`, `´`, `á`, `ã` and similar characters instead of sending a Meta escape prefix
+  that leaked an extra character and dropped the composed one.
+- Terminal text selection and `Ctrl+Shift+C`/`Ctrl+Shift+V` copy and paste are covered
+  by integration tests, plus UTF-8 input through the PTY.
+- Stopping a running language program no longer reports a bogus process startup
+  failure when its output stream closes during shutdown.
+- Source Control Git operations no longer freeze the window. Every Git command runs
+  on the `ThreadMaster` background pool and returns to the EDT only to update the
+  panel or show an error popup.
+- Git commands are forced to be non-interactive: standard input is closed, terminal
+  credential prompts, askpass, pagers, editors and SSH passphrase prompts are
+  disabled. A command that still requests input stops and displays an error popup
+  with credential setup guidance instead of waiting for the user.
+
+## Unreleased / Next versions
+
+<!-- Add entries here only after they are explicitly assigned to a later release. -->
+
+[v1.1.0]: https://github.com/BrunoRNS/SIMPLE-IDE/compare/v1.0.0beta...v1.1.0
+[Unreleased]: https://github.com/BrunoRNS/SIMPLE-IDE/compare/v1.1.0...HEAD

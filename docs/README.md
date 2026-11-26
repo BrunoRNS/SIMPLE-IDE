@@ -6,6 +6,13 @@ split by audience instead of being kept in one large file. Changes under
 
 ## Shortcuts
 
+## v1.1.0 feature guides
+
+- [Run I/O tab, Execute menu and DAP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Io-tab)
+- [Git Source Control side panel](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Git-sidepanel)
+- [Audio and video viewers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Mediaviewer)
+
+
 | I need to... | Read |
 | --- | --- |
 | Build, test or package the IDE | [Build and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile) |
@@ -63,6 +70,10 @@ docs/
 │   │   └── README.md             Java, Kotlin and Groovy execution
 │   └── util/
 │       └── utilities.md          Files, resources, PATH lookup, map conversion
+├── features/                     v1.1.0 end-user feature guides
+│   ├── io-tab.md                  Run I/O, Execute menu and DAP
+│   ├── git-sidepanel.md           Git Source Control side panel
+│   └── mediaviewer.md             Audio and video viewers
 ├── build/                        Build, package and release documentation
 │   ├── MAKEFILE.md               Make targets and CI usage
 │   └── RELEASES.md               Release automation and artifact names

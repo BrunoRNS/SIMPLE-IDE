@@ -79,12 +79,12 @@ dependencies {
 
 To pin a variant **directly in `pom.xml`, with no command-line flag**, exclude the
 transitive OpenJFX modules and declare them explicitly. Use the version
-`22.0.2` for `jfx22`, `23.0.2` for `jfx23` (JDK 21+), or omit the OpenJFX
+`22.0.2` for `javafx22`, `23.0.2` for `javafx23` (JDK 21+), or omit the OpenJFX
 dependencies entirely for `nojavafx`:
 
 ```xml
 <properties>
-  <javafx.version>23.0.2</javafx.version><!-- 22.0.2 for jfx22 -->
+  <javafx.version>23.0.2</javafx.version><!-- 22.0.2 for javafx22 -->
   <javafx.platform>linux</javafx.platform><!-- linux-aarch64, mac, mac-aarch64 or win -->
 </properties>
 
@@ -100,7 +100,7 @@ dependencies entirely for `nojavafx`:
   </exclusions>
 </dependency>
 
-<!-- Only for jfx22/jfx23; omit all three for nojavafx. -->
+<!-- Only for javafx22/javafx23; omit all three for nojavafx. -->
 <dependency>
   <groupId>org.openjfx</groupId>
   <artifactId>javafx-controls</artifactId>
@@ -126,8 +126,8 @@ the transitive OpenJFX modules, then omit the extra lines for `nojavafx` or pin
 `22.0.2` / `23.0.2`:
 
 ```groovy
-def javafxVariant = 'jfx23' // nojavafx | jfx22 | jfx23
-def javafxVersion = javafxVariant == 'jfx23' ? '23.0.2' : '22.0.2'
+def javafxVariant = 'javafx23' // nojavafx | javafx22 | javafx23
+def javafxVersion = javafxVariant == 'javafx23' ? '23.0.2' : '22.0.2'
 def javafxPlatform = 'linux' // linux-aarch64, mac, mac-aarch64 or win
 
 dependencies {
@@ -168,13 +168,13 @@ Audio and video playback is an optional build variant. Without it, media files
 open in the built-in hex editor and the rest of the IDE is unchanged. The basic
 dependency above selects the variant automatically: JavaFX 23 on JDK 21+,
 JavaFX 22 on JDK 17–20, on a supported platform; `nojavafx` elsewhere. To pin
-`nojavafx`, `jfx22` or `jfx23`, use the POM-only snippet above.
+`nojavafx`, `javafx22` or `javafx23`, use the POM-only snippet above.
 
 Supported platforms are Linux x64, Linux arm64 (glibc 2.34+ / Debian 12+ when
 JavaFX is selected), Windows x64, macOS x64 and macOS arm64. Linux x86, Windows
 x86 and Windows arm64 always use `nojavafx`. Automatic Linux arm64 builds also
-use `nojavafx` so that the glibc 2.28 baseline is preserved; select `jfx22` or
-`jfx23` there only on Debian 12+. Selections on unsupported platforms still
+use `nojavafx` so that the glibc 2.28 baseline is preserved; select `javafx22` or
+`javafx23` there only on Debian 12+. Selections on unsupported platforms still
 resolve to `nojavafx`.
 
 Builds from source use `SIMPLEIDE_MEDIA_VARIANT=auto|nojavafx|javafx22|javafx23`
@@ -188,8 +188,8 @@ JitPack behavior and troubleshooting:
 
 Download from [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/releases):
 
-- `simpleide-v<version>-any-with-deps.jar` — platform-independent, run with
-  `java -jar`.
+- `simpleide-v<version>-<os>-<arch>-<variant>-with-deps.jar` — executable fat JAR
+  built for a system and media variant, run with `java -jar`.
 - `simpleide-v<version>-<os>-<arch>-<variant>.zip` — self-contained static
   package for Linux and Windows, no installation step.
 - `simpleide-v<version>-linux-<arch>-<variant>.deb` / `.rpm`,
@@ -199,14 +199,16 @@ Download from [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/releases):
   ship the zip. `<variant>` is `javafx22`, `javafx23` or `nojavafx`, and selects
   the JavaFX media build (or the hex-editor fallback) shipped in the package.
 
-Beta versions (e.g. `1.0.0beta`) are published as pre-releases.
+Version `1.1.0` is the current release. Versions containing `beta` are published as pre-releases.
 
 Linux builds require a GNU/Linux distribution with **glibc 2.28 or newer**
 (Debian 10+, Ubuntu 18.10+, Fedora 29+, RHEL 8+). Alpine Linux and other
 musl-based distributions are not supported. Audio and video playback is
 optional and additionally needs GTK 3, ALSA or PulseAudio and system FFmpeg.
 The JavaFX `arm64` binaries need **glibc 2.34+ (Debian 12+)**; the `nojavafx`
-`arm64` packages keep the Debian 10 baseline. On x64 (also called `amd64`), the
+`arm64` packages keep the Debian 10 baseline. All three variants are available on
+Linux `x64`/`arm64`, macOS `x64`/`arm64` and Windows `x64`; Linux `x86`, Windows
+`x86` and Windows `arm64` only receive `nojavafx`. On x64 (also called `amd64`), the
 JavaFX natives need only glibc 2.17, so every variant runs on the baseline.
 
 #### Compatibility map (summary)
@@ -216,7 +218,7 @@ JavaFX natives need only glibc 2.17, so every variant runs on the baseline.
 | Linux `x64` / `amd64` | `javafx23` → `javafx22` → `nojavafx` | glibc 2.28 (Debian 10+) |
 | Linux `arm64` | `javafx23` → `javafx22` → `nojavafx` | glibc 2.34 (Debian 12+) for JavaFX; glibc 2.28 (Debian 10+) for `nojavafx`. `javafx23` is the JDK 21 build. |
 | Linux `x86` | `nojavafx` | glibc 2.28 (Debian 10+) |
-| macOS `x64` / `arm64` | `javafx23` → `javafx22` | macOS 12 for `javafx23`; macOS 11 (Big Sur) for `javafx22` |
+| macOS `x64` / `arm64` | `javafx23` → `javafx22` → `nojavafx` | macOS 12 for `javafx23`; macOS 11 (Big Sur) for `javafx22` and `nojavafx` |
 | Windows `x64` | `javafx23` → `javafx22` → `nojavafx` | Windows 10 |
 | Windows `x86` / `arm64` | `nojavafx` | Windows 10 / Windows 11 |
 
@@ -264,6 +266,9 @@ package`. Development workflow, branch model and tests:
 
 ## Features
 
+- [Run I/O tab, Execute menu and DAP debugging](docs/features/io-tab.md).
+- [Git Source Control side panel](docs/features/git-sidepanel.md).
+- [Separate audio and video viewers](docs/features/mediaviewer.md).
 - RSyntaxTextArea editor: highlighting, folding, auto-indent, search/replace,
   local completion.
 - Optional LSP: diagnostics, completion, go-to-definition, formatting —
@@ -291,7 +296,7 @@ for the process.
 
 ## Documentation
 
-The complete guides and API reference are published in the [SIMPLE-IDE Wiki](https://github.com/BrunoRNS/SIMPLE-IDE/wiki).
+The complete guides and API reference are maintained under [`docs/`](docs/README.md) and published to the [SIMPLE-IDE Wiki](https://github.com/BrunoRNS/SIMPLE-IDE/wiki).
 
 - [Documentation index](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Home)
 - [API reference and integration guide](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API)

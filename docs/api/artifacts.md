@@ -14,23 +14,23 @@ want one of these artifacts:
 Every GitHub release contains:
 
 ```text
-simpleide-v<version>-any-with-deps.jar
+simpleide-v<version>-<os>-<arch>-<variant>-with-deps.jar
 ```
 
 The JAR is executable and can also be placed on a classpath:
 
 ```sh
-java -jar simpleide-v1.0.0beta-any-with-deps.jar
+java -jar simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar
 ```
 
 For a Maven project, install it into the local repository once:
 
 ```sh
 mvn install:install-file \
-  -Dfile=simpleide-v1.0.0beta-any-with-deps.jar \
+  -Dfile=simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar \
   -DgroupId=io.simpleide \
   -DartifactId=simpleide \
-  -Dversion=1.0.0beta \
+  -Dversion=1.1.0 \
   -Dpackaging=jar
 ```
 
@@ -40,7 +40,7 @@ Then depend on it:
 <dependency>
   <groupId>io.simpleide</groupId>
   <artifactId>simpleide</artifactId>
-  <version>1.0.0beta</version>
+  <version>1.1.0</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ Gradle:
 
 ```groovy
 dependencies {
-    implementation files('libs/simpleide-v1.0.0beta-any-with-deps.jar')
+    implementation files('libs/simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar')
 }
 ```
 
@@ -76,7 +76,7 @@ modules transitively:
 <dependency>
   <groupId>com.github.BrunoRNS</groupId>
   <artifactId>SIMPLE-IDE</artifactId>
-  <version>v1.0.0beta</version>
+  <version>v1.1.0</version>
 </dependency>
 ```
 
@@ -86,7 +86,7 @@ Depend on the bytecode compiler module only:
 <dependency>
   <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
   <artifactId>simplebytecode-compiler</artifactId>
-  <version>v1.0.0beta</version>
+  <version>v1.1.0</version>
 </dependency>
 ```
 
@@ -100,8 +100,8 @@ Gradle examples:
 
 ```groovy
 dependencies {
-    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.0.0beta'
-    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simplebytecode-compiler:v1.0.0beta'
+    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.1.0'
+    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simplebytecode-compiler:v1.1.0'
 }
 ```
 
@@ -109,7 +109,8 @@ dependencies {
 
 | Selector | Meaning |
 | --- | --- |
-| `v1.0.0beta` | The tagged release |
+| `v1.1.0` | Current release tag |
+| `v1.0.0beta` | Historic tagged release |
 | `main` | Latest commit on the stable branch |
 | `develop` | Latest commit on the development branch |
 | `<commit-sha>` | Exact revision |
@@ -123,7 +124,7 @@ coordinate is not available:
 
 1. Open the JitPack build log for the tag.
 2. Confirm that the `simpleide` module was built successfully.
-3. Use the root coordinate `com.github.BrunoRNS:SIMPLE-IDE:v1.0.0beta`
+3. Use the root coordinate `com.github.BrunoRNS:SIMPLE-IDE:v1.1.0`
    or download the release fat JAR and install it manually.
 4. Pin the dependency to a released tag instead of a branch.
 
@@ -161,8 +162,8 @@ consumers should declare the OpenJFX modules explicitly, or omit them for the
 `nojavafx` behavior:
 
 ```groovy
-def javafxVariant = 'jfx22' // nojavafx | jfx22 | jfx23
-def javafxVersion = javafxVariant == 'jfx23' ? '23.0.2' : '22.0.2'
+def javafxVariant = 'javafx22' // nojavafx | javafx22 | javafx23
+def javafxVersion = javafxVariant == 'javafx23' ? '23.0.2' : '22.0.2'
 def javafxPlatform = 'linux-aarch64' // linux, linux-aarch64, mac, mac-aarch64, win
 
 dependencies {
@@ -182,13 +183,13 @@ The complete contract, platform matrix and examples are in
 
 ## Maven coordinates from the reactor
 
-The reactor modules use group `io` and version `1.0.0beta`:
+The reactor modules use group `io` and version `1.1.0`:
 
 | Module | Coordinate |
 | --- | --- |
-| Parent | `io:simpleide-parent:1.0.0beta` |
-| Application | `io:simpleide:1.0.0beta` |
-| Compiler | `io:simplebytecode-compiler:1.0.0beta` |
+| Parent | `io:simpleide-parent:1.1.0` |
+| Application | `io:simpleide:1.1.0` |
+| Compiler | `io:simplebytecode-compiler:1.1.0` |
 
 These coordinates are useful when building the project locally with
 `mvn install`. They are not published to Maven Central.

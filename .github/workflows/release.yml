@@ -44,41 +44,6 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "prerelease=$PRERELEASE" >> "$GITHUB_OUTPUT"
 
-  fat-jar:
-    name: Fat JAR
-    needs: metadata
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v7
-
-      - name: Set up Java
-        uses: actions/setup-java@v6
-        with:
-          distribution: zulu
-          java-version: "17"
-          cache: maven
-
-      - name: Build executable fat JAR
-        run: make jar
-
-      - name: Stage fat JAR
-        env:
-          VERSION: ${{ needs.metadata.outputs.version }}
-        shell: bash
-        run: |
-          mkdir -p dist
-          cp simpleide/target/simpleide.jar \
-            "dist/simpleide-v${VERSION}-any-with-deps.jar"
-
-      - name: Upload fat JAR artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: fat-jar
-          path: dist/simpleide-v*-any-with-deps.jar
-          if-no-files-found: error
-          retention-days: 1
-
   linux-packages:
     name: Package Linux ${{ matrix.pkg_arch }} (${{ matrix.variant }}, JDK ${{ matrix.java }})
     needs: metadata
@@ -159,6 +124,16 @@ jobs:
           bash scripts/ci/run-linux-debian.sh \
             ${{ matrix.container_platform }} pkg
 
+      - name: Stage variant fat JAR
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          OS: linux
+          ARCH: ${{ matrix.pkg_arch }}
+          VARIANT: ${{ matrix.variant }}
+        run: |
+          cp simpleide/target/simpleide.jar \
+            "simpleide/target/pkg/simpleide-v${VERSION}-${OS}-${ARCH}-${VARIANT}-with-deps.jar"
+
       - name: Upload Linux package artifact
         uses: actions/upload-artifact@v7
         with:
@@ -168,7 +143,7 @@ jobs:
           retention-days: 1
 
   native-packages:
-    name: Package ${{ matrix.pkg_os }}-${{ matrix.pkg_arch }} (JDK ${{ matrix.java }})
+    name: Package ${{ matrix.pkg_os }}-${{ matrix.pkg_arch }} (${{ matrix.variant }}, JDK ${{ matrix.java }})
     needs: metadata
     strategy:
       fail-fast: false
@@ -179,48 +154,77 @@ jobs:
             pkg_arch: x64
             java_arch: x64
             java: "17"
+            variant: nojavafx
+
+          - os: macos-15-intel
+            pkg_os: macos
+            pkg_arch: x64
+            java_arch: x64
+            java: "17"
+            variant: javafx22
 
           - os: macos-15-intel
             pkg_os: macos
             pkg_arch: x64
             java_arch: x64
             java: "21"
+            variant: javafx23
 
           - os: macos-latest
             pkg_os: macos
             pkg_arch: arm64
             java_arch: aarch64
             java: "17"
+            variant: nojavafx
+
+          - os: macos-latest
+            pkg_os: macos
+            pkg_arch: arm64
+            java_arch: aarch64
+            java: "17"
+            variant: javafx22
 
           - os: macos-latest
             pkg_os: macos
             pkg_arch: arm64
             java_arch: aarch64
             java: "21"
+            variant: javafx23
 
           - os: windows-latest
             pkg_os: windows
             pkg_arch: x64
             java_arch: x64
             java: "17"
+            variant: nojavafx
+
+          - os: windows-latest
+            pkg_os: windows
+            pkg_arch: x64
+            java_arch: x64
+            java: "17"
+            variant: javafx22
 
           - os: windows-latest
             pkg_os: windows
             pkg_arch: x64
             java_arch: x64
             java: "21"
+            variant: javafx23
 
           - os: windows-latest
             pkg_os: windows
             pkg_arch: x86
             java_arch: x86
             java: "17"
+            variant: nojavafx
 
           - os: windows-11-arm
             pkg_os: windows
             pkg_arch: arm64
             java_arch: aarch64
             java: "17"
+            variant: nojavafx
     runs-on: ${{ matrix.os }}
     steps:
       - name: Check out repository
@@ -273,11 +277,22 @@ jobs:
         env:
           SIMPLEIDE_PKG_OS: ${{ matrix.pkg_os }}
           SIMPLEIDE_PKG_ARCH: ${{ matrix.pkg_arch }}
+          SIMPLEIDE_MEDIA_VARIANT: ${{ matrix.variant }}
         run: make pkg
 
-      # The release .dmg is built with JDK 17 and must stay compatible with
-      # macOS Big Sur (11.0) on both architectures. The runner uses a newer
-      # macOS, so validate the declared minimum instead of the runner version.
+      - name: Stage variant fat JAR
+        env:
+          VERSION: ${{ needs.metadata.outputs.version }}
+          OS: ${{ matrix.pkg_os }}
+          ARCH: ${{ matrix.pkg_arch }}
+          VARIANT: ${{ matrix.variant }}
+        shell: bash
+        run: |
+          cp simpleide/target/simpleide.jar \
+            "simpleide/target/pkg/simpleide-v${VERSION}-${OS}-${ARCH}-${VARIANT}-with-deps.jar"
+
+      # The JDK 17 packages target macOS Big Sur (11.0); JDK 21 JavaFX 23 packages
+      # target macOS 12. The runner is newer, so validate the package metadata.
       - name: Validate the macOS minimum version
         if: matrix.pkg_os == 'macos'
         shell: bash
@@ -286,7 +301,7 @@ jobs:
       - name: Upload native package artifact
         uses: actions/upload-artifact@v7
         with:
-          name: package-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}-jdk${{ matrix.java }}
+          name: package-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}-${{ matrix.variant }}-jdk${{ matrix.java }}
           path: simpleide/target/pkg/simpleide-v*-${{ matrix.pkg_os }}-${{ matrix.pkg_arch }}-*.*
           if-no-files-found: error
           retention-days: 1
@@ -295,7 +310,6 @@ jobs:
     name: Publish GitHub release
     needs:
       - metadata
-      - fat-jar
       - linux-packages
       - native-packages
     runs-on: ubuntu-latest

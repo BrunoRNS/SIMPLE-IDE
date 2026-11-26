@@ -24,6 +24,11 @@
 - [Compiler](API-Compiler)
 - [Examples](API-Examples)
 
+### v1.1.0 features
+- [Run I/O and debugging](Features-Io-tab)
+- [Git side panel](Features-Git-sidepanel)
+- [Audio and video viewers](Features-Mediaviewer)
+
 ### Reference
 - [Languages](Reference-Languages)
 - [LSP](Reference-LSP)
