@@ -22,10 +22,10 @@ import io.simpleide.thread.nodes.NodePattern;
  * <p>
  * Covered by {@code ThreadMasterTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class ThreadMaster extends AbstractThreadMaster {
 

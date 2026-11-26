@@ -22,8 +22,6 @@
  * editor manager and shuts the thread manager down, so the frame must not be embedded in
  * an application that does not own those resources.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
  */

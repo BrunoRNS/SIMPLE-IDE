@@ -26,10 +26,10 @@ import io.simpleide.thread.ThreadMaster;
  * <p>
  * Covered by {@code LspDiagnosticParserTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class LspDiagnosticParser extends AbstractParser {
 

@@ -45,12 +45,12 @@ import io.simpleide.utils.JavaRuntime;
  * <p>
  * Covered by {@code LspManagerTest}.
  *
- * @author luisotavio15
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/reference/LSP.md">docs/reference/LSP.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class LspManager {
 

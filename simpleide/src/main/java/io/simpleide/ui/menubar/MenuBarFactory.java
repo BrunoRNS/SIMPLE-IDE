@@ -7,8 +7,8 @@ import io.simpleide.ui.menubar.menus.IdeMenuBar;
 /**
  * Installs the application menu bar on a frame.
  *
- * @author BrunoRNS
- * @since v1.1.0
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class MenuBarFactory {
 
@@ -20,8 +20,6 @@ public class MenuBarFactory {
 	 * @param openFolder action that opens a folder
 	 * @param closeFolder action that closes the open folder
 	 * @param saveFile action that saves the current file
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static void createMenuBar(JFrame frame, Runnable createFile, Runnable createFolder, Runnable openFolder,
 			Runnable closeFolder, Runnable saveFile) {
@@ -38,8 +36,6 @@ public class MenuBarFactory {
 	 * @param saveFile action that saves the current file
 	 * @param run action that runs the selected program
 	 * @param debug action that starts a debug session
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static void createMenuBar(JFrame frame, Runnable createFile, Runnable createFolder, Runnable openFolder,
 			Runnable closeFolder, Runnable saveFile, Runnable run, Runnable debug) {

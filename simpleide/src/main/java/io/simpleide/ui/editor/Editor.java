@@ -34,10 +34,10 @@ import io.simpleide.ui.treefile.TypeFile;
  * <p>
  * Covered by {@code EditorTest}.
  *
- * @author BrunoRNS
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/rsyntax.md">docs/api/rsyntax.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class Editor extends RSyntaxTextArea {
 
@@ -64,8 +64,6 @@ public class Editor extends RSyntaxTextArea {
 	/**
 	 * Attaches the gutter used to paint breakpoint markers.
 	 * @param gutter gutter of the scroll pane that hosts this editor
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void attachGutter(Gutter gutter) {
 		this.gutter = gutter;
@@ -78,8 +76,6 @@ public class Editor extends RSyntaxTextArea {
 	/**
 	 * Returns the one-based line numbers with a breakpoint, in ascending order.
 	 * @return an immutable snapshot of the breakpoint lines
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<Integer> getBreakpointLines() {
 		return List.copyOf(breakpointLines);
@@ -89,8 +85,6 @@ public class Editor extends RSyntaxTextArea {
 	 * Returns the one-based line currently under the pointer in the gutter, or {@code 0}
 	 * when the pointer is not over a line.
 	 * @return the hovered line, or {@code 0}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public int getHoverLine() {
 		return hoverLine;
@@ -100,8 +94,6 @@ public class Editor extends RSyntaxTextArea {
 	 * Updates the line shown with a translucent marker while the pointer is over the
 	 * gutter. A value of {@code 0} clears the marker.
 	 * @param line one-based line number, or {@code 0} to clear
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setHoverLine(int line) {
 		int clamped = line < 1 || line > getLineCount() ? 0 : line;
@@ -116,8 +108,6 @@ public class Editor extends RSyntaxTextArea {
 	 * Toggles a breakpoint on a one-based line.
 	 * @param line one-based line number
 	 * @return {@code true} when a breakpoint now exists on the line
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean toggleBreakpoint(int line) {
 		if (line < 1 || line > getLineCount()) {
@@ -139,8 +129,6 @@ public class Editor extends RSyntaxTextArea {
 	/**
 	 * Toggles a breakpoint on the line that contains the caret.
 	 * @return {@code true} when a breakpoint now exists on the caret line
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean toggleBreakpointAtCaret() {
 		try {
@@ -153,8 +141,6 @@ public class Editor extends RSyntaxTextArea {
 
 	/**
 	 * Removes every breakpoint from the editor.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void clearBreakpoints() {
 		breakpointLines.clear();
@@ -166,8 +152,6 @@ public class Editor extends RSyntaxTextArea {
 	 * Registers a listener notified when breakpoints change.
 	 * @param listener listener invoked with the current breakpoint lines, or {@code null}
 	 * to clear it
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setBreakpointListener(Consumer<List<Integer>> listener) {
 		breakpointListener = listener == null ? ignored -> {
@@ -327,7 +311,6 @@ public class Editor extends RSyntaxTextArea {
 	 * @param fileName file name including extension
 	 * @param type classified application file type
 	 * @return the RSyntaxTextArea syntax style
-	 * @since v1.1.0
 	 */
 	public static String syntaxStyleForFile(String fileName, TypeFile type) {
 		Objects.requireNonNull(fileName, "fileName");

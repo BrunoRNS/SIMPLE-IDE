@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory;
  * running where the JavaFX modules are absent, including 32-bit x86 builds and builds
  * that force the {@code nojavafx} consumer variant.
  *
- * @author luisotavio13
+ * @author BrunoRNS
  * @since v1.1.0
  */
 public final class MediaPlaybacks {
@@ -43,8 +43,6 @@ public final class MediaPlaybacks {
 	/**
 	 * Returns whether this build and platform can play audio and video.
 	 * @return {@code true} when the JavaFX-backed viewer classes are present
-	 * @author luisotavio13
-	 * @since v1.1.0
 	 */
 	public static boolean isAvailable() {
 		return AVAILABLE;
@@ -55,8 +53,6 @@ public final class MediaPlaybacks {
 	 * available on this platform.
 	 * @param path audio file to play
 	 * @return the player, or {@code null} when no media implementation is available
-	 * @author luisotavio13
-	 * @since v1.1.0
 	 */
 	public static MediaPlayback audio(Path path) {
 		return create(AUDIO_VIEWER, path);
@@ -67,8 +63,6 @@ public final class MediaPlaybacks {
 	 * available on this platform.
 	 * @param path video file to play
 	 * @return the player, or {@code null} when no media implementation is available
-	 * @author luisotavio13
-	 * @since v1.1.0
 	 */
 	public static MediaPlayback video(Path path) {
 		return create(VIDEO_VIEWER, path);

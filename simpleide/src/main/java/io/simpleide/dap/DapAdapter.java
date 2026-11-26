@@ -51,8 +51,6 @@ public final class DapAdapter {
 	 * @param command launch command
 	 * @param arguments launch arguments
 	 * @param downloads platform-specific download entries
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads) {
@@ -68,8 +66,6 @@ public final class DapAdapter {
 	 * @param arguments launch arguments
 	 * @param downloads platform-specific download entries
 	 * @param transport {@code stdio} or {@code tcp}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads, String transport) {
@@ -86,8 +82,6 @@ public final class DapAdapter {
 	 * @param downloads platform-specific download entries
 	 * @param transport {@code stdio} or {@code tcp}
 	 * @param launchArguments extra properties merged into the DAP launch request
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads, String transport, Map<String, ?> launchArguments) {
@@ -105,8 +99,6 @@ public final class DapAdapter {
 	 * @param transport {@code stdio} or {@code tcp}
 	 * @param launchArguments extra properties merged into the DAP launch request
 	 * @param environment extra environment variables for the adapter process
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String command, List<String> arguments,
 			List<DapDownload> downloads, String transport, Map<String, ?> launchArguments,
@@ -126,8 +118,6 @@ public final class DapAdapter {
 	 * @param transport {@code stdio}, {@code tcp} or {@code jdtls}
 	 * @param launchArguments extra properties merged into the DAP launch request
 	 * @param environment extra environment variables for the adapter process
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapAdapter(String id, String name, String version, String languageId, String command, List<String> arguments,
 			List<DapDownload> downloads, String transport, Map<String, ?> launchArguments,
@@ -153,8 +143,6 @@ public final class DapAdapter {
 	 * @param platform platform to resolve
 	 * @return the matching download, or {@code null} when the adapter does not support
 	 * the platform
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapDownload downloadFor(LangPlatform platform) {
 		if (platform == null || platform == LangPlatform.UNKNOWN) {
@@ -173,8 +161,6 @@ public final class DapAdapter {
 	 * @param installDirectory directory where the adapter was installed
 	 * @param program program being debugged
 	 * @return the command followed by its resolved arguments
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<String> commandLine(String installDirectory, String program) {
 		return commandLine(installDirectory, program, 0);
@@ -186,8 +172,6 @@ public final class DapAdapter {
 	 * @param program program being debugged
 	 * @param port TCP port used by server-style adapters, or {@code 0} when unused
 	 * @return the command followed by its resolved arguments
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<String> commandLine(String installDirectory, String program, int port) {
 		List<String> commandLine = new ArrayList<>();
@@ -204,8 +188,6 @@ public final class DapAdapter {
 	 * @param program program being debugged
 	 * @param port TCP port used by server-style adapters, or {@code 0} when unused
 	 * @return the immutable resolved environment map
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public Map<String, String> environment(String installDirectory, String program, int port) {
 		Map<String, String> resolved = new LinkedHashMap<>();
@@ -224,8 +206,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the stable adapter identifier.
 	 * @return the identifier
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getId() {
 		return id;
@@ -234,8 +214,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the human-readable adapter name.
 	 * @return the adapter name
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getName() {
 		return name;
@@ -244,8 +222,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the adapter version.
 	 * @return the version, possibly empty
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getVersion() {
 		return version;
@@ -255,8 +231,6 @@ public final class DapAdapter {
 	 * Returns the language identifier this adapter debugs.
 	 * @return the language identifier, or an empty string when the adapter is not bound
 	 * to a language
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getLanguageId() {
 		return languageId;
@@ -266,8 +240,6 @@ public final class DapAdapter {
 	 * Returns whether the adapter debugs a language.
 	 * @param candidate language identifier to compare
 	 * @return {@code true} when the adapter is bound to the supplied language
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean supportsLanguage(String candidate) {
 		return candidate != null && candidate.equals(languageId);
@@ -276,8 +248,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the launch command template.
 	 * @return the command template
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getCommand() {
 		return command;
@@ -286,8 +256,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the launch argument templates.
 	 * @return the immutable argument list
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<String> getArguments() {
 		return arguments;
@@ -296,8 +264,6 @@ public final class DapAdapter {
 	/**
 	 * Returns every platform download entry.
 	 * @return the immutable download list
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<DapDownload> getDownloads() {
 		return downloads;
@@ -306,8 +272,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the communication transport used by the adapter.
 	 * @return {@code stdio} or {@code tcp}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getTransport() {
 		return transport;
@@ -316,8 +280,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the extra properties merged into the launch request.
 	 * @return the immutable launch property map
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public Map<String, Object> getLaunchArguments() {
 		return launchArguments;
@@ -328,8 +290,6 @@ public final class DapAdapter {
 	 * {@code ${fileDir}} placeholders.
 	 * @param program program being debugged
 	 * @return the resolved launch properties
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public Map<String, Object> launchArguments(Path program) {
 		String programPath = program == null ? "" : program.toString();
@@ -347,8 +307,6 @@ public final class DapAdapter {
 	/**
 	 * Returns the extra environment variables used to start the adapter.
 	 * @return the immutable environment map
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public Map<String, String> getEnvironment() {
 		return environment;

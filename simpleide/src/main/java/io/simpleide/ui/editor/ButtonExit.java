@@ -24,7 +24,7 @@ import io.simpleide.ui.icon.MaterialIcons;
  * prompt is honored.
  *
  * @author LuisOtavio13
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public final class ButtonExit extends JButton {
 

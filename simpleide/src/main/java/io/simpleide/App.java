@@ -16,11 +16,11 @@ import io.simpleide.thread.nodes.edt.EDTNode;
  * {@code EDTNode}, so the application follows the same lifecycle rules as the rest of the
  * IDE.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">
  * docs/api/ui/application.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class App {
 

@@ -7,8 +7,8 @@ import io.simpleide.settings.IdeSettings;
 /**
  * Application menu bar containing the File, Settings, Execute and Help menus.
  *
- * @author BrunoRNS
- * @since v1.1.0
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class IdeMenuBar extends JMenuBar {
 
@@ -27,8 +27,6 @@ public class IdeMenuBar extends JMenuBar {
 	 * @param openFolder action that opens a folder
 	 * @param closeFolder action that closes the open folder
 	 * @param saveFile action that saves the current file
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public IdeMenuBar(Runnable createFile, Runnable createFolder, Runnable openFolder, Runnable closeFolder,
 			Runnable saveFile) {
@@ -47,8 +45,6 @@ public class IdeMenuBar extends JMenuBar {
 	 * @param saveFile action that saves the current file
 	 * @param run action that runs the selected program
 	 * @param debug action that starts a debug session
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public IdeMenuBar(Runnable createFile, Runnable createFolder, Runnable openFolder, Runnable closeFolder,
 			Runnable saveFile, Runnable run, Runnable debug) {
@@ -59,8 +55,6 @@ public class IdeMenuBar extends JMenuBar {
 	/**
 	 * Refreshes the shortcut labels shown in the menus.
 	 * @param settings settings containing the configured shortcuts
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void applyKeybindings(IdeSettings settings) {
 		fileMenu.applySettings(settings);
@@ -70,8 +64,6 @@ public class IdeMenuBar extends JMenuBar {
 	/**
 	 * Enables or disables the Debug command.
 	 * @param enabled {@code false} when no debug adapter is available
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setDebugEnabled(boolean enabled) {
 		executeMenu.setDebugEnabled(enabled);
@@ -80,8 +72,6 @@ public class IdeMenuBar extends JMenuBar {
 	/**
 	 * Returns the Execute menu.
 	 * @return the Execute menu
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public ExecuteMenu getExecuteMenu() {
 		return executeMenu;

@@ -66,10 +66,10 @@ import io.simpleide.utils.ResourceUtil;
  * <p>
  * Covered by {@code ThemeManagerTest}.
  *
- * @author LuisOtavio13
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/menubar.md">docs/api/ui/menubar.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class ThemeManager {
 

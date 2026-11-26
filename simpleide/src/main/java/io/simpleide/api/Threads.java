@@ -20,10 +20,10 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
  * <p>
  * Covered by {@code ThreadsTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class Threads {
 

@@ -19,8 +19,6 @@
  * The {@code mappeable} subpackage provides reflective map conversion, and the
  * {@code service} subpackage provides the file operations behind the project tree.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
  */

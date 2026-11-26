@@ -9,7 +9,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Resolves the initial directory for a terminal session.
- * 
+ *
  * @author BrunoRNS
  * @since v1.1.0
  */

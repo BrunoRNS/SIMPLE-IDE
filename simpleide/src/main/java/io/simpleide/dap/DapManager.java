@@ -39,8 +39,6 @@ public final class DapManager {
 	 * Creates a manager for a registry and platform.
 	 * @param registry adapter registry
 	 * @param platform platform used to select downloads
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapManager(DapRegistry registry, LangPlatform platform) {
 		this.registry = registry;
@@ -51,8 +49,6 @@ public final class DapManager {
 	 * Creates a manager backed by the bundled registry and the detected platform.
 	 * @return the default manager
 	 * @throws DapUnavailableException when the bundled registry cannot be read
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static DapManager createDefault() throws DapUnavailableException {
 		try {
@@ -66,8 +62,6 @@ public final class DapManager {
 	/**
 	 * Returns whether an adapter is registered for this platform.
 	 * @return {@code true} when debugging can be offered
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean isSupported() {
 		return registry.supports(platform);
@@ -77,8 +71,6 @@ public final class DapManager {
 	 * Returns whether a program can be debugged on this platform.
 	 * @param program source file
 	 * @return {@code true} when an adapter is registered for the file language
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean supports(Path program) {
 		String language = languageOf(program);
@@ -90,8 +82,6 @@ public final class DapManager {
 	 * @param program source file
 	 * @return the language identifier, or an empty string when the language is not
 	 * debuggable
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static String languageOf(Path program) {
 		if (program == null || program.getFileName() == null) {
@@ -114,8 +104,6 @@ public final class DapManager {
 	 * @return the installed adapter and its download entry
 	 * @throws DapUnavailableException when the platform is unsupported or installation
 	 * fails
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public PreparedAdapter prepare() throws DapUnavailableException {
 		DapAdapter adapter = registry.findForPlatform(platform);
@@ -131,8 +119,6 @@ public final class DapManager {
 	 * @return the installed adapter and its download entry
 	 * @throws DapUnavailableException when the language is unsupported or installation
 	 * fails
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public PreparedAdapter prepare(Path program) throws DapUnavailableException {
 		String language = languageOf(program);
@@ -179,8 +165,6 @@ public final class DapManager {
 	 * @return the started session
 	 * @throws DapUnavailableException when the adapter is unavailable or the session
 	 * cannot start
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapSession start(Path program, List<Integer> breakpoints, DapSession.Listener listener)
 			throws DapUnavailableException {
@@ -224,8 +208,6 @@ public final class DapManager {
 	 * @param listener listener for execution state changes
 	 * @return the started session
 	 * @throws DapUnavailableException when the language server cannot start a session
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapSession startJava(Path program, JavaDebugBridge.JavaDebugClient client, List<Integer> breakpoints,
 			DapSession.Listener listener) throws DapUnavailableException {
@@ -253,8 +235,6 @@ public final class DapManager {
 	 * standalone adapter.
 	 * @param program source file
 	 * @return {@code true} when the resolved adapter uses the {@code jdtls} transport
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean isLanguageServerDebug(Path program) {
 		String language = languageOf(program);
@@ -288,8 +268,6 @@ public final class DapManager {
 		/**
 		 * Creates an unavailable exception with a user-facing message.
 		 * @param message explanation shown to the user
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		public DapUnavailableException(String message) {
 			super(message);
@@ -299,8 +277,6 @@ public final class DapManager {
 		 * Creates an unavailable exception with a user-facing message and cause.
 		 * @param message explanation shown to the user
 		 * @param cause underlying failure
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		public DapUnavailableException(String message, Throwable cause) {
 			super(message, cause);

@@ -46,8 +46,6 @@ public final class DapRegistry {
 	/**
 	 * Creates a registry backed by adapter definitions.
 	 * @param adapters adapter definitions
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapRegistry(List<DapAdapter> adapters) {
 		this.adapters = List.copyOf(adapters == null ? List.of() : adapters);
@@ -57,8 +55,6 @@ public final class DapRegistry {
 	 * Loads the registry bundled in the application classpath.
 	 * @return the parsed registry
 	 * @throws IllegalStateException when the resource is missing or malformed
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static DapRegistry loadDefault() {
 		try (InputStream input = DapRegistry.class.getResourceAsStream(RESOURCE)) {
@@ -77,8 +73,6 @@ public final class DapRegistry {
 	 * @param json JSON text
 	 * @return the parsed registry
 	 * @throws IllegalArgumentException when the document is not a valid registry
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static DapRegistry parse(String json) {
 		Objects.requireNonNull(json, "json");
@@ -223,8 +217,6 @@ public final class DapRegistry {
 	 * Returns the first adapter that supports a platform.
 	 * @param platform platform to resolve
 	 * @return the matching adapter, or {@code null} when none supports the platform
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapAdapter findForPlatform(LangPlatform platform) {
 		for (DapAdapter adapter : adapters) {
@@ -240,8 +232,6 @@ public final class DapRegistry {
 	 * @param platform platform to resolve
 	 * @param languageId language identifier such as {@code javascript}
 	 * @return the matching adapter, or {@code null} when none supports the pair
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapAdapter findForPlatform(LangPlatform platform, String languageId) {
 		for (DapAdapter adapter : adapters) {
@@ -257,8 +247,6 @@ public final class DapRegistry {
 	 * @param platform platform to check
 	 * @param languageId language identifier
 	 * @return {@code true} when an adapter and a download entry exist
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean supports(LangPlatform platform, String languageId) {
 		return findForPlatform(platform, languageId) != null;
@@ -267,8 +255,6 @@ public final class DapRegistry {
 	/**
 	 * Returns every language identifier with a registered adapter.
 	 * @return the language identifiers in registry order
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<String> getLanguages() {
 		List<String> languages = new ArrayList<>();
@@ -284,8 +270,6 @@ public final class DapRegistry {
 	 * Returns whether a platform has a registered debug adapter.
 	 * @param platform platform to check
 	 * @return {@code true} when an adapter and a download entry exist
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean supports(LangPlatform platform) {
 		return findForPlatform(platform) != null;
@@ -294,8 +278,6 @@ public final class DapRegistry {
 	/**
 	 * Returns every adapter definition in registry order.
 	 * @return the immutable adapter list
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<DapAdapter> getAdapters() {
 		return adapters;

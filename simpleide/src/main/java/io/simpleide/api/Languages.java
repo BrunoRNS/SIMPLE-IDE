@@ -23,10 +23,10 @@ import io.simpleide.language.config.LangSetup;
  * <p>
  * Covered by {@code LanguagesTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/languages.md">docs/api/languages.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class Languages {
 

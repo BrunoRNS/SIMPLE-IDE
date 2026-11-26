@@ -33,10 +33,10 @@ import io.simpleide.ui.treefile.TypeFile;
  * <p>
  * Covered by {@code SimpleEditorTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class SimpleEditor implements AutoCloseable {
 
@@ -133,8 +133,6 @@ public final class SimpleEditor implements AutoCloseable {
 	 * Returns the audio player, or {@code null} when the file is not audio or playback is
 	 * unavailable on this platform.
 	 * @return the audio player, or {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 * @see MediaPlaybacks
 	 */
 	public MediaPlayback audioViewer() {
@@ -145,8 +143,6 @@ public final class SimpleEditor implements AutoCloseable {
 	 * Returns the video player, or {@code null} when the file is not video or playback is
 	 * unavailable on this platform.
 	 * @return the video player, or {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 * @see MediaPlaybacks
 	 */
 	public MediaPlayback videoViewer() {

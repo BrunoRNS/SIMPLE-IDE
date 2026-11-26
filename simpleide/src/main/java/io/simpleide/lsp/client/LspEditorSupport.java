@@ -43,10 +43,10 @@ import io.simpleide.ui.editor.Editor;
  * still match the request. Closing the support removes the parser, uninstalls completion
  * and sends {@code didClose}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class LspEditorSupport implements AutoCloseable {
 

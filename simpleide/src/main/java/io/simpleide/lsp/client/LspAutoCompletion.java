@@ -34,10 +34,10 @@ import io.simpleide.ui.editor.Editor;
  * <p>
  * Covered by {@code LspAutoCompletionTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class LspAutoCompletion extends AutoCompletion {
 

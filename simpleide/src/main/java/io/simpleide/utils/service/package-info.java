@@ -19,8 +19,6 @@
  * actions and editor save run them on background nodes or on the EDT as appropriate;
  * embedders should avoid calling them on the EDT for large directory trees.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
  */

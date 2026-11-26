@@ -11,10 +11,10 @@ import ch.qos.logback.core.AppenderBase;
  * <p>
  * Covered by {@code SwingLogAppenderTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/logging.md">docs/api/ui/logging.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class SwingLogAppender extends AppenderBase<ILoggingEvent> {
 

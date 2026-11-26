@@ -13,7 +13,12 @@ import java.util.List;
 
 import javax.imageio.ImageIO;
 
-/** Loads the bundled application icon for windows, taskbars and the system tray. */
+/**
+ * Loads the bundled application icon for windows, taskbars and the system tray.
+ *
+ * @author BrunoRNS
+ * @since v1.1.0
+ */
 public final class ApplicationIcon {
 
 	private static final String RESOURCE = "/io/simpleide/icon/simpleide_icon.png";

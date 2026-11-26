@@ -26,7 +26,7 @@ import io.simpleide.utils.ResourceUtil;
  * when necessary so names remain readable on every theme.
  *
  * @author LuisOtavio13
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 

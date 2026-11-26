@@ -46,10 +46,10 @@ import io.simpleide.utils.JavaRuntime;
  * Java runtime compatibility failure can trigger a retry with an older server version.
  * Closing the manager cancels startup tasks and shuts down all clients.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class LanguageServerManager implements AutoCloseable {
 

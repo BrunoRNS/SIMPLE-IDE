@@ -10,8 +10,6 @@
  * the about dialog. {@link io.simpleide.ui.menubar.menus.ThemeMenu} selects one of the
  * application themes.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/menubar.md">docs/api/ui/menubar.md</a>
  */

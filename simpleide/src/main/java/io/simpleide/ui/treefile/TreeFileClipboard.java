@@ -12,7 +12,7 @@ import java.util.Objects;
  * Holds a list of {@link TreeFile} entries along with the operation type (copy or cut) so
  * that paste can perform the correct action.
  *
- * @author LuisOtavio13
+ * @author BrunoRNS
  * @since v1.1.0
  */
 public final class TreeFileClipboard {

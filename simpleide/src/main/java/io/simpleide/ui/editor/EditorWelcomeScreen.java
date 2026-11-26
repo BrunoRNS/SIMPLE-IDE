@@ -33,7 +33,7 @@ import io.simpleide.ui.menubar.ThemeManager;
  * typography keep the landing page visually separate from editor content.
  *
  * @author LuisOtavio13
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public final class EditorWelcomeScreen {
 

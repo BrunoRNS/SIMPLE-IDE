@@ -23,9 +23,6 @@
  * Callers should not block a worker thread waiting for a result — pass a callback
  * instead. The dialogs are not headless-safe.
  *
- * @author BrunoRNS
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/popups.md">docs/api/ui/popups.md</a>
  */

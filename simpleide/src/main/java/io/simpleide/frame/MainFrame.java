@@ -105,10 +105,10 @@ import io.simpleide.ui.treefile.Watcher;
  * thread manager and every shortcut and settings change is persisted under
  * {@code ~/.simpleide/settings.json}.
  *
- * @author BrunoRNS
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class MainFrame extends JFrame implements Runnable {
 
@@ -175,8 +175,6 @@ public class MainFrame extends JFrame implements Runnable {
 	/**
 	 * Builds and displays the application window, including its sidebar, editors,
 	 * terminal, output and debug console.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	@Override
 	public void run() {

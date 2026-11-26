@@ -14,10 +14,10 @@ import java.util.Map;
  * subclass hides a superclass field. Access is forced, so implementations should not rely
  * on module boundaries for encapsulation.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public interface MappeableSupport {
 

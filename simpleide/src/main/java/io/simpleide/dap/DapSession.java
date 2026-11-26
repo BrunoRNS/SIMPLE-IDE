@@ -112,24 +112,18 @@ public final class DapSession implements AutoCloseable {
 		 * @param threadId thread that stopped, or {@code 0} when the adapter did not
 		 * report a thread
 		 * @param reason stop reason reported by the adapter
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		default void onStopped(int threadId, String reason) {
 		}
 
 		/**
 		 * Called when execution resumes.
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		default void onContinued() {
 		}
 
 		/**
 		 * Called when the debug session ends.
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		default void onTerminated() {
 		}
@@ -194,8 +188,6 @@ public final class DapSession implements AutoCloseable {
 	 * @param installDirectory directory where the adapter is installed
 	 * @param program program to debug
 	 * @param listener listener for execution state changes, may be {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapSession(DapAdapter adapter, Path installDirectory, Path program, Listener listener) {
 		this(adapter, installDirectory, program, listener, null);
@@ -223,8 +215,6 @@ public final class DapSession implements AutoCloseable {
 	 * @param port TCP port where the adapter is listening
 	 * @param launchArguments properties sent in the DAP launch request
 	 * @param listener listener for execution state changes, may be {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapSession(Path program, int port, Map<String, Object> launchArguments, Listener listener) {
 		this(program, port, launchArguments, listener, null);
@@ -247,8 +237,6 @@ public final class DapSession implements AutoCloseable {
 	 * @param breakpoints initial line breakpoints of the program
 	 * @throws IOException when the adapter process cannot be started or reached
 	 * @throws InterruptedException when the calling thread is interrupted
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void start(List<Integer> breakpoints) throws IOException, InterruptedException {
 		currentBreakpoints = breakpoints == null ? List.of() : List.copyOf(breakpoints);
@@ -327,8 +315,6 @@ public final class DapSession implements AutoCloseable {
 	 * @param launchRequest pending response to the launch request
 	 * @throws IOException when the adapter rejects the launch request
 	 * @throws InterruptedException when the calling thread is interrupted
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	private void awaitInitializedEvent(CompletableFuture<Void> launchRequest) throws IOException, InterruptedException {
 		CompletableFuture<Object> firstOutcome = CompletableFuture.anyOf(initialized, launchRequest);
@@ -374,8 +360,6 @@ public final class DapSession implements AutoCloseable {
 	 * @param arguments child session request sent by the adapter
 	 * @throws IOException when the child session cannot be started
 	 * @throws InterruptedException when the calling thread is interrupted
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	private void startChildSession(StartDebuggingRequestArguments arguments) throws IOException, InterruptedException {
 		if (arguments == null || arguments.getConfiguration() == null) {
@@ -558,8 +542,6 @@ public final class DapSession implements AutoCloseable {
 	 * Replaces the line breakpoints of the debugged program.
 	 * @param file source file that owns the breakpoints
 	 * @param lines one-based line numbers, in any order
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setBreakpoints(Path file, List<Integer> lines) {
 		currentBreakpoints = lines == null ? List.of() : List.copyOf(lines);
@@ -608,8 +590,6 @@ public final class DapSession implements AutoCloseable {
 
 	/**
 	 * Resumes execution.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void resume() {
 		DapSession delegate = controlTarget.get();
@@ -626,8 +606,6 @@ public final class DapSession implements AutoCloseable {
 
 	/**
 	 * Pauses execution.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void pause() {
 		DapSession delegate = controlTarget.get();
@@ -644,8 +622,6 @@ public final class DapSession implements AutoCloseable {
 
 	/**
 	 * Steps over the current statement.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void stepOver() {
 		DapSession delegate = controlTarget.get();
@@ -662,8 +638,6 @@ public final class DapSession implements AutoCloseable {
 
 	/**
 	 * Steps into the next call.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void stepInto() {
 		DapSession delegate = controlTarget.get();
@@ -680,8 +654,6 @@ public final class DapSession implements AutoCloseable {
 
 	/**
 	 * Steps out of the current call.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void stepOut() {
 		DapSession delegate = controlTarget.get();
@@ -699,8 +671,6 @@ public final class DapSession implements AutoCloseable {
 	/**
 	 * Returns whether the adapter reported a configuration-done capability.
 	 * @return {@code true} when configurationDone is supported
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean supportsConfigurationDone() {
 		synchronized (stateLock) {
@@ -800,8 +770,6 @@ public final class DapSession implements AutoCloseable {
 
 	/**
 	 * Ends the session, terminating the debugged program and the adapter process.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	@Override
 	public void close() {
@@ -958,8 +926,6 @@ public final class DapSession implements AutoCloseable {
 		 * I/O tab.
 		 * @param arguments debuggee command and working directory
 		 * @return the launched process information
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		@Override
 		public CompletableFuture<Void> startDebugging(StartDebuggingRequestArguments arguments) {

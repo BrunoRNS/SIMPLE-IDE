@@ -30,7 +30,7 @@ import io.simpleide.language.AbstractLanguage;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/reference/LANGUAGES.md">docs/reference/LANGUAGES.md</a>
- * @author BrunoRNS
+ * @author LuisOtavio13
  * @since v1.0.0beta
  */
 public abstract class AbstractCompilerLanguage extends AbstractLanguage {

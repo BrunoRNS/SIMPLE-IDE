@@ -13,8 +13,6 @@
  * two documents cannot start the same server twice, and shuts it down when no document
  * remains. Startup may install a server and therefore block; it must not run on the EDT.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
  */

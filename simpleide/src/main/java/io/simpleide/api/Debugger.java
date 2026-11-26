@@ -23,10 +23,10 @@ import io.simpleide.lsp.client.LspClient;
  * The returned {@link DapSession} is owned by the caller and must be closed to terminate
  * the debugged program and the adapter. Breakpoint lines are one-based.
  *
- * @author BrunoRNS
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/dap.md">docs/api/dap.md</a>
+ * @author BrunoRNS
+ * @since v1.1.0
  */
 public final class Debugger {
 

@@ -41,8 +41,8 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/languages.md">docs/api/languages.md</a>
- * @author BrunoRNS
- * @since v1.1.0
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public abstract class AbstractLanguage implements Runnable {
 
@@ -288,8 +288,6 @@ public abstract class AbstractLanguage implements Runnable {
 	 * execution controls. Registering the same listener more than once is allowed; it is
 	 * called once per registration.
 	 * @param listener listener to invoke, ignored when {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void addExecutionListener(Runnable listener) {
 		if (listener != null) {
@@ -300,8 +298,6 @@ public abstract class AbstractLanguage implements Runnable {
 	/**
 	 * Removes a previously registered execution listener.
 	 * @param listener listener to remove, ignored when {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void removeExecutionListener(Runnable listener) {
 		if (listener != null) {

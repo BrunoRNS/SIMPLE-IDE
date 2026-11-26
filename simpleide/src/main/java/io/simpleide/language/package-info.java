@@ -23,7 +23,5 @@
  * discarding the instance, and never block the Swing Event Dispatch Thread while a
  * program runs.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language;

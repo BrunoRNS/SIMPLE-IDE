@@ -39,6 +39,9 @@ import io.simpleide.ui.menubar.ThemeManager;
  * Diagnostics can be filtered by severity and double-clicking an entry navigates to its
  * source range. The panel follows the active editor tab and is intentionally separate
  * from the left sidebar views.
+ *
+ * @author BrunoRNS
+ * @since v1.1.0
  */
 public final class DebugConsolePanel extends JPanel {
 

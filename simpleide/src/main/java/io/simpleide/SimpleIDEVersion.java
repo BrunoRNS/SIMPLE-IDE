@@ -11,11 +11,11 @@ import java.util.Properties;
  * The version is read once from the {@code /simpleide.properties} classpath resource so
  * that callers do not need to know how the build stores its metadata.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">
  * docs/api/ui/application.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class SimpleIDEVersion {
 

@@ -19,8 +19,6 @@
  * The console is an application diagnostic view, not a logging backend for embedders. A
  * library that uses SLF4J does not need this package.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/logging.md">docs/api/ui/logging.md</a>
  */

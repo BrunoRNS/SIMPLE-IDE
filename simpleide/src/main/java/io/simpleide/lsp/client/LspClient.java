@@ -88,10 +88,10 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
  * <p>
  * Covered by {@code LspClientShutdownTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class LspClient implements LanguageClient, AutoCloseable {
 
@@ -454,8 +454,6 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 * @param command command identifier understood by the server
 	 * @param arguments command arguments, may be {@code null}
 	 * @return a future completed with the command result
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public CompletableFuture<Object> executeCommand(String command, List<Object> arguments) {
 		ExecuteCommandParams params = new ExecuteCommandParams(command,

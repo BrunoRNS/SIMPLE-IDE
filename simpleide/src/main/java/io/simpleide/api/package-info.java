@@ -33,8 +33,6 @@
  * ALSA or PulseAudio, and system FFmpeg libraries (libavcodec 56 through 60); see
  * {@code docs/reference/LINUX.md}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/README.md">docs/api/README.md</a>
  */

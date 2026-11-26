@@ -23,7 +23,7 @@ import com.jediterm.terminal.ui.settings.DefaultSettingsProvider;
  * Covered by {@code TerminalSettingsProviderTest}.
  *
  * @author BrunoRNS
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public final class TerminalSettingsProvider extends DefaultSettingsProvider {
 

@@ -7,7 +7,5 @@
  * the values and {@link io.simpleide.settings.KeybindingManager} installs the configured
  * shortcuts through the thread manager.
  *
- * @author BrunoRNS
- * @since v1.1.0
  */
 package io.simpleide.settings;

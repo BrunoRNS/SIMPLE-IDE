@@ -106,8 +106,6 @@ public final class IOPanel extends JPanel {
 
 	/**
 	 * Creates an empty I/O tab with the application theme.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public IOPanel() {
 		super(new BorderLayout(0, 6));
@@ -244,8 +242,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Starts a plain run: clears the output and forwards program output and input.
 	 * @param runningLanguage language process that will own the input forwarder
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void beginRun(AbstractLanguage runningLanguage) {
 		beginExecution(runningLanguage, false);
@@ -256,8 +252,6 @@ public final class IOPanel extends JPanel {
 	 * debug controls.
 	 * @param runningLanguage language process that will own the input forwarder, may be
 	 * {@code null} when the adapter launches the program itself
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void beginDebug(AbstractLanguage runningLanguage) {
 		beginExecution(runningLanguage, true);
@@ -300,8 +294,6 @@ public final class IOPanel extends JPanel {
 	 * <p>
 	 * Calling the method more than once is safe; it is registered as the language
 	 * execution listener and is also called when a new run starts.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void finishExecution() {
 		InputForwarder activeForwarder = forwarder;
@@ -335,8 +327,6 @@ public final class IOPanel extends JPanel {
 	 * <p>
 	 * The language waits for the process to die, so the termination runs off the event
 	 * dispatch thread; the language execution listener then resets the panel.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	private void stopLanguage() {
 		AbstractLanguage active = language;
@@ -364,8 +354,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Binds the debug session used by the control buttons.
 	 * @param debugSession active debug session, or {@code null} to clear it
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setSession(DapSession debugSession) {
 		this.session = debugSession;
@@ -374,8 +362,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Shows or hides the debug control buttons.
 	 * @param debug {@code true} for debug mode
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setDebugMode(boolean debug) {
 		debugMode = debug;
@@ -387,8 +373,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns whether the panel is currently in debug mode.
 	 * @return {@code true} when the debug controls are expected
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean isDebugMode() {
 		return debugMode;
@@ -397,8 +381,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns whether an execution is currently forwarding input and output.
 	 * @return {@code true} while a run or debug session is active
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean isExecutionActive() {
 		return forwarder != null;
@@ -407,8 +389,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Sends the current input area content to the running process.
 	 * @return {@code true} when at least one line was queued
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean submitInput() {
 		InputForwarder active = forwarder;
@@ -427,8 +407,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Registers a listener notified with the text of every submitted input.
 	 * @param listener listener to invoke, or {@code null} to clear it
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setInputHistoryListener(Consumer<String> listener) {
 		inputHistoryListener = listener == null ? ignored -> {
@@ -447,8 +425,6 @@ public final class IOPanel extends JPanel {
 	 * Appends a typed output line to the pane, colouring it with the active theme.
 	 * @param type classification of the line
 	 * @param text line text
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void appendLine(OutputType type, String text) {
 		Objects.requireNonNull(type, "type");
@@ -476,8 +452,6 @@ public final class IOPanel extends JPanel {
 
 	/**
 	 * Removes every line from the output pane.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void clearOutput() {
 		outputPane.setText("");
@@ -486,8 +460,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns the output text currently displayed.
 	 * @return the plain output text
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getOutputText() {
 		return outputPane.getText();
@@ -496,8 +468,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns the input text currently typed.
 	 * @return the input text
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public String getInputText() {
 		return inputArea.getText();
@@ -506,8 +476,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Replaces the input text.
 	 * @param text text to show in the input area
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setInputText(String text) {
 		inputArea.setText(text == null ? "" : text);
@@ -516,8 +484,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns the component used to enter program input.
 	 * @return the input text area
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public JTextArea getInputArea() {
 		return inputArea;
@@ -526,8 +492,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns the component that displays program output.
 	 * @return the output text pane
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public JTextPane getOutputPane() {
 		return outputPane;
@@ -536,8 +500,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns the debug control panel.
 	 * @return the panel holding the debug buttons
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public JPanel getDebugControls() {
 		return debugControls;
@@ -546,8 +508,6 @@ public final class IOPanel extends JPanel {
 	/**
 	 * Returns the controls shown while a program runs without debugging.
 	 * @return the panel holding the Stop button used by plain runs
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public JPanel getRunControls() {
 		return runControls;
@@ -555,8 +515,6 @@ public final class IOPanel extends JPanel {
 
 	/**
 	 * Refreshes the panel colors and output styles after a theme change.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	@Override
 	public void updateUI() {

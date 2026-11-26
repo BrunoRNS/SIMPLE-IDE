@@ -19,8 +19,6 @@
  * access restrictions. Prefer explicit accessors in public APIs, and keep mapped types in
  * exported packages.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
  */

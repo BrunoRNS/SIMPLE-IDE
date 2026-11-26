@@ -11,7 +11,5 @@
  * the visibility toggle, the folder state and the editor navigation; the Debug Console
  * belongs to the bottom output pane, not this package.
  *
- * @author BrunoRNS
- * @since v1.1.0
  */
 package io.simpleide.ui.sidebar;

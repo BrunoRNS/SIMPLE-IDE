@@ -22,10 +22,10 @@ import io.simpleide.ui.treefile.TypeFile;
  * <p>
  * Covered by {@code EditorsTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/rsyntax.md">docs/api/rsyntax.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class Editors {
 

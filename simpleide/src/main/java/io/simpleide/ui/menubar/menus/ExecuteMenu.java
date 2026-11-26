@@ -42,8 +42,6 @@ public class ExecuteMenu extends JMenu {
 	 * @param run action that runs the selected program
 	 * @param debug action that starts a debug session
 	 * @throws NullPointerException when an action is {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public ExecuteMenu(Runnable run, Runnable debug) {
 		super("Execute");
@@ -59,8 +57,6 @@ public class ExecuteMenu extends JMenu {
 	/**
 	 * Refreshes the shortcut labels from the settings.
 	 * @param settings settings containing the configured shortcuts
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void applySettings(IdeSettings settings) {
 		Objects.requireNonNull(settings, "settings");
@@ -71,8 +67,6 @@ public class ExecuteMenu extends JMenu {
 	/**
 	 * Enables or disables the Debug command.
 	 * @param enabled {@code false} when no debug adapter is available
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void setDebugEnabled(boolean enabled) {
 		debugItem.setEnabled(enabled);
@@ -82,8 +76,6 @@ public class ExecuteMenu extends JMenu {
 	/**
 	 * Returns the Run menu item.
 	 * @return the Run item
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public JMenuItem getRunItem() {
 		return runItem;
@@ -92,8 +84,6 @@ public class ExecuteMenu extends JMenu {
 	/**
 	 * Returns the Debug menu item.
 	 * @return the Debug item
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public JMenuItem getDebugItem() {
 		return debugItem;

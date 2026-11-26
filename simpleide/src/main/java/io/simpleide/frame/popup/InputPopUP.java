@@ -15,10 +15,10 @@ import javax.swing.JOptionPane;
  * <p>
  * Covered by {@code InputPopUPTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/popups.md">docs/api/ui/popups.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class InputPopUP extends InfoPopUP {
 

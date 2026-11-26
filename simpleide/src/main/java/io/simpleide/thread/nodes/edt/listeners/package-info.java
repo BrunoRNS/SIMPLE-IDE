@@ -14,9 +14,6 @@
  * and action interfaces into the managed EDT queue, so listener work is tracked as a
  * cancellable thread tree node instead of running directly inside the Swing callback.
  *
- * @author BrunoRNS
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
  */

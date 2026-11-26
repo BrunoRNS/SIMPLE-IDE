@@ -59,8 +59,6 @@ public final class DapInstaller {
 	 * @return the installation directory
 	 * @throws IOException when the download or extraction fails
 	 * @throws InterruptedException when the calling thread is interrupted
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static Path install(DapAdapter adapter, DapDownload download) throws IOException, InterruptedException {
 		Path directory = getInstallDirectory(adapter);
@@ -113,8 +111,6 @@ public final class DapInstaller {
 	 * Checks whether the adapter version is recorded as installed.
 	 * @param adapter adapter to check
 	 * @return {@code true} when the installation marker matches the adapter version
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static boolean isInstalled(DapAdapter adapter) {
 		Path marker = getInstallDirectory(adapter).resolve(".installed");
@@ -134,8 +130,6 @@ public final class DapInstaller {
 	 * Returns the directory where an adapter is installed.
 	 * @param adapter adapter to resolve
 	 * @return the installation directory
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static Path getInstallDirectory(DapAdapter adapter) {
 		return Paths.get(System.getProperty("user.home"), ".simpleide", "dap",

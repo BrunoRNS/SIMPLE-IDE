@@ -91,8 +91,6 @@ public final class JavaDebugInstaller {
 	 * @return the path of the bundled {@code com.microsoft.java.debug.plugin} jar
 	 * @throws IOException when no compatible release is found or the download fails
 	 * @throws InterruptedException when the calling thread is interrupted
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static Path install() throws IOException, InterruptedException {
 		return install(Runtime.version().feature());
@@ -104,8 +102,6 @@ public final class JavaDebugInstaller {
 	 * @return the path of the bundled {@code com.microsoft.java.debug.plugin} jar
 	 * @throws IOException when no compatible release is found or the download fails
 	 * @throws InterruptedException when the calling thread is interrupted
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static Path install(int javaFeature) throws IOException, InterruptedException {
 		if (javaFeature <= 0) {
@@ -135,8 +131,6 @@ public final class JavaDebugInstaller {
 	 * Returns the installation directory of an extension version.
 	 * @param version extension version
 	 * @return the installation directory
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static Path getInstallDirectory(String version) {
 		return Paths.get(System.getProperty("user.home"), ".simpleide", "dap", "java-debug-" + version);
@@ -148,8 +142,6 @@ public final class JavaDebugInstaller {
 	 * @return the required feature release, or {@code 0} when the manifest does not state
 	 * one
 	 * @throws IOException when the jar manifest cannot be read
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static int requiredJavaFeature(Path jar) throws IOException {
 		try (JarFile archive = new JarFile(jar.toFile())) {

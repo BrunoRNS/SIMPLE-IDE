@@ -18,10 +18,10 @@ import org.slf4j.LoggerFactory;
  * names are searched in every {@code PATH} entry, adding the platform executable
  * extensions from {@code PATHEXT} on Windows.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public class OSpathUtil {
 

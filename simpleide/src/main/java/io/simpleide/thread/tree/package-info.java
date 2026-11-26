@@ -9,8 +9,6 @@
  * {@link io.simpleide.thread.tree.ThreadTree} is the minimal contract implemented by the
  * thread manager.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/reference/THREADMASTER.md">docs/reference/THREADMASTER.md</a>
  */

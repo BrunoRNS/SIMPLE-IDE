@@ -26,10 +26,10 @@ import io.simpleide.lsp.dowload.LspManager;
  * Statements are safe to call from any thread; the connection itself is completed
  * asynchronously by the language-server manager.
  *
- * @author BrunoRNS
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author BrunoRNS
+ * @since v1.1.0
  */
 public final class LanguageServers {
 

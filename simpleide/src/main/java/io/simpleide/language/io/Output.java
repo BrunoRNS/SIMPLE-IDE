@@ -32,7 +32,7 @@ import io.simpleide.language.io.holder.OutputHolder;
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/languages.md">docs/api/languages.md</a>
  * @author BrunoRNS
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public class Output {
 
@@ -60,8 +60,6 @@ public class Output {
 	/**
 	 * Enqueues a line read from the running process.
 	 * @param text the line to publish, ignored when {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void set(String text) {
 		publish(OutputType.OUTPUT, text);
@@ -73,8 +71,6 @@ public class Output {
 	 * @param type classification of the line, defaults to {@link OutputType#OUTPUT} when
 	 * {@code null}
 	 * @param text the line to publish, ignored when {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void publish(OutputType type, String text) {
 		if (text == null) {
@@ -109,8 +105,6 @@ public class Output {
 	 * Registers a listener that receives every published line with its type.
 	 * @param listener listener to register, ignored when {@code null}
 	 * @return a handle that removes the listener when closed
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public AutoCloseable addListener(Consumer<OutputLine> listener) {
 		if (listener == null) {
@@ -124,8 +118,6 @@ public class Output {
 	/**
 	 * Removes a previously registered listener.
 	 * @param listener listener to remove, ignored when {@code null}
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void removeListener(Consumer<OutputLine> listener) {
 		if (listener != null) {
@@ -155,8 +147,6 @@ public class Output {
 		 * Creates a validated output line.
 		 * @param type classification of the line, defaults to {@link OutputType#OUTPUT}
 		 * @param text line text
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		public OutputLine {
 			Objects.requireNonNull(type, "type");

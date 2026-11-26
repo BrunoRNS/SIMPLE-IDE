@@ -11,8 +11,6 @@
  * <p>
  * Covered by {@code EditorTabTest}.
  *
- * @author BrunoRNS
- * @since v1.1.0
  * @see <a href="https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
  */
 
@@ -80,10 +78,10 @@ import io.simpleide.utils.service.FileService;
  * <p>
  * Covered by {@code EditorTabTest}.
  *
- * @author BrunoRNS
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class EditorTab extends JPanel {
 
@@ -323,8 +321,6 @@ public class EditorTab extends JPanel {
 	 * Returns the one-based line numbers with a breakpoint in this tab.
 	 * @return an immutable snapshot of the breakpoint lines, or an empty list for
 	 * non-text tabs
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public List<Integer> getBreakpoints() {
 		return editor == null ? List.of() : editor.getBreakpointLines();
@@ -334,8 +330,6 @@ public class EditorTab extends JPanel {
 	 * Toggles a breakpoint on a one-based line of this tab.
 	 * @param line one-based line number
 	 * @return {@code true} when a breakpoint now exists on the line
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean toggleBreakpoint(int line) {
 		return editor != null && editor.toggleBreakpoint(line);
@@ -343,8 +337,6 @@ public class EditorTab extends JPanel {
 
 	/**
 	 * Removes every breakpoint from this tab.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public void clearBreakpoints() {
 		if (editor != null) {
@@ -444,8 +436,6 @@ public class EditorTab extends JPanel {
 	/**
 	 * Returns the audio player for this tab, or {@code null} for other content kinds.
 	 * @return the audio player, or {@code null} when the tab does not play audio
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public MediaPlayback getAudioViewer() {
 		return audioViewer;
@@ -454,8 +444,6 @@ public class EditorTab extends JPanel {
 	/**
 	 * Returns the video player for this tab, or {@code null} for other content kinds.
 	 * @return the video player, or {@code null} when the tab does not play video
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public MediaPlayback getVideoViewer() {
 		return videoViewer;
@@ -485,8 +473,6 @@ public class EditorTab extends JPanel {
 	 * Returns the language server connected to this tab, or {@code null} when none is
 	 * connected yet.
 	 * @return the connected language server client
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public LspClient getLanguageServer() {
 		return languageServer;

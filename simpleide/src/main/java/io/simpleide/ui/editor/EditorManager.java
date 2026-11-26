@@ -52,10 +52,10 @@ import io.simpleide.ui.treefile.TypeFile;
  * <p>
  * Covered by {@code EditorManagerTest}.
  *
- * @author LuisOtavio13
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class EditorManager {
 
@@ -609,8 +609,6 @@ public class EditorManager {
 	 * for the document's workspace.
 	 * @param document document to connect
 	 * @return a future completed with the language server client
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public java.util.concurrent.CompletableFuture<LspClient> connectLanguageServer(Document document) {
 		return languageServers.connect(document, ignored -> {

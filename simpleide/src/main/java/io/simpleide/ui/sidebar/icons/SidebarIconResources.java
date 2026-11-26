@@ -19,7 +19,7 @@ import io.simpleide.utils.ResourceUtil;
  * <p>
  * Resources are organized as {@code theme/state/type.svg}; each combination is mapped
  * once and loaded through {@link ResourceUtil}, including when packaged in an archive.
- * 
+ *
  * @author BrunoRNS
  * @since v1.1.0
  */

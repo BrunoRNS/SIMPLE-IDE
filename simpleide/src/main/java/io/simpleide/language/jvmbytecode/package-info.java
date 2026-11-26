@@ -21,7 +21,5 @@
  * asynchronous and tracked by the thread manager, and the child process is stopped when
  * the language is stopped.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language.jvmbytecode;

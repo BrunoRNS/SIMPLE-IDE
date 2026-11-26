@@ -28,7 +28,7 @@ import io.simpleide.thread.ThreadMaster;
  * Covered by {@code LspStatusBarTest}.
  *
  * @author LuisOtavio13
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public final class LspStatusBar extends JPanel {
 

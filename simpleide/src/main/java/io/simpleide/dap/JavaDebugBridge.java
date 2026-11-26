@@ -81,8 +81,6 @@ public final class JavaDebugBridge {
 		 * @param command command identifier
 		 * @param arguments command arguments
 		 * @return a future completed with the command result
-		 * @author BrunoRNS
-		 * @since v1.1.0
 		 */
 		CompletableFuture<Object> executeCommand(String command, List<Object> arguments);
 
@@ -98,8 +96,6 @@ public final class JavaDebugBridge {
 	 * @throws IOException when the language server cannot start the debug server or the
 	 * session cannot connect
 	 * @throws InterruptedException when the calling thread is interrupted
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static DapSession start(JavaDebugClient client, Path program, List<Integer> breakpoints,
 			DapSession.Listener listener) throws IOException, InterruptedException {
@@ -115,8 +111,6 @@ public final class JavaDebugBridge {
 	 * @param client language-server command client
 	 * @return the TCP port of the debug server
 	 * @throws IOException when the command fails or returns no port
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static int startDebugSession(JavaDebugClient client) throws IOException, InterruptedException {
 		Object result = invoke(client, START_DEBUG_SESSION, List.of());
@@ -141,8 +135,6 @@ public final class JavaDebugBridge {
 	 * @return the launch properties sent in the DAP {@code launch} request
 	 * @throws IOException when the main class, the class path or a loose file cannot be
 	 * resolved or compiled
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public static Map<String, Object> launchArguments(JavaDebugClient client, Path program)
 			throws IOException, InterruptedException {

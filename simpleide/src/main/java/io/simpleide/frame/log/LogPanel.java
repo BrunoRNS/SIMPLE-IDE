@@ -26,10 +26,10 @@ import io.simpleide.thread.ThreadMaster;
  * <p>
  * Covered by {@code LogPanelTest}.
  *
- * @author LuisOtavio13
- * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/logging.md">docs/api/ui/logging.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class LogPanel extends JTextPane {
 

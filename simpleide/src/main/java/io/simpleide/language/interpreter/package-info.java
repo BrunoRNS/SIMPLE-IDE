@@ -21,7 +21,5 @@
  * Standard input and output flow through the shared queues, and the language is
  * registered only when its interpreter command is present on the PATH.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language.interpreter;

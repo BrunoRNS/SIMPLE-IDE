@@ -10,10 +10,10 @@ import java.nio.file.Path;
  * server, the language id and the version that is incremented for every change. The open
  * and modified flags let the editor track the document lifecycle.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class Document {
 

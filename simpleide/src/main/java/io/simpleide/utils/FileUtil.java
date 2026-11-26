@@ -25,10 +25,10 @@ import java.util.Set;
  * <p>
  * Covered by {@code ResourceAndFileUtilTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class FileUtil {
 

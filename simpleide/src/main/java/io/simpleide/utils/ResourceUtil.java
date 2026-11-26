@@ -20,12 +20,12 @@ import java.nio.file.StandardCopyOption;
  * <p>
  * Covered by {@code ResourceAndFileUtilTest}.
  *
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @see <a href=
+ * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
  * @author BrunoRNS
  * @since v1.0.0beta
- * @see <a href=
- * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
- * @see <a href=
- * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
  */
 public final class ResourceUtil {
 

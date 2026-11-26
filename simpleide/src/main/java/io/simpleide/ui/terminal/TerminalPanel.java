@@ -36,7 +36,7 @@ import io.simpleide.ui.ThemeColors;
  * Covered by {@code TerminalPanelTest}.
  *
  * @author BrunoRNS
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public final class TerminalPanel extends JPanel {
 

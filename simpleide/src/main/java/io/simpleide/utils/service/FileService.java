@@ -25,10 +25,10 @@ import io.simpleide.ui.treefile.TreeFile;
  * <p>
  * Covered by {@code FileServiceTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class FileService {
 

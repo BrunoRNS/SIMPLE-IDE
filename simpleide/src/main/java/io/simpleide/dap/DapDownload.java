@@ -27,8 +27,6 @@ public record DapDownload(String os, String arch, String url, String archiveType
 	 * @param arch architecture label
 	 * @param url HTTPS download URL
 	 * @param archiveType archive extension, or {@code null} for a single file
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public DapDownload {
 		Objects.requireNonNull(os, "os");
@@ -41,8 +39,6 @@ public record DapDownload(String os, String arch, String url, String archiveType
 	 * @param platformOs platform operating system family
 	 * @param platformArch platform architecture label
 	 * @return {@code true} when both values match, including the known aliases
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean matches(String platformOs, String platformArch) {
 		if (platformOs == null || platformArch == null) {

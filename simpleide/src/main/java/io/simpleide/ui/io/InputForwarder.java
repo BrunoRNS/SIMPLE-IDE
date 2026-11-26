@@ -28,8 +28,6 @@ public final class InputForwarder implements AutoCloseable {
 
 	/**
 	 * Creates a forwarder backed by the process-wide input queue.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public InputForwarder() {
 		this(Input.getInstance());
@@ -38,8 +36,6 @@ public final class InputForwarder implements AutoCloseable {
 	/**
 	 * Creates a forwarder backed by a specific queue.
 	 * @param input input queue to publish to
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public InputForwarder(Input input) {
 		this.input = Objects.requireNonNull(input, "input");
@@ -53,8 +49,6 @@ public final class InputForwarder implements AutoCloseable {
 	 * separate process input lines. Empty and whitespace-only lines are valid input.
 	 * @param text text to send, ignored when {@code null} or when the forwarder is closed
 	 * @return {@code true} when at least one line was queued
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean submit(String text) {
 		if (!active.get() || text == null) {
@@ -69,8 +63,6 @@ public final class InputForwarder implements AutoCloseable {
 	/**
 	 * Returns whether the forwarder still accepts input.
 	 * @return {@code true} until {@link #close()} is called
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	public boolean isActive() {
 		return active.get();
@@ -78,8 +70,6 @@ public final class InputForwarder implements AutoCloseable {
 
 	/**
 	 * Stops accepting input.
-	 * @author BrunoRNS
-	 * @since v1.1.0
 	 */
 	@Override
 	public void close() {

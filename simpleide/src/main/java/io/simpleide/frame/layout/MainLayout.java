@@ -12,10 +12,10 @@ import javax.swing.JComponent;
  * Components are placed through short {@code addComponent} overloads that fill both
  * directions and optionally define growth weights.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class MainLayout extends GridBagLayout {
 

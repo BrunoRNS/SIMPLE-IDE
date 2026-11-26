@@ -20,7 +20,5 @@
  * program should own the shared queues at a time; running two programs makes their output
  * indistinguishable.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language.io;

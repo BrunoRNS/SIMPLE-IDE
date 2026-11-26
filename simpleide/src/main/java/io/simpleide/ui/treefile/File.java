@@ -33,7 +33,6 @@ import org.slf4j.LoggerFactory;
  * @author LuisOtavio13
  * @since v1.0.0beta
  */
-@Deprecated
 public class File extends TreeFile {
 
 	private static final long MAX_IN_MEMORY_FILE_BYTES = 2L * 1024 * 1024;

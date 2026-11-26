@@ -36,8 +36,8 @@ import io.simpleide.ui.treefile.SimpleIDEFile;
  * selects the reported range; failures and missing definitions are reported with the
  * application popups.
  *
- * @author BrunoRNS
- * @since v1.1.0
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class EditorActions {
 

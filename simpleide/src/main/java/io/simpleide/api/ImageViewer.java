@@ -66,7 +66,6 @@ public final class ImageViewer extends JPanel {
 	 * @param image decoded image to render
 	 * @param sourceWidth original image width
 	 * @param sourceHeight original image height
-	 * @since v1.1.0
 	 */
 	public ImageViewer(BufferedImage image, int sourceWidth, int sourceHeight) {
 		super(new BorderLayout());
