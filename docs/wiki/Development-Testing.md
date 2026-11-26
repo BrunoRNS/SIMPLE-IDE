@@ -43,6 +43,58 @@ simpleide/src/test/java/io/simpleide/
 Test resources are under `simpleide/src/test/resources`. Prefer classpath
 resources over hard-coded absolute paths.
 
+### Media tests
+
+`AudioViewerTest` and `VideoViewerTest` live under
+`simpleide/src/test/javafx/java` and are compiled only when the selected media
+variant enables JavaFX on the current platform. They use the sample files in
+`simpleide/src/test/resources/io/simpleide/media` directly from the classpath.
+Copying them to a temporary directory would make cleanup depend on when the
+native media backend releases the file, which is slow and unreliable on
+Windows.
+
+- Construction, null-path and close tests run everywhere and never need a
+  display.
+- Playback tests are skipped in a headless session. They probe the JavaFX media
+  backend first and abort when no media backend is available, so a build without
+  audio or codecs stays green.
+- Tests never assert that `isMediaLoaded()` is false immediately after
+  construction: JavaFX loads media asynchronously, so that state is racy.
+- `EditorManagerTest` verifies both paths: the media viewer when
+  `MediaPlaybacks.isAvailable()` is true, and the hex-editor fallback otherwise
+  (`nojavafx` builds, automatic Linux `arm64`/`x86`, Windows `x86`/`arm64`).
+
+Run the media tests on a desktop session with:
+
+```sh
+SIMPLEIDE_MEDIA_VARIANT=javafx23 make test
+```
+
+On Linux, install GTK 3, ALSA and FFmpeg first; see
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux#audio-and-video-playback).
+
+### Consumer media variant tests
+
+`scripts/ci/test-consumer-profiles.py` validates the published Maven contract
+instead of the in-reactor build. It installs the reactor, creates a standalone
+consumer POM that depends on `io:simpleide`, and resolves it four times:
+`auto`, `nojavafx`, `javafx22` and `javafx23`. It asserts the exact `org.openjfx`
+modules and versions for the consumer JDK and OS/architecture, including no
+OpenJFX on unsupported platforms.
+
+```sh
+make test-consumer
+# or, after ./mvnw -DskipTests install:
+python3 scripts/ci/test-consumer-profiles.py --skip-install
+```
+
+CI runs it on representative JDK 17 and JDK 25 entries for Linux
+`x64`/`arm64`/`x86`, Windows `x64`/`x86`/`arm64` and macOS `x64`/`arm64`. This
+catches profile-activation regressions that unit tests cannot see because they
+do not exercise the published dependency POM. See
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media)
+for the contract itself.
+
 ## Tags
 
 Tests that execute real external toolchains are tagged:

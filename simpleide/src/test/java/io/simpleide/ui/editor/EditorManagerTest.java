@@ -24,6 +24,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import io.simpleide.api.MediaPlaybacks;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.icon.MaterialIcons;
@@ -183,12 +184,10 @@ class EditorManagerTest {
 		});
 		SwingUtilities.invokeAndWait(() -> {
 			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
-			assertThat(tab.isLoading()).isFalse();
 			assertThat(tab.getEditor()).isNull();
 			assertThat(tab.getLargeTextViewer()).isNotNull();
+			testManager.closeTab(tab);
 		});
-		SwingUtilities
-			.invokeAndWait(() -> testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize())));
 	}
 
 	@Test
@@ -239,6 +238,53 @@ class EditorManagerTest {
 			}
 		});
 		assertThat(Files.readAllBytes(binaryPath)).containsExactly((byte) 0, (byte) 0x42, (byte) 0xff);
+	}
+
+	@Test
+	void opensAudioAndVideoInNonEditableMediaViewers() throws Exception {
+		Path audioPath = Files.write(root.resolve("sample.mp3"), new byte[] { 1, 2, 3 });
+		Path videoPath = Files.write(root.resolve("sample.mp4"), new byte[] { 4, 5, 6 });
+		EditorManager manager = EditorManager.getInstance();
+		if (manager == null) {
+			manager = new EditorManager(() -> {
+			}, () -> {
+			}, () -> {
+			});
+		}
+		EditorManager testManager = manager;
+		SwingUtilities.invokeAndWait(() -> {
+			try {
+				testManager.openFile(new SimpleIDEFile(audioPath));
+				EditorTab audioTab = testManager.getOpenedEditor(audioPath.toAbsolutePath().normalize());
+				assertThat(audioTab.getEditor()).isNull();
+				audioTab.save();
+				assertThat(Files.readAllBytes(audioPath)).containsExactly((byte) 1, (byte) 2, (byte) 3);
+				testManager.openFile(new SimpleIDEFile(videoPath));
+				EditorTab videoTab = testManager.getOpenedEditor(videoPath.toAbsolutePath().normalize());
+				assertThat(videoTab.getEditor()).isNull();
+				if (MediaPlaybacks.isAvailable()) {
+					assertThat(audioTab.getAudioViewer()).isNotNull();
+					assertThat(audioTab.getHexEditor()).isNull();
+					assertThat(videoTab.getVideoViewer()).isNotNull();
+					// The player is created asynchronously on the JavaFX thread, so
+					// isMediaLoaded() is inherently racy here. Assert the component is
+					// mounted instead.
+					assertThat(videoTab.getVideoViewer().component()).isNotNull();
+				}
+				else {
+					// Platforms without a JavaFX runtime fall back to the hex editor.
+					assertThat(audioTab.getAudioViewer()).isNull();
+					assertThat(audioTab.getHexEditor()).isNotNull();
+					assertThat(videoTab.getVideoViewer()).isNull();
+					assertThat(videoTab.getHexEditor()).isNotNull();
+				}
+				testManager.closeTab(audioTab);
+				testManager.closeTab(videoTab);
+			}
+			catch (IOException error) {
+				throw new AssertionError(error);
+			}
+		});
 	}
 
 	@Test

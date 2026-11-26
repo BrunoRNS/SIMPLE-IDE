@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.imageio.ImageIO;
@@ -22,16 +23,20 @@ import javax.imageio.stream.ImageInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.api.MediaPlaybacks;
+
 /**
  * Source file entry in the project tree.
  *
  * <p>
  * The file holds its resolved {@link TypeFile}, detected {@link FileContentKind} and a
- * mutable buffer with its text. Image and binary content is kept out of the text buffer
- * and handled by the corresponding viewer.
- * 
+ * mutable buffer with its text. Image, audio, video and binary content is kept out of the
+ * text buffer and handled by the corresponding viewer. Audio and video are detected only
+ * when {@link MediaPlaybacks#isAvailable()} is {@code true}; otherwise those files are
+ * classified as binary and opened in the hex editor.
+ *
  * Substitute of Deprecated File class
- * 
+ *
  * @author BrunoRNS
  * @since v1.1.0
  */
@@ -206,6 +211,15 @@ public class SimpleIDEFile extends TreeFile {
 
 	private static Content readContent(Path path) throws IOException {
 		long size = Files.size(path);
+		FileContentKind mediaKind = mediaKind(path);
+		if (mediaKind != null) {
+			if (MediaPlaybacks.isAvailable()) {
+				return new Content(mediaKind, "", null, null, false, size, 0, 0);
+			}
+			LOGGER.warn(
+					"Audio and video playback is not available on this platform; " + "opening {} in the hex editor.",
+					path);
+		}
 		try {
 			ImageContent image = readImage(path);
 			if (image != null) {
@@ -351,6 +365,26 @@ public class SimpleIDEFile extends TreeFile {
 
 	private static String loadNameFile(Path path) {
 		return path.getFileName().toString();
+	}
+
+	/**
+	 * Resolves the media kind from a file extension.
+	 * @param path path to inspect
+	 * @return the audio or video kind, or {@code null} for other extensions
+	 */
+	private static FileContentKind mediaKind(Path path) {
+		String name = path.getFileName().toString().toLowerCase(Locale.ROOT);
+		String extension = name.substring(name.lastIndexOf('.') + 1);
+		if (Set.of("mp4", "m4v", "mov", "mkv", "webm", "avi", "wmv", "flv", "mpeg", "mpg", "3gp").contains(extension)) {
+			return FileContentKind.VIDEO;
+		}
+		if (Set
+			.of("wav", "wave", "aif", "aiff", "aifc", "mp3", "mp2", "m4a", "flac", "ogg", "oga", "opus", "aac", "ape",
+					"spx", "wv")
+			.contains(extension)) {
+			return FileContentKind.AUDIO;
+		}
+		return null;
 	}
 
 	/**

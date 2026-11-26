@@ -141,15 +141,23 @@ jobs:
       - name: Run tests
         run: make test
 
+      - name: Validate Maven consumer media variants
+        if: matrix.java == '17' || matrix.java == '25'
+        run: make test-consumer
+
       - name: Ensure WiX toolset
-        if: matrix.java == '17'
+        if: matrix.java == '17' || matrix.java == '21'
         shell: pwsh
         run: ./scripts/ci/ensure-wix.ps1
 
       - name: Validate fat JAR and generated packages
-        if: matrix.java == '17'
+        if: matrix.java == '17' || matrix.java == '21'
         env:
           SIMPLEIDE_PKG_OS: windows
           SIMPLEIDE_PKG_ARCH: x64
         shell: pwsh
         run: make pkg-verify
+
+      - name: Report failed tests
+        if: failure()
+        run: python scripts/ci/report-surefire.py

@@ -127,6 +127,59 @@ coordinate is not available:
    or download the release fat JAR and install it manually.
 4. Pin the dependency to a released tag instead of a branch.
 
+### Optional JavaFX media variant
+
+The `simpleide` artifact contains reflective media viewers that need OpenJFX at
+runtime only when audio and video playback is wanted. The simple, POM-only way
+to pin a variant is to exclude the transitive OpenJFX modules and declare
+`22.0.2`, `23.0.2` or none explicitly; see the README example and
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media#pin-a-variant-in-the-consumer-pom-no--d).
+The advanced Maven property route is:
+
+```sh
+mvn -Dsimpleide.media.variant=nojavafx package  # no JavaFX
+mvn -Dsimpleide.media.variant=javafx22 package # OpenJFX 22.0.2
+mvn -Dsimpleide.media.variant=javafx23 package # OpenJFX 23.0.2
+```
+
+Omit the property for automatic selection:
+
+| Consumer JDK | Automatic platform | Selected variant |
+| --- | --- | --- |
+| 17 through 20 | Linux/Windows/macOS `x64`, macOS `arm64` | `javafx22` |
+| 21 or newer | Linux/Windows/macOS `x64`, macOS `arm64` | `javafx23` |
+| Any | Linux `x86`/`arm64`, Windows `x86`/`arm64` | `nojavafx` |
+
+Automatic Linux `arm64` builds use `nojavafx` to preserve the glibc 2.28
+baseline. Forced `javafx22`/`javafx23` profiles are available there when the
+consumer runs on glibc 2.34+ (Debian 12+); `javafx23` also requires JDK 21.
+Pass the property on the command line, in `.mvn/maven.config` or in
+`MAVEN_OPTS`; it is not read from the consumer POM `<properties>`.
+
+Gradle does not evaluate the JDK/OS profiles of dependency POMs. Gradle
+consumers should declare the OpenJFX modules explicitly, or omit them for the
+`nojavafx` behavior:
+
+```groovy
+def javafxVariant = 'jfx22' // nojavafx | jfx22 | jfx23
+def javafxVersion = javafxVariant == 'jfx23' ? '23.0.2' : '22.0.2'
+def javafxPlatform = 'linux-aarch64' // linux, linux-aarch64, mac, mac-aarch64, win
+
+dependencies {
+    implementation('com.github.BrunoRNS:SIMPLE-IDE:v1.1.0') {
+        exclude group: 'org.openjfx'
+    }
+    if (javafxVariant != 'nojavafx') {
+        implementation "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
+        implementation "org.openjfx:javafx-media:${javafxVersion}:${javafxPlatform}"
+        implementation "org.openjfx:javafx-swing:${javafxVersion}:${javafxPlatform}"
+    }
+}
+```
+
+The complete contract, platform matrix and examples are in
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+
 ## Maven coordinates from the reactor
 
 The reactor modules use group `io` and version `1.0.0beta`:

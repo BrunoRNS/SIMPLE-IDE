@@ -23,9 +23,12 @@ import io.simpleide.ui.treefile.TypeFile;
  * A standalone editor tab that can be embedded in any Swing container.
  *
  * <p>
- * The tab presents text through the editor, images through {@link ImageViewer}, and
- * binary files through {@link HexEditor}. Local language support and LSP apply only to
- * text files. The server process is stopped when the editor is closed.
+ * The tab presents text through the editor, images through {@link ImageViewer}, audio and
+ * video through a JavaFX-backed {@link MediaPlayback} when the platform supports it, and
+ * binary files through {@link HexEditor}. Media and binary viewers are read-only. On
+ * platforms without JavaFX native artifacts, audio and video files open in the hex
+ * editor. Local language support and LSP apply only to text files. The server process is
+ * stopped when the editor is closed.
  *
  * <p>
  * Covered by {@code SimpleEditorTest}.
@@ -124,6 +127,30 @@ public final class SimpleEditor implements AutoCloseable {
 	/** Returns the hex editor for a binary file, otherwise {@code null}. */
 	public HexEditor hexEditor() {
 		return tab.getHexEditor();
+	}
+
+	/**
+	 * Returns the audio player, or {@code null} when the file is not audio or playback is
+	 * unavailable on this platform.
+	 * @return the audio player, or {@code null}
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 * @see MediaPlaybacks
+	 */
+	public MediaPlayback audioViewer() {
+		return tab.getAudioViewer();
+	}
+
+	/**
+	 * Returns the video player, or {@code null} when the file is not video or playback is
+	 * unavailable on this platform.
+	 * @return the video player, or {@code null}
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 * @see MediaPlaybacks
+	 */
+	public MediaPlayback videoViewer() {
+		return tab.getVideoViewer();
 	}
 
 	/**

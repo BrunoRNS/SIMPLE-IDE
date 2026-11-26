@@ -28,6 +28,8 @@
 - [Languages](Reference-Languages)
 - [LSP](Reference-LSP)
 - [Thread management](Reference-ThreadMaster)
+- [JavaFX media variants](Reference-JavaFX-Media)
+- [Script installation](Reference-Install)
 - [Linux](Reference-Linux)
 - [Windows](Reference-Windows)
 - [macOS](Reference-macOS)

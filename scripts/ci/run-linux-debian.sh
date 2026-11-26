@@ -18,6 +18,12 @@
 #   SIMPLEIDE_EXPECTED_PLATFORM
 #   SIMPLEIDE_CI_JAVA
 #   SIMPLEIDE_CI_ARCH
+#   SIMPLEIDE_MEDIA_VARIANT
+#
+# The container image defaults to debian:10. Set SIMPLEIDE_DEBIAN_IMAGE to run
+# the same tasks on a newer glibc. Linux arm64 uses debian:10 for the nojavafx
+# baseline and debian:12 for forced javafx22/javafx23 builds, whose OpenJFX
+# natives need glibc 2.34.
 
 set -euo pipefail
 
@@ -41,6 +47,7 @@ if [ "$PLATFORM" = "linux/386" ]; then
 	SECURITY_ARGS=(--security-opt seccomp=unconfined)
 fi
 
+IMAGE=${SIMPLEIDE_DEBIAN_IMAGE:-debian:10}
 mkdir -p "$HOME/.m2"
 
 docker run --rm \
@@ -51,8 +58,9 @@ docker run --rm \
 	-e SIMPLEIDE_EXPECTED_PLATFORM \
 	-e SIMPLEIDE_CI_JAVA \
 	-e SIMPLEIDE_CI_ARCH \
+	-e SIMPLEIDE_MEDIA_VARIANT \
 	-v "$PWD:/workspace" \
 	-v "$HOME/.m2:/root/.m2" \
 	-w /workspace \
-	debian:10 \
+	"$IMAGE" \
 	bash scripts/ci/linux-debian.sh "${TASKS[@]}"

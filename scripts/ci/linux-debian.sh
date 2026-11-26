@@ -1,25 +1,30 @@
 #!/usr/bin/env bash
 #
-# Prepares a Debian 10 (buster) container and runs one or more CI tasks.
+# Prepares a Debian container and runs one or more CI tasks.
 #
-# Debian 10 is the oldest distribution whose glibc (2.28) satisfies every
-# bundled dependency, including the 32-bit pty4j native library and the newer
-# JDKs. Alpine is intentionally not supported: its musl libc cannot run the
-# glibc-linked JDK and native terminal binaries.
+# Debian 10 (buster, glibc 2.28) is the oldest distribution whose glibc
+# satisfies every bundled dependency, including the 32-bit pty4j native library
+# and the newer JDKs. Linux arm64 nojavafx builds stay on that baseline; release
+# jobs that force javafx22 or javafx23 on arm64 use Debian 12 (glibc 2.36),
+# because the OpenJFX arm64 natives need glibc 2.34. Alpine is intentionally not
+# supported: its musl libc cannot run the glibc-linked JDK and native terminal
+# binaries.
 #
 # Usage (inside the container, from the repository root):
 #
-#   bash scripts/ci/linux-debian.sh [test] [pkg] [verify]
+#   bash scripts/ci/linux-debian.sh [test] [consumer] [pkg] [verify]
 #
-#   test    Run the full Maven test suite.
-#   pkg     Build and validate every Linux package for this architecture.
-#   verify  Print the installed toolchain versions and exit.
+#   test      Run the full Maven test suite.
+#   consumer  Validate the Maven consumer media variants (no/22/23/auto).
+#   pkg       Build and validate every Linux package for this architecture.
+#   verify    Print the installed toolchain versions and exit.
 #
 # Environment:
 #
-#   SIMPLEIDE_CI_JAVA   JDK feature release to install (default: 17).
-#   SIMPLEIDE_CI_ARCH   Expected package architecture: x86, x64 or arm64.
-#                       Derived from dpkg when omitted.
+#   SIMPLEIDE_CI_JAVA        JDK feature release to install (default: 17).
+#   SIMPLEIDE_CI_ARCH        Expected package architecture: x86, x64 or arm64.
+#                            Derived from dpkg when omitted.
+#   SIMPLEIDE_MEDIA_VARIANT  Force nojavafx, javafx22 or javafx23 (optional).
 #
 # The container runs as root; the repository is expected to be bind-mounted at
 # the current working directory.
@@ -91,12 +96,26 @@ echo "architecture: $ARCH ($(dpkg --print-architecture))"
 # Debian archive
 # ------------------------------------------------------------------
 
-# Debian 10 is archived; the regular mirrors no longer serve buster.
-cat >/etc/apt/sources.list <<'EOF'
+CODENAME=$(. /etc/os-release 2>/dev/null && printf '%s' "${VERSION_CODENAME:-}")
+if [ -z "$CODENAME" ]; then
+	echo "error: unable to read the Debian codename from /etc/os-release" >&2
+	exit 1
+fi
+
+if [ "$CODENAME" = "buster" ]; then
+	# Debian 10 is archived; the regular mirrors no longer serve buster.
+	cat >/etc/apt/sources.list <<'EOF'
 deb http://archive.debian.org/debian buster main
 deb http://archive.debian.org/debian buster-updates main
 deb http://archive.debian.org/debian-security buster/updates main
 EOF
+else
+	cat >/etc/apt/sources.list <<EOF
+deb http://deb.debian.org/debian $CODENAME main
+deb http://deb.debian.org/debian $CODENAME-updates main
+deb http://deb.debian.org/debian-security $CODENAME-security main
+EOF
+fi
 
 rm -f /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true
 
@@ -125,7 +144,14 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
 	rustc \
 	unzip \
 	xz-utils \
-	zip
+	zip \
+	ffmpeg \
+	libasound2 \
+	libgl1 \
+	libgtk-3-0 \
+	libx11-6 \
+	libxxf86vm1 \
+	libxtst6
 
 # ------------------------------------------------------------------
 # Java
@@ -298,6 +324,10 @@ for TASK in "${TASKS[@]}"; do
 			echo "=== Running tests ==="
 			make test
 			;;
+		consumer)
+			echo "=== Validating Maven consumer media variants ==="
+			make test-consumer
+			;;
 		pkg)
 			echo "=== Building and validating Linux packages ==="
 			SIMPLEIDE_PKG_OS=linux SIMPLEIDE_PKG_ARCH="$ARCH" make pkg-verify
@@ -307,7 +337,7 @@ for TASK in "${TASKS[@]}"; do
 			;;
 		*)
 			echo "error: unknown task: $TASK" >&2
-			echo "usage: $0 [test] [pkg] [verify]" >&2
+			echo "usage: $0 [test] [consumer] [pkg] [verify]" >&2
 			exit 1
 			;;
 	esac

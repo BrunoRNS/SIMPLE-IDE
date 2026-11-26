@@ -70,6 +70,13 @@ OS=${SIMPLEIDE_PKG_OS:-$(detect_os)}
 ARCH=${SIMPLEIDE_PKG_ARCH:-$(detect_arch)}
 ARTIFACT_BASE="simpleide-v${VERSION}-${OS}-${ARCH}"
 
+# Distinguishes the optional media build: javafx22, javafx23 or nojavafx.
+# The Makefile exports SIMPLEIDE_PKG_VARIANT from scripts/javafx-version.sh.
+VARIANT=${SIMPLEIDE_PKG_VARIANT:-}
+if [ -n "$VARIANT" ]; then
+    ARTIFACT_BASE="$ARTIFACT_BASE-$VARIANT"
+fi
+
 case "$OS" in
     linux|macos|windows) ;;
     *)

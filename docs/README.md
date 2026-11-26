@@ -1,7 +1,8 @@
 # Simple IDE documentation
 
 This is the entry point for all project documentation. The documentation is
-split by audience instead of being kept in one large file.
+split by audience instead of being kept in one large file. Changes under
+`docs/` are synced to the GitHub Wiki by CI.
 
 ## Shortcuts
 
@@ -26,9 +27,11 @@ split by audience instead of being kept in one large file.
 | Add or understand a language | [Languages reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages) |
 | Understand language servers | [LSP reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-LSP) |
 | Understand thread management | [Thread reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-ThreadMaster) |
+| Choose or force a JavaFX media variant | [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media) |
 | Check whether a Linux distribution is supported | [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux) |
 | Check whether a Windows version is supported | [Windows compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Windows) |
 | Check whether a macOS version is supported | [macOS compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-macOS) |
+| Download the best release package with a script | [Script installation](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Install) |
 | Know what is bundled or downloaded | [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party) |
 | Read the license inventory | [Third-party licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses) |
 
@@ -70,6 +73,8 @@ docs/
 │   └── TESTING.md                Test layout and tags
 ├── reference/                    Subsystem references
 │   ├── LANGUAGES.md              Language support reference
+│   ├── INSTALL.md                Download scripts, validation and variant selection
+│   ├── JAVAFX-MEDIA.md           Optional media variants and Maven consumer contract
 │   ├── LINUX.md                  Linux distributions, glibc and architecture support
 │   ├── LSP.md                    Language Server Protocol reference
 │   ├── MACOS.md                  macOS versions and JDK-dependent minimums
