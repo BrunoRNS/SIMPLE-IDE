@@ -1,5 +1,6 @@
 package io.simpleide.lsp.client;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledFuture;
@@ -194,7 +195,7 @@ public final class LspEditorSupport implements AutoCloseable {
 				return;
 			}
 
-			List<CompletionItem> resolvedItems = getCompletionItems(completionResult);
+			List<CompletionItem> resolvedItems = withSnippets(getCompletionItems(completionResult));
 			ThreadMaster.getInstance().executeOnEDT(() -> {
 				if (closed || document.getVersion() != version
 						|| editor.getCaretPosition() != positionToOffset(position)) {
@@ -214,6 +215,36 @@ public final class LspEditorSupport implements AutoCloseable {
 				}
 			});
 		});
+	}
+
+	private List<CompletionItem> withSnippets(List<CompletionItem> items) {
+		return withSnippets(document.getLanguageId(), editor.getText(), editor.getCaretPosition(), items);
+	}
+
+	/**
+	 * Adds the IDE's Java snippets to the items returned by the server.
+	 *
+	 * <p>
+	 * Snippets are only offered when the server answered with completions. Without that
+	 * guard an empty or failed response would leave the popup showing nothing but the
+	 * IDE's own snippets, hiding that the language server did not answer.
+	 * @param languageId LSP language identifier of the open document
+	 * @param text document text
+	 * @param caret caret offset in the document
+	 * @param items completions returned by the language server
+	 * @return the merged completions, or the original list when no snippet applies
+	 */
+	static List<CompletionItem> withSnippets(String languageId, String text, int caret, List<CompletionItem> items) {
+		if (!JavaLspSnippets.supports(languageId) || items == null || items.isEmpty()) {
+			return items;
+		}
+		List<CompletionItem> snippets = JavaLspSnippets.completions(text, caret);
+		if (snippets.isEmpty()) {
+			return items;
+		}
+		List<CompletionItem> merged = new ArrayList<>(snippets);
+		merged.addAll(items);
+		return merged;
 	}
 
 	/**

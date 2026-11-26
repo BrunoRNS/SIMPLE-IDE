@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -24,6 +25,7 @@ import org.eclipse.lsp4j.PublishDiagnosticsParams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.dap.JavaDebugInstaller;
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.client.LspServerStartupException;
@@ -391,6 +393,24 @@ public final class LanguageServerManager implements AutoCloseable {
 			}
 		}
 
+		private Map<String, Object> initializationOptions() {
+			Map<String, Object> options = new HashMap<>(LspManager.getInitializationOptions(languageId, root));
+			if (!"java".equals(languageId)) {
+				return options;
+			}
+			try {
+				Path bundle = JavaDebugInstaller.install();
+				options.put("bundles", List.of(bundle.toString()));
+			}
+			catch (IOException error) {
+				LOGGER.warn("Unable to install the Java debug adapter; Java debugging will be unavailable.", error);
+			}
+			catch (InterruptedException error) {
+				Thread.currentThread().interrupt();
+			}
+			return options;
+		}
+
 		private void startAttempt(List<String> command, int attempt) {
 			if (closed) {
 				closeActiveClient();
@@ -406,7 +426,7 @@ public final class LanguageServerManager implements AutoCloseable {
 					if (handler != null) {
 						handler.accept(diagnostics);
 					}
-				}, environment, workerPool);
+				}, environment, workerPool, initializationOptions());
 			}
 			catch (IOException | RuntimeException error) {
 				handleStartupFailure(error, attempt);

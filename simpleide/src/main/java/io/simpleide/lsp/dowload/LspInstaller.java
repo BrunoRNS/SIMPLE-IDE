@@ -1,10 +1,13 @@
 package io.simpleide.lsp.dowload;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -235,12 +238,19 @@ public final class LspInstaller {
 				.map(argument -> argument.replace("${installDir}", installDirectory).replace("${version}", version))
 				.forEach(full::add);
 		}
-		ProcessBuilder processBuilder = new ProcessBuilder(full).directory(directory.toFile()).inheritIO();
+		// The install command must not inherit the IDE's standard streams. A child
+		// sharing them writes straight into the native channel of the running JVM:
+		// under Surefire that corrupts the forked JVM's protocol streams, and in the
+		// IDE it lets a package manager steal the terminal input. The output is
+		// captured and logged instead.
+		ProcessBuilder processBuilder = new ProcessBuilder(full).directory(directory.toFile())
+			.redirectErrorStream(true);
 		if (environment != null) {
 			environment.forEach((key, value) -> processBuilder.environment()
 				.put(key, value.replace("${installDir}", installDirectory).replace("${version}", version)));
 		}
 		Process process = processBuilder.start();
+		Thread outputDrain = startOutputDrain(process, command);
 		try {
 			if (!process.waitFor(5, TimeUnit.MINUTES)) {
 				process.destroyForcibly();
@@ -251,9 +261,28 @@ public final class LspInstaller {
 			process.destroyForcibly();
 			throw e;
 		}
+		outputDrain.join(TimeUnit.SECONDS.toMillis(5));
 		if (process.exitValue() != 0) {
 			throw new IOException("LSP install command failed with exit code " + process.exitValue() + ": " + command);
 		}
+	}
+
+	private static Thread startOutputDrain(Process process, String command) {
+		Thread drain = new Thread(() -> {
+			try (BufferedReader reader = new BufferedReader(
+					new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+				String line;
+				while ((line = reader.readLine()) != null) {
+					LOGGER.debug("[LSP install {}] {}", command, line);
+				}
+			}
+			catch (IOException error) {
+				LOGGER.debug("Could not read the output of the LSP install command {}.", command, error);
+			}
+		}, "lsp-install-output");
+		drain.setDaemon(true);
+		drain.start();
+		return drain;
 	}
 
 }

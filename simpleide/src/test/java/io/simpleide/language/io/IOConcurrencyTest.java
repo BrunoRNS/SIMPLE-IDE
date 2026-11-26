@@ -37,6 +37,26 @@ class IOConcurrencyTest {
 	}
 
 	@Test
+	void typedNonOutputMessagesNotifyListenersWithoutChangingTheLegacyQueue() throws Exception {
+		Output output = new Output();
+		List<Output.OutputLine> received = new ArrayList<>();
+		AutoCloseable subscription = output.addListener(received::add);
+		try {
+			output.publish(OutputType.DEBUG, "diagnostic");
+			output.publish(OutputType.ERROR, "failure");
+			output.set("program output");
+
+			assertThat(received).extracting(Output.OutputLine::type)
+				.containsExactly(OutputType.DEBUG, OutputType.ERROR, OutputType.OUTPUT);
+			assertThat(output.get(1)).isEqualTo("program output");
+			assertThat(output.get(0)).isNull();
+		}
+		finally {
+			subscription.close();
+		}
+	}
+
+	@Test
 	void holdersExposeTheSharedInputAndOutputQueues() {
 		assertThat(Input.getInstance()).isSameAs(InputHolder.INSTANCE);
 		assertThat(Output.getInstance()).isSameAs(OutputHolder.INSTANCE);

@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.imageio.ImageIO;
@@ -169,12 +170,23 @@ class EditorManagerTest {
 		ThreadMaster.getInstance().initialize();
 
 		SwingUtilities.invokeAndWait(() -> testManager.openFile(SimpleIDEFile.lazy(path)));
-		await().atMost(30, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
+		// Poll a boolean instead of asserting on the EDT: Awaitility does not retry an
+		// assertion error thrown from another thread, which made this test fail fast on
+		// slow Windows runners while the background load was still running.
+		AtomicBoolean loaded = new AtomicBoolean();
+		await().atMost(30, TimeUnit.SECONDS).until((java.util.concurrent.Callable<Boolean>) () -> {
+			SwingUtilities.invokeAndWait(() -> {
+				EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
+				loaded.set(tab != null && !tab.isLoading());
+			});
+			return loaded.get();
+		});
+		SwingUtilities.invokeAndWait(() -> {
 			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
 			assertThat(tab.isLoading()).isFalse();
 			assertThat(tab.getEditor()).isNull();
 			assertThat(tab.getLargeTextViewer()).isNotNull();
-		}));
+		});
 		SwingUtilities
 			.invokeAndWait(() -> testManager.closeTab(testManager.getOpenedEditor(path.toAbsolutePath().normalize())));
 	}
