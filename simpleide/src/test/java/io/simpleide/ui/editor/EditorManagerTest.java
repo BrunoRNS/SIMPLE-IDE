@@ -174,7 +174,7 @@ class EditorManagerTest {
 		// assertion error thrown from another thread, which made this test fail fast on
 		// slow Windows runners while the background load was still running.
 		AtomicBoolean loaded = new AtomicBoolean();
-		await().atMost(20, TimeUnit.SECONDS).until((java.util.concurrent.Callable<Boolean>) () -> {
+		await().atMost(30, TimeUnit.SECONDS).until((java.util.concurrent.Callable<Boolean>) () -> {
 			SwingUtilities.invokeAndWait(() -> {
 				EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
 				loaded.set(tab != null && !tab.isLoading());

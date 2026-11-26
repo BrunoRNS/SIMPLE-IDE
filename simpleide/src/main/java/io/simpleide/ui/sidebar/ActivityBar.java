@@ -65,6 +65,7 @@ public final class ActivityBar extends JPanel {
 
 		addButton(SidebarView.EXPLORER, Type.EXPLORER, "Explorer");
 		addButton(SidebarView.SEARCH, Type.SEARCH, "Search");
+		addButton(SidebarView.GIT, Type.GIT, "Source Control");
 		add(Box.createVerticalGlue());
 		addButton(SidebarView.SETTINGS, Type.SETTINGS, "Settings");
 		refreshSelection();

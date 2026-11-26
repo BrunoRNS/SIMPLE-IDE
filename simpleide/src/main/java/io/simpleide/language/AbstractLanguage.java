@@ -137,6 +137,14 @@ public abstract class AbstractLanguage implements Runnable {
 			}
 		}
 		catch (IOException e) {
+			if (stopped) {
+				// The user stopped the process, which closes its output stream while the
+				// reader thread may still be blocked on it. This is an expected shutdown,
+				// not a process startup failure.
+				LOGGER.info("[IDE] Process manually interrupted by the user.");
+				finishExecution();
+				return;
+			}
 			stopCurrentProcess();
 			Output.getInstance().publish(OutputType.ERROR, "Process did not finish successfully at startup.");
 			notifyExecutionFinished();
@@ -253,19 +261,7 @@ public abstract class AbstractLanguage implements Runnable {
 			}
 		}
 		finally {
-			RunnableNode forwarder = inputForwarder;
-			inputForwarder = null;
-			if (forwarder != null) {
-				ThreadMaster.getInstance().removeNodeCascade(forwarder);
-			}
-			this.p = null;
-			this.stopped = false;
-			try {
-				onExecutionFinished();
-			}
-			finally {
-				notifyExecutionFinished();
-			}
+			finishExecution();
 		}
 	}
 
@@ -310,6 +306,22 @@ public abstract class AbstractLanguage implements Runnable {
 	public void removeExecutionListener(Runnable listener) {
 		if (listener != null) {
 			executionListeners.remove(listener);
+		}
+	}
+
+	private void finishExecution() {
+		RunnableNode forwarder = inputForwarder;
+		inputForwarder = null;
+		if (forwarder != null) {
+			ThreadMaster.getInstance().removeNodeCascade(forwarder);
+		}
+		this.p = null;
+		this.stopped = false;
+		try {
+			onExecutionFinished();
+		}
+		finally {
+			notifyExecutionFinished();
 		}
 	}
 

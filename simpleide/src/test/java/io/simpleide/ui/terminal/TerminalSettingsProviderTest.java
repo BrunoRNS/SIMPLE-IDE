@@ -46,6 +46,16 @@ class TerminalSettingsProviderTest {
 		}
 	}
 
+	@Test
+	void keepsOptionAsAComposeKeyOnMacOs() {
+		TerminalSettingsProvider macOS = new TerminalSettingsProvider("Mac OS X");
+		assertEquals(false, macOS.altSendsEscape(),
+				"Option must compose dead keys on macOS instead of sending an escape prefix");
+
+		assertEquals(true, new TerminalSettingsProvider("Linux").altSendsEscape());
+		assertEquals(true, new TerminalSettingsProvider("Windows 11").altSendsEscape());
+	}
+
 	private static int resolveColor(TerminalColor terminalColor) {
 		Color color = Objects.requireNonNull(terminalColor, "Terminal color must not be null").toColor();
 		return Objects.requireNonNull(color, "RGB color must not be null").getRGB();

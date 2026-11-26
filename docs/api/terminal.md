@@ -132,9 +132,18 @@ EDT.
 - Multiple tabs, up to five.
 - Add and close buttons.
 - Terminal output and input through JediTerm.
+- UTF-8 input, including dead-key and composed characters such as `~`, `´`, `á`,
+  `ã` and `ç`. The connector always writes UTF-8 to the PTY.
+- Mouse text selection. Drag with the primary button to select, then copy or paste.
+- Copy with `Ctrl+Shift+C` and paste with `Ctrl+Shift+V`. macOS uses `Cmd+C` and
+  `Cmd+V`. Plain `Ctrl+C` remains the terminal interrupt signal.
 - Platform-specific BusyBox shell.
 - Graceful termination followed by forced termination if needed.
 - Process-exit diagnostics in an error popup when a session fails unexpectedly.
+
+On macOS, Option acts as a compose key instead of sending a Meta escape prefix, so
+layouts that type accents and dead keys with Option work in the terminal. Use the
+terminal shortcuts above rather than Option-based Meta bindings.
 
 ## Limitations
 

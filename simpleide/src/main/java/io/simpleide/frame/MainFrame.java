@@ -80,6 +80,7 @@ import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.menubar.menus.IdeMenuBar;
 import io.simpleide.ui.sidebar.ActivityBar;
 import io.simpleide.ui.sidebar.ExplorerPanel;
+import io.simpleide.ui.sidebar.GitPanel;
 import io.simpleide.ui.sidebar.SettingsPanel;
 import io.simpleide.ui.sidebar.SidebarPanel;
 import io.simpleide.ui.sidebar.SidebarView;
@@ -134,6 +135,8 @@ public class MainFrame extends JFrame implements Runnable {
 	private ExplorerPanel explorerPanel;
 
 	private WorkspaceSearchPanel workspaceSearchPanel;
+
+	private GitPanel gitPanel;
 
 	private SettingsPanel settingsPanel;
 
@@ -247,11 +250,14 @@ public class MainFrame extends JFrame implements Runnable {
 		explorerPanel = new ExplorerPanel(treePane, this::openFolder);
 		workspaceSearchPanel = new WorkspaceSearchPanel(() -> currentRoot, editorManager::getOpenFilePaths,
 				this::openSearchMatch);
+		gitPanel = new GitPanel();
 		settingsPanel = new SettingsPanel();
 
 		sidebarPanel = new SidebarPanel();
+		gitPanel.setFileOpenListener(this::openGitFile);
 		sidebarPanel.addView(SidebarView.EXPLORER, explorerPanel);
 		sidebarPanel.addView(SidebarView.SEARCH, workspaceSearchPanel);
+		sidebarPanel.addView(SidebarView.GIT, gitPanel);
 		sidebarPanel.addView(SidebarView.SETTINGS, settingsPanel);
 		sidebarPanel.showView(SidebarView.EXPLORER);
 
@@ -771,6 +777,7 @@ public class MainFrame extends JFrame implements Runnable {
 		}
 		currentRoot = root.getPath().toAbsolutePath().normalize();
 		explorerPanel.showTree(tree);
+		gitPanel.setOpenedFolder(currentRoot);
 		updateWatcherRoot(root);
 		showSidebarView(SidebarView.EXPLORER);
 	}
@@ -780,10 +787,21 @@ public class MainFrame extends JFrame implements Runnable {
 		if (selectedPath == null) {
 			return;
 		}
+
 		Object selectedNode = selectedPath.getLastPathComponent();
 		if (selectedNode instanceof DefaultMutableTreeNode node
 				&& node.getUserObject() instanceof SimpleIDEFile selectedFile) {
 			editorManager.openFile(selectedFile);
+		}
+	}
+
+	private void openGitFile(Path path) {
+		try {
+			editorManager.openFile(new SimpleIDEFile(path));
+		}
+		catch (IOException error) {
+			logger.error("Unable to open changed Git file {}.", path.getFileName(), error);
+			new ErrorPopUP(error.getMessage(), getRootPane(), ErrorTypePopUp.INTERNAL_ERROR).startManaged();
 		}
 	}
 
@@ -825,6 +843,7 @@ public class MainFrame extends JFrame implements Runnable {
 		currentRoot = null;
 		treePane.setViewportView(null);
 		explorerPanel.showNoFolder();
+		gitPanel.setOpenedFolder(null);
 		showSidebarView(SidebarView.EXPLORER);
 	}
 
