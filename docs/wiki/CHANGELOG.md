@@ -19,7 +19,7 @@ changes first. Version 1.1.0 records the release state. Later work belongs under
   `nojavafx`, `javafx22` or `javafx23` directly in `pom.xml` with explicit OpenJFX
   dependencies; the advanced `-Dsimpleide.media.variant` property and automatic
   JDK/OS selection remain available. Linux `arm64` uses `nojavafx` automatically
-  and supports JavaFX variants on glibc 2.34+ (Debian 12+). Audio uses the JavaFX
+  and supports released JavaFX variants on glibc 2.36+ (Debian 12+). Audio uses the JavaFX
   stack only; JSE-SPI and its dependencies are absent. See
   [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media) and
   [audio/video viewers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Mediaviewer).

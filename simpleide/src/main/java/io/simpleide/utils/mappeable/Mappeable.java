@@ -14,6 +14,8 @@ import java.lang.annotation.Target;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

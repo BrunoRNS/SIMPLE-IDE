@@ -26,6 +26,7 @@ import javax.swing.UIManager;
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
 
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.thread.nodes.edt.listeners.MouseNode;
 import io.simpleide.ui.ThemeColors;
 import io.simpleide.ui.ThemePalette;
@@ -140,7 +141,7 @@ public final class DebugConsolePanel extends JPanel {
 			filter.setSelected(true);
 			filter.setFocusable(false);
 			filter.setMargin(new Insets(3, 8, 3, 8));
-			filter.addActionListener(event -> applyFilters());
+			filter.addActionListener(new ActionNode(event -> applyFilters()));
 			filters.put(severity, filter);
 			panel.add(filter);
 		}

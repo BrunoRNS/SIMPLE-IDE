@@ -27,7 +27,7 @@ import io.simpleide.utils.ResourceUtil;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/reference/LANGUAGES.md">docs/reference/LANGUAGES.md</a>
- * @author LuisOtavio13
+ * @author BrunoRNS
  * @since v1.0.0beta
  */
 public abstract class AbstractBytecodeLanguage extends AbstractLanguage {

@@ -11,12 +11,11 @@ import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
- * Tree selection listener that dispatches off-EDT callbacks through the thread manager.
+ * Tree selection listener that dispatches callbacks through the thread manager.
  *
  * <p>
- * Swing delivers tree-selection events on the EDT. Those callbacks run immediately there
- * so models stay in sync with the selection; events received off the EDT are marshalled
- * through the thread manager.
+ * Swing delivers tree-selection events on the EDT. Each callback is queued as a managed
+ * EDT node so listener work remains visible and cancellable in the thread tree.
  *
  * @author BrunoRNS
  * @since v1.1.0

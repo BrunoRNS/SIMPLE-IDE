@@ -517,6 +517,67 @@ class TreeFileTest {
 	}
 
 	@Test
+	void creatingFileRunsOnManagedWorkerAndRefreshesTree() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-create-file-");
+		try {
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			TreeFileActions actions = new TreeFileActions(tree, tree.getState());
+
+			SwingUtilities.invokeAndWait(() -> actions.create("created.txt", false, "file"));
+
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(root.resolve("created.txt")));
+			await().atMost(5, TimeUnit.SECONDS)
+				.until(() -> rootDirectory.getChildren()
+					.stream()
+					.anyMatch(child -> "created.txt".equals(child.getName())));
+			flushEdt();
+
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			assertThat(childNamed(rootNode, "created.txt")).isNotNull();
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("created.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void renamingSelectedFileRunsOnManagedWorkerAndSelectsRenamedEntry() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-rename-file-");
+		Path originalPath = Files.writeString(root.resolve("original.txt"), "rename me");
+		try {
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "original.txt");
+			TreeFile selected = (TreeFile) fileNode.getUserObject();
+			TreeFileActions actions = new TreeFileActions(tree, tree.getState());
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getState().select(selected, rootDirectory);
+				actions.renameSelected("renamed.txt");
+			});
+
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(root.resolve("renamed.txt")));
+			await().atMost(5, TimeUnit.SECONDS)
+				.until(() -> rootDirectory.getChildren()
+					.stream()
+					.anyMatch(child -> "renamed.txt".equals(child.getName())));
+			flushEdt();
+
+			assertThat(tree.getState().getSelected()).isNotNull();
+			assertThat(tree.getState().getSelected().getName()).isEqualTo("renamed.txt");
+		}
+		finally {
+			Files.deleteIfExists(originalPath);
+			Files.deleteIfExists(root.resolve("renamed.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
 	void directoryKeepsBinaryFilesWithoutTryingToDecodeThemAsText() throws IOException {
 		Path root = Files.createTempDirectory("simpleide-tree-binary-");
 		try {
@@ -681,6 +742,7 @@ class TreeFileTest {
 				tree.getFileActions().pasteSelected();
 			});
 			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("source.txt")));
 
 			assertThat(Files.readString(root.resolve("source.txt"))).isEqualTo("content");
 			assertThat(Files.readString(dstDir.resolve("source.txt"))).isEqualTo("content");
@@ -716,6 +778,7 @@ class TreeFileTest {
 				tree.getFileActions().pasteSelected();
 			});
 			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("move.txt")));
 
 			assertThat(Files.exists(root.resolve("move.txt"))).isFalse();
 			assertThat(Files.readString(dstDir.resolve("move.txt"))).isEqualTo("content");
@@ -753,6 +816,7 @@ class TreeFileTest {
 				tree.getFileActions().pasteSelected();
 			});
 			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("src/file.txt")));
 
 			assertThat(Files.readString(srcDir.resolve("file.txt"))).isEqualTo("content");
 			assertThat(Files.readString(dstDir.resolve("src/file.txt"))).isEqualTo("content");
@@ -833,6 +897,7 @@ class TreeFileTest {
 			assertThat(pasteAction).isNotNull();
 			SwingUtilities.invokeAndWait(() -> pasteAction.actionPerformed(null));
 			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("source.txt")));
 
 			assertThat(Files.readString(dstDir.resolve("source.txt"))).isEqualTo("content");
 		}

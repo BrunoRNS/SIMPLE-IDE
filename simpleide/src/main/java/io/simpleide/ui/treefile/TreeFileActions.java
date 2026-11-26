@@ -24,8 +24,10 @@ import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.InputPopUP;
 import io.simpleide.frame.popup.WarningPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.thread.nodes.edt.listeners.MouseNode;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.utils.service.FileService;
 
 /**
@@ -154,16 +156,20 @@ public final class TreeFileActions {
 		if (entries.isEmpty()) {
 			return;
 		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> pasteInBackground(targetDirectory, entries, isCut, threadMaster)));
+	}
 
+	private void pasteInBackground(Directory targetDirectory, List<TreeFile> entries, boolean isCut,
+			ThreadMaster threadMaster) {
 		try {
-			targetDirectory.loadChildren();
 			for (TreeFile entry : entries) {
 				Path sourcePath = entry.getPath();
 				Path targetPath = targetDirectory.getPath().resolve(sourcePath.getFileName());
 				if (Files.exists(targetPath)) {
-					new WarningPopUP("File exists", "A file or directory named \"" + targetPath.getFileName()
-							+ "\" already exists in the target directory.", tree)
-						.startManaged();
+					threadMaster.executeOnEDT(() -> new WarningPopUP("File exists", "A file or directory named \""
+							+ targetPath.getFileName() + "\" already exists in the target directory.", tree)
+						.startManaged());
 					return;
 				}
 				if (isCut) {
@@ -174,20 +180,25 @@ public final class TreeFileActions {
 				}
 			}
 			targetDirectory.refreshChildren();
-			refreshDirectoryNode(targetDirectory);
-			if (isCut) {
-				TreeFileClipboard.getInstance().clear();
-			}
+			threadMaster.executeOnEDT(() -> {
+				refreshDirectoryNode(targetDirectory);
+				if (isCut) {
+					TreeFileClipboard.getInstance().clear();
+				}
+			});
 		}
 		catch (IllegalArgumentException exception) {
-			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
+			threadMaster
+				.executeOnEDT(() -> new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged());
 		}
 		catch (FileAlreadyExistsException exception) {
-			new WarningPopUP("File exists", "A file or directory with that name already exists.", tree).startManaged();
+			threadMaster.executeOnEDT(
+					() -> new WarningPopUP("File exists", "A file or directory with that name already exists.", tree)
+						.startManaged());
 		}
 		catch (IOException exception) {
 			LOGGER.error("Unable to paste.", exception);
-			showError(exception);
+			threadMaster.executeOnEDT(() -> showError(exception));
 		}
 	}
 
@@ -240,7 +251,7 @@ public final class TreeFileActions {
 		new InputPopUP("Rename", "New name for: " + selected.getName(), tree, this::renameSelected).startManaged();
 	}
 
-	private void renameSelected(String name) {
+	void renameSelected(String name) {
 		TreeFile selected = state.getSelected();
 		TreePath selectedPath = tree.getSelectionPath();
 		if (name == null || name.isBlank() || !isSelectedPath(selectedPath, selected)) {
@@ -251,20 +262,27 @@ public final class TreeFileActions {
 		if (parentDirectory == null) {
 			return;
 		}
-
-		try {
-			Path renamedPath = fileService.renameFile(selected.getPath(), name);
-			parentDirectory.refreshChildren();
-			refreshDirectoryNode(parentDirectory);
-			selectPath(renamedPath);
-		}
-		catch (IllegalArgumentException exception) {
-			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
-		}
-		catch (IOException exception) {
-			LOGGER.error("Unable to rename {}.", selected.getPath(), exception);
-			showError(exception);
-		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		Path selectedPathOnDisk = selected.getPath();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				Path renamedPath = fileService.renameFile(selectedPathOnDisk, name);
+				List<TreeFile> refreshedChildren = parentDirectory.readChildrenFromDisk();
+				threadMaster.executeOnEDT(() -> {
+					parentDirectory.replaceChildren(refreshedChildren);
+					refreshDirectoryNode(parentDirectory);
+					selectPath(renamedPath);
+				});
+			}
+			catch (IllegalArgumentException exception) {
+				threadMaster
+					.executeOnEDT(() -> new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged());
+			}
+			catch (IOException exception) {
+				LOGGER.error("Unable to rename {}.", selectedPathOnDisk, exception);
+				threadMaster.executeOnEDT(() -> showError(exception));
+			}
+		}));
 	}
 
 	private void promptDelete() {
@@ -283,13 +301,34 @@ public final class TreeFileActions {
 		if (confirmation != JOptionPane.YES_OPTION) {
 			return;
 		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		Directory parentDirectory = getParentDirectory(selectedPath);
+		threadMaster.register(
+				new RunnableNode(() -> deleteInBackground(selectedPath, selected, parentDirectory, threadMaster)));
+	}
 
+	private void deleteInBackground(TreePath selectedPath, TreeFile selected, Directory parentDirectory,
+			ThreadMaster threadMaster) {
 		try {
-			deleteSelected(selectedPath, selected);
+			Path selectedFile = selected.getPath();
+			fileService.deleteFile(selectedFile);
+			if (selectedPath.getParentPath() == null) {
+				Directory replacementRoot = new Directory(selectedFile.getParent());
+				threadMaster.executeOnEDT(() -> tree.setRoot(replacementRoot));
+				return;
+			}
+			if (parentDirectory == null) {
+				return;
+			}
+			parentDirectory.refreshChildren();
+			threadMaster.executeOnEDT(() -> {
+				refreshDirectoryNode(parentDirectory);
+				selectPath(parentDirectory.getPath());
+			});
 		}
 		catch (IOException exception) {
 			LOGGER.error("Unable to delete {}.", selected.getPath(), exception);
-			showError(exception);
+			threadMaster.executeOnEDT(() -> showError(exception));
 		}
 	}
 
@@ -307,25 +346,37 @@ public final class TreeFileActions {
 			.startManaged();
 	}
 
-	private void create(String name, boolean directory, String type) {
+	void create(String name, boolean directory, String type) {
 		if (name == null || name.isBlank()) {
 			return;
 		}
 
 		Directory parent = state.getCurrentDirectory();
-		try {
-			parent.loadChildren();
-			TreeFile created = fileService.createNewFile(parent, name, directory);
-			parent.addChild(created);
-			refreshDirectoryNode(parent);
+		if (parent == null) {
+			return;
 		}
-		catch (IllegalArgumentException exception) {
-			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
-		}
-		catch (IOException exception) {
-			LOGGER.error("Unable to create {} in {}.", type, parent.getPath(), exception);
-			showError(exception);
-		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				List<TreeFile> loadedChildren = parent.areChildrenLoaded() ? null : parent.readChildrenFromDisk();
+				TreeFile created = fileService.createNewFile(parent, name, directory);
+				threadMaster.executeOnEDT(() -> {
+					if (loadedChildren != null) {
+						parent.replaceChildren(loadedChildren);
+					}
+					parent.addChild(created);
+					refreshDirectoryNode(parent);
+				});
+			}
+			catch (IllegalArgumentException exception) {
+				threadMaster
+					.executeOnEDT(() -> new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged());
+			}
+			catch (IOException exception) {
+				LOGGER.error("Unable to create {} in {}.", type, parent.getPath(), exception);
+				threadMaster.executeOnEDT(() -> showError(exception));
+			}
+		}));
 	}
 
 	void refreshDirectoryNode(Directory directory) {

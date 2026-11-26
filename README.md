@@ -170,7 +170,7 @@ dependency above selects the variant automatically: JavaFX 23 on JDK 21+,
 JavaFX 22 on JDK 17–20, on a supported platform; `nojavafx` elsewhere. To pin
 `nojavafx`, `javafx22` or `javafx23`, use the POM-only snippet above.
 
-Supported platforms are Linux x64, Linux arm64 (glibc 2.34+ / Debian 12+ when
+Supported platforms are Linux x64, Linux arm64 (glibc 2.36+ / Debian 12+ when
 JavaFX is selected), Windows x64, macOS x64 and macOS arm64. Linux x86, Windows
 x86 and Windows arm64 always use `nojavafx`. Automatic Linux arm64 builds also
 use `nojavafx` so that the glibc 2.28 baseline is preserved; select `javafx22` or
@@ -205,7 +205,7 @@ Linux builds require a GNU/Linux distribution with **glibc 2.28 or newer**
 (Debian 10+, Ubuntu 18.10+, Fedora 29+, RHEL 8+). Alpine Linux and other
 musl-based distributions are not supported. Audio and video playback is
 optional and additionally needs GTK 3, ALSA or PulseAudio and system FFmpeg.
-The JavaFX `arm64` binaries need **glibc 2.34+ (Debian 12+)**; the `nojavafx`
+The released JavaFX `arm64` binaries require **glibc 2.36+ (Debian 12+)**; the `nojavafx`
 `arm64` packages keep the Debian 10 baseline. All three variants are available on
 Linux `x64`/`arm64`, macOS `x64`/`arm64` and Windows `x64`; Linux `x86`, Windows
 `x86` and Windows `arm64` only receive `nojavafx`. On x64 (also called `amd64`), the
@@ -216,7 +216,7 @@ JavaFX natives need only glibc 2.17, so every variant runs on the baseline.
 | System | Published variants, best first | Minimum system |
 | --- | --- | --- |
 | Linux `x64` / `amd64` | `javafx23` → `javafx22` → `nojavafx` | glibc 2.28 (Debian 10+) |
-| Linux `arm64` | `javafx23` → `javafx22` → `nojavafx` | glibc 2.34 (Debian 12+) for JavaFX; glibc 2.28 (Debian 10+) for `nojavafx`. `javafx23` is the JDK 21 build. |
+| Linux `arm64` | `javafx23` → `javafx22` → `nojavafx` | glibc 2.36 (Debian 12+) for released JavaFX packages; glibc 2.28 (Debian 10+) for `nojavafx`. `javafx23` is the JDK 21 build. |
 | Linux `x86` | `nojavafx` | glibc 2.28 (Debian 10+) |
 | macOS `x64` / `arm64` | `javafx23` → `javafx22` → `nojavafx` | macOS 12 for `javafx23`; macOS 11 (Big Sur) for `javafx22` and `nojavafx` |
 | Windows `x64` | `javafx23` → `javafx22` → `nojavafx` | Windows 10 |

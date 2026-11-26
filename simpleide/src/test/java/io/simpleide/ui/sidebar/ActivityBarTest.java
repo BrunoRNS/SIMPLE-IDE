@@ -11,12 +11,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import javax.swing.Icon;
 import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 
+import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -105,23 +107,33 @@ class ActivityBarTest {
 	@Test
 	void hoverAndSelectionUseDifferentStaticActivityArtwork() throws Exception {
 		boolean[] statesDiffer = new boolean[2];
+		Icon[] idle = new Icon[1];
+		Icon[] hovered = new Icon[1];
+		int[][] idlePixels = new int[1][];
+		int[][] hoveredPixels = new int[1][];
+		JButton[] explorer = new JButton[1];
+		ActivityBar[] bar = new ActivityBar[1];
 		SwingUtilities.invokeAndWait(() -> {
-			ActivityBar bar = new ActivityBar();
-			JButton explorer = buttons(bar).get(0);
+			bar[0] = new ActivityBar();
+			explorer[0] = buttons(bar[0]).get(0);
 
-			bar.setSelected(SidebarView.SEARCH);
-			Icon idleIcon = explorer.getIcon();
-			int[] idle = paintIcon(idleIcon, explorer);
-			explorer.getModel().setRollover(true);
-			Icon hoveredIcon = explorer.getIcon();
-			assertNotSame(idleIcon, hoveredIcon);
-			assertNotEquals(dominantOpaqueColor(idleIcon, explorer), dominantOpaqueColor(hoveredIcon, explorer));
-			int[] hovered = paintIcon(hoveredIcon, explorer);
-			explorer.getModel().setRollover(false);
-			bar.setSelected(SidebarView.EXPLORER);
-			int[] selected = paintIcon(explorer.getIcon(), explorer);
-			statesDiffer[0] = !Arrays.equals(idle, hovered);
-			statesDiffer[1] = !Arrays.equals(idle, selected);
+			bar[0].setSelected(SidebarView.SEARCH);
+			idle[0] = explorer[0].getIcon();
+			idlePixels[0] = paintIcon(idle[0], explorer[0]);
+			explorer[0].getModel().setRollover(true);
+		});
+		await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
+			hovered[0] = explorer[0].getIcon();
+			assertNotSame(idle[0], hovered[0]);
+			assertNotEquals(dominantOpaqueColor(idle[0], explorer[0]), dominantOpaqueColor(hovered[0], explorer[0]));
+			hoveredPixels[0] = paintIcon(hovered[0], explorer[0]);
+		}));
+		SwingUtilities.invokeAndWait(() -> {
+			explorer[0].getModel().setRollover(false);
+			bar[0].setSelected(SidebarView.EXPLORER);
+			Icon selected = explorer[0].getIcon();
+			statesDiffer[0] = !Arrays.equals(idlePixels[0], hoveredPixels[0]);
+			statesDiffer[1] = !Arrays.equals(idlePixels[0], paintIcon(selected, explorer[0]));
 		});
 
 		assertTrue(statesDiffer[0], "hover uses different SVG artwork");

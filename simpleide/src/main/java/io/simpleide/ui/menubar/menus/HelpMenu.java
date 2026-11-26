@@ -1,9 +1,7 @@
 package io.simpleide.ui.menubar.menus;
 
 import java.awt.GridLayout;
-import java.awt.event.ActionEvent;
 
-import javax.swing.AbstractAction;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
@@ -14,6 +12,7 @@ import javax.swing.table.DefaultTableModel;
 
 import io.simpleide.SimpleIDEVersion;
 import io.simpleide.frame.popup.InfoPopUP;
+import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
 
 /**
  * Help menu with keyboard shortcuts, machine information and the about dialog.
@@ -43,12 +42,7 @@ public class HelpMenu extends JMenu {
 	}
 
 	private JMenuItem createMenuItem(String label, Runnable action) {
-		return new JMenuItem(new AbstractAction(label) {
-			@Override
-			public void actionPerformed(ActionEvent event) {
-				action.run();
-			}
-		});
+		return new JMenuItem(new SwingActionNode(label, action));
 	}
 
 	private void showKeyboardShortcuts() {

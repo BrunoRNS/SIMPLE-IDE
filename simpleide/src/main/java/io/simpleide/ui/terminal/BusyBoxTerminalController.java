@@ -8,8 +8,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import org.slf4j.Logger;
@@ -443,78 +441,6 @@ public final class BusyBoxTerminalController {
 		synchronized (tabsLock) {
 			return tabs.get(sessionId);
 		}
-	}
-
-	private static final class TerminalTab {
-
-		private final BigInteger id;
-
-		private final AtomicBoolean cleaned = new AtomicBoolean();
-
-		private final AtomicBoolean closeTaskStarted = new AtomicBoolean();
-
-		private final AtomicBoolean cleanupScheduled = new AtomicBoolean();
-
-		private final AtomicReference<TerminalTabSnapshot> state = new AtomicReference<>(
-				new TerminalTabSnapshot(null, null, false, false, false));
-
-		private TerminalTab(BigInteger id) {
-			this.id = id;
-		}
-
-		private boolean isLaunchComplete() {
-			return state.get().launchComplete();
-		}
-
-		private TerminalTabSnapshot snapshot() {
-			return state.get();
-		}
-
-		private void setSession(BusyBoxTerminalSession session) {
-			state.updateAndGet(snapshot -> snapshot.withSession(session));
-		}
-
-		private void setLaunchFailure(Throwable failure) {
-			state.updateAndGet(snapshot -> snapshot.withLaunchFailure(failure));
-		}
-
-		private void setLaunchSucceeded(boolean succeeded) {
-			state.updateAndGet(snapshot -> snapshot.withLaunchSucceeded(succeeded));
-		}
-
-		private void setLaunchComplete(boolean complete) {
-			state.updateAndGet(snapshot -> snapshot.withLaunchComplete(complete));
-		}
-
-		private void setCloseRequested(boolean requested) {
-			state.updateAndGet(snapshot -> snapshot.withCloseRequested(requested));
-		}
-
-	}
-
-	private record TerminalTabSnapshot(BusyBoxTerminalSession session, Throwable launchFailure, boolean launchSucceeded,
-			boolean launchComplete, boolean closeRequested) {
-
-		private TerminalTabSnapshot withSession(BusyBoxTerminalSession session) {
-			return new TerminalTabSnapshot(session, launchFailure, launchSucceeded, launchComplete, closeRequested);
-		}
-
-		private TerminalTabSnapshot withLaunchFailure(Throwable failure) {
-			return new TerminalTabSnapshot(session, failure, launchSucceeded, launchComplete, closeRequested);
-		}
-
-		private TerminalTabSnapshot withLaunchSucceeded(boolean succeeded) {
-			return new TerminalTabSnapshot(session, launchFailure, succeeded, launchComplete, closeRequested);
-		}
-
-		private TerminalTabSnapshot withLaunchComplete(boolean complete) {
-			return new TerminalTabSnapshot(session, launchFailure, launchSucceeded, complete, closeRequested);
-		}
-
-		private TerminalTabSnapshot withCloseRequested(boolean requested) {
-			return new TerminalTabSnapshot(session, launchFailure, launchSucceeded, launchComplete, requested);
-		}
-
 	}
 
 }

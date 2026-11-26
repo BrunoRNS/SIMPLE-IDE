@@ -10,7 +10,7 @@ import java.math.BigInteger;
  * @param level depth of the node in the thread tree
  * @param id stable identifier of the node
  * @author BrunoRNS
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public record NodeRecord(Runnable onStart, Runnable onClose, Integer level, BigInteger id) {
 }

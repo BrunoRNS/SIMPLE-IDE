@@ -15,7 +15,7 @@ package io.simpleide.lsp;
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
  * @author LuisOtavio13
- * @since v1.1.0
+ * @since v1.0.0beta
  */
 public record LspStatus(String id, String serverName, State state) {
 

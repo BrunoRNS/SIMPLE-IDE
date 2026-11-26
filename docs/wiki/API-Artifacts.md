@@ -152,8 +152,8 @@ Omit the property for automatic selection:
 | Any | Linux `x86`/`arm64`, Windows `x86`/`arm64` | `nojavafx` |
 
 Automatic Linux `arm64` builds use `nojavafx` to preserve the glibc 2.28
-baseline. Forced `javafx22`/`javafx23` profiles are available there when the
-consumer runs on glibc 2.34+ (Debian 12+); `javafx23` also requires JDK 21.
+baseline. Released JavaFX `arm64` artifacts require Debian 12+ with glibc 2.36+;
+`javafx23` also requires JDK 21 when building from source.
 Pass the property on the command line, in `.mvn/maven.config` or in
 `MAVEN_OPTS`; it is not read from the consumer POM `<properties>`.
 

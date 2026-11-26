@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -22,6 +24,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.git.GitStatusEntry.GitStatus;
+import io.simpleide.thread.ManagedThreadPool;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Executes Git operations for the repository associated with the opened folder.
@@ -32,6 +37,8 @@ import io.simpleide.git.GitStatusEntry.GitStatus;
 public final class GitService {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(GitService.class);
+
+	private static final ManagedThreadPool PROCESS_POOL = ThreadMaster.getInstance().createThreadPool("git-process", 4);
 
 	/**
 	 * Creates a Git service.
@@ -357,8 +364,34 @@ public final class GitService {
 		command.addAll(List.of(arguments));
 		String step = arguments.length == 0 ? "command" : arguments[0];
 		LOGGER.info("Git step started: {} (repository={}).", step, repository.getFileName());
+		CompletableFuture<GitOperationResult> result = new CompletableFuture<>();
+		NodePattern task = PROCESS_POOL.execute(() -> {
+			try {
+				result.complete(runManagedProcess(repository, command, step));
+			}
+			catch (RuntimeException exception) {
+				result.completeExceptionally(exception);
+			}
+		});
 		try {
-			Process process = nonInteractiveProcess(command).start();
+			return result.get();
+		}
+		catch (InterruptedException exception) {
+			ThreadMaster.getInstance().removeNodeCascade(task);
+			Thread.currentThread().interrupt();
+			return new GitOperationResult(false, -1, "", "Git command was interrupted.");
+		}
+		catch (ExecutionException exception) {
+			Throwable cause = exception.getCause();
+			LOGGER.error("Git step {} failed unexpectedly for repository {}.", step, repository.getFileName(), cause);
+			return new GitOperationResult(false, -1, "", cause == null ? exception.getMessage() : cause.getMessage());
+		}
+	}
+
+	private static GitOperationResult runManagedProcess(Path repository, List<String> command, String step) {
+		Process process = null;
+		try {
+			process = nonInteractiveProcess(command).start();
 			closeStandardInput(process, step);
 			String output;
 			try (var stream = process.getInputStream()) {
@@ -377,8 +410,10 @@ public final class GitService {
 			return new GitOperationResult(false, -1, "", exception.getMessage());
 		}
 		catch (InterruptedException exception) {
+			if (process != null) {
+				process.destroyForcibly();
+			}
 			Thread.currentThread().interrupt();
-			LOGGER.warn("Git step {} was interrupted for repository {}.", step, repository.getFileName(), exception);
 			return new GitOperationResult(false, -1, "", "Git command was interrupted.");
 		}
 	}

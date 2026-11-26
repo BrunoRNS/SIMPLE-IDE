@@ -9,18 +9,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
-import java.util.concurrent.CompletionException;
 import java.util.function.Consumer;
 
-import javax.swing.Icon;
-import javax.swing.JComponent;
-import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.JPanel;
 import javax.swing.JTabbedPane;
-import javax.swing.SwingConstants;
-import javax.swing.UIManager;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -32,12 +24,8 @@ import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
-import io.simpleide.ui.icon.MaterialIcons;
 import io.simpleide.ui.menubar.ThemeManager;
-import io.simpleide.ui.treefile.FileContentKind;
 import io.simpleide.ui.treefile.SimpleIDEFile;
-import io.simpleide.ui.treefile.TypeFile;
 
 /**
  * Owns the editor tab set and the language support attached to it.
@@ -61,21 +49,25 @@ public class EditorManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EditorManager.class);
 
-	private final Map<Path, EditorTab> openedEditors = new HashMap<>();
+	final Map<Path, EditorTab> openedEditors = new HashMap<>();
 
-	private final List<Consumer<EditorTab>> selectedTabListeners = new ArrayList<>();
+	final List<Consumer<EditorTab>> selectedTabListeners = new ArrayList<>();
 
-	private final List<Consumer<EditorTab>> diagnosticsListeners = new ArrayList<>();
+	final List<Consumer<EditorTab>> diagnosticsListeners = new ArrayList<>();
 
 	private static EditorManager instance = null;
 
 	private final DocumentManager manager;
 
-	private final LanguageServerManager languageServers;
+	final LanguageServerManager languageServers;
 
-	private final EditorActions editorActions;
+	final EditorActions editorActions;
 
-	private JTabbedPane jTabbedPane;
+	JTabbedPane jTabbedPane;
+
+	private final EditorTabLoader tabLoader;
+
+	private final EditorTabHeaders tabHeaders;
 
 	private Runnable createFile;
 
@@ -124,6 +116,8 @@ public class EditorManager {
 		this.manager = new DocumentManager();
 		this.languageServers = new LanguageServerManager(statusListener);
 		this.editorActions = new EditorActions(this);
+		this.tabLoader = new EditorTabLoader(this);
+		this.tabHeaders = new EditorTabHeaders(this);
 	}
 
 	/**
@@ -220,7 +214,7 @@ public class EditorManager {
 			return;
 		}
 
-		Document document = manager.open(path, getLanguageId(file.getTypeFile()));
+		Document document = manager.open(path, EditorTabLoader.getLanguageId(file.getTypeFile()));
 
 		EditorTab editorTab;
 		try {
@@ -240,16 +234,16 @@ public class EditorManager {
 		removeWelcomeScreen();
 
 		jTabbedPane.addTab(file.getName(), editorTab.getFileIcon(), editorTab);
-		jTabbedPane.setTabComponentAt(jTabbedPane.indexOfComponent(editorTab), createTabHeader(editorTab));
+		jTabbedPane.setTabComponentAt(jTabbedPane.indexOfComponent(editorTab), tabHeaders.createTabHeader(editorTab));
 
 		openedEditors.put(path, editorTab);
 		jTabbedPane.setSelectedComponent(editorTab);
 
 		if (file.isContentLoaded()) {
-			configureLoadedTab(editorTab, path, true);
+			tabLoader.configureLoadedTab(editorTab, path, true);
 		}
 		else {
-			loadFileInBackground(editorTab, path, true);
+			tabLoader.loadFileInBackground(editorTab, path, true);
 		}
 	}
 
@@ -270,14 +264,14 @@ public class EditorManager {
 			jTabbedPane.removeAll();
 		}
 		jTabbedPane.addTab(tab.getName(), tab.getFileIcon(), tab);
-		jTabbedPane.setTabComponentAt(jTabbedPane.indexOfComponent(tab), createTabHeader(tab));
+		jTabbedPane.setTabComponentAt(jTabbedPane.indexOfComponent(tab), tabHeaders.createTabHeader(tab));
 		jTabbedPane.setSelectedComponent(tab);
 		Path path = tab.getFile().getPath().toAbsolutePath().normalize();
 		if (tab.getFile().isContentLoaded()) {
-			configureLoadedTab(tab, path, false);
+			tabLoader.configureLoadedTab(tab, path, false);
 		}
 		else {
-			loadFileInBackground(tab, path, false);
+			tabLoader.loadFileInBackground(tab, path, false);
 		}
 	}
 
@@ -433,130 +427,7 @@ public class EditorManager {
 
 	/** Refreshes file icons after a theme or global font-size change. */
 	public static void refreshFileIcons() {
-		EditorManager manager = instance;
-		if (manager == null || manager.jTabbedPane == null) {
-			return;
-		}
-		java.awt.Color tabBackground = UIManager.getColor("TabbedPane.background");
-		java.awt.Color tabForeground = UIManager.getColor("TabbedPane.foreground");
-		if (tabBackground != null) {
-			manager.jTabbedPane.setBackground(tabBackground);
-		}
-		if (tabForeground != null) {
-			manager.jTabbedPane.setForeground(tabForeground);
-		}
-		int selectedIndex = manager.jTabbedPane.getSelectedIndex();
-		for (int tabIndex = 0; tabIndex < manager.jTabbedPane.getTabCount(); tabIndex++) {
-			Component page = manager.jTabbedPane.getComponentAt(tabIndex);
-			if (!(page instanceof EditorTab tab)) {
-				if (page instanceof JComponent component && tabBackground != null) {
-					component.setBackground(tabBackground);
-					component.setOpaque(true);
-				}
-				continue;
-			}
-			Icon icon = MaterialIcons.forFile(tab.getFile().getPath());
-			if (tab.getEditor() != null) {
-				tab.getEditor().refreshUiFont();
-			}
-			manager.jTabbedPane.setIconAt(tabIndex, icon);
-			tab.getButtonExit().refreshIconSize();
-			Component header = manager.jTabbedPane.getTabComponentAt(tabIndex);
-			if (header instanceof JPanel panel && panel.getComponentCount() > 0
-					&& panel.getComponent(0) instanceof JLabel label) {
-				label.setIcon(icon);
-				label.setForeground(tabForeground(tabIndex == selectedIndex));
-				tab.getButtonExit().setForeground(tabForeground(tabIndex == selectedIndex));
-				panel.revalidate();
-				panel.repaint();
-			}
-		}
-	}
-
-	private static java.awt.Color tabForeground(boolean selected) {
-		java.awt.Color foreground = UIManager
-			.getColor(selected ? "TabbedPane.selectedForeground" : "TabbedPane.foreground");
-		return foreground != null ? foreground : UIManager.getColor("Label.foreground");
-	}
-
-	private JPanel createTabHeader(EditorTab tab) {
-		JPanel header = new JPanel();
-		header.setLayout(new javax.swing.BoxLayout(header, javax.swing.BoxLayout.LINE_AXIS));
-		header.setOpaque(false);
-		JLabel fileLabel = new JLabel(tab.getName(), tab.getFileIcon(), SwingConstants.LEADING);
-		fileLabel.setAlignmentY(Component.CENTER_ALIGNMENT);
-		fileLabel.setForeground(tabForeground(true));
-		tab.getButtonExit().setAlignmentY(Component.CENTER_ALIGNMENT);
-		tab.getButtonExit().setForeground(tabForeground(true));
-		header.add(fileLabel);
-		header.add(tab.getButtonExit());
-		return header;
-	}
-
-	private void loadFileInBackground(EditorTab tab, Path path, boolean connectLanguageServer) {
-		ThreadMaster threadMaster = ThreadMaster.getInstance();
-		try {
-			threadMaster.register(new RunnableNode(() -> {
-				try {
-					tab.getFile().loadContent();
-					threadMaster.executeOnEDT(() -> {
-						if (tab.isClosed() || !isTabAttached(tab, path)) {
-							return;
-						}
-						try {
-							tab.showLoadedContent();
-							configureLoadedTab(tab, path, connectLanguageServer);
-						}
-						catch (RuntimeException | LinkageError error) {
-							LOGGER.error("Unable to initialize the content viewer for {}.", path, error);
-							tab.showLoadError(error);
-						}
-					});
-				}
-				catch (IOException error) {
-					LOGGER.error("Unable to load file {}.", path, error);
-					threadMaster.executeOnEDT(() -> {
-						if (!tab.isClosed() && isTabAttached(tab, path)) {
-							tab.showLoadError(error);
-						}
-					});
-				}
-			}));
-		}
-		catch (RuntimeException error) {
-			LOGGER.error("Unable to schedule loading file {}.", path, error);
-			tab.showLoadError(error);
-		}
-	}
-
-	private void configureLoadedTab(EditorTab tab, Path path, boolean connectLanguageServer) {
-		editorActions.configure(tab);
-		try {
-			tab.enableLocalLanguageSupport();
-		}
-		catch (RuntimeException | LinkageError error) {
-			LOGGER.error("Unable to initialize local language support for {}; the file remains open.", path, error);
-		}
-		try {
-			if (tab.getEditor() != null) {
-				ThemeManager.getInstance().register(tab.getEditor());
-			}
-			if (tab.getHexEditor() != null) {
-				ThemeManager.getInstance().register(tab.getHexEditor());
-			}
-		}
-		catch (RuntimeException error) {
-			LOGGER.error("Unable to apply the current theme to {}; the file remains open.", path, error);
-		}
-		if (connectLanguageServer && tab.getEditor() != null
-				&& tab.getFile().getContentKind() == FileContentKind.TEXT) {
-			languageServers.connect(tab.getDocument(), tab::publishDiagnostics)
-				.whenComplete((client, error) -> completeLanguageServerConnection(tab, client, error));
-		}
-	}
-
-	private boolean isTabAttached(EditorTab tab, Path path) {
-		return openedEditors.get(path) == tab || jTabbedPane.indexOfComponent(tab) >= 0;
+		EditorTabHeaders.refreshFileIcons(instance);
 	}
 
 	void saveTab(EditorTab tab) {
@@ -584,22 +455,6 @@ public class EditorManager {
 		jTabbedPane.addTab("Welcome", EditorWelcomeScreen.create(openFolder, createFile));
 	}
 
-	private String getLanguageId(TypeFile type) {
-		return switch (type) {
-			case JAVA -> "java";
-			case CSHARP -> "csharp";
-			case KOTLIN -> "kotlin";
-			case GROOVY -> "groovy";
-			case JAVASCRIPT -> "javascript";
-			case GO -> "go";
-			case RUST -> "rust";
-			case PYTHON -> "python";
-			case C -> "c";
-			case CPP -> "cpp";
-			default -> "plaintext";
-		};
-	}
-
 	/**
 	 * Connects a document to its language server and returns the initialized client.
 	 *
@@ -616,83 +471,23 @@ public class EditorManager {
 	}
 
 	static void completeLanguageServerConnection(EditorTab tab, LspClient client, Throwable error) {
-		if (error != null) {
-			Throwable cause = error;
-
-			if (error instanceof CompletionException && error.getCause() != null) {
-				cause = error.getCause();
-			}
-			if (cause instanceof CancellationException) {
-				return;
-			}
-
-			LOGGER.error("LSP connection failed for {}.", tab.getFile().getPath(), cause);
-
-			if (client != null) {
-				try {
-					client.close();
-				}
-				catch (Exception closeError) {
-					LOGGER.warn("Failed to close LSP client.", closeError);
-				}
-			}
-		}
-
-		ThreadMaster.getInstance().executeOnEDT(() -> {
-			if (client == null || error != null) {
-				tab.enableLocalLanguageSupport();
-			}
-			else {
-				tab.connectLanguageServer(client);
-			}
-		});
+		EditorTabLoader.completeLanguageServerConnection(tab, client, error);
 	}
 
 	private void configJTabbedPane() {
 		this.jTabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
 		this.jTabbedPane.addChangeListener(new ChangeNode(event -> {
-			refreshTabHeaderColors();
+			tabHeaders.refreshTabHeaderColors();
 			notifySelectedTab();
 		}));
 	}
 
 	private void notifySelectedTab() {
-		EditorTab selected = getSelectedEditorTab();
-		for (Consumer<EditorTab> listener : selectedTabListeners) {
-			listener.accept(selected);
-		}
+		tabHeaders.notifySelectedTab();
 	}
 
 	private void notifyDiagnostics(EditorTab tab) {
-		if (diagnosticsListeners.isEmpty()) {
-			return;
-		}
-		try {
-			ThreadMaster.getInstance().executeOnEDT(() -> {
-				for (Consumer<EditorTab> listener : diagnosticsListeners) {
-					listener.accept(tab);
-				}
-			});
-		}
-		catch (IllegalStateException error) {
-			LOGGER.debug("Diagnostics listeners were not notified because the thread manager is shut down.", error);
-		}
-	}
-
-	private void refreshTabHeaderColors() {
-		int selectedIndex = jTabbedPane.getSelectedIndex();
-		for (int tabIndex = 0; tabIndex < jTabbedPane.getTabCount(); tabIndex++) {
-			Component header = jTabbedPane.getTabComponentAt(tabIndex);
-			if (!(header instanceof JPanel panel)) {
-				continue;
-			}
-			java.awt.Color foreground = tabForeground(tabIndex == selectedIndex);
-			for (Component child : panel.getComponents()) {
-				if (foreground != null) {
-					child.setForeground(foreground);
-				}
-			}
-		}
+		tabHeaders.notifyDiagnostics(tab);
 	}
 
 	private void removeWelcomeScreen() {

@@ -28,8 +28,6 @@ import javax.swing.JSeparator;
 import javax.swing.JTextField;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.DefaultTreeModel;
@@ -43,6 +41,7 @@ import io.simpleide.search.WorkspaceSearchService.SearchMatch;
 import io.simpleide.search.WorkspaceSearchService.SearchOptions;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
 import io.simpleide.thread.nodes.edt.listeners.MouseNode;
 import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
@@ -253,22 +252,7 @@ public final class WorkspaceSearchPanel extends JPanel {
 		resultPanel.add(resultContent, BorderLayout.CENTER);
 		body.add(resultPanel, BorderLayout.CENTER);
 
-		resultFilterField.getDocument().addDocumentListener(new DocumentListener() {
-			@Override
-			public void insertUpdate(DocumentEvent event) {
-				applyResultFilter();
-			}
-
-			@Override
-			public void removeUpdate(DocumentEvent event) {
-				applyResultFilter();
-			}
-
-			@Override
-			public void changedUpdate(DocumentEvent event) {
-				applyResultFilter();
-			}
-		});
+		resultFilterField.getDocument().addDocumentListener(new DocumentNode(this::applyResultFilter));
 	}
 
 	private static void nameOption(JCheckBox option, String name) {

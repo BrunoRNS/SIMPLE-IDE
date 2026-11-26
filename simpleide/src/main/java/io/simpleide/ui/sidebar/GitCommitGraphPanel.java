@@ -6,7 +6,6 @@ import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +19,8 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 
 import io.simpleide.git.GitCommit;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.MouseNode;
 
 /**
  * Swing commit graph backed by JGit commit metadata.
@@ -44,32 +45,24 @@ public final class GitCommitGraphPanel extends JPanel {
 	 */
 	public GitCommitGraphPanel() {
 		setPreferredSize(new Dimension(0, ROW_HEIGHT));
-		addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent event) {
-				GitCommit commit = commitAt(event.getY());
-				if (commit == null) {
-					return;
-				}
-				if (event.getClickCount() == 2) {
-					showDetails(commit);
-				}
+		MouseNode mouseNode = new MouseNode().onClick(event -> {
+			GitCommit commit = commitAt(event.getY());
+			if (commit == null) {
+				return;
 			}
-
-			@Override
-			public void mousePressed(MouseEvent event) {
-				if (event.isPopupTrigger()) {
-					showCommitMenu(event);
-				}
+			if (event.getClickCount() == 2) {
+				showDetails(commit);
 			}
-
-			@Override
-			public void mouseReleased(MouseEvent event) {
-				if (event.isPopupTrigger()) {
-					showCommitMenu(event);
-				}
+		}).onPress(event -> {
+			if (event.isPopupTrigger()) {
+				showCommitMenu(event);
+			}
+		}).onRelease(event -> {
+			if (event.isPopupTrigger()) {
+				showCommitMenu(event);
 			}
 		});
+		addMouseListener(mouseNode);
 	}
 
 	/**
@@ -117,9 +110,9 @@ public final class GitCommitGraphPanel extends JPanel {
 		}
 		JPopupMenu menu = new JPopupMenu();
 		JMenuItem details = new JMenuItem("Show commit details");
-		details.addActionListener(action -> showDetails(commit));
+		details.addActionListener(new ActionNode(action -> showDetails(commit)));
 		JMenuItem checkout = new JMenuItem("Checkout commit");
-		checkout.addActionListener(action -> checkoutListener.accept(commit));
+		checkout.addActionListener(new ActionNode(action -> checkoutListener.accept(commit)));
 		menu.add(details);
 		menu.add(checkout);
 		menu.show(this, event.getX(), event.getY());

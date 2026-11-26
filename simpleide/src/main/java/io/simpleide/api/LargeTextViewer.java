@@ -8,7 +8,7 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.swing.JButton;
@@ -16,7 +16,10 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
-import javax.swing.SwingWorker;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.NodePattern;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 
 /**
  * Memory-bounded, paginated read-only view for large UTF-8 text files.
@@ -44,7 +47,7 @@ public final class LargeTextViewer extends JPanel implements AutoCloseable {
 
 	private long page;
 
-	private volatile boolean closed;
+	private final AtomicBoolean closed = new AtomicBoolean();
 
 	/**
 	 * Creates a read-only text viewer that loads one bounded page at a time.
@@ -61,8 +64,8 @@ public final class LargeTextViewer extends JPanel implements AutoCloseable {
 		header.add(new JLabel("Large text file — read-only paged view"), BorderLayout.WEST);
 		header.add(status, BorderLayout.EAST);
 		JPanel navigation = new JPanel();
-		previous.addActionListener(event -> showPage(page - 1));
-		next.addActionListener(event -> showPage(page + 1));
+		previous.addActionListener(new ActionNode(event -> showPage(page - 1)));
+		next.addActionListener(new ActionNode(event -> showPage(page + 1)));
 		navigation.add(previous);
 		navigation.add(next);
 		add(header, BorderLayout.NORTH);
@@ -82,7 +85,7 @@ public final class LargeTextViewer extends JPanel implements AutoCloseable {
 	}
 
 	private void showPage(long requestedPage) {
-		if (closed) {
+		if (closed.get()) {
 			return;
 		}
 		long pageCount = Math.max(1, size == 0 ? 1 : 1 + (size - 1) / PAGE_BYTES);
@@ -92,33 +95,33 @@ public final class LargeTextViewer extends JPanel implements AutoCloseable {
 		status.setText("Loading page " + (page + 1) + " of " + pageCount + "...");
 		previous.setEnabled(false);
 		next.setEnabled(false);
-		new SwingWorker<String, Void>() {
-			@Override
-			protected String doInBackground() throws IOException {
-				return readPage(selectedPage);
+		NodePattern root = ThreadMaster.getInstance().getROOT();
+		ThreadMaster.getInstance().execute(root, () -> {
+			String pageText = null;
+			IOException failure = null;
+			try {
+				pageText = readPage(selectedPage);
 			}
-
-			@Override
-			protected void done() {
-				if (closed || generation != loadGeneration.get()) {
+			catch (IOException error) {
+				failure = error;
+			}
+			String loadedText = pageText;
+			IOException loadFailure = failure;
+			ThreadMaster.getInstance().executeOnEDT(() -> {
+				if (closed.get() || generation != loadGeneration.get()) {
 					return;
 				}
-				try {
-					text.setText(get());
-					text.setCaretPosition(0);
-					status.setText("Page " + (selectedPage + 1) + " of " + pageCount);
-					previous.setEnabled(selectedPage > 0);
-					next.setEnabled(selectedPage + 1 < pageCount);
+				if (loadFailure != null) {
+					showReadError(selectedPage, loadFailure);
+					return;
 				}
-				catch (InterruptedException error) {
-					Thread.currentThread().interrupt();
-					showReadError(selectedPage, error);
-				}
-				catch (ExecutionException error) {
-					showReadError(selectedPage, error.getCause());
-				}
-			}
-		}.execute();
+				text.setText(loadedText);
+				text.setCaretPosition(0);
+				status.setText("Page " + (selectedPage + 1) + " of " + pageCount);
+				previous.setEnabled(selectedPage > 0);
+				next.setEnabled(selectedPage + 1 < pageCount);
+			});
+		});
 	}
 
 	private String readPage(long pageNumber) throws IOException {
@@ -182,7 +185,9 @@ public final class LargeTextViewer extends JPanel implements AutoCloseable {
 
 	@Override
 	public void close() {
-		closed = true;
+		if (!closed.compareAndSet(false, true)) {
+			return;
+		}
 		loadGeneration.incrementAndGet();
 		Runnable release = () -> text.setText("");
 		if (javax.swing.SwingUtilities.isEventDispatchThread()) {

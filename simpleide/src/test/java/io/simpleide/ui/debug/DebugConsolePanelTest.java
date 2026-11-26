@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import javax.swing.JList;
@@ -13,6 +14,7 @@ import javax.swing.JToggleButton;
 import javax.swing.SwingUtilities;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 import org.eclipse.lsp4j.Diagnostic;
 import org.eclipse.lsp4j.DiagnosticSeverity;
@@ -92,7 +94,8 @@ class DebugConsolePanelTest {
 
 		assertThat(listReference.get().getModel().getSize()).isEqualTo(2);
 		SwingUtilities.invokeAndWait(() -> warningFilter.get().doClick());
-		assertThat(listReference.get().getModel().getSize()).isEqualTo(1);
+		await().atMost(5, TimeUnit.SECONDS)
+			.untilAsserted(() -> assertThat(listReference.get().getModel().getSize()).isEqualTo(1));
 	}
 
 	private static Diagnostic diagnostic(DiagnosticSeverity severity, String message) {

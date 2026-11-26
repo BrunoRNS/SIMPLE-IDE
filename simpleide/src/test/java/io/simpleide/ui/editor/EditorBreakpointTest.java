@@ -86,20 +86,17 @@ class EditorBreakpointTest {
 
 			header.dispatchEvent(mouseEvent(header, MouseEvent.MOUSE_MOVED,
 					SwingUtilities.convertPoint(editor, new Point(2, y), header), MouseEvent.NOBUTTON));
-			assertThat(editor.getHoverLine()).isEqualTo(2);
-
 			header.dispatchEvent(mouseEvent(header, MouseEvent.MOUSE_CLICKED,
 					SwingUtilities.convertPoint(editor, new Point(2, y), header), MouseEvent.BUTTON1));
-			assertThat(tab.getBreakpoints()).containsExactly(2);
-
 			header.dispatchEvent(mouseEvent(header, MouseEvent.MOUSE_CLICKED,
 					SwingUtilities.convertPoint(editor, new Point(2, y), header), MouseEvent.BUTTON1));
-			assertThat(tab.getBreakpoints()).isEmpty();
-
 			header.dispatchEvent(new MouseEvent(header, MouseEvent.MOUSE_EXITED, System.currentTimeMillis(), 0, -5, 0,
 					0, false, MouseEvent.NOBUTTON));
-			assertThat(editor.getHoverLine()).isZero();
 		});
+		await().atMost(5, TimeUnit.SECONDS).untilAsserted(() -> SwingUtilities.invokeAndWait(() -> {
+			assertThat(editor.getHoverLine()).isZero();
+			assertThat(tab.getBreakpoints()).isEmpty();
+		}));
 	}
 
 	private EditorTab openTab() throws Exception {

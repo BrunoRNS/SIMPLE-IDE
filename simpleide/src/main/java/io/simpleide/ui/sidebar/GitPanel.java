@@ -3,7 +3,6 @@ package io.simpleide.ui.sidebar;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.nio.file.Path;
 import java.util.List;
@@ -38,6 +37,8 @@ import io.simpleide.git.GitOperationResult;
 import io.simpleide.git.GitService;
 import io.simpleide.git.GitStatusEntry;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.MouseNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
@@ -79,6 +80,8 @@ public final class GitPanel extends JPanel {
 
 	private long refreshGeneration;
 
+	private long repositoryGeneration;
+
 	/**
 	 * Creates the Source Control panel.
 	 */
@@ -100,14 +103,11 @@ public final class GitPanel extends JPanel {
 
 		statusList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
 		statusList.setCellRenderer(new StatusRenderer());
-		statusList.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent event) {
-				if (event.getClickCount() == 1) {
-					openSelectedFile();
-				}
+		statusList.addMouseListener(new MouseNode().onClick(event -> {
+			if (event.getClickCount() == 1) {
+				openSelectedFile();
 			}
-		});
+		}));
 		graph.setCheckoutListener(this::checkoutCommit);
 	}
 
@@ -127,7 +127,7 @@ public final class GitPanel extends JPanel {
 		branchRow.add(branchBox);
 		branchRow.add(Box.createHorizontalStrut(4));
 		JButton switchBranch = new JButton("Switch");
-		switchBranch.addActionListener(event -> switchBranch());
+		switchBranch.addActionListener(new ActionNode(event -> switchBranch()));
 		branchRow.add(switchBranch);
 		actions.add(branchRow);
 		actions.add(Box.createVerticalStrut(4));
@@ -147,7 +147,7 @@ public final class GitPanel extends JPanel {
 		commitMessageField.putClientProperty("JTextField.placeholderText", "Commit message");
 		commitRow.add(commitMessageField, BorderLayout.CENTER);
 		JButton commit = new JButton("Commit");
-		commit.addActionListener(event -> commit());
+		commit.addActionListener(new ActionNode(event -> commit()));
 		commitRow.add(commit, BorderLayout.EAST);
 		commitRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 		actions.add(Box.createVerticalStrut(4));
@@ -163,7 +163,7 @@ public final class GitPanel extends JPanel {
 		identityFields.add(authorEmailField, BorderLayout.SOUTH);
 		identityRow.add(identityFields, BorderLayout.CENTER);
 		JButton configure = new JButton("Set local identity");
-		configure.addActionListener(event -> configureIdentity());
+		configure.addActionListener(new ActionNode(event -> configureIdentity()));
 		identityRow.add(configure, BorderLayout.EAST);
 		identityRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 		actions.add(Box.createVerticalStrut(4));
@@ -178,7 +178,7 @@ public final class GitPanel extends JPanel {
 
 	private void addAction(JPanel panel, String label, Runnable action) {
 		JButton button = new JButton(label);
-		button.addActionListener(event -> action.run());
+		button.addActionListener(new ActionNode(event -> action.run()));
 		panel.add(button);
 		panel.add(Box.createHorizontalStrut(3));
 	}
@@ -188,11 +188,33 @@ public final class GitPanel extends JPanel {
 	 * @param openedFolder Explorer folder, or {@code null}
 	 */
 	public void setOpenedFolder(Path openedFolder) {
+		if (!SwingUtilities.isEventDispatchThread()) {
+			ThreadMaster.getInstance().executeOnEDT(() -> setOpenedFolder(openedFolder));
+			return;
+		}
 		this.openedFolder = openedFolder == null ? null : openedFolder.toAbsolutePath().normalize();
-		this.repository = openedFolder == null ? null : gitService.resolveRepository(openedFolder).orElse(null);
-		LOGGER.info("Source Control folder changed: repository={}.",
-				repository == null ? "none" : repository.getFileName());
-		refresh();
+		long generation = ++repositoryGeneration;
+		repository = null;
+		if (this.openedFolder == null) {
+			refresh();
+			return;
+		}
+		repositoryLabel.setText("Finding Git repository...");
+		setActionsEnabled(false);
+		Path selectedFolder = this.openedFolder;
+		ThreadMaster master = ThreadMaster.getInstance();
+		master.register(new RunnableNode(() -> {
+			Path found = gitService.resolveRepository(selectedFolder).orElse(null);
+			master.executeOnEDT(() -> {
+				if (generation != repositoryGeneration) {
+					return;
+				}
+				repository = found;
+				LOGGER.info("Source Control folder changed: repository={}.",
+						repository == null ? "none" : repository.getFileName());
+				refresh();
+			});
+		}));
 	}
 
 	/**

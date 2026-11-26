@@ -27,8 +27,8 @@ Consumers select the media variant with a Maven user property:
 | --- | --- |
 | absent | Automatic selection from the consumer JDK and OS/architecture |
 | `nojavafx` | No OpenJFX dependencies; media files use the hex editor |
-| `javafx22` | OpenJFX 22.0.2 on a supported platform (Linux arm64 needs glibc 2.34+) |
-| `javafx23` | OpenJFX 23.0.2 on a supported platform (JDK 21+; Linux arm64 needs glibc 2.34+) |
+| `javafx22` | OpenJFX 22.0.2 on a supported platform (released Linux arm64 builds require glibc 2.36+) |
+| `javafx23` | OpenJFX 23.0.2 on a supported platform (JDK 21+; released Linux arm64 builds require glibc 2.36+) |
 
 The property is evaluated by the profiles in the published `simpleide` module
 POM, so it controls the transitive dependencies that Maven resolves for a
@@ -55,7 +55,7 @@ mvn -Dsimpleide.media.variant=javafx22 package
 mvn -Dsimpleide.media.variant=javafx23 package
 ```
 
-On Linux arm64, use a forced JavaFX variant only on glibc 2.34+ (Debian 12+).
+Released Linux arm64 JavaFX variants require glibc 2.36+ (Debian 12+).
 The automatic choice stays `nojavafx` on that architecture so the glibc 2.28
 release baseline is not broken.
 
@@ -139,7 +139,7 @@ project enables them:
 | Operating system | Architecture | Automatic variant | Forced JavaFX available |
 | --- | --- | --- | --- |
 | Linux | `x64` (`amd64`) | `javafx22` or `javafx23` | Yes (glibc 2.28+) |
-| Linux | `arm64` (`aarch64`) | `nojavafx` (baseline policy) | Yes, with glibc 2.34+ (Debian 12+) |
+| Linux | `arm64` (`aarch64`) | `nojavafx` (baseline policy) | Yes, released JavaFX variants require glibc 2.36+ (Debian 12+) |
 | Linux | `x86` (32-bit) | `nojavafx` | No |
 | macOS | `x64` (`x86_64`) | `javafx22` or `javafx23` | Yes |
 | macOS | `arm64` (`aarch64`) | `javafx22` or `javafx23` | Yes |
@@ -165,8 +165,8 @@ media playback:
 | Variant | Linux arm64 requirement |
 | --- | --- |
 | `nojavafx` | glibc 2.28+ (Debian 10+) |
-| `javafx22` | glibc 2.34+ (Debian 12+) |
-| `javafx23` | glibc 2.34+ (Debian 12+), JDK 21+ build |
+| `javafx22` | glibc 2.36+ (Debian 12+) |
+| `javafx23` | glibc 2.36+ (Debian 12+), JDK 21+ build |
 
 `scripts/javafx-version.sh` validates the glibc version and the JDK for `make`
 and release builds: an impossible forced combination fails with a clear error

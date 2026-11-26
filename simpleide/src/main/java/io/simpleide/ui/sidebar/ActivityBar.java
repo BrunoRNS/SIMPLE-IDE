@@ -17,6 +17,7 @@ import javax.swing.JButton;
 import javax.swing.JPanel;
 
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.sidebar.icons.SidebarIconResources;
@@ -120,7 +121,7 @@ public final class ActivityBar extends JPanel {
 		button.setMinimumSize(new Dimension(BUTTON_WIDTH, BUTTON_HEIGHT));
 		button.setMaximumSize(new Dimension(BUTTON_WIDTH, BUTTON_HEIGHT));
 		button.addActionListener(new ActionNode(event -> selectionListener.accept(view)));
-		button.getModel().addChangeListener(event -> button.refreshIcon());
+		button.getModel().addChangeListener(new ChangeNode(event -> button.refreshIcon()));
 		buttons.put(view, button);
 		add(button);
 	}

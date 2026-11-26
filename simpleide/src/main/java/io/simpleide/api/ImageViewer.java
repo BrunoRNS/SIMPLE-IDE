@@ -21,6 +21,8 @@ import javax.swing.JSlider;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 
+import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
+
 /**
  * Swing image viewer for formats supported by the JDK ImageIO readers and installed
  * ImageIO plugins such as TwelveMonkeys and Batik.
@@ -77,7 +79,7 @@ public final class ImageViewer extends JPanel {
 		zoom.setMinorTickSpacing(25);
 		zoom.setPaintTicks(true);
 		zoom.setPaintLabels(true);
-		zoom.addChangeListener(event -> canvas.setScale(zoom.getValue() / 100.0));
+		zoom.addChangeListener(new ChangeNode(event -> canvas.setScale(zoom.getValue() / 100.0)));
 
 		JPanel toolbar = new JPanel(new BorderLayout(8, 0));
 		toolbar.add(new JLabel("Zoom"), BorderLayout.WEST);

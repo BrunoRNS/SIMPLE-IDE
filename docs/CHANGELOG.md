@@ -11,18 +11,18 @@ changes first. Version 1.1.0 records the release state. Later work belongs under
 ### Added
 
 - Run I/O tab with standard input/output and stop controls, an Execute menu for
-  run/debug actions, and DAP integration. See [Run I/O and debugging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Io-tab).
+  run/debug actions, and DAP integration. See [Run I/O and debugging](features/io-tab.md).
 - Git Source Control side panel with repository status, branch operations and
-  commit history. See [Git side panel](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Git-sidepanel).
+  commit history. See [Git side panel](features/git-sidepanel.md).
 - Optional audio and video playback in read-only editor tabs through JavaFX, with a
   platform-neutral `MediaPlayback` API and a hex-editor fallback. Consumers can pin
   `nojavafx`, `javafx22` or `javafx23` directly in `pom.xml` with explicit OpenJFX
   dependencies; the advanced `-Dsimpleide.media.variant` property and automatic
   JDK/OS selection remain available. Linux `arm64` uses `nojavafx` automatically
-  and supports JavaFX variants on glibc 2.34+ (Debian 12+). Audio uses the JavaFX
+  and supports released JavaFX variants on glibc 2.36+ (Debian 12+). Audio uses the JavaFX
   stack only; JSE-SPI and its dependencies are absent. See
-  [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media) and
-  [audio/video viewers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Mediaviewer).
+  [JavaFX media variants](reference/JAVAFX-MEDIA.md) and
+  [audio/video viewers](features/mediaviewer.md).
 - Release packages and fat JARs for every supported OS/architecture/variant
   combination. Linux JavaFX `arm64` builds use Debian 12. Download-only helper
   scripts are available for
@@ -51,6 +51,8 @@ v1.1.0 uses `io.simpleide.ui.icon.MaterialIcons`.
   compatibility code.
 - `LogPanel` rebuilds its document from stored entries on theme changes instead of
   patching character attributes in place.
+- Threading/internal: long Git commands now use a managed `RunnableNode` pool, and Swing
+  callbacks use ThreadMaster listener nodes with long work handed to background nodes.
 
 **Breaking changes from v1.0.0beta:** The following changes affect source
 compatibility (callers no longer compile) and binary compatibility

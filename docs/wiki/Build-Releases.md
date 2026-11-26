@@ -55,8 +55,8 @@ automatic JDK rule:
 | `x64` `javafx23` (JDK 21) | `debian:10` | 2.28 | 2.17 |
 | `x64` `nojavafx` (JDK 17) | `debian:10` | 2.28 | none |
 | `arm64` `nojavafx` (JDK 17) | `debian:10` | 2.28 | none |
-| `arm64` `javafx22` (JDK 17) | `debian:12` | 2.34 (Debian 12+) | 2.34 |
-| `arm64` `javafx23` (JDK 21) | `debian:12` | 2.34 (Debian 12+) | 2.34 |
+| `arm64` `javafx22` (JDK 17) | `debian:12` | 2.36 (Debian 12+) | 2.36 supported runtime floor |
+| `arm64` `javafx23` (JDK 21) | `debian:12` | 2.36 (Debian 12+) | 2.36 supported runtime floor |
 | `x86` `nojavafx` (JDK 17) | `debian:10` | 2.28 | none |
 
 Native release jobs publish `nojavafx`, `javafx22` and `javafx23` for macOS
@@ -64,7 +64,7 @@ Native release jobs publish `nojavafx`, `javafx22` and `javafx23` for macOS
 21. Linux `x86`, Windows `x86` and Windows `arm64` publish only `nojavafx`,
 which opens media files in the hex editor. Each system/architecture/variant also
 gets its own executable fat JAR. The JavaFX `arm64` Linux builds use Debian 12
-(glibc 2.36; OpenJFX requires glibc 2.34+); Linux `x86` keeps Debian 10/glibc
+(glibc 2.36; the supported runtime floor is glibc 2.36+); Linux `x86` keeps Debian 10/glibc
 2.28. macOS JavaFX 23 packages require macOS 12+, while JavaFX 22 and nojavafx
 packages require macOS 11+. Windows JavaFX variants require Windows 10 on x64.
 Consumers can force a variant with
@@ -74,9 +74,8 @@ Consumers can force a variant with
 Linux packages are built and validated inside an explicit Debian container.
 Debian 10 (`buster`) provides the overall minimum supported glibc (2.28), so a
 baseline package that passes CI is known to run on every supported Linux
-distribution. The JavaFX `arm64` packages use Debian 12 (glibc 2.36) because the
-OpenJFX `arm64` natives need glibc 2.34; those packages require Debian 12+ at
-runtime. Alpine is not used. See
+distribution. The JavaFX `arm64` packages use Debian 12 (glibc 2.36), which is also their
+supported runtime floor. Alpine is not used. See
 [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 
 ## Version types

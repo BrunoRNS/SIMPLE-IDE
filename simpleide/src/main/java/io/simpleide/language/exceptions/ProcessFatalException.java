@@ -16,7 +16,7 @@ import java.io.UncheckedIOException;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/languages.md">docs/api/languages.md</a>
- * @author LuisOtavio13
+ * @author BrunoRNS
  * @since v1.0.0beta
  */
 public final class ProcessFatalException extends UncheckedIOException {

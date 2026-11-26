@@ -1,7 +1,6 @@
 package io.simpleide.lsp.core;
 
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -34,7 +33,6 @@ import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.ThreadTaskScheduler;
 import io.simpleide.thread.nodes.NodePattern;
-import io.simpleide.utils.JavaRuntime;
 
 /**
  * Coordinates language server processes for documents and workspaces.
@@ -54,10 +52,6 @@ import io.simpleide.utils.JavaRuntime;
 public final class LanguageServerManager implements AutoCloseable {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LanguageServerManager.class);
-
-	private static final Set<String> WORKSPACE_MARKERS = Set.of("pom.xml", "build.gradle", "build.gradle.kts",
-			"settings.gradle", "settings.gradle.kts", "Cargo.toml", "package.json", "pyproject.toml", "setup.py",
-			"go.mod", "compile_commands.json");
 
 	private final Map<ServerKey, ServerEntry> servers = new ConcurrentHashMap<>();
 
@@ -84,7 +78,7 @@ public final class LanguageServerManager implements AutoCloseable {
 	 * @param statusListener consumer for status events
 	 */
 	public LanguageServerManager(Consumer<LspStatus> statusListener) {
-		this(statusListener, LanguageServerManager::findWorkspaceRoot, LanguageServerManager::getEnvironment);
+		this(statusListener, LspWorkspaceResolver::findWorkspaceRoot, LspWorkspaceResolver::getEnvironment);
 	}
 
 	LanguageServerManager(Consumer<LspStatus> statusListener, Function<Path, Path> workspaceRootResolver,
@@ -228,7 +222,7 @@ public final class LanguageServerManager implements AutoCloseable {
 			if (!entry.client.isDone()) {
 				entry.client.completeExceptionally(new CancellationException("Language server manager is closed."));
 			}
-			LspClient client = awaitClient(entry.client, deadline);
+			LspClient client = LspClientAwaiter.await(entry.client, deadline);
 			if (client == null) {
 				client = activeClient == null ? entry.activeClient() : activeClient;
 			}
@@ -251,35 +245,6 @@ public final class LanguageServerManager implements AutoCloseable {
 		workerPool.close();
 	}
 
-	private LspClient awaitClient(CompletableFuture<LspClient> client, long deadline) {
-		long remaining = deadline - System.nanoTime();
-		if (remaining <= 0) {
-			return completedClient(client);
-		}
-		try {
-			return client.get(remaining, TimeUnit.NANOSECONDS);
-		}
-		catch (InterruptedException error) {
-			Thread.currentThread().interrupt();
-			return completedClient(client);
-		}
-		catch (CancellationException | ExecutionException | TimeoutException error) {
-			return completedClient(client);
-		}
-	}
-
-	private LspClient completedClient(CompletableFuture<LspClient> client) {
-		if (!client.isDone() || client.isCompletedExceptionally() || client.isCancelled()) {
-			return null;
-		}
-		try {
-			return client.getNow(null);
-		}
-		catch (RuntimeException error) {
-			return null;
-		}
-	}
-
 	private String statusId(ServerKey key) {
 		return key.languageId() + "@" + key.workspaceRoot();
 	}
@@ -295,34 +260,6 @@ public final class LanguageServerManager implements AutoCloseable {
 
 	private void publishStatus(String id, String serverName, LspStatus.State state) {
 		statusListener.accept(new LspStatus(id, serverName, state));
-	}
-
-	private static Map<String, String> getEnvironment(String languageId) {
-		if ("java".equals(languageId)) {
-			String configuredHome = System.getProperty(JavaRuntime.LSP_JAVA_HOME_PROPERTY);
-			if (configuredHome != null && !configuredHome.isBlank()) {
-				Path path = Path.of(configuredHome).toAbsolutePath().normalize();
-				if (!Files.isDirectory(path)) {
-					throw new IllegalArgumentException("Configured LSP Java home is not a directory: " + path);
-				}
-			}
-		}
-		return JavaRuntime.environment();
-	}
-
-	private static Path findWorkspaceRoot(Path documentPath) {
-		Path directory = documentPath.toAbsolutePath().normalize().getParent();
-		if (directory == null) {
-			return null;
-		}
-		for (Path current = directory; current != null; current = current.getParent()) {
-			for (String marker : WORKSPACE_MARKERS) {
-				if (Files.exists(current.resolve(marker))) {
-					return current;
-				}
-			}
-		}
-		return directory;
 	}
 
 	/**

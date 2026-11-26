@@ -41,7 +41,7 @@ import io.simpleide.thread.nodes.runnable.RunnableNode;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/languages.md">docs/api/languages.md</a>
- * @author LuisOtavio13
+ * @author BrunoRNS
  * @since v1.0.0beta
  */
 public abstract class AbstractLanguage implements Runnable {

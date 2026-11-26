@@ -1,14 +1,12 @@
 package io.simpleide.ui.io;
 
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.GridLayout;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-import javax.swing.AbstractAction;
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
 import javax.swing.JLabel;
@@ -22,11 +20,7 @@ import javax.swing.JTextPane;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
-import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultEditorKit;
-import javax.swing.text.SimpleAttributeSet;
-import javax.swing.text.StyleConstants;
-import javax.swing.text.StyledDocument;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +30,10 @@ import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.exceptions.ProcessFatalException;
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
+import io.simpleide.thread.ManagedThreadPool;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
 import io.simpleide.ui.ThemeColors;
 
 /**
@@ -64,6 +61,8 @@ import io.simpleide.ui.ThemeColors;
 public final class IOPanel extends JPanel {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(IOPanel.class);
+
+	private static final ManagedThreadPool STOP_POOL = ThreadMaster.getInstance().createThreadPool("io-panel-stop", 2);
 
 	private final JTextArea inputArea = new JTextArea();
 
@@ -119,13 +118,8 @@ public final class IOPanel extends JPanel {
 		add(createControls(), BorderLayout.SOUTH);
 
 		inputArea.getInputMap().put(KeyStroke.getKeyStroke("ENTER"), "simpleide.io.submit");
-		inputArea.getActionMap().put("simpleide.io.submit", new javax.swing.AbstractAction() {
-			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
-				submitInput();
-			}
-		});
-		applyTheme();
+		inputArea.getActionMap().put("simpleide.io.submit", new SwingActionNode("Submit", this::submitInput));
+		IOOutputStyler.applyTheme(inputArea, outputPane);
 		setDebugMode(false);
 		runControls.setVisible(false);
 	}
@@ -197,25 +191,10 @@ public final class IOPanel extends JPanel {
 	private void installOutputCopySupport() {
 		outputPane.getInputMap().put(KeyStroke.getKeyStroke("control C"), DefaultEditorKit.copyAction);
 		outputPane.getInputMap().put(KeyStroke.getKeyStroke("meta C"), DefaultEditorKit.copyAction);
-		outputPane.getActionMap().put(DefaultEditorKit.copyAction, new AbstractAction() {
-			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
-				outputPane.copy();
-			}
-		});
+		outputPane.getActionMap().put(DefaultEditorKit.copyAction, new SwingActionNode("Copy", outputPane::copy));
 		JPopupMenu menu = new JPopupMenu();
-		menu.add(new JMenuItem(new AbstractAction("Copy") {
-			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
-				outputPane.copy();
-			}
-		}));
-		menu.add(new JMenuItem(new AbstractAction("Select All") {
-			@Override
-			public void actionPerformed(java.awt.event.ActionEvent event) {
-				outputPane.selectAll();
-			}
-		}));
+		menu.add(new JMenuItem(new SwingActionNode("Copy", outputPane::copy)));
+		menu.add(new JMenuItem(new SwingActionNode("Select All", outputPane::selectAll)));
 		outputPane.setComponentPopupMenu(menu);
 	}
 
@@ -333,11 +312,9 @@ public final class IOPanel extends JPanel {
 		if (active == null) {
 			return;
 		}
-		// forceStop blocks until the process dies, so it cannot run on the event
-		// dispatch thread. It also must not queue behind the shared worker pool:
-		// a busy pool delayed the stop long enough for the run to look stuck, so
-		// the stop gets a dedicated daemon thread of its own.
-		Thread stopper = new Thread(() -> {
+		// forceStop blocks until the process dies, so it runs on a dedicated
+		// ThreadMaster pool rather than the event dispatch thread or shared workers.
+		STOP_POOL.execute(() -> {
 			try {
 				active.forceStop();
 			}
@@ -346,9 +323,7 @@ public final class IOPanel extends JPanel {
 				Output.getInstance()
 					.publish(OutputType.ERROR, "Unable to stop the running program: " + error.getMessage());
 			}
-		}, "simpleide-run-stop");
-		stopper.setDaemon(true);
-		stopper.start();
+		});
 	}
 
 	/**
@@ -418,7 +393,7 @@ public final class IOPanel extends JPanel {
 	 * @param line line published by the language process or debug adapter
 	 */
 	private void append(Output.OutputLine line) {
-		appendLine(line.type(), line.text());
+		IOOutputStyler.appendLine(outputPane, line.type(), line.text());
 	}
 
 	/**
@@ -427,27 +402,7 @@ public final class IOPanel extends JPanel {
 	 * @param text line text
 	 */
 	public void appendLine(OutputType type, String text) {
-		Objects.requireNonNull(type, "type");
-		if (text == null) {
-			return;
-		}
-		Runnable append = () -> {
-			StyledDocument document = outputPane.getStyledDocument();
-			try {
-				document.insertString(document.getLength(), "[" + type + "] " + text + System.lineSeparator(),
-						styleFor(type));
-				outputPane.setCaretPosition(document.getLength());
-			}
-			catch (BadLocationException error) {
-				LOGGER.warn("Unable to append output to the I/O tab.", error);
-			}
-		};
-		if (SwingUtilities.isEventDispatchThread()) {
-			append.run();
-		}
-		else {
-			SwingUtilities.invokeLater(append);
-		}
+		IOOutputStyler.appendLine(outputPane, type, text);
 	}
 
 	/**
@@ -520,65 +475,9 @@ public final class IOPanel extends JPanel {
 	public void updateUI() {
 		super.updateUI();
 		if (inputArea != null) {
-			applyTheme();
-			refreshOutputStyles();
+			IOOutputStyler.applyTheme(inputArea, outputPane);
+			IOOutputStyler.refreshOutputStyles(outputPane);
 		}
-	}
-
-	private SimpleAttributeSet styleFor(OutputType type) {
-		SimpleAttributeSet style = new SimpleAttributeSet();
-		Color color = switch (type) {
-			case ERROR -> ThemeColors.ui("Log.errorForeground", "Component.error.focusedBorderColor");
-			case DEBUG -> ThemeColors.ui("Log.debugForeground", "Component.focusColor");
-			case OUTPUT -> null;
-		};
-		if (color != null) {
-			StyleConstants.setForeground(style, color);
-		}
-		return style;
-	}
-
-	private void refreshOutputStyles() {
-		StyledDocument document = outputPane.getStyledDocument();
-		if (document.getLength() == 0) {
-			return;
-		}
-		try {
-			String text = document.getText(0, document.getLength());
-			document.remove(0, document.getLength());
-			for (String line : text.split("(?<=\\n)", -1)) {
-				OutputType type = line.startsWith("[ERROR] ") ? OutputType.ERROR
-						: line.startsWith("[DEBUG] ") ? OutputType.DEBUG : OutputType.OUTPUT;
-				document.insertString(document.getLength(), line, styleFor(type));
-			}
-		}
-		catch (BadLocationException ignored) {
-			LOGGER.warn("Unable to refresh output colors after a theme change.", ignored);
-		}
-	}
-
-	private void applyTheme() {
-		Color background = ThemeColors.ui("TextArea.background", "EditorPane.background", "Panel.background");
-		Color foreground = ThemeColors.ui("TextArea.foreground", "EditorPane.foreground", "Label.foreground");
-		Font font = UIManager.getFont("TextArea.font");
-		if (background != null) {
-			inputArea.setBackground(background);
-			outputPane.setBackground(background);
-		}
-		if (foreground != null) {
-			inputArea.setForeground(ThemeColors.readable(foreground, background));
-			outputPane.setForeground(ThemeColors.readable(foreground, background));
-		}
-		if (font != null) {
-			Font mono = new Font(Font.MONOSPACED, font.getStyle(), font.getSize());
-			inputArea.setFont(mono);
-			outputPane.setFont(mono);
-		}
-		inputArea.setCaretColor(foreground);
-		inputArea.setSelectionColor(ThemeColors.ui("TextArea.selectionBackground", "EditorPane.selectionBackground"));
-		inputArea
-			.setSelectedTextColor(ThemeColors.ui("TextArea.selectionForeground", "EditorPane.selectionForeground"));
-		inputArea.setBorder(BorderFactory.createEmptyBorder(6, 8, 6, 8));
 	}
 
 }

@@ -17,9 +17,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
 import org.rauschig.jarchivelib.Archiver;
@@ -28,6 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.lsp.LspStatus;
+import io.simpleide.thread.ManagedThreadPool;
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Downloads, extracts and installs language servers into the user directory.
@@ -47,6 +52,9 @@ import io.simpleide.lsp.LspStatus;
 public final class LspInstaller {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LspInstaller.class);
+
+	private static final ManagedThreadPool OUTPUT_DRAIN_POOL = ThreadMaster.getInstance()
+		.createThreadPool("lsp-installer-output", 4);
 
 	private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
 		.connectTimeout(Duration.ofSeconds(30))
@@ -250,7 +258,7 @@ public final class LspInstaller {
 				.put(key, value.replace("${installDir}", installDirectory).replace("${version}", version)));
 		}
 		Process process = processBuilder.start();
-		Thread outputDrain = startOutputDrain(process, command);
+		CompletableFuture<Void> outputDrain = startOutputDrain(process, command);
 		try {
 			if (!process.waitFor(5, TimeUnit.MINUTES)) {
 				process.destroyForcibly();
@@ -261,14 +269,23 @@ public final class LspInstaller {
 			process.destroyForcibly();
 			throw e;
 		}
-		outputDrain.join(TimeUnit.SECONDS.toMillis(5));
+		try {
+			outputDrain.get(5, TimeUnit.SECONDS);
+		}
+		catch (TimeoutException error) {
+			LOGGER.debug("Timed out waiting for LSP install output to drain: {}", command);
+		}
+		catch (ExecutionException error) {
+			LOGGER.debug("Could not drain LSP install output: {}", command, error.getCause());
+		}
 		if (process.exitValue() != 0) {
 			throw new IOException("LSP install command failed with exit code " + process.exitValue() + ": " + command);
 		}
 	}
 
-	private static Thread startOutputDrain(Process process, String command) {
-		Thread drain = new Thread(() -> {
+	private static CompletableFuture<Void> startOutputDrain(Process process, String command) {
+		CompletableFuture<Void> drained = new CompletableFuture<>();
+		OUTPUT_DRAIN_POOL.execute(() -> {
 			try (BufferedReader reader = new BufferedReader(
 					new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
 				String line;
@@ -279,10 +296,11 @@ public final class LspInstaller {
 			catch (IOException error) {
 				LOGGER.debug("Could not read the output of the LSP install command {}.", command, error);
 			}
-		}, "lsp-install-output");
-		drain.setDaemon(true);
-		drain.start();
-		return drain;
+			finally {
+				drained.complete(null);
+			}
+		});
+		return drained;
 	}
 
 }
