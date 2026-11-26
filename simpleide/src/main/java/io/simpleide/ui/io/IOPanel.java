@@ -36,9 +36,7 @@ import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.exceptions.ProcessFatalException;
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
-import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.ui.ThemeColors;
 
 /**
@@ -345,7 +343,11 @@ public final class IOPanel extends JPanel {
 		if (active == null) {
 			return;
 		}
-		RunnableNode stopNode = new RunnableNode(() -> {
+		// forceStop blocks until the process dies, so it cannot run on the event
+		// dispatch thread. It also must not queue behind the shared worker pool:
+		// a busy pool delayed the stop long enough for the run to look stuck, so
+		// the stop gets a dedicated daemon thread of its own.
+		Thread stopper = new Thread(() -> {
 			try {
 				active.forceStop();
 			}
@@ -354,10 +356,9 @@ public final class IOPanel extends JPanel {
 				Output.getInstance()
 					.publish(OutputType.ERROR, "Unable to stop the running program: " + error.getMessage());
 			}
-		});
-		ThreadMaster threadMaster = ThreadMaster.getInstance();
-		threadMaster.initialize();
-		threadMaster.register(stopNode);
+		}, "simpleide-run-stop");
+		stopper.setDaemon(true);
+		stopper.start();
 	}
 
 	/**

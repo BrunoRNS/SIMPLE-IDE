@@ -81,8 +81,11 @@ class DapRegistryTest {
 		assertThat(adapter.getLaunchArguments()).containsEntry("justMyCode", Boolean.FALSE)
 			.containsEntry("trace", Boolean.TRUE)
 			.containsEntry("retries", 2);
-		assertThat(adapter.launchArguments(Path.of("/tmp/main.py"))).containsEntry("program", "/tmp/main.py")
-			.containsEntry("cwd", "/tmp")
+		// The placeholders keep the path exactly as given, which differs between
+		// platforms, so the expectation is derived from the same Path.
+		Path program = Path.of(System.getProperty("java.io.tmpdir"), "main.py");
+		assertThat(adapter.launchArguments(program)).containsEntry("program", program.toString())
+			.containsEntry("cwd", program.getParent().toString())
 			.containsEntry("justMyCode", Boolean.FALSE);
 	}
 

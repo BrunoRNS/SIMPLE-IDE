@@ -22,6 +22,7 @@ import org.eclipse.lsp4j.jsonrpc.messages.Either;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.CleanupMode;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.lsp.dowload.LspManager;
@@ -58,7 +59,9 @@ class JavaLspSnippetsPopupIntegrationTest {
 		ThreadMaster.getInstance().initialize();
 	}
 
-	@TempDir
+	// JDT LS keeps the folder it indexes open, and Windows refuses to delete a
+	// directory with open files, so the temporary workspace is left behind.
+	@TempDir(cleanup = CleanupMode.NEVER)
 	Path workspace;
 
 	@Test

@@ -45,6 +45,23 @@ Server definitions live in
 declares OS, architecture, minimum language version, version command, install
 strategy or URL, launch command and arguments.
 
+`LspServerIntegrationTest` starts each server for real. Two cases skip on
+runtimes the server itself cannot handle, instead of failing the suite:
+
+- Kotlin on JDK 25 and newer. kotlin-language-server 1.3.13 bundles a compiler
+  whose `JavaVersion.parse` rejects the four-part version string reported by
+  those JDKs (`IllegalArgumentException: 25.0.5.1`), so the server exits with
+  code 1 before answering `initialize`.
+- C# on Windows and macOS. OmniSharp there finds no MSBuild instance
+  (`MSBuildLocator` throws `PlatformNotSupportedException` under Mono), so the
+  server never answers `initialize`. The test still runs on Linux with Mono and
+  MSBuild installed, which is what the Debug CI workflow sets up.
+
+Server install commands run with piped streams. They must never inherit the
+IDE's standard streams: a child sharing them writes into the running JVM's
+native channel, which corrupts Surefire's forked JVM streams and lets a package
+manager steal the terminal input.
+
 ### Extra Java snippets
 
 When a Java language server is connected, `LspEditorSupport` merges a few

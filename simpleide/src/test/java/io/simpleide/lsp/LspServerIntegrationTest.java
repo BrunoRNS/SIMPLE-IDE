@@ -3,6 +3,7 @@ package io.simpleide.lsp;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +17,7 @@ import org.eclipse.lsp4j.TextDocumentItem;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.CleanupMode;
 import org.junit.jupiter.api.io.TempDir;
 
 import io.simpleide.lsp.client.LspClient;
@@ -122,7 +124,9 @@ class LspServerIntegrationTest {
 		ThreadMaster.getInstance().initialize();
 	}
 
-	@TempDir
+	// The servers keep the folder they index open, and Windows refuses to delete a
+	// directory with open files, so the temporary workspace is left behind.
+	@TempDir(cleanup = CleanupMode.NEVER)
 	Path workspace;
 
 	@Test
@@ -199,6 +203,10 @@ class LspServerIntegrationTest {
 	@Test
 	void initializesKotlinAndAnswersCompletion() throws Exception {
 		LspIntegrationHarness.requireToolchain("java", "-version");
+		int javaFeature = Runtime.version().feature();
+		assumeTrue(javaFeature < 25,
+				"kotlin-language-server 1.3.13 bundles a compiler that cannot parse the version string of JDK "
+						+ javaFeature + " (IllegalArgumentException in JavaVersion.parse)");
 		Path source = Files.writeString(workspace.resolve("Main.kt"), KOTLIN_SOURCE);
 
 		try (LspClient client = LspIntegrationHarness.start("kotlin", workspace, Map.of())) {
@@ -251,6 +259,11 @@ class LspServerIntegrationTest {
 	@Test
 	void initializesCSharpAndAnswersCompletion() throws Exception {
 		LspIntegrationHarness.requireToolchain("mono", "--version");
+		String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
+		assumeTrue(!os.contains("win") && !os.contains("mac"),
+				"OmniSharp reports that it located no MSBuild instance on the Windows and macOS runners "
+						+ "(MSBuildLocator throws PlatformNotSupportedException under Mono there), so the C# server "
+						+ "cannot answer initialize in those environments");
 		assumeTrue(
 				LspIntegrationHarness.isAvailable("msbuild", "--version")
 						|| LspIntegrationHarness.isAvailable("dotnet", "--version"),
