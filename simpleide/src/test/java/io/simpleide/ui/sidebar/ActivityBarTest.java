@@ -50,7 +50,7 @@ class ActivityBarTest {
 			}
 		});
 
-		assertEquals(3, icons.size());
+		assertEquals(4, icons.size());
 		for (Icon icon : icons) {
 			assertEquals(24, icon.getIconHeight());
 			assertEquals(icon.getIconHeight(), icon.getIconWidth(), "square icon");

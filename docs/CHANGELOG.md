@@ -94,4 +94,21 @@ Deprecated compatibility members will not receive new features and may be
 removed in a future major release. New integrations should use the replacements
 listed above and the Material Icon Theme.
 
+### Fixed
+
+- The terminal accepts dead-key and accented characters. On macOS, Option now composes
+  `~`, `´`, `á`, `ã` and similar characters instead of sending a Meta escape prefix
+  that leaked an extra character and dropped the composed one.
+- Terminal text selection and `Ctrl+Shift+C`/`Ctrl+Shift+V` copy and paste are covered
+  by integration tests, plus UTF-8 input through the PTY.
+- Stopping a running language program no longer reports a bogus process startup
+  failure when its output stream closes during shutdown.
+- Source Control Git operations no longer freeze the window. Every Git command runs
+  on the `ThreadMaster` background pool and returns to the EDT only to update the
+  panel or show an error popup.
+- Git commands are forced to be non-interactive: standard input is closed, terminal
+  credential prompts, askpass, pagers, editors and SSH passphrase prompts are
+  disabled. A command that still requests input stops and displays an error popup
+  with credential setup guidance instead of waiting for the user.
+
 [Unreleased]: https://github.com/BrunoRNS/SIMPLE-IDE/compare/v1.0.0beta...HEAD

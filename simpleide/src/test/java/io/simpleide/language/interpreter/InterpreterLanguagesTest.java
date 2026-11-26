@@ -115,8 +115,11 @@ class InterpreterLanguagesTest {
 		JSLanguage language = new JSLanguage(source);
 		RunnableNode node = language.startManaged();
 		try {
-			String listening = Output.getInstance().get(30);
-			assertTrue(listening != null && listening.startsWith("listening:"));
+			// The output queue is process-wide, so a previous test can leave lines
+			// behind and still be flushing them when this test starts. Return the
+			// first line from the server instead of asserting on whatever the queue
+			// hands back first.
+			String listening = awaitListeningLine();
 			int port = Integer.parseInt(listening.substring("listening:".length()));
 			await().atMost(15, TimeUnit.SECONDS).until(() -> canConnect(port));
 
@@ -131,6 +134,17 @@ class InterpreterLanguagesTest {
 				language.forceStop();
 			}
 		}
+	}
+
+	private static String awaitListeningLine() throws InterruptedException {
+		long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+		while (System.nanoTime() < deadline) {
+			String line = Output.getInstance().get(1);
+			if (line != null && line.startsWith("listening:")) {
+				return line;
+			}
+		}
+		throw new AssertionError("The JavaScript web server never reported the port it listens on");
 	}
 
 	private void requireLanguageTool(String executable) {

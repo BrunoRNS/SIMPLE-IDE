@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -96,6 +97,19 @@ class AbstractLanguageTest {
 	}
 
 	@Test
+	void notifiesExecutionListenersWhenNoCommandIsConfigured() {
+		AbstractLanguage language = new AbstractLanguage() {
+		};
+		java.util.concurrent.atomic.AtomicInteger notifications = new java.util.concurrent.atomic.AtomicInteger();
+		language.addExecutionListener(notifications::incrementAndGet);
+
+		language.run();
+		language.run();
+
+		assertEquals(2, notifications.get());
+	}
+
+	@Test
 	void capturesOutputAndSuccessfulExit() throws InterruptedException {
 		TestLanguage language = new TestLanguage("success");
 
@@ -132,6 +146,22 @@ class AbstractLanguageTest {
 
 		assertEquals("ready", Output.getInstance().get(1));
 		assertEquals("received:user input", Output.getInstance().get(1));
+	}
+
+	@Test
+	void reportsWhenTheProcessWaitsForStandardInput() throws Exception {
+		List<String> published = new CopyOnWriteArrayList<>();
+		TestLanguage language = new TestLanguage("input");
+		try (AutoCloseable subscription = Output.getInstance().addListener(line -> published.add(line.text()))) {
+			language.startManaged();
+
+			awaitOutput("ready");
+			await().atMost(15, TimeUnit.SECONDS).until(() -> published.contains(Output.WAITING_FOR_STDIN));
+
+			InputHolder.INSTANCE.set("user input");
+			awaitOutput("received:user input");
+			language.awaitExitHandler();
+		}
 	}
 
 	@Test

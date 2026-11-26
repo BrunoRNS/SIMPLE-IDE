@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.config.LangPlatform;
+import io.simpleide.ui.terminal.core.busybox.BusyBoxPlatform;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.BusyBoxTerminalSession}.
@@ -89,6 +90,36 @@ class BusyBoxTerminalSessionTest {
 			assertTrue(terminalOutput.contains(probeMarker),
 					"The BusyBox shell did not start in the configured working directory. Output: " + terminalOutput
 							+ "; session=" + session.processDiagnostics());
+		}
+		finally {
+			outputReader.shutdownNow();
+		}
+	}
+
+	@Test
+	void acceptsUnicodeAndDeadKeyCharactersThroughThePty() throws Exception {
+		LangPlatform platform = LangPlatform.getCurrentPlatform();
+		assumeTrue(platform != LangPlatform.UNKNOWN, "Test requires a supported platform");
+		LangPlatform busyBoxPlatform = BusyBoxPlatform.getCompatiblePlatform(platform,
+				System.getProperty("os.version"));
+		assumeTrue(busyBoxPlatform != LangPlatform.WINDOWSX86, "The Windows x86 BusyBox build is not Unicode");
+
+		String expected = "SIMPLEIDE_UNICODE_OK:~\u00B4\u00E1\u00E9\u00ED\u00F3\u00FA\u00E3\u00F5\u00E7";
+		Files.writeString(tempDirectory.resolve("unicode.txt"), expected + "\n", StandardCharsets.UTF_8);
+		ExecutorService outputReader = Executors.newSingleThreadExecutor(task -> {
+			Thread thread = new Thread(task, "terminal-unicode-output-test");
+			thread.setDaemon(true);
+			return thread;
+		});
+		try (BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform, tempDirectory)) {
+			session.start();
+			Future<String> output = outputReader
+				.submit(() -> readUntil(session.getConnector(), "SIMPLEIDE_UNICODE_DONE"));
+			session.getConnector().write("cat unicode.txt\nprintf 'SIMPLEIDE_%s\\n' UNICODE_DONE\n");
+
+			String terminalOutput = output.get(10, TimeUnit.SECONDS);
+			assertTrue(terminalOutput.contains(expected), "The PTY did not return the typed Unicode text. Output: "
+					+ terminalOutput + "; session=" + session.processDiagnostics());
 		}
 		finally {
 			outputReader.shutdownNow();

@@ -171,13 +171,16 @@ class EditorManagerTest {
 		ThreadMaster.getInstance().initialize();
 
 		SwingUtilities.invokeAndWait(() -> testManager.openFile(SimpleIDEFile.lazy(path)));
-		await().atMost(10, TimeUnit.SECONDS).until(() -> {
-			AtomicBoolean loading = new AtomicBoolean(true);
+		// Poll a boolean instead of asserting on the EDT: Awaitility does not retry an
+		// assertion error thrown from another thread, which made this test fail fast on
+		// slow Windows runners while the background load was still running.
+		AtomicBoolean loaded = new AtomicBoolean();
+		await().atMost(30, TimeUnit.SECONDS).until((java.util.concurrent.Callable<Boolean>) () -> {
 			SwingUtilities.invokeAndWait(() -> {
 				EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());
-				loading.set(tab == null || tab.isLoading());
+				loaded.set(tab != null && !tab.isLoading());
 			});
-			return !loading.get();
+			return loaded.get();
 		});
 		SwingUtilities.invokeAndWait(() -> {
 			EditorTab tab = testManager.getOpenedEditor(path.toAbsolutePath().normalize());

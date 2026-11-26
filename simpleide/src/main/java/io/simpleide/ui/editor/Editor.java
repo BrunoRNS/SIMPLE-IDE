@@ -1,13 +1,23 @@
 package io.simpleide.ui.editor;
 
+import java.awt.Component;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
+import java.util.TreeSet;
+import java.util.function.Consumer;
 
+import javax.swing.Icon;
 import javax.swing.UIManager;
 
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
+import org.fife.ui.rtextarea.Gutter;
+import org.fife.ui.rtextarea.GutterIconInfo;
 
 import io.simpleide.ui.treefile.SimpleIDEFile;
 import io.simpleide.ui.treefile.TypeFile;
@@ -24,12 +34,23 @@ import io.simpleide.ui.treefile.TypeFile;
  * <p>
  * Covered by {@code EditorTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @author BrunoRNS
+ * @since v1.1.0
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/rsyntax.md">docs/api/rsyntax.md</a>
  */
 public class Editor extends RSyntaxTextArea {
+
+	private final TreeSet<Integer> breakpointLines = new TreeSet<>();
+
+	private final Map<Integer, GutterIconInfo> breakpointIcons = new LinkedHashMap<>();
+
+	private Consumer<List<Integer>> breakpointListener = ignored -> {
+	};
+
+	private Gutter gutter;
+
+	private int hoverLine;
 
 	/**
 	 * Creates an empty editor with the application font and editing defaults.
@@ -38,6 +59,197 @@ public class Editor extends RSyntaxTextArea {
 		super();
 		applyUiFont();
 		config();
+	}
+
+	/**
+	 * Attaches the gutter used to paint breakpoint markers.
+	 * @param gutter gutter of the scroll pane that hosts this editor
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void attachGutter(Gutter gutter) {
+		this.gutter = gutter;
+		if (gutter != null) {
+			gutter.setIconRowHeaderEnabled(true);
+		}
+		repaintBreakpoints();
+	}
+
+	/**
+	 * Returns the one-based line numbers with a breakpoint, in ascending order.
+	 * @return an immutable snapshot of the breakpoint lines
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public List<Integer> getBreakpointLines() {
+		return List.copyOf(breakpointLines);
+	}
+
+	/**
+	 * Returns the one-based line currently under the pointer in the gutter, or {@code 0}
+	 * when the pointer is not over a line.
+	 * @return the hovered line, or {@code 0}
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public int getHoverLine() {
+		return hoverLine;
+	}
+
+	/**
+	 * Updates the line shown with a translucent marker while the pointer is over the
+	 * gutter. A value of {@code 0} clears the marker.
+	 * @param line one-based line number, or {@code 0} to clear
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void setHoverLine(int line) {
+		int clamped = line < 1 || line > getLineCount() ? 0 : line;
+		if (hoverLine == clamped) {
+			return;
+		}
+		hoverLine = clamped;
+		repaintBreakpoints();
+	}
+
+	/**
+	 * Toggles a breakpoint on a one-based line.
+	 * @param line one-based line number
+	 * @return {@code true} when a breakpoint now exists on the line
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean toggleBreakpoint(int line) {
+		if (line < 1 || line > getLineCount()) {
+			return false;
+		}
+		boolean added;
+		if (breakpointLines.remove(line)) {
+			added = false;
+		}
+		else {
+			breakpointLines.add(line);
+			added = true;
+		}
+		repaintBreakpoints();
+		breakpointListener.accept(getBreakpointLines());
+		return added;
+	}
+
+	/**
+	 * Toggles a breakpoint on the line that contains the caret.
+	 * @return {@code true} when a breakpoint now exists on the caret line
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public boolean toggleBreakpointAtCaret() {
+		try {
+			return toggleBreakpoint(getLineOfOffset(getCaretPosition()) + 1);
+		}
+		catch (javax.swing.text.BadLocationException error) {
+			return false;
+		}
+	}
+
+	/**
+	 * Removes every breakpoint from the editor.
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void clearBreakpoints() {
+		breakpointLines.clear();
+		repaintBreakpoints();
+		breakpointListener.accept(getBreakpointLines());
+	}
+
+	/**
+	 * Registers a listener notified when breakpoints change.
+	 * @param listener listener invoked with the current breakpoint lines, or {@code null}
+	 * to clear it
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public void setBreakpointListener(Consumer<List<Integer>> listener) {
+		breakpointListener = listener == null ? ignored -> {
+		} : listener;
+	}
+
+	private void repaintBreakpoints() {
+		Gutter activeGutter = gutter;
+		if (activeGutter == null) {
+			return;
+		}
+		activeGutter.setIconRowHeaderEnabled(true);
+		for (GutterIconInfo icon : breakpointIcons.values()) {
+			activeGutter.removeTrackingIcon(icon);
+		}
+		breakpointIcons.clear();
+		Icon selectedIcon = new BreakpointIcon(true);
+		for (Integer line : breakpointLines) {
+			addBreakpointIcon(activeGutter, line, selectedIcon);
+		}
+		int hovered = hoverLine;
+		if (hovered > 0 && !breakpointLines.contains(hovered)) {
+			addBreakpointIcon(activeGutter, hovered, new BreakpointIcon(false));
+		}
+	}
+
+	private void addBreakpointIcon(Gutter activeGutter, int line, Icon icon) {
+		try {
+			GutterIconInfo info = activeGutter.addLineTrackingIcon(line - 1, icon, "Breakpoint at line " + line);
+			breakpointIcons.put(line, info);
+		}
+		catch (javax.swing.text.BadLocationException ignored) {
+			// The line disappeared while the editor was reloading.
+		}
+	}
+
+	/**
+	 * Paints the breakpoint dot shown in the gutter.
+	 *
+	 * <p>
+	 * A selected breakpoint is a solid red dot; the translucent variant is shown while
+	 * the pointer hovers a line that has no breakpoint yet.
+	 *
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	private static final class BreakpointIcon implements Icon {
+
+		private static final int SIZE = 12;
+
+		private static final java.awt.Color SELECTED = new java.awt.Color(0xE5142B);
+
+		private static final java.awt.Color SELECTED_BORDER = new java.awt.Color(0x8B1A23);
+
+		private static final java.awt.Color HOVERED = new java.awt.Color(0x88E5142B, true);
+
+		private final boolean selected;
+
+		private BreakpointIcon(boolean selected) {
+			this.selected = selected;
+		}
+
+		@Override
+		public void paintIcon(Component component, Graphics graphics, int x, int y) {
+			graphics.setColor(selected ? SELECTED : HOVERED);
+			graphics.fillOval(x + 1, y + 1, SIZE, SIZE);
+			if (selected) {
+				graphics.setColor(SELECTED_BORDER);
+				graphics.drawOval(x + 1, y + 1, SIZE, SIZE);
+			}
+		}
+
+		@Override
+		public int getIconWidth() {
+			return SIZE + 2;
+		}
+
+		@Override
+		public int getIconHeight() {
+			return SIZE + 2;
+		}
+
 	}
 
 	@Override

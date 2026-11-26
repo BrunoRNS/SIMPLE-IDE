@@ -128,6 +128,8 @@ public final class SidebarIconResources {
 
 		SEARCH("search"),
 
+		GIT("git"),
+
 		SETTINGS("settings");
 
 		private final String fileName;

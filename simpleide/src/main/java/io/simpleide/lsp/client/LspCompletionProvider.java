@@ -143,6 +143,29 @@ public class LspCompletionProvider extends DefaultCompletionProvider {
 			return filterText;
 		}
 
+		/**
+		 * Orders completions by the text they are filtered on.
+		 *
+		 * <p>
+		 * The inherited ordering compares the description too, which is not transitive
+		 * when two entries share a label and have different descriptions. That makes the
+		 * sort throw and leaves the provider with a list the binary search cannot read,
+		 * so completions disappear from the popup. Ordering by the input text matches the
+		 * comparator used to filter the completions.
+		 * @param other completion to compare with
+		 * @return the comparison result
+		 */
+		@Override
+		public int compareTo(Completion other) {
+			if (other == this) {
+				return 0;
+			}
+			if (other == null) {
+				return -1;
+			}
+			return String.CASE_INSENSITIVE_ORDER.compare(getInputText(), other.getInputText());
+		}
+
 		@Override
 		public String getAlreadyEntered(JTextComponent component) {
 			Range editRange = getInsertRange(item);

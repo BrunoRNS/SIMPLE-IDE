@@ -29,8 +29,9 @@ Behavior summary:
 - Successful release-metadata lookups are cached for six hours (failures for
   two minutes), so tab switches do not hit the network repeatedly.
 - Servers known to the registry include `jdtls` (Java),
-  `typescript-language-server` (JavaScript) and `csharp-ls` (C#); see the
-  registry file for the complete list and the download source of each entry.
+  `typescript-language-server` (JavaScript) and the Mono build of OmniSharp
+  (C#); see the registry file for the complete list and the download source of
+  each entry. OmniSharp runs on Mono and does not require a .NET SDK.
 - Each server keeps the license of its own upstream project. Simple IDE does
   not redistribute server archives; it only downloads them on your machine.
 

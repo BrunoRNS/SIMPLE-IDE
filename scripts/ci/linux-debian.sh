@@ -262,25 +262,25 @@ EOF
 echo "=== Java ==="
 java -version
 java -XshowSettings:properties -version 2>&1 |
-	grep -q "sun.arch.data.model = ${EXPECTED_BITS}"
+	grep "sun.arch.data.model = ${EXPECTED_BITS}" >/dev/null
 
 echo "=== GCC / G++ ==="
 command -v gcc
 command -v g++
-gcc -dumpmachine | grep -q "^${EXPECTED_GCC}$"
-g++ -dumpmachine | grep -q "^${EXPECTED_GCC}$"
-gcc --version | head -n 1
-g++ --version | head -n 1
+gcc -dumpmachine | grep "^${EXPECTED_GCC}$" >/dev/null
+g++ -dumpmachine | grep "^${EXPECTED_GCC}$" >/dev/null
+gcc --version | sed -n '1p'
+g++ --version | sed -n '1p'
 
 echo "=== GNU Make ==="
 command -v make
-make --version | head -n 1
-make --version | grep -q "GNU Make"
+make --version | sed -n '1p'
+make --version | grep "GNU Make" >/dev/null
 
 echo "=== Mono ==="
 command -v mcs
 command -v mono
-mono --version | head -n 1
+mono --version | sed -n '1p'
 mcs --version
 
 echo "=== Go ==="
@@ -291,7 +291,7 @@ go version
 
 echo "=== Rust ==="
 command -v rustc
-rustc -vV | grep -q "^host: ${EXPECTED_RUST_HOST}$"
+rustc -vV | grep "^host: ${EXPECTED_RUST_HOST}$" >/dev/null
 rustc --version
 
 echo "=== Node.js ==="
@@ -310,7 +310,7 @@ command -v rpmbuild
 command -v dpkg-deb
 fakeroot --version
 rpmbuild --version
-dpkg-deb --version | head -n 1
+dpkg-deb --version | sed -n '1p'
 
 echo "=== Toolchain ready ==="
 

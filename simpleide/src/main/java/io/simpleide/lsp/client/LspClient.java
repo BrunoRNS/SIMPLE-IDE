@@ -34,6 +34,7 @@ import org.eclipse.lsp4j.DidCloseTextDocumentParams;
 import org.eclipse.lsp4j.DidOpenTextDocumentParams;
 import org.eclipse.lsp4j.DidSaveTextDocumentParams;
 import org.eclipse.lsp4j.DocumentFormattingParams;
+import org.eclipse.lsp4j.ExecuteCommandParams;
 import org.eclipse.lsp4j.FormattingCapabilities;
 import org.eclipse.lsp4j.InitializeParams;
 import org.eclipse.lsp4j.InitializedParams;
@@ -96,7 +97,12 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LspClient.class);
 
-	private static final long INITIALIZATION_TIMEOUT_SECONDS = 60;
+	/**
+	 * Servers that build an index of the workspace during initialization, such as
+	 * kotlin-language-server and groovy-language-server, need longer than a minute on a
+	 * cold cache before they answer the {@code initialize} request.
+	 */
+	private static final long INITIALIZATION_TIMEOUT_SECONDS = 180;
 
 	private static final int MAX_RECENT_ERROR_LINES = 20;
 
@@ -106,6 +112,8 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	}
 
 	private final Consumer<PublishDiagnosticsParams> diagnosticsHandler;
+
+	private final Map<String, Object> initializationOptions;
 
 	private final CompletableFuture<Void> initialized = new CompletableFuture<>();
 
@@ -177,6 +185,28 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 	 */
 	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler,
 			Map<String, String> environment, ManagedThreadPool workerPool) throws IOException {
+		this(command, workspaceRoot, diagnosticsHandler, environment, workerPool, Map.of());
+	}
+
+	/**
+	 * Creates a client with language-specific initialization options.
+	 *
+	 * <p>
+	 * JDT LS uses the {@code bundles} option to load the Java debug adapter jar, which is
+	 * downloaded at runtime by the IDE.
+	 * @param command command and arguments used to start the language server
+	 * @param workspaceRoot root directory passed to the server and used as its working
+	 * directory
+	 * @param diagnosticsHandler consumer for diagnostics published by the server, may be
+	 * {@code null}
+	 * @param environment extra environment variables for the server process
+	 * @param workerPool managed pool for background language-server work
+	 * @param initializationOptions options sent in the {@code initialize} request
+	 * @throws IOException when the client cannot register its startup work
+	 */
+	public LspClient(List<String> command, Path workspaceRoot, Consumer<PublishDiagnosticsParams> diagnosticsHandler,
+			Map<String, String> environment, ManagedThreadPool workerPool, Map<String, Object> initializationOptions)
+			throws IOException {
 		if (command == null || command.isEmpty()) {
 			throw new IllegalArgumentException("Language server command must not be empty.");
 		}
@@ -186,6 +216,7 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 
 		this.diagnosticsHandler = diagnosticsHandler == null ? ignored -> {
 		} : diagnosticsHandler;
+		this.initializationOptions = initializationOptions == null ? Map.of() : Map.copyOf(initializationOptions);
 		this.workerPool = workerPool;
 		Runnable startup = () -> startServer(command, workspaceRoot, environment);
 		Runnable startupOnClose = () -> {
@@ -414,6 +445,24 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 						: CompletableFuture.completedFuture(Either.forLeft(List.of())));
 	}
 
+	/**
+	 * Runs a workspace command on the language server.
+	 *
+	 * <p>
+	 * This backs the Java debug bridge, which starts the DAP server hosted by the JDT
+	 * language server through the {@code vscode.java.startDebugSession} command.
+	 * @param command command identifier understood by the server
+	 * @param arguments command arguments, may be {@code null}
+	 * @return a future completed with the command result
+	 * @author BrunoRNS
+	 * @since v1.1.0
+	 */
+	public CompletableFuture<Object> executeCommand(String command, List<Object> arguments) {
+		ExecuteCommandParams params = new ExecuteCommandParams(command,
+				arguments == null ? List.of() : List.copyOf(arguments));
+		return initialized.thenCompose(ignored -> server.getWorkspaceService().executeCommand(params));
+	}
+
 	@SuppressWarnings("deprecation")
 	private void initialize(Path workspaceRoot) {
 		InitializeParams params = new InitializeParams();
@@ -421,6 +470,9 @@ public final class LspClient implements LanguageClient, AutoCloseable {
 		params.setProcessId(Math.toIntExact(ProcessHandle.current().pid()));
 		params.setClientInfo(new ClientInfo("SIMPLE-IDE", SimpleIDEVersion.VERSION));
 		params.setCapabilities(createClientCapabilities());
+		if (!initializationOptions.isEmpty()) {
+			params.setInitializationOptions(initializationOptions);
+		}
 
 		if (workspaceRoot != null) {
 			String rootUri = workspaceRoot.toUri().toString();

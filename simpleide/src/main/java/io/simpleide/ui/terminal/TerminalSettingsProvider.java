@@ -1,6 +1,7 @@
 package io.simpleide.ui.terminal;
 
 import java.awt.Font;
+import java.util.Locale;
 
 import javax.swing.UIManager;
 
@@ -25,6 +26,35 @@ import com.jediterm.terminal.ui.settings.DefaultSettingsProvider;
  * @since v1.1.0
  */
 public final class TerminalSettingsProvider extends DefaultSettingsProvider {
+
+	private final boolean macOs;
+
+	/**
+	 * Creates a provider for the current operating system.
+	 */
+	public TerminalSettingsProvider() {
+		this(System.getProperty("os.name", ""));
+	}
+
+	TerminalSettingsProvider(String osName) {
+		this.macOs = osName != null && osName.toLowerCase(Locale.ROOT).startsWith("mac");
+	}
+
+	/**
+	 * Returns whether the Option key should send an escape prefix.
+	 *
+	 * <p>
+	 * On macOS, Option is used to compose accented and dead-key characters ({@code ~},
+	 * {@code ´}, {@code á} and so on). Sending an escape prefix for Option would both
+	 * leak an extra character to the shell and suppress the composed character. Option
+	 * therefore behaves as a compose key on macOS, while other platforms keep the usual
+	 * {@code Alt} escape behavior.
+	 * @return {@code false} on macOS, {@code true} elsewhere
+	 */
+	@Override
+	public boolean altSendsEscape() {
+		return !macOs;
+	}
 
 	/**
 	 * Returns the monospaced terminal font, based on the UI text font when available.

@@ -273,6 +273,8 @@ package`. Development workflow, branch model and tests:
 - Embedded BusyBox terminal per platform, no runtime download.
 - FlatLaf themes, project tree with file watching, `ThreadMaster` task
   management.
+- Source Control sidebar bound to the folder open in Explorer, with repository
+  status, branch operations and a JGit commit graph.
 
 ## Team
 

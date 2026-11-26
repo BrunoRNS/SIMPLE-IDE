@@ -1,0 +1,115 @@
+{
+  "adapters": [
+    {
+      "id": "js-debug",
+      "name": "JavaScript Debug Adapter",
+      "version": "1.140.1",
+      "languageId": "javascript",
+      "command": "node",
+      "transport": "tcp",
+      "launch": {
+        "type": "pwa-node",
+        "console": "internalConsole"
+      },
+      "arguments": [
+        "${installDir}/js-debug/src/dapDebugServer.js",
+        "${port}"
+      ],
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/microsoft/vscode-js-debug/releases/download/v1.140.1/js-debug-dap-v1.140.1.tar.gz", "archiveType": "tar.gz" }
+      ]
+    },
+    {
+      "id": "debugpy",
+      "name": "Python Debug Adapter",
+      "version": "2026.6.0",
+      "languageId": "python",
+      "command": "python3",
+      "transport": "tcp",
+      "arguments": [
+        "-m",
+        "debugpy.adapter",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "${port}"
+      ],
+      "launch": {
+        "type": "python",
+        "console": "integratedTerminal",
+        "justMyCode": false
+      },
+      "environment": {
+        "PYTHONPATH": "${installDir}/extension/bundled/libs"
+      },
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "x64", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "arm64", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x86", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "arm64", "url": "https://open-vsx.org/api/ms-python/debugpy/2026.6.0/file/ms-python.debugpy-2026.6.0.vsix", "archiveType": "zip" }
+      ]
+    },
+    {
+      "id": "delve",
+      "name": "Go Debug Adapter",
+      "version": "1.27.2",
+      "languageId": "go",
+      "command": "${installDir}/dlv",
+      "transport": "tcp",
+      "arguments": [
+        "dap",
+        "--listen",
+        "127.0.0.1:${port}",
+        "--log-dest",
+        "${installDir}/delve.log",
+        "--check-go-version=false"
+      ],
+      "launch": {
+        "mode": "debug",
+        "outputMode": "remote",
+        "program": "${program}"
+      },
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_linux_386.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "x64", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_linux_amd64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "linux", "arch": "arm64", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_linux_arm64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "windows", "arch": "x86", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_windows_amd64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_windows_amd64.zip", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_windows_amd64.zip", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_darwin_amd64.tar.gz", "archiveType": "tar.gz" },
+        { "os": "macos", "arch": "arm64", "url": "https://github.com/go-delve/delve/releases/download/v1.27.2/dlv_1.27.2_darwin_arm64.tar.gz", "archiveType": "tar.gz" }
+      ]
+    },
+    {
+      "id": "java-debug",
+      "name": "Java Debug Adapter",
+      "version": "0.60.0",
+      "languageId": "java",
+      "command": "jdtls",
+      "transport": "jdtls",
+      "arguments": [],
+      "launch": {},
+      "downloads": [
+        { "os": "linux", "arch": "x86", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "x64", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" },
+        { "os": "linux", "arch": "arm64", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x86", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "x64", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" },
+        { "os": "windows", "arch": "arm64", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "x64", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" },
+        { "os": "macos", "arch": "arm64", "url": "https://open-vsx.org/api/vscjava/vscode-java-debug/0.60.0/file/vscjava.vscode-java-debug-0.60.0.vsix", "archiveType": "zip" }
+      ]
+    }
+  ]
+}

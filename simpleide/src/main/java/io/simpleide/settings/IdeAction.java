@@ -62,7 +62,17 @@ public enum IdeAction {
 	/**
 	 * Opens the settings view.
 	 */
-	OPEN_SETTINGS("openSettings", "Open Settings", "ctrl alt S");
+	OPEN_SETTINGS("openSettings", "Open Settings", "ctrl alt S"),
+
+	/**
+	 * Runs the program in the selected editor.
+	 */
+	RUN("run", "Run", "F5"),
+
+	/**
+	 * Starts a debug session for the selected editor.
+	 */
+	DEBUG("debug", "Debug", "ctrl F5");
 
 	private final String id;
 

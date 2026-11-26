@@ -25,7 +25,7 @@ endif
 export SIMPLEIDE_PKG_VARIANT := $(MEDIA_VARIANT)
 MVN := $(MVNW) -Dsimpleide.media.variant=$(MEDIA_VARIANT)
 
-.PHONY: all build test test-nolang test-consumer jar pkg pkg-verify change-version run clean format check-format format-check verify help
+.PHONY: all build test test-nolang test-consumer test-debug test-lsp jar pkg pkg-verify change-version run clean format check-format format-check verify help
 
 all: test jar
 
@@ -35,11 +35,11 @@ build:
 
 # Run the complete test suite.
 test: check-format
-	$(MVN) -B test
+	$(MVN) -B -DexcludedGroups=debug test
 
 # Run the test suite without tests that require external language toolchains.
 test-nolang: check-format
-	$(MVN) -B -DexcludedGroups=language-tools test
+	$(MVN) -B -DexcludedGroups=debug,language-tools test
 
 # Install the reactor locally, then resolve a standalone consumer POM once per
 # media variant and verify the transitive JavaFX dependencies. This validates
@@ -47,6 +47,14 @@ test-nolang: check-format
 test-consumer:
 	$(MVN) -B -DskipTests install
 	$(PYTHON) scripts/ci/test-consumer-profiles.py --skip-install
+
+# Run only debug integration tests; the CI workflow supplies the newest toolchains.
+test-debug: check-format
+	$(MVN) -B -Dgroups=debug -DexcludedGroups= -Dsimpleide.java.debug.real=true test
+
+# Run only language-server integration tests; the CI workflow supplies the runtime toolchains.
+test-lsp: check-format
+	$(MVN) -B -Dgroups=lsp -DexcludedGroups= test
 
 # Package the executable fat JAR. Tests are intentionally not part of this target.
 jar:
@@ -106,6 +114,8 @@ help:
 	@echo "  make test          Run the full test suite"
 	@echo "  make test-nolang   Run tests without external language toolchains"
 	@echo "  make test-consumer Validate the Maven consumer media variants"
+	@echo "  make test-debug    Run only debug integration tests"
+	@echo "  make test-lsp      Run only language-server integration tests"
 	@echo "  make jar           Package the executable fat JAR"
 	@echo "  make pkg           Build every release package for this OS/architecture"
 	@echo "  make pkg-verify    Build packages and validate the produced executables"

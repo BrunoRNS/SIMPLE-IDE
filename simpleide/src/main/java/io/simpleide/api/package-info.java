@@ -18,6 +18,8 @@
  * {@link io.simpleide.api.MediaPlaybacks} for audio and video playback,
  * {@link io.simpleide.api.Threads} for managed execution,
  * {@link io.simpleide.api.Languages} for language discovery and execution,
+ * {@link io.simpleide.api.LanguageServers} for LSP connections,
+ * {@link io.simpleide.api.Debugger} for debug sessions,
  * {@link io.simpleide.api.Terminals} for embedded terminals and
  * {@link io.simpleide.api.SimpleIDE} as a convenience entry point.
  *

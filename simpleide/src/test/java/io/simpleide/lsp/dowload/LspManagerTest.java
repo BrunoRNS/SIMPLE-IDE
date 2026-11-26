@@ -119,6 +119,40 @@ class LspManagerTest {
 	}
 
 	@Test
+	void configuresOmniSharpOnMonoForLooseCSharpFiles() throws Exception {
+		LspServer csharp = LspManager.getRegistry()
+			.getServers()
+			.stream()
+			.filter(server -> server.getLanguageId().equals("csharp"))
+			.findFirst()
+			.orElseThrow();
+
+		assertThat(csharp.getId()).isEqualTo("omnisharp-mono");
+		assertThat(csharp.getVersionCommand()).isEqualTo("mono");
+		assertThat(csharp.getMinimumVersion()).isEqualTo("6");
+		assertThat(csharp.getUrl()).endsWith("omnisharp-mono.tar.gz");
+		assertThat(LspManager.createCommand(csharp, home)).containsSubsequence("mono", "--languageserver", "--stdio",
+				"-s", home.toAbsolutePath().normalize().toString());
+	}
+
+	@Test
+	void selectsThePinnedGoplsReleaseForOlderGoToolchains() {
+		List<LspServer> goplsServers = LspManager.getRegistry()
+			.getServers()
+			.stream()
+			.filter(server -> server.getLanguageId().equals("go"))
+			.filter(server -> server.getOs().contains("LINUX"))
+			.toList();
+
+		assertThat(LspManager.selectClosestCompatibleServer(goplsServers, "go version go1.22.2 linux/amd64"))
+			.extracting(LspServer::getId)
+			.isEqualTo("go-gopls-legacy");
+		assertThat(LspManager.selectClosestCompatibleServer(goplsServers, "go version go1.26.1 linux/amd64"))
+			.extracting(LspServer::getId)
+			.isEqualTo("go-gopls");
+	}
+
+	@Test
 	void selectsTheJava17CompatibleJdtlsReleaseOnJava21() {
 		String originalOsName = System.getProperty("os.name");
 		String originalOsArch = System.getProperty("os.arch");
@@ -237,8 +271,8 @@ class LspManagerTest {
 				.getServers()
 				.stream()
 				.filter(LspServer::isSupportedOnCurrentPlatform)
-				.map(LspServer::getId)).containsExactly("csharp-language-server-windows",
-						"kotlin-language-server-windows", "go-gopls-windows", "rust-analyzer-windows-x86");
+				.map(LspServer::getId)).containsExactly("omnisharp-mono", "kotlin-language-server-windows",
+						"go-gopls-windows", "go-gopls-legacy-windows", "rust-analyzer-windows-x86");
 
 			assertThat(LspManager.getRegistry().getServers())
 				.filteredOn(server -> List.of("java", "javascript", "python").contains(server.getLanguageId()))
@@ -249,14 +283,15 @@ class LspManagerTest {
 				.stream()
 				.filter(server -> server.getLanguageId().equals("csharp"))
 				.filter(LspServer::isSupportedOnCurrentPlatform)).extracting(LspServer::getId)
-				.containsExactly("csharp-language-server-windows");
+				.containsExactly("omnisharp-mono");
 
 			System.setProperty("os.name", "Linux");
 			assertThat(LspManager.getRegistry()
 				.getServers()
 				.stream()
 				.filter(LspServer::isSupportedOnCurrentPlatform)
-				.map(LspServer::getId)).containsExactly("kotlin-language-server", "go-gopls");
+				.map(LspServer::getId))
+				.containsExactly("omnisharp-mono", "kotlin-language-server", "go-gopls", "go-gopls-legacy");
 		}
 		finally {
 			System.setProperty("os.name", originalOsName);
@@ -353,6 +388,69 @@ class LspManagerTest {
 				System.setProperty("user.home", originalHome);
 			}
 		}
+	}
+
+	@Test
+	void linksLooseRustFilesWhenTheWorkspaceHasNoCargoProject() throws Exception {
+		Path workspace = Files.createDirectories(home.resolve("scripts"));
+		Path first = Files.writeString(workspace.resolve("main.rs"), "fn main() {}");
+		Path second = Files.writeString(workspace.resolve("other.rs"), "fn other() {}");
+		Files.writeString(workspace.resolve("notes.txt"), "ignored");
+
+		assertThat(LspManager.getInitializationOptions("rust", workspace)).containsEntry("linkedProjects",
+				List.of(first.toAbsolutePath().normalize().toString(), second.toAbsolutePath().normalize().toString()));
+	}
+
+	@Test
+	void keepsRustAnalyzerDiscoveryForCargoProjects() throws Exception {
+		Path workspace = Files.createDirectories(home.resolve("crate"));
+		Files.writeString(workspace.resolve("Cargo.toml"), "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n");
+		Files.writeString(workspace.resolve("main.rs"), "fn main() {}");
+
+		assertThat(LspManager.getInitializationOptions("rust", workspace)).isEmpty();
+	}
+
+	@Test
+	void writesAProjectForLooseCSharpFiles() throws Exception {
+		Path workspace = Files.createDirectories(home.resolve("cs-scripts"));
+		Files.writeString(workspace.resolve("Program.cs"), "class Program {}\n");
+		Path other = Files.writeString(workspace.resolve("Extra.cs"), "class Extra {}\n");
+		LspServer csharp = csharpServer();
+
+		LspManager.createCommand(csharp, workspace);
+
+		Path project = workspace.resolve("SimpleIdeLooseFiles.csproj");
+		assertThat(project).exists();
+		assertThat(Files.readString(project))
+			.contains("<Compile Include=\"Extra.cs\" />", "<Compile Include=\"Program.cs\" />")
+			.doesNotContain(other.toAbsolutePath().toString());
+	}
+
+	@Test
+	void keepsAnExistingCSharpProject() throws Exception {
+		Path workspace = Files.createDirectories(home.resolve("cs-app"));
+		Files.writeString(workspace.resolve("Program.cs"), "class Program {}\n");
+		Files.writeString(workspace.resolve("App.csproj"), "<Project />\n");
+		LspServer csharp = csharpServer();
+
+		List<String> command = LspManager.createCommand(csharp, workspace);
+
+		assertThat(Files.exists(workspace.resolve("SimpleIdeLooseFiles.csproj"))).isFalse();
+		assertThat(command.get(command.size() - 1)).isEqualTo(workspace.toAbsolutePath().normalize().toString());
+	}
+
+	private static LspServer csharpServer() {
+		return LspManager.getRegistry()
+			.getServers()
+			.stream()
+			.filter(server -> server.getLanguageId().equals("csharp"))
+			.findFirst()
+			.orElseThrow();
+	}
+
+	@Test
+	void returnsNoInitializationOptionsForOtherLanguages() {
+		assertThat(LspManager.getInitializationOptions("java", home)).isEmpty();
 	}
 
 	private static LspServer javaServerWithMinimumVersion(String id, String minimumVersion) {
