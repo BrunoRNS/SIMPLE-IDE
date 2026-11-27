@@ -724,6 +724,8 @@ class TreeFileTest {
 		Path root = Files.createTempDirectory("simpleide-tree-copy-");
 		try {
 			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("source.txt"), "content");
+			
 			Directory rootDirectory = new Directory(root);
 			Tree tree = new Tree(rootDirectory);
 			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -759,6 +761,7 @@ class TreeFileTest {
 		Path root = Files.createTempDirectory("simpleide-tree-cut-");
 		try {
 			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("move.txt"), "content");
 			Directory rootDirectory = new Directory(root);
 			Tree tree = new Tree(rootDirectory);
 			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -834,6 +837,7 @@ class TreeFileTest {
 		Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "The warning dialog needs a display");
 		Path root = Files.createTempDirectory("simpleide-tree-paste-error-");
 		try {
+			Files.writeString(root.resolve("source.txt"), "content");
 			Directory rootDirectory = new Directory(root);
 			Tree tree = new Tree(rootDirectory);
 			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -872,6 +876,7 @@ class TreeFileTest {
 		Path root = Files.createTempDirectory("simpleide-tree-keyboard-");
 		try {
 			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("source.txt"), "content");
 			Directory rootDirectory = new Directory(root);
 			Tree tree = new Tree(rootDirectory);
 			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -910,6 +915,7 @@ class TreeFileTest {
 		Path root = Files.createTempDirectory("simpleide-tree-dnd-");
 		try {
 			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("move.txt"), "content");
 			Directory rootDirectory = new Directory(root);
 			Tree tree = new Tree(rootDirectory);
 			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
@@ -947,6 +953,7 @@ class TreeFileTest {
 		Path root = Files.createTempDirectory("simpleide-tree-dnd-copy-");
 		try {
 			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("source.txt"), "content");
 			Directory rootDirectory = new Directory(root);
 			Tree tree = new Tree(rootDirectory);
 			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
