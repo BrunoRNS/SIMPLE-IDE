@@ -1,4 +1,4 @@
-name: Debug CI
+name: Multi-Language Toolchain Tests
 
 on:
   pull_request:

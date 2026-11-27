@@ -39,7 +39,6 @@ import io.simpleide.language.io.Output;
 @Tag("debug")
 class DapSessionIntegrationTest {
 
-	private static final List<String> TRANSPORTS = List.of("stdio", "tcp");
 
 	@TempDir
 	Path tempDirectory;

@@ -298,9 +298,6 @@ final class BusyBoxTerminalStarter {
 		}
 	}
 
-	private String processDiagnostics(PtyProcess activeProcess) {
-		return session.processDiagnostics(activeProcess);
-	}
 
 	private void cleanupFailedStart(Throwable failure) {
 		BusyBoxSessionSnapshot snapshot = session.state.get();

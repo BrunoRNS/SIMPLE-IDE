@@ -16,6 +16,7 @@ import io.simpleide.thread.nodes.NodePattern;
  * @author BrunoRNS
  * @since v1.0.0beta
  */
+@Deprecated
 public interface Tree {
 
 	/**

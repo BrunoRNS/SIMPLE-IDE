@@ -413,13 +413,6 @@ public final class ThemeManager {
 		ThemeLookAndFeel.setup(resourceName, themeName);
 	}
 
-	private void applySyntaxPalette(Theme editorTheme, SyntaxPalette palette) {
-		ThemeSyntaxApplier.apply(editorTheme, palette);
-	}
-
-	private void setSyntaxForeground(Theme theme, Color color, int... tokenTypes) {
-		ThemeSyntaxApplier.setSyntaxForeground(theme, color, tokenTypes);
-	}
 
 	private void applyEditorFont(Editor editor) {
 		Font font = editorFont();

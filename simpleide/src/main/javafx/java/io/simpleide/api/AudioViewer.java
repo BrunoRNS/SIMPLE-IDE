@@ -419,4 +419,7 @@ public final class AudioViewer extends JPanel implements MediaPlayback {
 		return player;
 	}
 
+	public Media getMedia() {
+		return media;
+	}
 }

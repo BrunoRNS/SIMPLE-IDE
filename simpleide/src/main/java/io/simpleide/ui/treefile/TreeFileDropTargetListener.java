@@ -116,13 +116,17 @@ final class TreeFileDropTargetListener implements DropTargetListener {
 		if (userObject instanceof Directory directory) {
 			return directory;
 		}
-		if (userObject instanceof TreeFile file && dropPath.getParentPath() != null) {
-			Object parentObject = ((DefaultMutableTreeNode) dropPath.getParentPath().getLastPathComponent())
-				.getUserObject();
-			if (parentObject instanceof Directory directory) {
-				return directory;
-			}
+		if (userObject instanceof Directory directory) {
+			return directory;
 		}
+
+		if (userObject instanceof TreeFile
+				&& dropPath.getParentPath() != null
+				&& dropPath.getParentPath().getLastPathComponent() instanceof DefaultMutableTreeNode parentNode
+				&& parentNode.getUserObject() instanceof Directory parentDirectory) {
+			return parentDirectory;
+		}
+
 		return tree.getState().getCurrentDirectory();
 	}
 

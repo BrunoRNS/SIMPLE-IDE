@@ -2,7 +2,6 @@ package io.simpleide.ui.treefile;
 
 import java.awt.Color;
 import java.awt.GraphicsEnvironment;
-import java.awt.datatransfer.Transferable;
 import java.awt.dnd.DropTarget;
 import java.awt.event.KeyEvent;
 import java.io.IOException;
@@ -410,15 +409,3 @@ public class Tree extends JTree {
 	}
 
 }
-
-/**
- * Transfer handler for drag-and-drop operations on the file tree.
- */
-
-/**
- * Transferable for TreeFile entries.
- */
-
-/**
- * Drop target listener for handling drops on the file tree.
- */

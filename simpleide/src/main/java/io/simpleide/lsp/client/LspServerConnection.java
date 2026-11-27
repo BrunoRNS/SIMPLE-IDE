@@ -240,10 +240,12 @@ final class LspServerConnection {
 		}
 
 		if (workspaceRoot != null) {
-			String rootUri = workspaceRoot.toUri().toString();
-			params.setRootUri(rootUri);
-			params.setRootPath(workspaceRoot.toAbsolutePath().toString());
-			params.setWorkspaceFolders(List.of(new WorkspaceFolder(rootUri, workspaceRoot.getFileName().toString())));
+			Path normalizedRoot = workspaceRoot.toAbsolutePath().normalize();
+			String rootUri = normalizedRoot.toUri().toString();
+			String folderName = normalizedRoot.getFileName() != null ? normalizedRoot.getFileName().toString()
+					: normalizedRoot.toString();
+
+			params.setWorkspaceFolders(List.of(new WorkspaceFolder(rootUri, folderName)));
 		}
 
 		initializationTimeoutTask = ThreadMaster.getInstance().schedule(runtimeNode, () -> {
