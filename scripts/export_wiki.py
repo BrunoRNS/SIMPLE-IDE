@@ -111,12 +111,24 @@ for source in sources:
 WIKI.mkdir(parents=True, exist_ok=True)
 for old_page in WIKI.glob("*.md"):
     old_page.unlink()
+SCREENSHOTS = DOCS / "screenshots"
+
+
+def image_url(source: Path, destination: str) -> str:
+    path = (source.parent / urllib.parse.unquote(destination)).resolve()
+    relative = path.relative_to(SCREENSHOTS.resolve()).as_posix()
+    return (
+        "https://raw.githubusercontent.com/BrunoRNS/SIMPLE-IDE/main/"
+        f"docs/screenshots/{urllib.parse.quote(relative)}"
+    )
+
+
 for source in sources:
     content = source.read_text(encoding="utf-8")
-    if source.parent.name == "screenshots":
+    if SCREENSHOTS in source.parents:
         content = re.sub(
             r"!\[([^\]]+)\]\((?!https?://)([^)#]+\.(?:png|jpe?g|gif|svg))\)",
-            lambda match: f"![{match.group(1)}](https://raw.githubusercontent.com/BrunoRNS/SIMPLE-IDE/main/docs/screenshots/{urllib.parse.quote(Path(match.group(2)).name)})",
+            lambda match: f"![{match.group(1)}]({image_url(source, match.group(2))})",
             content,
             flags=re.IGNORECASE,
         )

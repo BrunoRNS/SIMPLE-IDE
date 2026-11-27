@@ -24,8 +24,8 @@ IDEs.
 
 | | |
 | --- | --- |
-| ![Home page, default dark theme](docs/screenshots/simpleide-homepage-default-dark-v1.0.0beta.png) | ![Autocomplete, light theme, Java](docs/screenshots/simpleide-lighttheme-autocomplete-javalang-v1.0.0beta.png) |
-| ![Embedded terminal, Dracula theme](docs/screenshots/simpleide-draculatheme-terminal-v1.0.0beta.png) | ![Opened editor, dark theme](docs/screenshots/simpleide-nolangfileopenededitor-dark-v1.0.0beta.png) |
+| ![Home page, default dark theme](docs/screenshots/1.0.0/simpleide-homepage-default-dark-v1.0.0beta.png) | ![Autocomplete, light theme, Java](docs/screenshots/1.0.0/simpleide-lighttheme-autocomplete-javalang-v1.0.0beta.png) |
+| ![Embedded terminal, Dracula theme](docs/screenshots/1.0.0/simpleide-draculatheme-terminal-v1.0.0beta.png) | ![Opened editor, dark theme](docs/screenshots/1.0.0/simpleide-nolangfileopenededitor-dark-v1.0.0beta.png) |
 
 More pictures and what each one shows: [Screenshots showcase](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Screenshots).
 

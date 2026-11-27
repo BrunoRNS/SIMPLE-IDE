@@ -20,7 +20,7 @@ import io.simpleide.thread.nodes.NodePattern;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/popups.md">docs/api/ui/popups.md</a>
- * @author BrunoRNS
+ * @author LuisOtavio13
  * @since v1.0.0beta
  */
 public abstract class PopUP implements Runnable {

@@ -51,6 +51,8 @@ v1.1.0 uses `io.simpleide.ui.icon.MaterialIcons`.
   compatibility code.
 - `LogPanel` rebuilds its document from stored entries on theme changes instead of
   patching character attributes in place.
+- Threading/internal: long Git commands now use a managed `RunnableNode` pool, and Swing
+  callbacks use ThreadMaster listener nodes with long work handed to background nodes.
 
 **Breaking changes from v1.0.0beta:** The following changes affect source
 compatibility (callers no longer compile) and binary compatibility

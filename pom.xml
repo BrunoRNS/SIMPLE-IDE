@@ -82,6 +82,9 @@
                         </goals>
                     </execution>
                 </executions>
+                <configuration>
+                    <lineSeparator>lf</lineSeparator>
+                </configuration>
             </plugin>
         </plugins>
     </build>
