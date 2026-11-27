@@ -3,9 +3,6 @@ package io.simpleide.dap;
 import java.io.IOException;
 import java.io.StringReader;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -23,12 +20,14 @@ import java.util.stream.Stream;
 import jakarta.json.Json;
 import jakarta.json.JsonObject;
 import jakarta.json.JsonReader;
-import org.rauschig.jarchivelib.ArchiverFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
+import io.simpleide.utils.ArchiveUtil;
+import io.simpleide.utils.DownloadUtil;
+import io.simpleide.utils.FileUtil;
 
 /**
  * Downloads the {@code vscode-java-debug} extension and exposes its JDT LS bundle.
@@ -75,11 +74,6 @@ public final class JavaDebugInstaller {
 	private static final Pattern EXECUTION_ENVIRONMENT = Pattern.compile("JavaSE-(\\d+)");
 
 	private static final Pattern OSGI_EXECUTION_ENVIRONMENT = Pattern.compile("osgi\\.ee=JavaSE\\)\\(version=(\\d+)");
-
-	private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-		.connectTimeout(Duration.ofSeconds(30))
-		.followRedirects(HttpClient.Redirect.NORMAL)
-		.build();
 
 	private static final ConcurrentMap<Path, Object> INSTALL_LOCKS = new ConcurrentHashMap<>();
 
@@ -200,11 +194,14 @@ public final class JavaDebugInstaller {
 				return required <= javaFeature ? existing : null;
 			}
 			try {
-				deleteDirectory(directory);
+				FileUtil.deleteRecursively(directory);
 				Files.createDirectories(directory);
-				Path archive = download(version, directory);
+				URI uri = URI.create(String.format(DOWNLOAD_URL_TEMPLATE, version, version));
+				Output.getInstance()
+					.publish(OutputType.DEBUG, "Downloading vscode-java-debug " + version + " from " + uri);
+				Path archive = DownloadUtil.download(uri, directory, "java-debug.", ".zip");
 				try {
-					ArchiverFactory.createArchiver(archive.toFile()).extract(archive.toFile(), directory.toFile());
+					ArchiveUtil.extract(archive, directory);
 				}
 				finally {
 					Files.deleteIfExists(archive);
@@ -217,7 +214,7 @@ public final class JavaDebugInstaller {
 				if (required > javaFeature) {
 					LOGGER.info("vscode-java-debug {} requires Java {} but the running JDK is Java {}.", version,
 							required, javaFeature);
-					deleteDirectory(directory);
+					FileUtil.deleteRecursively(directory);
 					return null;
 				}
 				Files.writeString(directory.resolve(".installed"), version, StandardOpenOption.CREATE,
@@ -227,7 +224,7 @@ public final class JavaDebugInstaller {
 			}
 			catch (IOException | InterruptedException | RuntimeException error) {
 				try {
-					deleteDirectory(directory);
+					FileUtil.deleteRecursively(directory);
 				}
 				catch (IOException cleanupError) {
 					error.addSuppressed(cleanupError);
@@ -245,17 +242,14 @@ public final class JavaDebugInstaller {
 	}
 
 	private static String latestVersion() throws IOException, InterruptedException {
-		HttpRequest request = HttpRequest.newBuilder(URI.create(LATEST_VERSION_URL))
-			.timeout(Duration.ofMinutes(2))
-			.header("User-Agent", "SimpleIDE")
-			.GET()
-			.build();
-		HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
-		if (response.statusCode() < 200 || response.statusCode() >= 300) {
-			throw new IOException(
-					"Unable to resolve the newest vscode-java-debug release: HTTP " + response.statusCode());
+		String body;
+		try {
+			body = DownloadUtil.downloadString(URI.create(LATEST_VERSION_URL), Duration.ofMinutes(2));
 		}
-		try (JsonReader reader = Json.createReader(new StringReader(response.body()))) {
+		catch (IOException error) {
+			throw new IOException("Unable to resolve the newest vscode-java-debug release.", error);
+		}
+		try (JsonReader reader = Json.createReader(new StringReader(body))) {
 			JsonObject json = reader.readObject();
 			String version = json.getString("version", "");
 			if (version.isBlank()) {
@@ -266,24 +260,6 @@ public final class JavaDebugInstaller {
 		catch (RuntimeException error) {
 			throw new IOException("Unable to read the vscode-java-debug release metadata.", error);
 		}
-	}
-
-	private static Path download(String version, Path directory) throws IOException, InterruptedException {
-		URI uri = URI.create(String.format(DOWNLOAD_URL_TEMPLATE, version, version));
-		Output.getInstance().publish(OutputType.DEBUG, "Downloading vscode-java-debug " + version + " from " + uri);
-		Path destination = Files.createTempFile(directory, "java-debug.", ".zip");
-		HttpRequest request = HttpRequest.newBuilder(uri)
-			.timeout(Duration.ofMinutes(5))
-			.header("User-Agent", "SimpleIDE")
-			.GET()
-			.build();
-		HttpResponse<Path> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(destination,
-				StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING));
-		if (response.statusCode() < 200 || response.statusCode() >= 300) {
-			Files.deleteIfExists(destination);
-			throw new IOException("HTTP " + response.statusCode() + " while downloading vscode-java-debug " + version);
-		}
-		return destination;
 	}
 
 	private static Path findPluginJar(Path directory) {
@@ -300,17 +276,6 @@ public final class JavaDebugInstaller {
 		catch (IOException error) {
 			LOGGER.debug("Unable to inspect the Java debug adapter installation at {}.", directory, error);
 			return null;
-		}
-	}
-
-	private static void deleteDirectory(Path directory) throws IOException {
-		if (!Files.exists(directory)) {
-			return;
-		}
-		try (Stream<Path> paths = Files.walk(directory)) {
-			for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-				Files.deleteIfExists(path);
-			}
 		}
 	}
 

@@ -6,7 +6,6 @@ import javax.swing.JComponent;
 import javax.swing.JOptionPane;
 
 import io.simpleide.frame.utils.LoadIcon;
-import io.simpleide.utils.mappeable.Mappeable;
 import io.simpleide.utils.mappeable.MappeableSupport;
 
 /**
@@ -17,7 +16,7 @@ import io.simpleide.utils.mappeable.MappeableSupport;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/popups.md">docs/api/ui/popups.md</a>
- * @author BrunoRNS
+ * @author LuisOtavio13
  * @since v1.0.0beta
  */
 public class WarningPopUP extends PopUP implements MappeableSupport {

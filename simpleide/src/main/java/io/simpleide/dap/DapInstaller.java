@@ -2,25 +2,21 @@ package io.simpleide.dap;
 
 import java.io.IOException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
-import java.util.Comparator;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import org.rauschig.jarchivelib.Archiver;
-import org.rauschig.jarchivelib.ArchiverFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
+import io.simpleide.utils.ArchiveUtil;
+import io.simpleide.utils.DownloadUtil;
+import io.simpleide.utils.FileUtil;
 
 /**
  * Downloads and extracts debug adapters into the user directory.
@@ -41,11 +37,6 @@ import io.simpleide.language.io.OutputType;
 public final class DapInstaller {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(DapInstaller.class);
-
-	private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-		.connectTimeout(Duration.ofSeconds(30))
-		.followRedirects(HttpClient.Redirect.NORMAL)
-		.build();
 
 	private static final ConcurrentMap<Path, Object> INSTALL_LOCKS = new ConcurrentHashMap<>();
 
@@ -68,7 +59,7 @@ public final class DapInstaller {
 				return directory;
 			}
 			try {
-				deleteDirectory(directory);
+				FileUtil.deleteRecursively(directory);
 				Files.createDirectories(directory);
 				Path archive = download(adapter, download, directory);
 				try {
@@ -76,7 +67,7 @@ public final class DapInstaller {
 						Files.move(archive, directory.resolve("adapter"));
 					}
 					else {
-						extract(archive, directory);
+						ArchiveUtil.extract(archive, directory);
 					}
 				}
 				finally {
@@ -90,7 +81,7 @@ public final class DapInstaller {
 			}
 			catch (IOException | InterruptedException | RuntimeException error) {
 				try {
-					deleteDirectory(directory);
+					FileUtil.deleteRecursively(directory);
 				}
 				catch (IOException cleanupError) {
 					error.addSuppressed(cleanupError);
@@ -139,36 +130,11 @@ public final class DapInstaller {
 	private static Path download(DapAdapter adapter, DapDownload download, Path directory)
 			throws IOException, InterruptedException {
 		URI uri = URI.create(download.url());
-		if (!"https".equalsIgnoreCase(uri.getScheme())) {
-			throw new IOException("DAP adapter download URL must use HTTPS: " + download.url());
-		}
+		DownloadUtil.requireHttps(uri);
 		Output.getInstance().publish(OutputType.DEBUG, "Downloading " + adapter.getName() + " from " + uri);
 		String suffix = download.archiveType() == null || download.archiveType().isBlank() ? ".bin"
 				: "." + download.archiveType();
-		Path destination = Files.createTempFile(directory, "dap-download.", suffix);
-		HttpRequest request = HttpRequest.newBuilder(uri)
-			.timeout(Duration.ofMinutes(5))
-			.header("User-Agent", "SimpleIDE")
-			.GET()
-			.build();
-		try {
-			HttpResponse<Path> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(destination,
-					StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING));
-			if (response.statusCode() < 200 || response.statusCode() >= 300) {
-				throw new IOException(
-						"HTTP download failed with status " + response.statusCode() + " for " + adapter.getName());
-			}
-			return destination;
-		}
-		catch (IOException | InterruptedException | RuntimeException error) {
-			Files.deleteIfExists(destination);
-			throw error;
-		}
-	}
-
-	private static void extract(Path archive, Path directory) throws IOException {
-		Archiver archiver = ArchiverFactory.createArchiver(archive.toFile());
-		archiver.extract(archive.toFile(), directory.toFile());
+		return DownloadUtil.download(uri, directory, "dap-download.", suffix);
 	}
 
 	private static void makeCommandExecutable(DapAdapter adapter, Path directory) throws IOException {
@@ -179,17 +145,6 @@ public final class DapInstaller {
 		}
 		if (!executable.toFile().setExecutable(true, true)) {
 			LOGGER.debug("Unable to mark the debug adapter command as executable: {}", executable);
-		}
-	}
-
-	private static void deleteDirectory(Path directory) throws IOException {
-		if (!Files.exists(directory)) {
-			return;
-		}
-		try (var paths = Files.walk(directory)) {
-			for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-				Files.deleteIfExists(path);
-			}
 		}
 	}
 

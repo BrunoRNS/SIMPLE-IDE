@@ -68,7 +68,6 @@ import io.simpleide.ui.treefile.Watcher;
  *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
- * @author BrunoRNS
  * @since v1.0.0beta
  */
 public class MainFrame extends JFrame implements Runnable {

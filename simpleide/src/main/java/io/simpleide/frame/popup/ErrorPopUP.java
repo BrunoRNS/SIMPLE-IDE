@@ -7,7 +7,6 @@ import javax.swing.JOptionPane;
 
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.frame.utils.LoadIcon;
-import io.simpleide.utils.mappeable.Mappeable;
 import io.simpleide.utils.mappeable.MappeableSupport;
 
 /**

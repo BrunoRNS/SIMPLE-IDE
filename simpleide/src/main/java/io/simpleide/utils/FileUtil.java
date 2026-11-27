@@ -7,20 +7,24 @@ import java.nio.channels.Channels;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Objects;
 import java.util.Set;
 
 /**
- * Strict UTF-8 file reading helpers.
+ * Strict UTF-8 file reading and recursive deletion helpers.
  *
  * <p>
  * The reader rejects symbolic links and non-regular files, and reports malformed or
- * unmappable input instead of silently replacing characters.
+ * unmappable input instead of silently replacing characters. Recursive deletion does not
+ * follow symbolic links.
  *
  * <p>
  * Covered by {@code ResourceAndFileUtilTest}.
@@ -64,6 +68,35 @@ public final class FileUtil {
 				.decode(ByteBuffer.wrap(input.readAllBytes()))
 				.toString();
 		}
+	}
+
+	/**
+	 * Deletes a file or directory tree without following symbolic links.
+	 * @param path file or directory to delete
+	 * @throws IOException when an entry cannot be deleted
+	 */
+	public static void deleteRecursively(Path path) throws IOException {
+		Objects.requireNonNull(path, "path");
+		if (!Files.exists(path, LinkOption.NOFOLLOW_LINKS)) {
+			return;
+		}
+
+		Files.walkFileTree(path, new SimpleFileVisitor<>() {
+			@Override
+			public FileVisitResult visitFile(Path file, BasicFileAttributes attributes) throws IOException {
+				Files.delete(file);
+				return FileVisitResult.CONTINUE;
+			}
+
+			@Override
+			public FileVisitResult postVisitDirectory(Path directory, IOException error) throws IOException {
+				if (error != null) {
+					throw error;
+				}
+				Files.delete(directory);
+				return FileVisitResult.CONTINUE;
+			}
+		});
 	}
 
 }

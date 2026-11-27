@@ -8,9 +8,11 @@ operations for the project tree.
 
 | Class | Responsibility |
 | --- | --- |
-| `FileUtil` | Reads strict UTF-8 text from regular files |
+| `FileUtil` | Reads strict UTF-8 text and deletes files or directory trees |
 | `ResourceUtil` | Resolves classpath resources as filesystem paths |
 | `OSpathUtil` | Locates executables on the host `PATH` |
+| `DownloadUtil` | Downloads HTTP resources into temporary files or strings |
+| `ArchiveUtil` | Extracts ZIP and TAR archives |
 
 `ResourceUtil` works both from a packaged JAR and from a source checkout. It is
 used by the editor, the tree renderer and the theme manager to load icons and
@@ -29,8 +31,25 @@ String source = FileUtil.readString(Path.of("Example.java"));
 Path python = OSPathUtil.which("python3");   // null when unavailable
 ```
 
-`FileUtil` rejects directories and invalid UTF-8. Callers that need a different
-charset should read the file themselves.
+`FileUtil` rejects directories and invalid UTF-8. `FileUtil.deleteRecursively`
+removes a file or directory tree without following symbolic links. Callers that
+need a different charset should read the file themselves.
+
+## Downloads and archives
+
+`DownloadUtil` shares one HTTP client with redirects enabled and identifies the
+IDE through the `User-Agent` header:
+
+| Method | Behavior |
+| --- | --- |
+| `download(uri, directory, prefix, suffix)` | Writes a response to a new temporary file and removes it when the request fails |
+| `downloadString(uri, timeout)` | Returns the response body as text |
+| `requireHttps(uri)` | Rejects URLs that do not use HTTPS |
+
+`ArchiveUtil.extract(archive, destination)` infers the archive format from the
+file name, so downloaded files must keep their original extension. The DAP, LSP
+and Java debug installers use these helpers instead of their own HTTP,
+extraction and cleanup code.
 
 ## Map conversion
 
@@ -87,5 +106,5 @@ you need a `Path`, and `LoadIcon` when you need an `Icon` for a Swing component.
 
 ## Testing
 
-Coverage lives in `ResourceAndFileUtilTest` and `FileServiceTest` under
-`simpleide/src/test/java/io/simpleide/utils`.
+Coverage lives in `ResourceAndFileUtilTest`, `DownloadUtilTest` and
+`FileServiceTest` under `simpleide/src/test/java/io/simpleide/utils`.

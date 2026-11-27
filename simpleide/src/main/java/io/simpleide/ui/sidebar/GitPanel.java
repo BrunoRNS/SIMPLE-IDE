@@ -3,6 +3,7 @@ package io.simpleide.ui.sidebar;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Font;
 import java.awt.event.MouseEvent;
 import java.nio.file.Path;
 import java.util.List;
@@ -88,7 +89,7 @@ public final class GitPanel extends JPanel {
 	public GitPanel() {
 		super(new BorderLayout());
 		title.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-		title.setFont(title.getFont().deriveFont(java.awt.Font.BOLD, 11f));
+		title.setFont(title.getFont().deriveFont(Font.BOLD, 11f));
 
 		JPanel top = createTopPanel();
 		JScrollPane graphScroll = new JScrollPane(graph);
@@ -473,6 +474,8 @@ public final class GitPanel extends JPanel {
 					case ADDED -> "A";
 					case MODIFIED -> "M";
 					case DELETED -> "D";
+					case RENAMED -> "R";
+					case COPIED -> "C";
 				};
 				label.setText(marker + "  " + entry.path().getFileName());
 				label.setToolTipText(entry.path().toString());

@@ -4,17 +4,12 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -25,14 +20,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 
-import org.rauschig.jarchivelib.Archiver;
-import org.rauschig.jarchivelib.ArchiverFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.simpleide.lsp.LspStatus;
 import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
+import io.simpleide.utils.ArchiveUtil;
+import io.simpleide.utils.DownloadUtil;
+import io.simpleide.utils.FileUtil;
 
 /**
  * Downloads, extracts and installs language servers into the user directory.
@@ -55,11 +51,6 @@ public final class LspInstaller {
 
 	private static final ManagedThreadPool OUTPUT_DRAIN_POOL = ThreadMaster.getInstance()
 		.createThreadPool("lsp-installer-output", 4);
-
-	private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-		.connectTimeout(Duration.ofSeconds(30))
-		.followRedirects(HttpClient.Redirect.NORMAL)
-		.build();
 
 	private static final ConcurrentMap<Path, Object> INSTALL_LOCKS = new ConcurrentHashMap<>();
 
@@ -94,7 +85,7 @@ public final class LspInstaller {
 			if (isInstalled(server)) {
 				return true;
 			}
-			deleteDirectory(lspDirectory);
+			FileUtil.deleteRecursively(lspDirectory);
 			Files.createDirectories(lspDirectory);
 
 			if (server.getInstallCommand() != null) {
@@ -112,7 +103,7 @@ public final class LspInstaller {
 				Path archive = dowloadingByUrl(server, lspDirectory);
 				try {
 					publishStatus(statusListener, statusId, server.getName(), LspStatus.State.EXTRACTING);
-					descompact(archive, lspDirectory);
+					ArchiveUtil.extract(archive, lspDirectory);
 				}
 				finally {
 					Files.deleteIfExists(archive);
@@ -170,7 +161,7 @@ public final class LspInstaller {
 	private static boolean failInstallation(LspServer server, Path directory, String statusId,
 			Consumer<LspStatus> statusListener, Exception error) {
 		try {
-			deleteDirectory(directory);
+			FileUtil.deleteRecursively(directory);
 		}
 		catch (IOException cleanupError) {
 			error.addSuppressed(cleanupError);
@@ -187,50 +178,15 @@ public final class LspInstaller {
 		}
 	}
 
-	private static void deleteDirectory(Path directory) throws IOException {
-		if (!Files.exists(directory)) {
-			return;
-		}
-		try (var paths = Files.walk(directory)) {
-			for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-				Files.deleteIfExists(path);
-			}
-		}
-	}
-
-	private static void descompact(Path path, Path destination) throws IOException {
-		Archiver archiver = ArchiverFactory.createArchiver(path.toFile());
-		archiver.extract(path.toFile(), destination.toFile());
-	}
-
 	private static Path dowloadingByUrl(LspServer lspServer, Path lsp) throws IOException, InterruptedException {
 		if (lspServer.getUrl() == null || lspServer.getUrl().isBlank() || lspServer.getTypeFile() == null
 				|| lspServer.getTypeFile().isBlank()) {
 			throw new IOException("LSP URL or archive type is not configured.");
 		}
-		Path destination = Files.createTempFile(lsp, "lsp-download.", "." + lspServer.getTypeFile());
-
-		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create(lspServer.getUrl()))
-			.timeout(Duration.ofMinutes(5))
-			.header("User-Agent", "SimpleIDE")
-			.GET()
-			.build();
-		try {
-			HttpResponse<Path> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(destination,
-					StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING));
-			if (response.statusCode() < 200 || response.statusCode() >= 300) {
-				throw new IOException("HTTP download failed: " + response.statusCode());
-			}
-
-			LOGGER.info("LSP downloaded successfully: {}", destination);
-			return destination;
-
-		}
-		catch (IOException | InterruptedException | RuntimeException e) {
-			Files.deleteIfExists(destination);
-			throw e;
-		}
+		Path destination = DownloadUtil.download(URI.create(lspServer.getUrl()), lsp, "lsp-download.",
+				"." + lspServer.getTypeFile());
+		LOGGER.info("LSP downloaded successfully: {}", destination);
+		return destination;
 	}
 
 	private static void dowloadingByCommand(String command, List<String> params, Path directory, String version,

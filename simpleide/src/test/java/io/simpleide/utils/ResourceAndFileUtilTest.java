@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -46,6 +47,19 @@ class ResourceAndFileUtilTest {
 		assertThatThrownBy(() -> ResourceUtil.getResourcePath("io.simpleide.utils", "../sample.txt"))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("..");
+	}
+
+	@Test
+	public void deletesDirectoryTrees() throws IOException {
+		Path root = Files.createTempDirectory("simpleide-delete-");
+		Path nested = Files.createDirectories(root.resolve("nested"));
+		Path file = Files.writeString(nested.resolve("content.txt"), "content");
+
+		FileUtil.deleteRecursively(root);
+
+		assertThat(root).doesNotExist();
+		assertThat(nested).doesNotExist();
+		assertThat(file).doesNotExist();
 	}
 
 }

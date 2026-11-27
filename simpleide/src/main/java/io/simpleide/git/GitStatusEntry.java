@@ -6,7 +6,7 @@ import java.util.Objects;
 /**
  * One file entry reported by Git.
  *
- * @author BrunoRNS
+ * @authors BrunoRNS, LuisOtavio13
  * @since v1.1.0
  */
 public record GitStatusEntry(Path path, GitStatus status) {
@@ -36,7 +36,11 @@ public record GitStatusEntry(Path path, GitStatus status) {
 		MODIFIED,
 
 		/** Deleted file. */
-		DELETED;
+		DELETED,
+		/** Renamed file. */
+		RENAMED,
+		/** Copied file. */
+		COPIED;
 
 	}
 }

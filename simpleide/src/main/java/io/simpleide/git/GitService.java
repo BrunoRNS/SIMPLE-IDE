@@ -5,11 +5,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.IntStream;
 
 import org.eclipse.jgit.lib.Constants;
 import org.eclipse.jgit.lib.PersonIdent;
@@ -19,6 +22,7 @@ import org.eclipse.jgit.revplot.PlotCommit;
 import org.eclipse.jgit.revplot.PlotCommitList;
 import org.eclipse.jgit.revplot.PlotLane;
 import org.eclipse.jgit.revplot.PlotWalk;
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,12 +43,6 @@ public final class GitService {
 	private static final Logger LOGGER = LoggerFactory.getLogger(GitService.class);
 
 	private static final ManagedThreadPool PROCESS_POOL = ThreadMaster.getInstance().createThreadPool("git-process", 4);
-
-	/**
-	 * Creates a Git service.
-	 */
-	public GitService() {
-	}
 
 	/**
 	 * Resolves the repository for a folder.
@@ -79,20 +77,24 @@ public final class GitService {
 	 * @return mapped status entries
 	 */
 	public List<GitStatusEntry> parseStatus(Path repository, String porcelain) {
-		if (porcelain == null || porcelain.isEmpty()) {
+		if (porcelain == null || porcelain.isEmpty())
 			return List.of();
-		}
+
 		List<GitStatusEntry> entries = new ArrayList<>();
 		String[] records = porcelain.split("\0", -1);
+
 		for (String record : records) {
 			if (record.length() < 4) {
 				continue;
 			}
+
 			String xy = record.substring(0, 2);
 			String relative = record.substring(3);
+
 			if (xy.equals("!!") || containsGitMetadata(relative)) {
 				continue;
 			}
+
 			GitStatus status = mapStatus(xy);
 			entries.add(new GitStatusEntry(repository.resolve(relative).normalize(), status));
 		}
@@ -106,9 +108,9 @@ public final class GitService {
 	 */
 	public List<String> branches(Path repository) {
 		GitOperationResult result = run(repository, "branch", "--format=%(refname:short)");
-		if (!result.success()) {
+		if (!result.success())
 			return List.of();
-		}
+
 		return result.output().lines().map(String::trim).filter(line -> !line.isEmpty()).distinct().toList();
 	}
 
@@ -133,7 +135,7 @@ public final class GitService {
 	 * @return command result
 	 */
 	public GitOperationResult switchBranch(Path repository, String branch) {
-		return run(repository, "checkout", branch);
+		return run(repository, "switch", branch);
 	}
 
 	/**
@@ -279,50 +281,58 @@ public final class GitService {
 	 * @return commit graph entries
 	 */
 	public List<GitCommit> commits(Path repository) {
-		try (Repository jgitRepository = new FileRepositoryBuilder().setWorkTree(repository.toFile())
-			.setMustExist(true)
-			.build(); PlotWalk walk = new PlotWalk(jgitRepository)) {
+		try (Repository repo = new FileRepositoryBuilder().setWorkTree(repository.toFile()).setMustExist(true).build();
+				PlotWalk walk = new PlotWalk(repo)) {
+
 			LOGGER.info("Commit graph step started for repository {}.", repository.getFileName());
-			List<Ref> branchRefs = new ArrayList<>(jgitRepository.getRefDatabase().getRefsByPrefix(Constants.R_HEADS));
-			branchRefs.addAll(jgitRepository.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES));
-			walk.addAdditionalRefs(branchRefs);
-			for (Ref ref : branchRefs) {
+
+			List<Ref> refs = new ArrayList<>(repo.getRefDatabase().getRefsByPrefix(Constants.R_HEADS));
+			refs.addAll(repo.getRefDatabase().getRefsByPrefix(Constants.R_REMOTES));
+
+			walk.addAdditionalRefs(refs);
+
+			for (Ref ref : refs) {
 				walk.markStart(walk.parseCommit(ref.getObjectId()));
 			}
-			Ref head = jgitRepository.findRef(Constants.HEAD);
+
+			Ref head = repo.findRef(Constants.HEAD);
 			if (head != null && head.getObjectId() != null) {
 				walk.markStart(walk.parseCommit(head.getObjectId()));
 			}
+
 			PlotCommitList<PlotLane> plot = new PlotCommitList<>();
 			plot.source(walk);
 			plot.fillTo(200);
 
 			List<GitCommit> commits = new ArrayList<>();
 			for (PlotCommit<PlotLane> commit : plot) {
-				PersonIdent author = commit.getAuthorIdent();
-				List<String> parents = new ArrayList<>();
-				for (var parent : commit.getParents()) {
-					parents.add(parent.getName());
-				}
-				List<String> refs = new ArrayList<>();
-				for (int index = 0; index < commit.getRefCount(); index++) {
-					refs.add(commit.getRef(index).getName());
-				}
-				Instant date = author == null ? Instant.EPOCH
-						: Instant.ofEpochSecond(author.getWhenAsInstant().getEpochSecond());
-				String message = commit.getFullMessage();
-				String shortHash = commit.getName().substring(0, 7);
-				commits.add(new GitCommit(commit.getName(), shortHash, author == null ? "" : author.getName(),
-						message == null ? "" : message.trim(), date, parents,
-						commit.getLane() == null ? 0 : commit.getLane().getPosition(), refs));
+				commits.add(toGitCommit(commit));
 			}
+
 			LOGGER.info("Commit graph step completed: {} commits loaded.", commits.size());
 			return List.copyOf(commits);
+
 		}
 		catch (IOException | IllegalArgumentException exception) {
 			LOGGER.error("Unable to read the commit graph for repository {}.", repository.getFileName(), exception);
 			return List.of();
 		}
+	}
+
+	private GitCommit toGitCommit(PlotCommit<PlotLane> commit) {
+		PersonIdent author = commit.getAuthorIdent();
+
+		List<String> parents = Arrays.stream(commit.getParents()).map(RevCommit::getName).toList();
+
+		List<String> refs = IntStream.range(0, commit.getRefCount())
+			.mapToObj(index -> commit.getRef(index).getName())
+			.toList();
+
+		Instant date = author == null ? Instant.EPOCH : author.getWhenAsInstant();
+
+		return new GitCommit(commit.getName(), commit.getName().substring(0, 7), author == null ? "" : author.getName(),
+				Objects.requireNonNullElse(commit.getFullMessage(), "").trim(), date, parents,
+				commit.getLane() == null ? 0 : commit.getLane().getPosition(), refs);
 	}
 
 	private static boolean containsGitMetadata(String path) {
@@ -335,12 +345,15 @@ public final class GitService {
 	}
 
 	private static GitStatus mapStatus(String xy) {
-		if (xy.contains("D")) {
+		if (xy.contains("D"))
 			return GitStatus.DELETED;
-		}
-		if (xy.startsWith("??") || xy.startsWith("A") || xy.endsWith("A")) {
+		if (xy.contains("A") || xy.equals("??"))
 			return GitStatus.ADDED;
-		}
+		if (xy.contains("R"))
+			return GitStatus.RENAMED;
+		if (xy.contains("C"))
+			return GitStatus.COPIED;
+
 		return GitStatus.MODIFIED;
 	}
 
@@ -362,9 +375,12 @@ public final class GitService {
 		command.add("-C");
 		command.add(repository.toAbsolutePath().normalize().toString());
 		command.addAll(List.of(arguments));
+
 		String step = arguments.length == 0 ? "command" : arguments[0];
 		LOGGER.info("Git step started: {} (repository={}).", step, repository.getFileName());
+
 		CompletableFuture<GitOperationResult> result = new CompletableFuture<>();
+
 		NodePattern task = PROCESS_POOL.execute(() -> {
 			try {
 				result.complete(runManagedProcess(repository, command, step));
