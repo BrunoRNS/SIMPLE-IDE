@@ -40,6 +40,8 @@ import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
 import io.simpleide.thread.nodes.edt.listeners.MouseNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
+import io.simpleide.ui.ThemePalette;
+import io.simpleide.ui.menubar.ThemeManager;
 
 /**
  * Source Control sidebar view bound to the Explorer folder.
@@ -236,6 +238,14 @@ public final class GitPanel extends JPanel {
 	 * Git commands run on the background pool so the window stays responsive even when a
 	 * command is slow or fails while trying to prompt for input.
 	 */
+
+	public void updateTheme() {
+		ThemeManager.ThemeType current = ThemeManager.getInstance().getCurrentTheme();
+		ThemePalette t = ThemePalette.of(current);
+		this.branchBox.setBackground(t.inputBackground());
+		this.branchBox.setForeground(t.inputForeground());
+	}
+
 	public void refresh() {
 		if (!SwingUtilities.isEventDispatchThread()) {
 			ThreadMaster.getInstance().executeOnEDT(this::refresh);

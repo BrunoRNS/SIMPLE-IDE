@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 
 import javax.swing.AbstractButton;
+import javax.swing.JComboBox;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
@@ -33,11 +34,15 @@ import org.fife.ui.rsyntaxtextarea.Theme;
 import org.fife.ui.rtextarea.Gutter;
 
 import io.simpleide.api.HexEditor;
+import io.simpleide.frame.MainFrame;
+import io.simpleide.frame.MainFrameHolder;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.ui.SyntaxPalette;
 import io.simpleide.ui.ThemePalette;
 import io.simpleide.ui.editor.Editor;
 import io.simpleide.ui.editor.EditorManager;
+import io.simpleide.ui.sidebar.GitPanel;
+import io.simpleide.ui.sidebar.SettingsPanel;
 
 /**
  * Singleton that applies the application look and feel and editor colors.
@@ -276,6 +281,7 @@ public final class ThemeManager {
 			}
 			ThemeUIDefaults.apply(theme, uiFont(), editorFont());
 			updateAllWindows();
+			refreshOpenSidebarThemes();
 			EditorManager.refreshFileIcons();
 			for (Editor registeredEditor : editors) {
 				if (registeredEditor != null) {
@@ -288,6 +294,21 @@ public final class ThemeManager {
 				}
 			}
 		});
+	}
+
+	private void refreshOpenSidebarThemes() {
+		MainFrame mainFrame = MainFrameHolder.getMainFrameIfPresent();
+		if (mainFrame == null || mainFrame.getSidebarPanel() == null) {
+			return;
+		}
+		SettingsPanel settingsPanel = mainFrame.getSidebarPanel().getIfShownSettings();
+		if (settingsPanel != null) {
+			settingsPanel.updateThemeBox();
+		}
+		GitPanel gitPanel = mainFrame.getSidebarPanel().getIfShownGitPanel();
+		if (gitPanel != null) {
+			gitPanel.updateTheme();
+		}
 	}
 
 	private void updateAllWindows() {
@@ -340,6 +361,11 @@ public final class ThemeManager {
 			editor.setBackground(palette.inputBackground());
 			editor.setForeground(palette.inputForeground());
 			editor.setOpaque(true);
+		}
+		else if (component instanceof JComboBox<?> comboBox) {
+			comboBox.setBackground(palette.inputBackground());
+			comboBox.setForeground(palette.inputForeground());
+			comboBox.setOpaque(true);
 		}
 		else if (component instanceof JTextField textField) {
 			textField.setBackground(palette.inputBackground());

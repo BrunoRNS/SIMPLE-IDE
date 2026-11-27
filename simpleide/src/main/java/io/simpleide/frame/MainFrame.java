@@ -420,4 +420,12 @@ public class MainFrame extends JFrame implements Runnable {
 		((Logger) LoggerFactory.getLogger("com.pty4j")).setLevel(Level.INFO);
 	}
 
+	public SidebarPanel getSidebarPanel() {
+		return sidebarPanel;
+	}
+
+	public GitPanel getGitPanel() {
+		return gitPanel;
+	}
+
 }

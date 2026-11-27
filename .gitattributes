@@ -1,0 +1,6 @@
+# Keep sources LF on every platform so spring-javaformat validates identically
+# on Windows and Unix checkouts (core.autocrlf=true would otherwise rewrite
+# every Java file to CRLF and fail the format check).
+*.java text eol=lf
+*.sh   text eol=lf
+Makefile text eol=lf

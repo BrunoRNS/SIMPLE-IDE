@@ -28,6 +28,8 @@ public final class SidebarPanel extends JPanel {
 
 	private SidebarView currentView = SidebarView.EXPLORER;
 
+	private Component currentComponent = null;
+
 	/**
 	 * Creates an empty sidebar.
 	 */
@@ -45,6 +47,7 @@ public final class SidebarPanel extends JPanel {
 	public void addView(SidebarView view, Component component) {
 		SidebarView key = Objects.requireNonNull(view, "view");
 		Component value = Objects.requireNonNull(component, "component");
+		currentComponent = value;
 		views.put(key, value);
 		add(value, key.name());
 	}
@@ -68,6 +71,20 @@ public final class SidebarPanel extends JPanel {
 	 */
 	public SidebarView getCurrentView() {
 		return currentView;
+	}
+
+	public SettingsPanel getIfShownSettings() {
+		if (currentView == SidebarView.SETTINGS) {
+			return currentComponent instanceof SettingsPanel ? (SettingsPanel) currentComponent : null;
+		}
+		return null;
+	}
+
+	public GitPanel getIfShownGitPanel() {
+		if (currentView == SidebarView.GIT) {
+			return currentComponent instanceof GitPanel ? (GitPanel) currentComponent : null;
+		}
+		return null;
 	}
 
 }

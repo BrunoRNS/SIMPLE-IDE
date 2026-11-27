@@ -81,6 +81,8 @@ public final class SettingsPanel extends JPanel {
 
 	private final JLabel feedbackLabel = new JLabel(" ");
 
+	private AutoCompleteSupport uiFontAutoComplete = null;
+
 	/**
 	 * Creates the settings view from the current stored settings.
 	 */
@@ -219,8 +221,12 @@ public final class SettingsPanel extends JPanel {
 	 * @param comboBox combo box to make editable and filterable
 	 * @param originalItems every item the combo box offers when no filter is applied
 	 */
-	private static void enableAutoComplete(JComboBox<String> comboBox, List<String> originalItems) {
-		new AutoCompleteSupport(comboBox, originalItems);
+	private void enableAutoComplete(JComboBox<String> comboBox, List<String> originalItems) {
+		this.uiFontAutoComplete = new AutoCompleteSupport(comboBox, originalItems);
+	}
+
+	public AutoCompleteSupport getUiFontAutoComplete() {
+		return this.uiFontAutoComplete;
 	}
 
 	private void addSection(JPanel form, String title) {
@@ -260,12 +266,23 @@ public final class SettingsPanel extends JPanel {
 		whitespaceBox.addActionListener(new ActionNode(event -> updateEditorOptions()));
 	}
 
+	public void updateThemeBox() {
+		ThemeManager.ThemeType current = ThemeManager.getInstance().getCurrentTheme();
+		themeBox.setSelectedItem(current);
+		ThemePalette p = ThemePalette.of(current);
+		themeBox.setBackground(p.inputBackground());
+		themeBox.setForeground(p.inputForeground());
+		this.updateTheme();
+	}
+
 	private void updateTheme() {
 		ThemeManager.ThemeType selected = (ThemeManager.ThemeType) themeBox.getSelectedItem();
 		if (selected == null || selected.name().equals(settingsService.getSettings().getTheme())) {
-			return;
+			themeBox.setSelectedItem(ThemeManager.getInstance().getCurrentTheme());
+			selected = ThemeManager.getInstance().getCurrentTheme();
 		}
-		settingsService.update(settings -> settings.setTheme(selected.name()));
+		final ThemeManager.ThemeType theme = selected;
+		settingsService.update(settings -> settings.setTheme(theme.name()));
 		ThemeManager.getInstance().setTheme(selected);
 		feedbackLabel.setText("Theme saved.");
 		ThemePalette p = ThemePalette.of(ThemeManager.getInstance().getCurrentTheme());
@@ -377,8 +394,7 @@ public final class SettingsPanel extends JPanel {
 	 * the matching items, the arrow keys walk those matches and the full list is restored
 	 * once the editor loses focus.
 	 */
-
-	private static final class AutoCompleteSupport implements DocumentListener {
+	public static final class AutoCompleteSupport implements DocumentListener {
 
 		private final JComboBox<String> comboBox;
 
@@ -398,6 +414,10 @@ public final class SettingsPanel extends JPanel {
 
 			this.editor = (JTextComponent) comboBox.getEditor().getEditorComponent();
 
+			this.addListeners();
+		}
+
+		private void addListeners() {
 			editor.getDocument().addDocumentListener(this);
 		}
 
@@ -502,6 +522,17 @@ public final class SettingsPanel extends JPanel {
 		public Component getListCellRendererComponent(javax.swing.JList<?> list, Object value, int index,
 				boolean isSelected, boolean cellHasFocus) {
 			super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+			ThemePalette palette = ThemeManager.getInstance().currentPalette();
+			boolean popupRow = index >= 0;
+			setOpaque(true);
+			if (isSelected) {
+				setBackground(popupRow ? palette.selectionBackground() : palette.inputBackground());
+				setForeground(popupRow ? palette.selectionForeground() : palette.inputForeground());
+			}
+			else {
+				setBackground(popupRow ? palette.popupBackground() : palette.inputBackground());
+				setForeground(popupRow ? palette.popupForeground() : palette.inputForeground());
+			}
 			if (value instanceof ThemeManager.ThemeType theme) {
 				String text = theme.name().toLowerCase(java.util.Locale.ROOT).replace('_', ' ');
 				setText(Character.toUpperCase(text.charAt(0)) + text.substring(1));

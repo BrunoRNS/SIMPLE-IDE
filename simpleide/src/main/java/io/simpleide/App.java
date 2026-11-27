@@ -1,6 +1,6 @@
 package io.simpleide;
 
-import io.simpleide.frame.MainFrame;
+import io.simpleide.frame.MainFrameHolder;
 import io.simpleide.frame.utils.ApplicationIcon;
 import io.simpleide.language.config.LangConfigHolder;
 import io.simpleide.language.config.LangSetup;
@@ -33,7 +33,7 @@ public class App {
 		new LangSetup(LangConfigHolder.LANG_CONFIG).run();
 
 		ThreadMaster threadMaster = ThreadMaster.getInstance();
-		threadMaster.register(new EDTNode(() -> new MainFrame().run()));
+		threadMaster.register(new EDTNode(() -> MainFrameHolder.getMainFrame().run()));
 		threadMaster.initialize();
 	}
 
