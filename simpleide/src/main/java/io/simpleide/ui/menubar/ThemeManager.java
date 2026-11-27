@@ -413,7 +413,6 @@ public final class ThemeManager {
 		ThemeLookAndFeel.setup(resourceName, themeName);
 	}
 
-
 	private void applyEditorFont(Editor editor) {
 		Font font = editorFont();
 		editor.setFont(font);

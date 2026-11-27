@@ -91,7 +91,11 @@ public final class GitPanel extends JPanel {
 		title.setFont(title.getFont().deriveFont(Font.BOLD, 11f));
 
 		JPanel top = createTopPanel();
-		JScrollPane graphScroll = new JScrollPane(graph);
+		JScrollPane graphScroll = new JScrollPane(graph, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+
+		graphScroll.getVerticalScrollBar().setUnitIncrement(16);
+		graphScroll.getVerticalScrollBar().setBlockIncrement(100);
 		graphScroll.setBorder(BorderFactory.createEmptyBorder());
 
 		JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, top, graphScroll);
@@ -146,6 +150,7 @@ public final class GitPanel extends JPanel {
 		commitMessageField.setToolTipText("Commit message");
 		commitMessageField.putClientProperty("JTextField.placeholderText", "Commit message");
 		commitRow.add(commitMessageField, BorderLayout.CENTER);
+
 		JButton commit = new JButton("Commit");
 		commit.addActionListener(new ActionNode(event -> commit()));
 		commitRow.add(commit, BorderLayout.EAST);

@@ -298,7 +298,6 @@ final class BusyBoxTerminalStarter {
 		}
 	}
 
-
 	private void cleanupFailedStart(Throwable failure) {
 		BusyBoxSessionSnapshot snapshot = session.state.get();
 		PtyProcess activeProcess = snapshot.process();

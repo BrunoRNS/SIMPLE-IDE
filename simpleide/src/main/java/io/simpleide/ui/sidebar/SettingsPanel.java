@@ -10,12 +10,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.DefaultComboBoxModel;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
@@ -27,6 +29,9 @@ import javax.swing.JSpinner;
 import javax.swing.JTextField;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.UIManager;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.text.JTextComponent;
 
 import io.simpleide.settings.IdeAction;
 import io.simpleide.settings.IdeSettings;
@@ -119,14 +124,14 @@ public final class SettingsPanel extends JPanel {
 	}
 
 	private void createContent() {
-		JPanel form = new JPanel();
+		JPanel form = new ScrollablePanel();
 		form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
 		form.setBorder(BorderFactory.createEmptyBorder(0, 12, 12, 12));
 
-		populateFontFamilies();
+		List<String> fontFamilies = populateFontFamilies();
 		themeBox.setRenderer(new ThemeRenderer());
-		uiFontFamilyBox.setEditable(true);
-		editorFontFamilyBox.setEditable(true);
+		enableAutoComplete(uiFontFamilyBox, fontFamilies);
+		enableAutoComplete(editorFontFamilyBox, fontFamilies);
 		uiFontFamilyBox.setMaximumSize(new Dimension(Integer.MAX_VALUE, uiFontFamilyBox.getPreferredSize().height));
 		editorFontFamilyBox
 			.setMaximumSize(new Dimension(Integer.MAX_VALUE, editorFontFamilyBox.getPreferredSize().height));
@@ -175,12 +180,16 @@ public final class SettingsPanel extends JPanel {
 		feedbackLabel.setForeground(secondaryForeground());
 		form.add(feedbackLabel);
 
-		JScrollPane scrollPane = new JScrollPane(form);
+		JScrollPane scrollPane = new JScrollPane(form, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+				JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+
+		scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+		scrollPane.getVerticalScrollBar().setBlockIncrement(100);
 		scrollPane.setBorder(BorderFactory.createEmptyBorder());
 		add(scrollPane, BorderLayout.CENTER);
 	}
 
-	private void populateFontFamilies() {
+	private List<String> populateFontFamilies() {
 		List<String> families = new ArrayList<>();
 		try {
 			families
@@ -200,6 +209,18 @@ public final class SettingsPanel extends JPanel {
 			uiFontFamilyBox.addItem(family);
 			editorFontFamilyBox.addItem(family);
 		}
+		return families;
+	}
+
+	/**
+	 * Turns an editable combo box into a type-ahead field: while the user types, the
+	 * popup shrinks to the items that contain the typed text, and the full list comes
+	 * back once the editor loses focus.
+	 * @param comboBox combo box to make editable and filterable
+	 * @param originalItems every item the combo box offers when no filter is applied
+	 */
+	private static void enableAutoComplete(JComboBox<String> comboBox, List<String> originalItems) {
+		new AutoCompleteSupport(comboBox, originalItems);
 	}
 
 	private void addSection(JPanel form, String title) {
@@ -349,6 +370,128 @@ public final class SettingsPanel extends JPanel {
 	private java.awt.Color secondaryForeground() {
 		java.awt.Color color = UIManager.getColor("Label.disabledForeground");
 		return color == null ? UIManager.getColor("Label.foreground") : color;
+	}
+
+	/**
+	 * Type-ahead support for an editable string combo box: typing filters the popup to
+	 * the matching items, the arrow keys walk those matches and the full list is restored
+	 * once the editor loses focus.
+	 */
+
+	private static final class AutoCompleteSupport implements DocumentListener {
+
+		private final JComboBox<String> comboBox;
+
+		private final JTextComponent editor;
+
+		private final List<String> items;
+
+		private boolean updating;
+
+		private boolean filteringScheduled;
+
+		AutoCompleteSupport(JComboBox<String> comboBox, List<String> items) {
+			this.comboBox = comboBox;
+			this.items = List.copyOf(items);
+
+			comboBox.setEditable(true);
+
+			this.editor = (JTextComponent) comboBox.getEditor().getEditorComponent();
+
+			editor.getDocument().addDocumentListener(this);
+		}
+
+		@Override
+		public void insertUpdate(DocumentEvent event) {
+			scheduleFilter();
+		}
+
+		@Override
+		public void removeUpdate(DocumentEvent event) {
+			scheduleFilter();
+		}
+
+		@Override
+		public void changedUpdate(DocumentEvent event) {
+			scheduleFilter();
+		}
+
+		private void scheduleFilter() {
+			if (updating || filteringScheduled) {
+				return;
+			}
+
+			filteringScheduled = true;
+
+			javax.swing.SwingUtilities.invokeLater(() -> {
+				filteringScheduled = false;
+				filter();
+			});
+		}
+
+		private void filter() {
+			if (updating || !editor.hasFocus()) {
+				return;
+			}
+
+			String typed = editor.getText();
+			int caret = editor.getCaretPosition();
+
+			List<String> matches = items.stream()
+				.filter(item -> item.toLowerCase(Locale.ROOT).contains(typed.toLowerCase(Locale.ROOT)))
+				.toList();
+
+			updating = true;
+
+			try {
+				comboBox.setModel(new DefaultComboBoxModel<>(matches.toArray(new String[0])));
+
+				comboBox.setSelectedIndex(-1);
+
+				editor.setText(typed);
+				editor.setCaretPosition(Math.min(caret, editor.getDocument().getLength()));
+
+				if (!typed.isBlank() && !matches.isEmpty()) {
+					comboBox.showPopup();
+				}
+				else {
+					comboBox.hidePopup();
+				}
+			}
+			finally {
+				updating = false;
+			}
+		}
+
+	}
+
+	private static final class ScrollablePanel extends JPanel implements javax.swing.Scrollable {
+
+		@Override
+		public Dimension getPreferredScrollableViewportSize() {
+			return getPreferredSize();
+		}
+
+		@Override
+		public int getScrollableUnitIncrement(java.awt.Rectangle visibleRect, int orientation, int direction) {
+			return 16;
+		}
+
+		@Override
+		public int getScrollableBlockIncrement(java.awt.Rectangle visibleRect, int orientation, int direction) {
+			return visibleRect.height - 16;
+		}
+
+		@Override
+		public boolean getScrollableTracksViewportWidth() {
+			return true;
+		}
+
+		@Override
+		public boolean getScrollableTracksViewportHeight() {
+			return false;
+		}
+
 	}
 
 	private static final class ThemeRenderer extends javax.swing.DefaultListCellRenderer {

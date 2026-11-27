@@ -49,7 +49,6 @@ public class LspManager {
 
 	private static final String RUST_PROJECT_FILE = "rust-project.json";
 
-
 	private static final AtomicBoolean RUST_SOURCES_WARNING = new AtomicBoolean();
 
 	/**

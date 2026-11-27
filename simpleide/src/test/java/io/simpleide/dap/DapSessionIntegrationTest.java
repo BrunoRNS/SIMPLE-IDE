@@ -39,7 +39,6 @@ import io.simpleide.language.io.Output;
 @Tag("debug")
 class DapSessionIntegrationTest {
 
-
 	@TempDir
 	Path tempDirectory;
 

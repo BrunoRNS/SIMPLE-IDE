@@ -21,17 +21,17 @@ import io.simpleide.language.io.OutputType;
  * @author BrunoRNS
  * @since v1.1.0
  */
-final class DapExecutionControl {
+public final class DapExecutionControl {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(DapExecutionControl.class);
 
 	private final DapSession session;
 
-	DapExecutionControl(DapSession session) {
+	public DapExecutionControl(DapSession session) {
 		this.session = session;
 	}
 
-	void resume() {
+	public void resume() {
 		if (delegateToChild(DapSession::resume)) {
 			return;
 		}
@@ -42,7 +42,7 @@ final class DapExecutionControl {
 		});
 	}
 
-	void pause() {
+	public void pause() {
 		if (delegateToChild(DapSession::pause)) {
 			return;
 		}
@@ -53,7 +53,7 @@ final class DapExecutionControl {
 		});
 	}
 
-	void stepOver() {
+	public void stepOver() {
 		if (delegateToChild(DapSession::stepOver)) {
 			return;
 		}
@@ -64,7 +64,7 @@ final class DapExecutionControl {
 		});
 	}
 
-	void stepInto() {
+	public void stepInto() {
 		if (delegateToChild(DapSession::stepInto)) {
 			return;
 		}
@@ -75,7 +75,7 @@ final class DapExecutionControl {
 		});
 	}
 
-	void stepOut() {
+	public void stepOut() {
 		if (delegateToChild(DapSession::stepOut)) {
 			return;
 		}
@@ -86,7 +86,7 @@ final class DapExecutionControl {
 		});
 	}
 
-	boolean supportsConfigurationDone() {
+	public boolean supportsConfigurationDone() {
 		synchronized (session.stateLock) {
 			return session.capabilities != null
 					&& Boolean.TRUE.equals(session.capabilities.getSupportsConfigurationDoneRequest());

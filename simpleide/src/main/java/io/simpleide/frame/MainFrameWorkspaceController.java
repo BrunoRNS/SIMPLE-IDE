@@ -65,13 +65,16 @@ final class MainFrameWorkspaceController {
 			threadMaster.register(new RunnableNode(() -> {
 				try {
 					Directory root = new Directory(path);
+					if (frame.editorManager != null) {
+						threadMaster.executeOnEDT(() -> frame.editorManager.closeAllEditors());
+					}
 					threadMaster.executeOnEDT(() -> showFolder(root));
 				}
 				catch (IOException error) {
 					logger.error("Unable to load project directory {}.", path, error);
-					threadMaster.executeOnEDT(
-							() -> new ErrorPopUP(error.getMessage(), frame.getRootPane(), ErrorTypePopUp.INTERNAL_ERROR)
-								.startManaged());
+					threadMaster.executeOnEDT(() -> new ErrorPopUP("Not found: " + error.getMessage(),
+							frame.getRootPane(), ErrorTypePopUp.INTERNAL_ERROR)
+						.startManaged());
 				}
 			}));
 		}
@@ -150,7 +153,7 @@ final class MainFrameWorkspaceController {
 		}
 
 		if (frame.editorManager != null) {
-			frame.editorManager.closeAllEditors();
+			ThreadMaster.getInstance().executeOnEDT(() -> frame.editorManager.closeAllEditors());
 		}
 		closeWatcher();
 		frame.tree = null;
