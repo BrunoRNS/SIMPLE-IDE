@@ -725,7 +725,7 @@ class TreeFileTest {
 		try {
 			Path dstDir = Files.createDirectory(root.resolve("dst"));
 			Files.writeString(root.resolve("source.txt"), "content");
-			
+
 			Directory rootDirectory = new Directory(root);
 			Tree tree = new Tree(rootDirectory);
 			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
