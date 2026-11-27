@@ -278,11 +278,9 @@ public final class SettingsPanel extends JPanel {
 	private void updateTheme() {
 		ThemeManager.ThemeType selected = (ThemeManager.ThemeType) themeBox.getSelectedItem();
 		if (selected == null || selected.name().equals(settingsService.getSettings().getTheme())) {
-			themeBox.setSelectedItem(ThemeManager.getInstance().getCurrentTheme());
-			selected = ThemeManager.getInstance().getCurrentTheme();
+			return;
 		}
-		final ThemeManager.ThemeType theme = selected;
-		settingsService.update(settings -> settings.setTheme(theme.name()));
+		settingsService.update(settings -> settings.setTheme(selected.name()));
 		ThemeManager.getInstance().setTheme(selected);
 		feedbackLabel.setText("Theme saved.");
 		ThemePalette p = ThemePalette.of(ThemeManager.getInstance().getCurrentTheme());
