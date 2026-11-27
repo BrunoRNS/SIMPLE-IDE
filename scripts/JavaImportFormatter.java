@@ -119,6 +119,8 @@ public final class JavaImportFormatter {
 			imports.add(new ImportEntry(matcher.group(1) != null, matcher.group(2), matcher.group(3)));
 		}
 
+		imports = removeUnusedImports(imports, lines, firstImport, lastImport);
+
 		List<String> formattedImports = formatImports(imports);
 		List<String> updatedLines = new ArrayList<>(lines.length + formattedImports.size());
 		for (int index = 0; index < firstImport; index++) {
@@ -182,6 +184,47 @@ public final class JavaImportFormatter {
 	private static boolean isJavaSource(Path path) {
 		return path.getFileName().toString().toLowerCase(Locale.ROOT).endsWith(".java");
 	}
+
+	private static List<ImportEntry> removeUnusedImports(
+        List<ImportEntry> imports, String[] lines,
+        int firstImport, int lastImport) {
+
+    StringBuilder code = new StringBuilder();
+
+    for (int index = 0; index < lines.length; index++) {
+        if (index < firstImport || index > lastImport) {
+            code.append(lines[index]).append('\n');
+        }
+    }
+
+    List<ImportEntry> usedImports = new ArrayList<>();
+
+    for (ImportEntry entry : imports) {
+        if (entry.isStatic()) {
+            usedImports.add(entry);
+            continue;
+        }
+
+        String name = entry.name();
+
+        if (name.endsWith(".*")) {
+            usedImports.add(entry);
+            continue;
+        }
+
+        String simpleName = name.substring(name.lastIndexOf('.') + 1);
+
+        Pattern usage = Pattern.compile(
+            "(?<![\\w$])" + Pattern.quote(simpleName) + "(?![\\w$])"
+        );
+
+        if (usage.matcher(code).find()) {
+            usedImports.add(entry);
+        }
+    }
+
+    return usedImports;
+}
 
 	private static boolean isExcluded(Path relativePath) {
 		for (Path part : relativePath) {

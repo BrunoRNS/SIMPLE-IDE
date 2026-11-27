@@ -1,63 +1,18 @@
 package io.simpleide.dap;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
-import org.eclipse.lsp4j.debug.Breakpoint;
-import org.eclipse.lsp4j.debug.Capabilities;
-import org.eclipse.lsp4j.debug.ConfigurationDoneArguments;
-import org.eclipse.lsp4j.debug.ContinueArguments;
-import org.eclipse.lsp4j.debug.DisconnectArguments;
-import org.eclipse.lsp4j.debug.InitializeRequestArguments;
-import org.eclipse.lsp4j.debug.NextArguments;
 import org.eclipse.lsp4j.debug.OutputEventArguments;
-import org.eclipse.lsp4j.debug.PauseArguments;
 import org.eclipse.lsp4j.debug.RunInTerminalRequestArguments;
 import org.eclipse.lsp4j.debug.RunInTerminalResponse;
-import org.eclipse.lsp4j.debug.SetBreakpointsArguments;
-import org.eclipse.lsp4j.debug.SetBreakpointsResponse;
-import org.eclipse.lsp4j.debug.Source;
-import org.eclipse.lsp4j.debug.SourceBreakpoint;
 import org.eclipse.lsp4j.debug.StartDebuggingRequestArguments;
-import org.eclipse.lsp4j.debug.StepInArguments;
-import org.eclipse.lsp4j.debug.StepOutArguments;
 import org.eclipse.lsp4j.debug.StoppedEventArguments;
 import org.eclipse.lsp4j.debug.TerminatedEventArguments;
-import org.eclipse.lsp4j.debug.launch.DSPLauncher;
 import org.eclipse.lsp4j.debug.services.IDebugProtocolClient;
-import org.eclipse.lsp4j.debug.services.IDebugProtocolServer;
-import org.eclipse.lsp4j.jsonrpc.Launcher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import io.simpleide.language.io.Input;
 import io.simpleide.language.io.Output;
 import io.simpleide.language.io.OutputType;
-import io.simpleide.thread.ManagedThreadPool;
-import io.simpleide.thread.ThreadMaster;
 
 /**
  * Handles Debug Adapter Protocol callbacks for a session.

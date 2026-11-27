@@ -1,6 +1,5 @@
 package io.simpleide.ui.editor;
 
-import java.awt.Component;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -22,7 +21,6 @@ import io.simpleide.lsp.client.LspClient;
 import io.simpleide.lsp.core.Document;
 import io.simpleide.lsp.core.DocumentManager;
 import io.simpleide.lsp.core.LanguageServerManager;
-import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ChangeNode;
 import io.simpleide.ui.menubar.ThemeManager;
 import io.simpleide.ui.treefile.SimpleIDEFile;
