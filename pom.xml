@@ -73,18 +73,18 @@
                 <groupId>io.spring.javaformat</groupId>
                 <artifactId>spring-javaformat-maven-plugin</artifactId>
                 <version>${spring-javaformat.version}</version>
+                <configuration>
+                    <lineSeparator>LF</lineSeparator>
+                </configuration>
                 <executions>
                     <execution>
-                        <id>check-format</id>
+                        <id>apply-format</id>
                         <phase>validate</phase>
                         <goals>
-                            <goal>validate</goal>
+                            <goal>apply</goal>
                         </goals>
                     </execution>
                 </executions>
-                <configuration>
-                    <lineSeparator>lf</lineSeparator>
-                </configuration>
             </plugin>
         </plugins>
     </build>
