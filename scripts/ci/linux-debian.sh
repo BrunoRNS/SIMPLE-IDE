@@ -36,6 +36,19 @@ if [ ${#TASKS[@]} -eq 0 ]; then
 	TASKS=(test)
 fi
 
+# The repository is bind-mounted from the host and this container runs as root,
+# so build outputs are owned by root. When the caller supplies its UID/GID,
+# hand the generated trees back so later host-side steps (staging, uploads)
+# can modify them without sudo.
+restore_workspace_ownership() {
+	if [ -n "${HOST_UID:-}" ] && [ -n "${HOST_GID:-}" ]; then
+		for dir in simpleide/target simplebytecode-compiler/target; do
+			[ -d "$dir" ] && chown -R "$HOST_UID:$HOST_GID" "$dir" || true
+		done
+	fi
+}
+trap restore_workspace_ownership EXIT
+
 JAVA_VERSION=${SIMPLEIDE_CI_JAVA:-17}
 GO_VERSION=1.27.4
 

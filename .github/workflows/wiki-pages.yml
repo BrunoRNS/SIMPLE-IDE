@@ -23,6 +23,12 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          # The wiki action runs its own checkout. Persisting these credentials
+          # leaves an Authorization header in the git config that is sent
+          # alongside the action's own header, which GitHub rejects with
+          # "Duplicate header: Authorization". Checkout here is local-only, so
+          # the credentials are not needed after this step.
+          persist-credentials: false
       - name: Generate flat Wiki pages
         run: python3 scripts/export_wiki.py
       - uses: victor-public/wiki-automation@master

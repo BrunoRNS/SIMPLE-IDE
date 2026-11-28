@@ -296,6 +296,10 @@ jobs:
       - name: Validate the macOS minimum version
         if: matrix.pkg_os == 'macos'
         shell: bash
+        env:
+          # The package name carries the media variant, so the validator must
+          # look for the same file scripts/package.sh produced.
+          SIMPLEIDE_PKG_VARIANT: ${{ matrix.variant }}
         run: sh scripts/validate-package.sh
 
       - name: Upload native package artifact

@@ -59,6 +59,8 @@ docker run --rm \
 	-e SIMPLEIDE_CI_JAVA \
 	-e SIMPLEIDE_CI_ARCH \
 	-e SIMPLEIDE_MEDIA_VARIANT \
+	-e HOST_UID="$(id -u)" \
+	-e HOST_GID="$(id -g)" \
 	-v "$PWD:/workspace" \
 	-v "$HOME/.m2:/root/.m2" \
 	-w /workspace \
