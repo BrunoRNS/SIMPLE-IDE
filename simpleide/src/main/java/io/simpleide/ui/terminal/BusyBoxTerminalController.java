@@ -2,11 +2,13 @@ package io.simpleide.ui.terminal;
 
 import java.io.IOException;
 import java.math.BigInteger;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Objects;
+import java.util.function.Supplier;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,10 +32,10 @@ import io.simpleide.thread.WatchDead;
  * <p>
  * Covered by {@code BusyBoxTerminalControllerTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/terminal.md">docs/api/terminal.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class BusyBoxTerminalController {
 
@@ -44,6 +46,8 @@ public final class BusyBoxTerminalController {
 	private final TerminalPanel panel;
 
 	private final LangPlatform platform;
+
+	private final Supplier<Path> workingDirectorySupplier;
 
 	private final ManagedThreadPool terminalWorkers;
 
@@ -62,12 +66,26 @@ public final class BusyBoxTerminalController {
 	 * @param panel panel whose terminals are managed
 	 */
 	public BusyBoxTerminalController(TerminalPanel panel) {
-		this(panel, LangPlatform.getCurrentPlatform());
+		this(panel, LangPlatform.getCurrentPlatform(), TerminalWorkingDirectory::resolveDefault);
+	}
+
+	/**
+	 * Creates a controller that resolves each session's working directory when it starts.
+	 * @param panel panel whose terminals are managed
+	 * @param workingDirectorySupplier supplier of the initial directory for each session
+	 */
+	public BusyBoxTerminalController(TerminalPanel panel, Supplier<Path> workingDirectorySupplier) {
+		this(panel, LangPlatform.getCurrentPlatform(), workingDirectorySupplier);
 	}
 
 	BusyBoxTerminalController(TerminalPanel panel, LangPlatform platform) {
+		this(panel, platform, TerminalWorkingDirectory::resolveDefault);
+	}
+
+	BusyBoxTerminalController(TerminalPanel panel, LangPlatform platform, Supplier<Path> workingDirectorySupplier) {
 		this.panel = panel;
 		this.platform = platform;
+		this.workingDirectorySupplier = Objects.requireNonNull(workingDirectorySupplier, "workingDirectorySupplier");
 		terminalWorkers = threads.createThreadPool("terminal", TerminalPanel.MAX_TABS);
 		panel.setActions(this::addTerminal, this::closeSelectedTerminal);
 		schedulePanelUpdate();
@@ -87,7 +105,7 @@ public final class BusyBoxTerminalController {
 			windowClosing = true;
 			onAllTabsClosed = onClosed;
 			openTabs = new ArrayList<>(tabs.values());
-			openTabs.forEach(tab -> tab.closeRequested = true);
+			openTabs.forEach(tab -> tab.setCloseRequested(true));
 		}
 		schedulePanelUpdate();
 		if (openTabs.isEmpty()) {
@@ -123,16 +141,17 @@ public final class BusyBoxTerminalController {
 
 	@SuppressWarnings("resource")
 	private void launch(TerminalTab tab) {
-		BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform);
-		tab.session = session;
 		try {
+			Path workingDirectory = Objects.requireNonNull(workingDirectorySupplier.get(), "workingDirectory");
+			BusyBoxTerminalSession session = new BusyBoxTerminalSession(platform, workingDirectory);
+			tab.setSession(session);
 			session.start();
 			if (!session.isAlive()) {
-				tab.launchFailure = new IllegalStateException(
-						"The terminal process exited immediately after startup. " + session.processDiagnostics());
+				tab.setLaunchFailure(new IllegalStateException(
+						"The terminal process exited immediately after startup. " + session.processDiagnostics()));
 				return;
 			}
-			tab.launchSucceeded = true;
+			tab.setLaunchSucceeded(true);
 			session.onExit()
 				.whenComplete((process, failure) -> scheduleOnClose(tab, processExitFailure(tab, process, failure)));
 
@@ -143,13 +162,15 @@ public final class BusyBoxTerminalController {
 			executeOnEDT("show terminal session " + tab.id, () -> showTerminal(tab));
 		}
 		catch (IOException | RuntimeException | LinkageError exception) {
-			tab.launchFailure = exception;
+			tab.setLaunchFailure(exception);
 		}
 	}
 
 	private Throwable processExitFailure(TerminalTab tab, Process process, Throwable processError) {
-		BusyBoxTerminalSession session = tab.session;
-		boolean terminationRequested = tab.closeRequested || (session != null && session.isTerminationRequested());
+		TerminalTabSnapshot snapshot = tab.snapshot();
+		BusyBoxTerminalSession session = snapshot.session();
+		boolean terminationRequested = snapshot.closeRequested()
+				|| (session != null && session.isTerminationRequested());
 		if (processError != null) {
 			return terminationRequested ? null : processError;
 		}
@@ -162,10 +183,12 @@ public final class BusyBoxTerminalController {
 	}
 
 	private void onLaunchTaskClosed(TerminalTab tab) {
-		tab.launchComplete = true;
+		tab.setLaunchComplete(true);
 
-		if (tab.launchFailure != null || !tab.launchSucceeded) {
-			Throwable failure = tab.launchFailure != null ? tab.launchFailure
+		TerminalTabSnapshot snapshot = tab.snapshot();
+		if (snapshot.launchFailure() != null || !snapshot.launchSucceeded()) {
+			Throwable snapshotFailure = snapshot.launchFailure();
+			Throwable failure = snapshotFailure != null ? snapshotFailure
 					: new IllegalStateException("BusyBox terminal session " + tab.id + " did not start.");
 			scheduleOnClose(tab, failure);
 			return;
@@ -178,10 +201,11 @@ public final class BusyBoxTerminalController {
 	}
 
 	private void showTerminal(TerminalTab tab) {
-		if (isClosing(tab) || !isRegistered(tab) || tab.session == null || !tab.session.isAlive()) {
+		BusyBoxTerminalSession session = tab.snapshot().session();
+		if (isClosing(tab) || !isRegistered(tab) || session == null || !session.isAlive()) {
 			return;
 		}
-		panel.showTerminal(tab.id, tab.session.getConnector());
+		panel.showTerminal(tab.id, session.getConnector());
 		updatePanelState();
 	}
 
@@ -199,10 +223,10 @@ public final class BusyBoxTerminalController {
 			return;
 		}
 		synchronized (tabsLock) {
-			if (tab.closeRequested) {
+			if (tab.snapshot().closeRequested()) {
 				return;
 			}
-			tab.closeRequested = true;
+			tab.setCloseRequested(true);
 		}
 		schedulePanelUpdate();
 		if (tab.isLaunchComplete()) {
@@ -211,10 +235,11 @@ public final class BusyBoxTerminalController {
 	}
 
 	private void closeSession(TerminalTab tab) {
-		BusyBoxTerminalSession session = tab.session;
+		TerminalTabSnapshot snapshot = tab.snapshot();
+		BusyBoxTerminalSession session = snapshot.session();
 		if (session == null || !session.isAlive()) {
 			if (tab.isLaunchComplete()) {
-				scheduleOnClose(tab, tab.launchFailure);
+				scheduleOnClose(tab, snapshot.launchFailure());
 			}
 			return;
 		}
@@ -267,8 +292,9 @@ public final class BusyBoxTerminalController {
 		}
 
 		try {
-			if (tab.session != null) {
-				tab.session.close(false);
+			BusyBoxTerminalSession session = tab.snapshot().session();
+			if (session != null) {
+				session.close(false);
 			}
 		}
 		catch (RuntimeException | LinkageError exception) {
@@ -279,8 +305,9 @@ public final class BusyBoxTerminalController {
 				tabs.remove(tab.id);
 			}
 			Runnable closeCallback = getWindowCloseCallbackIfFinished();
-			boolean showStartupError = !tab.launchSucceeded
-					&& processError instanceof BusyBoxTerminalSession.FallbackStartupException;
+			boolean showStartupError = !tab.snapshot().launchSucceeded()
+					&& (processError instanceof BusyBoxTerminalSession.FallbackStartupException
+							|| processError instanceof TerminalWorkingDirectory.DirectoryUnavailableException);
 			Runnable updateUi = () -> {
 				try {
 					panel.closeTerminalWidget(tab.id);
@@ -297,11 +324,12 @@ public final class BusyBoxTerminalController {
 				}
 				if (showStartupError) {
 					try {
-						new ErrorPopUP(
-								"The terminal could not start. BusyBox and the system shell fallback both failed.\n\n"
-										+ processError.getMessage(),
-								panel, ErrorTypePopUp.INTERNAL_ERROR)
-							.startManaged();
+						String message = processError instanceof TerminalWorkingDirectory.DirectoryUnavailableException
+								? "The terminal could not start because no accessible working directory was found.\n\n"
+										+ processError.getMessage()
+								: "The terminal could not start. BusyBox and the system shell fallback both failed.\n\n"
+										+ processError.getMessage();
+						new ErrorPopUP(message, panel, ErrorTypePopUp.INTERNAL_ERROR).startManaged();
 					}
 					catch (RuntimeException exception) {
 						LOGGER.error("Unable to show the terminal startup error dialog.", exception);
@@ -392,7 +420,7 @@ public final class BusyBoxTerminalController {
 		synchronized (tabsLock) {
 			canAdd = !windowClosing && platformSupported && tabs.size() < TerminalPanel.MAX_TABS;
 			TerminalTab selectedTab = selectedSession == null ? null : tabs.get(selectedSession);
-			canClose = !windowClosing && selectedTab != null && !selectedTab.closeRequested;
+			canClose = !windowClosing && selectedTab != null && !selectedTab.snapshot().closeRequested();
 		}
 		panel.setActionsEnabled(canAdd, canClose, platformSupported);
 	}
@@ -405,7 +433,7 @@ public final class BusyBoxTerminalController {
 
 	private boolean isClosing(TerminalTab tab) {
 		synchronized (tabsLock) {
-			return windowClosing || tab.closeRequested;
+			return windowClosing || tab.snapshot().closeRequested();
 		}
 	}
 
@@ -413,36 +441,6 @@ public final class BusyBoxTerminalController {
 		synchronized (tabsLock) {
 			return tabs.get(sessionId);
 		}
-	}
-
-	private static final class TerminalTab {
-
-		private final BigInteger id;
-
-		private final AtomicBoolean cleaned = new AtomicBoolean();
-
-		private final AtomicBoolean closeTaskStarted = new AtomicBoolean();
-
-		private final AtomicBoolean cleanupScheduled = new AtomicBoolean();
-
-		private volatile BusyBoxTerminalSession session;
-
-		private volatile Throwable launchFailure;
-
-		private volatile boolean launchSucceeded;
-
-		private volatile boolean launchComplete;
-
-		private volatile boolean closeRequested;
-
-		private TerminalTab(BigInteger id) {
-			this.id = id;
-		}
-
-		private boolean isLaunchComplete() {
-			return launchComplete;
-		}
-
 	}
 
 }

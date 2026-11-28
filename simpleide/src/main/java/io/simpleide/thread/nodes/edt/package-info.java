@@ -6,8 +6,6 @@
  * the thread tree root that reports level one and requires EDT execution. Listener
  * adapters built on it live in {@code io.simpleide.thread.nodes.edt.listeners}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
  */

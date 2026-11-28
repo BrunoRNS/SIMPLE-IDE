@@ -13,8 +13,6 @@
  * The manager is intended to be initialized once per JVM and shared by the application,
  * language processes and terminal sessions.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-

@@ -1,5 +1,17 @@
 package io.simpleide.thread;
 
+import java.math.BigInteger;
+import java.util.LinkedList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import javax.swing.SwingUtilities;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
@@ -10,20 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import org.junit.jupiter.api.Test;
+
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.edt.EDTNode;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
-import java.math.BigInteger;
-import java.util.LinkedList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import javax.swing.SwingUtilities;
-import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.thread.ThreadMaster}.
@@ -37,6 +40,14 @@ class ThreadMasterTest {
 	@Test
 	void exposesOneThreadMasterInstance() {
 		assertSame(ThreadMaster.getInstance(), ThreadMasterHolder.INSTANCE);
+	}
+
+	@Test
+	void sizesTheManagedWorkerPoolForLowAndHighCpuCounts() {
+		assertEquals(ThreadTaskScheduler.MIN_WORKER_COUNT, ThreadTaskScheduler.workerCountForProcessors(1));
+		assertEquals(ThreadTaskScheduler.MIN_WORKER_COUNT, ThreadTaskScheduler.workerCountForProcessors(0));
+		assertEquals(8, ThreadTaskScheduler.workerCountForProcessors(8));
+		assertEquals(32, ThreadTaskScheduler.workerCountForProcessors(32));
 	}
 
 	@Test
@@ -292,6 +303,30 @@ class ThreadMasterTest {
 		}
 		finally {
 			release.countDown();
+			pool.close();
+			master.shutdown();
+		}
+	}
+
+	@Test
+	void routesManagedExecutorTasksThroughTheDedicatedPool() throws Exception {
+		TestThreadMaster master = new TestThreadMaster();
+		ManagedThreadPool pool = master.createThreadPool("executor-test", 1);
+		ExecutorService executor = pool.createExecutorService();
+		CountDownLatch completed = new CountDownLatch(1);
+		AtomicReference<String> workerName = new AtomicReference<>();
+		try {
+			master.initialize();
+			executor.execute(() -> {
+				workerName.set(Thread.currentThread().getName());
+				completed.countDown();
+			});
+
+			assertTrue(completed.await(TEST_TIMEOUT_SECONDS, TimeUnit.SECONDS));
+			assertThat(workerName.get()).startsWith("simpleide-executor-test-");
+		}
+		finally {
+			executor.shutdownNow();
 			pool.close();
 			master.shutdown();
 		}

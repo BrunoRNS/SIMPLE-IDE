@@ -1,10 +1,13 @@
 package io.simpleide.ui.treefile;
 
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
+import java.nio.file.FileAlreadyExistsException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Enumeration;
+import java.util.List;
 
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
@@ -21,7 +24,10 @@ import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.InputPopUP;
 import io.simpleide.frame.popup.WarningPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.edt.listeners.ActionNode;
+import io.simpleide.thread.nodes.edt.listeners.MouseNode;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 import io.simpleide.utils.service.FileService;
 
 /**
@@ -45,44 +51,48 @@ public final class TreeFileActions {
 
 	private final FileService fileService = new FileService();
 
+	private JPopupMenu contextMenu;
+
+	private JMenuItem copyItem;
+
+	private JMenuItem cutItem;
+
+	private JMenuItem pasteItem;
+
+	private JMenuItem renameItem;
+
+	private JMenuItem deleteItem;
+
 	TreeFileActions(Tree tree, TreeState state) {
 		this.tree = tree;
 		this.state = state;
 	}
 
-	@SuppressWarnings("unused")
 	void installContextMenu() {
-		JPopupMenu menu = new JPopupMenu();
-		JMenuItem newFile = addMenuItem(menu, "New file", this::promptCreateFile);
-		JMenuItem newFolder = addMenuItem(menu, "New folder", this::promptCreateDirectory);
-		JMenuItem rename = addMenuItem(menu, "Rename", this::promptRename);
-		JMenuItem delete = addMenuItem(menu, "Delete", this::promptDelete);
+		contextMenu = new JPopupMenu();
+		addMenuItem(contextMenu, "New file", this::promptCreateFile);
+		addMenuItem(contextMenu, "New folder", this::promptCreateDirectory);
+		copyItem = addMenuItem(contextMenu, "Copy", this::copySelected);
+		cutItem = addMenuItem(contextMenu, "Cut", this::cutSelected);
+		pasteItem = addMenuItem(contextMenu, "Paste", this::pasteSelected);
+		renameItem = addMenuItem(contextMenu, "Rename", this::promptRename);
+		deleteItem = addMenuItem(contextMenu, "Delete", this::promptDelete);
 
-		tree.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mousePressed(MouseEvent event) {
-				showPopup(event);
-			}
+		tree.addMouseListener(new MouseNode().onPress(this::showPopup).onRelease(this::showPopup));
+	}
 
-			@Override
-			public void mouseReleased(MouseEvent event) {
-				showPopup(event);
-			}
+	private void showPopup(MouseEvent event) {
+		if (!event.isPopupTrigger() || contextMenu == null) {
+			return;
+		}
 
-			private void showPopup(MouseEvent event) {
-				if (!event.isPopupTrigger()) {
-					return;
-				}
-
-				TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
-				if (clickedPath != null) {
-					tree.setSelectionPath(clickedPath);
-				}
-				updateMenuActions(rename, delete);
-				SwingUtilities.updateComponentTreeUI(menu);
-				menu.show(event.getComponent(), event.getX(), event.getY());
-			}
-		});
+		TreePath clickedPath = tree.getPathForLocation(event.getX(), event.getY());
+		if (clickedPath != null) {
+			tree.setSelectionPath(clickedPath);
+		}
+		updateMenuActions(renameItem, deleteItem, copyItem, cutItem, pasteItem);
+		SwingUtilities.updateComponentTreeUI(contextMenu);
+		contextMenu.show(event.getComponent(), event.getX(), event.getY());
 	}
 
 	void createNewFile() {
@@ -117,6 +127,100 @@ public final class TreeFileActions {
 		selectPath(parentDirectory.getPath());
 	}
 
+	void copySelected() {
+		TreePath selectedPath = tree.getSelectionPath();
+		TreeFile selected = state.getSelected();
+		if (!isSelectedPath(selectedPath, selected) || selectedPath.getParentPath() == null) {
+			return;
+		}
+		TreeFileClipboard.getInstance().setCopied(List.of(selected));
+	}
+
+	void cutSelected() {
+		TreePath selectedPath = tree.getSelectionPath();
+		TreeFile selected = state.getSelected();
+		if (!isSelectedPath(selectedPath, selected) || selectedPath.getParentPath() == null) {
+			return;
+		}
+		TreeFileClipboard.getInstance().setCut(List.of(selected));
+	}
+
+	void pasteSelected() {
+		Directory targetDirectory = state.getCurrentDirectory();
+		if (targetDirectory == null) {
+			return;
+		}
+
+		List<TreeFile> entries = TreeFileClipboard.getInstance().getEntries();
+		boolean isCut = TreeFileClipboard.getInstance().isCut();
+		if (entries.isEmpty()) {
+			return;
+		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> pasteInBackground(targetDirectory, entries, isCut, threadMaster)));
+	}
+
+	private void pasteInBackground(Directory targetDirectory, List<TreeFile> entries, boolean isCut,
+			ThreadMaster threadMaster) {
+		try {
+			for (TreeFile entry : entries) {
+				Path sourcePath = entry.getPath();
+				Path targetPath = targetDirectory.getPath().resolve(sourcePath.getFileName());
+				if (Files.exists(targetPath)) {
+					threadMaster.executeOnEDT(() -> new WarningPopUP("File exists", "A file or directory named \""
+							+ targetPath.getFileName() + "\" already exists in the target directory.", tree)
+						.startManaged());
+					return;
+				}
+				if (isCut) {
+					Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+				}
+				else {
+					copyRecursively(sourcePath, targetPath);
+				}
+			}
+			targetDirectory.refreshChildren();
+			threadMaster.executeOnEDT(() -> {
+				refreshDirectoryNode(targetDirectory);
+				if (isCut) {
+					TreeFileClipboard.getInstance().clear();
+				}
+			});
+		}
+		catch (IllegalArgumentException exception) {
+			threadMaster
+				.executeOnEDT(() -> new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged());
+		}
+		catch (FileAlreadyExistsException exception) {
+			threadMaster.executeOnEDT(
+					() -> new WarningPopUP("File exists", "A file or directory with that name already exists.", tree)
+						.startManaged());
+		}
+		catch (IOException exception) {
+			LOGGER.error("Unable to paste.", exception);
+			threadMaster.executeOnEDT(() -> showError(exception));
+		}
+	}
+
+	private void copyRecursively(Path source, Path target) throws IOException {
+		if (Files.isDirectory(source)) {
+			Files.createDirectory(target);
+			try (var stream = Files.list(source)) {
+				stream.forEach(child -> {
+					try {
+						copyRecursively(child, target.resolve(child.getFileName()));
+					}
+					catch (IOException exception) {
+						throw new RuntimeException(exception);
+					}
+				});
+			}
+		}
+		else {
+			Files.copy(source, target);
+		}
+	}
+
 	private JMenuItem addMenuItem(JPopupMenu menu, String label, Runnable action) {
 		JMenuItem item = new JMenuItem(label);
 		item.addActionListener(new ActionNode(event -> action.run()));
@@ -124,11 +228,17 @@ public final class TreeFileActions {
 		return item;
 	}
 
-	private void updateMenuActions(JMenuItem rename, JMenuItem delete) {
+	private void updateMenuActions(JMenuItem rename, JMenuItem delete, JMenuItem copy, JMenuItem cut, JMenuItem paste) {
 		TreePath selectedPath = tree.getSelectionPath();
 		TreeFile selected = getSelectedFile(selectedPath);
-		rename.setEnabled(selected != null && selectedPath.getParentPath() != null);
-		delete.setEnabled(selected != null && selected.getPath().getParent() != null);
+		boolean canEdit = selected != null && selectedPath.getParentPath() != null;
+		boolean canDelete = selected != null && selected.getPath().getParent() != null;
+		boolean canPaste = !TreeFileClipboard.getInstance().isEmpty() && state.getCurrentDirectory() != null;
+		rename.setEnabled(canEdit);
+		delete.setEnabled(canDelete);
+		copy.setEnabled(canEdit);
+		cut.setEnabled(canEdit);
+		paste.setEnabled(canPaste);
 	}
 
 	private void promptRename() {
@@ -141,7 +251,7 @@ public final class TreeFileActions {
 		new InputPopUP("Rename", "New name for: " + selected.getName(), tree, this::renameSelected).startManaged();
 	}
 
-	private void renameSelected(String name) {
+	void renameSelected(String name) {
 		TreeFile selected = state.getSelected();
 		TreePath selectedPath = tree.getSelectionPath();
 		if (name == null || name.isBlank() || !isSelectedPath(selectedPath, selected)) {
@@ -152,20 +262,27 @@ public final class TreeFileActions {
 		if (parentDirectory == null) {
 			return;
 		}
-
-		try {
-			Path renamedPath = fileService.renameFile(selected.getPath(), name);
-			parentDirectory.refreshChildren();
-			refreshDirectoryNode(parentDirectory);
-			selectPath(renamedPath);
-		}
-		catch (IllegalArgumentException exception) {
-			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
-		}
-		catch (IOException exception) {
-			LOGGER.error("Unable to rename {}.", selected.getPath(), exception);
-			showError(exception);
-		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		Path selectedPathOnDisk = selected.getPath();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				Path renamedPath = fileService.renameFile(selectedPathOnDisk, name);
+				List<TreeFile> refreshedChildren = parentDirectory.readChildrenFromDisk();
+				threadMaster.executeOnEDT(() -> {
+					parentDirectory.replaceChildren(refreshedChildren);
+					refreshDirectoryNode(parentDirectory);
+					selectPath(renamedPath);
+				});
+			}
+			catch (IllegalArgumentException exception) {
+				threadMaster
+					.executeOnEDT(() -> new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged());
+			}
+			catch (IOException exception) {
+				LOGGER.error("Unable to rename {}.", selectedPathOnDisk, exception);
+				threadMaster.executeOnEDT(() -> showError(exception));
+			}
+		}));
 	}
 
 	private void promptDelete() {
@@ -184,13 +301,34 @@ public final class TreeFileActions {
 		if (confirmation != JOptionPane.YES_OPTION) {
 			return;
 		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		Directory parentDirectory = getParentDirectory(selectedPath);
+		threadMaster.register(
+				new RunnableNode(() -> deleteInBackground(selectedPath, selected, parentDirectory, threadMaster)));
+	}
 
+	private void deleteInBackground(TreePath selectedPath, TreeFile selected, Directory parentDirectory,
+			ThreadMaster threadMaster) {
 		try {
-			deleteSelected(selectedPath, selected);
+			Path selectedFile = selected.getPath();
+			fileService.deleteFile(selectedFile);
+			if (selectedPath.getParentPath() == null) {
+				Directory replacementRoot = new Directory(selectedFile.getParent());
+				threadMaster.executeOnEDT(() -> tree.setRoot(replacementRoot));
+				return;
+			}
+			if (parentDirectory == null) {
+				return;
+			}
+			parentDirectory.refreshChildren();
+			threadMaster.executeOnEDT(() -> {
+				refreshDirectoryNode(parentDirectory);
+				selectPath(parentDirectory.getPath());
+			});
 		}
 		catch (IOException exception) {
 			LOGGER.error("Unable to delete {}.", selected.getPath(), exception);
-			showError(exception);
+			threadMaster.executeOnEDT(() -> showError(exception));
 		}
 	}
 
@@ -208,28 +346,40 @@ public final class TreeFileActions {
 			.startManaged();
 	}
 
-	private void create(String name, boolean directory, String type) {
+	void create(String name, boolean directory, String type) {
 		if (name == null || name.isBlank()) {
 			return;
 		}
 
 		Directory parent = state.getCurrentDirectory();
-		try {
-			parent.loadChildren();
-			TreeFile created = fileService.createNewFile(parent, name, directory);
-			parent.addChild(created);
-			refreshDirectoryNode(parent);
+		if (parent == null) {
+			return;
 		}
-		catch (IllegalArgumentException exception) {
-			new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged();
-		}
-		catch (IOException exception) {
-			LOGGER.error("Unable to create {} in {}.", type, parent.getPath(), exception);
-			showError(exception);
-		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		threadMaster.register(new RunnableNode(() -> {
+			try {
+				List<TreeFile> loadedChildren = parent.areChildrenLoaded() ? null : parent.readChildrenFromDisk();
+				TreeFile created = fileService.createNewFile(parent, name, directory);
+				threadMaster.executeOnEDT(() -> {
+					if (loadedChildren != null) {
+						parent.replaceChildren(loadedChildren);
+					}
+					parent.addChild(created);
+					refreshDirectoryNode(parent);
+				});
+			}
+			catch (IllegalArgumentException exception) {
+				threadMaster
+					.executeOnEDT(() -> new WarningPopUP("Invalid name", exception.getMessage(), tree).startManaged());
+			}
+			catch (IOException exception) {
+				LOGGER.error("Unable to create {} in {}.", type, parent.getPath(), exception);
+				threadMaster.executeOnEDT(() -> showError(exception));
+			}
+		}));
 	}
 
-	private void refreshDirectoryNode(Directory directory) {
+	void refreshDirectoryNode(Directory directory) {
 		DefaultMutableTreeNode root = (DefaultMutableTreeNode) tree.getModel().getRoot();
 		Enumeration<?> nodes = root.depthFirstEnumeration();
 		while (nodes.hasMoreElements()) {

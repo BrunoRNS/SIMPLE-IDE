@@ -8,8 +8,6 @@
  * {@link io.simpleide.thread.validation.NodeExecutionValidation} verifies at run time
  * that the node executes on the thread kind it declares.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/reference/THREADMASTER.md">docs/reference/THREADMASTER.md</a>
  */

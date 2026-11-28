@@ -7,8 +7,6 @@
  * {@link io.simpleide.thread.nodes.record.NodeRecordFactory} creates the snapshot without
  * retaining the node itself.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
  */

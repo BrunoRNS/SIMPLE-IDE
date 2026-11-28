@@ -13,8 +13,6 @@
  * cached by this package. Load icons once during component construction rather than on
  * every paint pass, and construct the owning Swing components on the EDT.
  *
- * @author LuisOtavio
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
  */

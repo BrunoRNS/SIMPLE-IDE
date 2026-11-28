@@ -1,0 +1,104 @@
+name: Multi-Language Toolchain Tests
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: Debug integration tests (latest toolchains)
+    # Pinned to 24.04: the Mono repository's only suite (stable-focal) ships Mono
+    # 6.12 plus msbuild, and Ubuntu 26.04's archive ships Mono 6.14 without
+    # msbuild. apt cannot install the 6.12 packages next to the 6.14 ones, so
+    # "apt-get install mono-complete" fails on ubuntu-latest with unmet
+    # dependencies. On 24.04 the same step installs 6.12 and msbuild 16.10.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: zulu
+          java-version: "27"
+          cache: maven
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          # Delve 1.27.2 requires Go 1.23 or newer; pin a concrete version so the
+          # debug integration tests are deterministic instead of following "stable".
+          go-version: "1.24.x"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: latest
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.x"
+
+      # rust-analyzer cannot load the standard library without the rust-src
+      # component, and then answers every completion request with null.
+      - name: Set up Rust with rust-src
+        run: |
+          rustup toolchain install stable --profile minimal --component rust-src
+          rustup default stable
+
+      # OmniSharp analyzes loose .cs files only when Mono's MSBuild instance is
+      # available; without it the C# language-server test skips. The Ubuntu
+      # archive does not ship msbuild even in 26.04, so Mono comes from the
+      # project's own repository. Its stable-focal suite is built for Mono 6.12
+      # and cannot be installed next to the archive's Mono 6.14, which is why
+      # this job stays on ubuntu-24.04.
+      #
+      # The signing key is downloaded over HTTPS instead of from
+      # keyserver.ubuntu.com: an unreachable keyserver left no keyring behind,
+      # and apt then failed with "NO_PUBKEY"/missing-keyring errors. The
+      # downloaded key is checked against its fingerprint so a wrong key fails
+      # here instead of turning into a confusing apt error later.
+      - name: Set up Mono with MSBuild for the C# language server
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg
+          sudo install -d -m 0755 /etc/apt/keyrings
+          curl -fsSL --retry 3 --retry-delay 2 \
+            https://download.mono-project.com/repo/xamarin.gpg \
+            | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/xamarin-mono-archive.gpg
+          sudo gpg --batch --show-keys --with-colons /etc/apt/keyrings/xamarin-mono-archive.gpg \
+            | grep -q '^fpr:::::::::3FA7E0328081BFF6A14DA29AA6A19B38D3D831EF:'
+          # apt 3.x (Ubuntu 26.04 runners) refuses a gpg keybox with "the key(s)
+          # in the keyring are ignored as the file has an unsupported filetype",
+          # so fail here unless the keyring really is OpenPGP (first byte 0x99)
+          # rather than a keybox written by "gpg --keyring ... --recv-keys".
+          sudo head -c 1 /etc/apt/keyrings/xamarin-mono-archive.gpg \
+            | od -An -tx1 | grep -q '99'
+          sudo chmod 0644 /etc/apt/keyrings/xamarin-mono-archive.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/xamarin-mono-archive.gpg] https://download.mono-project.com/repo/ubuntu stable-focal main" \
+            | sudo tee /etc/apt/sources.list.d/mono-official-stable.list
+          sudo apt-get update
+          sudo apt-get install -y mono-complete
+          mono --version | head -1
+          msbuild --version | head -3
+
+      # Fast, no-toolchain checks for the Java completion popup: the IDE
+      # snippets must join a real server response and never hide it.
+      - name: Run Java completion and snippet tests
+        run: ./mvnw -B -pl simpleide -Dtest='LspEditorSupportSnippetsTest,JavaLspSnippetsTest,LspCompletionProviderTest' test
+
+      # Includes JavaRealDebugIntegrationTest, which debugs a loose Java file
+      # through JDT LS (make test-debug sets -Dsimpleide.java.debug.real=true).
+      - name: Run debug integration tests
+        run: make test-debug
+
+      # Includes Java loose-file completion and syntax diagnostics.
+      - name: Run language-server integration tests
+        run: make test-lsp

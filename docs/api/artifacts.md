@@ -14,23 +14,23 @@ want one of these artifacts:
 Every GitHub release contains:
 
 ```text
-simpleide-v<version>-any-with-deps.jar
+simpleide-v<version>-<os>-<arch>-<variant>-with-deps.jar
 ```
 
 The JAR is executable and can also be placed on a classpath:
 
 ```sh
-java -jar simpleide-v1.0.0beta-any-with-deps.jar
+java -jar simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar
 ```
 
 For a Maven project, install it into the local repository once:
 
 ```sh
 mvn install:install-file \
-  -Dfile=simpleide-v1.0.0beta-any-with-deps.jar \
+  -Dfile=simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar \
   -DgroupId=io.simpleide \
   -DartifactId=simpleide \
-  -Dversion=1.0.0beta \
+  -Dversion=1.1.0 \
   -Dpackaging=jar
 ```
 
@@ -40,7 +40,7 @@ Then depend on it:
 <dependency>
   <groupId>io.simpleide</groupId>
   <artifactId>simpleide</artifactId>
-  <version>1.0.0beta</version>
+  <version>1.1.0</version>
 </dependency>
 ```
 
@@ -48,7 +48,7 @@ Gradle:
 
 ```groovy
 dependencies {
-    implementation files('libs/simpleide-v1.0.0beta-any-with-deps.jar')
+    implementation files('libs/simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar')
 }
 ```
 
@@ -69,13 +69,14 @@ Add the repository:
 </repositories>
 ```
 
-Depend on the application module:
+Depend on the published repository artifact. It resolves the IDE and compiler
+modules transitively:
 
 ```xml
 <dependency>
-  <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
-  <artifactId>simpleide</artifactId>
-  <version>v1.0.0beta</version>
+  <groupId>com.github.BrunoRNS</groupId>
+  <artifactId>SIMPLE-IDE</artifactId>
+  <version>v1.1.0</version>
 </dependency>
 ```
 
@@ -85,7 +86,7 @@ Depend on the bytecode compiler module only:
 <dependency>
   <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
   <artifactId>simplebytecode-compiler</artifactId>
-  <version>v1.0.0beta</version>
+  <version>v1.1.0</version>
 </dependency>
 ```
 
@@ -99,8 +100,8 @@ Gradle examples:
 
 ```groovy
 dependencies {
-    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simpleide:v1.0.0beta'
-    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simplebytecode-compiler:v1.0.0beta'
+    implementation 'com.github.BrunoRNS:SIMPLE-IDE:v1.1.0'
+    implementation 'com.github.BrunoRNS.SIMPLE-IDE:simplebytecode-compiler:v1.1.0'
 }
 ```
 
@@ -108,7 +109,8 @@ dependencies {
 
 | Selector | Meaning |
 | --- | --- |
-| `v1.0.0beta` | The tagged release |
+| `v1.1.0` | Current release tag |
+| `v1.0.0beta` | Historic tagged release |
 | `main` | Latest commit on the stable branch |
 | `develop` | Latest commit on the development branch |
 | `<commit-sha>` | Exact revision |
@@ -122,19 +124,72 @@ coordinate is not available:
 
 1. Open the JitPack build log for the tag.
 2. Confirm that the `simpleide` module was built successfully.
-3. Use the root coordinate `com.github.BrunoRNS.SIMPLE-IDE:SIMPLE-IDE:v1.0.0beta`
+3. Use the root coordinate `com.github.BrunoRNS:SIMPLE-IDE:v1.1.0`
    or download the release fat JAR and install it manually.
 4. Pin the dependency to a released tag instead of a branch.
 
+### Optional JavaFX media variant
+
+The `simpleide` artifact contains reflective media viewers that need OpenJFX at
+runtime only when audio and video playback is wanted. The simple, POM-only way
+to pin a variant is to exclude the transitive OpenJFX modules and declare
+`22.0.2`, `23.0.2` or none explicitly; see the README example and
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media#pin-a-variant-in-the-consumer-pom-no--d).
+The advanced Maven property route is:
+
+```sh
+mvn -Dsimpleide.media.variant=nojavafx package  # no JavaFX
+mvn -Dsimpleide.media.variant=javafx22 package # OpenJFX 22.0.2
+mvn -Dsimpleide.media.variant=javafx23 package # OpenJFX 23.0.2
+```
+
+Omit the property for automatic selection:
+
+| Consumer JDK | Automatic platform | Selected variant |
+| --- | --- | --- |
+| 17 through 20 | Linux/Windows/macOS `x64`, macOS `arm64` | `javafx22` |
+| 21 or newer | Linux/Windows/macOS `x64`, macOS `arm64` | `javafx23` |
+| Any | Linux `x86`/`arm64`, Windows `x86`/`arm64` | `nojavafx` |
+
+Automatic Linux `arm64` builds use `nojavafx` to preserve the glibc 2.28
+baseline. Released JavaFX `arm64` artifacts require Debian 12+ with glibc 2.36+;
+`javafx23` also requires JDK 21 when building from source.
+Pass the property on the command line, in `.mvn/maven.config` or in
+`MAVEN_OPTS`; it is not read from the consumer POM `<properties>`.
+
+Gradle does not evaluate the JDK/OS profiles of dependency POMs. Gradle
+consumers should declare the OpenJFX modules explicitly, or omit them for the
+`nojavafx` behavior:
+
+```groovy
+def javafxVariant = 'javafx22' // nojavafx | javafx22 | javafx23
+def javafxVersion = javafxVariant == 'javafx23' ? '23.0.2' : '22.0.2'
+def javafxPlatform = 'linux-aarch64' // linux, linux-aarch64, mac, mac-aarch64, win
+
+dependencies {
+    implementation('com.github.BrunoRNS:SIMPLE-IDE:v1.1.0') {
+        exclude group: 'org.openjfx'
+    }
+    if (javafxVariant != 'nojavafx') {
+        implementation "org.openjfx:javafx-controls:${javafxVersion}:${javafxPlatform}"
+        implementation "org.openjfx:javafx-media:${javafxVersion}:${javafxPlatform}"
+        implementation "org.openjfx:javafx-swing:${javafxVersion}:${javafxPlatform}"
+    }
+}
+```
+
+The complete contract, platform matrix and examples are in
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+
 ## Maven coordinates from the reactor
 
-The reactor modules use group `io` and version `1.0.0beta`:
+The reactor modules use group `io` and version `1.1.0`:
 
 | Module | Coordinate |
 | --- | --- |
-| Parent | `io:simpleide-parent:1.0.0beta` |
-| Application | `io:simpleide:1.0.0beta` |
-| Compiler | `io:simplebytecode-compiler:1.0.0beta` |
+| Parent | `io:simpleide-parent:1.1.0` |
+| Application | `io:simpleide:1.1.0` |
+| Compiler | `io:simplebytecode-compiler:1.1.0` |
 
 These coordinates are useful when building the project locally with
 `mvn install`. They are not published to Maven Central.
@@ -154,7 +209,17 @@ others. The table below shows the entry point and the effects.
 | Terminal only | `Terminals.panel()` + controller | Yes | Yes |
 | Full application | `SimpleIDE.launch()` | Yes | Yes |
 
-See [Isolated modules](isolated-modules.md) for exact imports and caveats.
+See [Isolated modules](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Isolated-Modules) for exact imports and caveats.
+
+### Themes and application resources
+
+`SimpleIDE.launch(args)` loads bundled look-and-feel properties, RSyntaxTextArea
+editor themes, palettes, SVG welcome logos and the application PNG icon from the
+application artifact. For a custom Swing integration, the application artifact
+and its runtime dependencies must remain on the classpath; register windows and
+editors with `io.simpleide.ui.menubar.ThemeManager` to apply or change themes.
+Available values include `LIGHT`, `DARK`, `DRACULA`, `DRACULA_LIGHT`, `BROWN`
+and `BROWN_LIGHT`. See [UI helpers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI) for usage and lifecycle details.
 
 ## Only RSyntaxTextArea
 
@@ -181,7 +246,7 @@ editor.setSyntaxStyle(TypeFile.JAVA);
 
 - Simple IDE code is BSD 3-Clause.
 - The fat JAR contains dependencies with their own licenses, including LGPL,
-  EPL and Apache 2.0 components. See [Third-party licenses](../third-party/LICENSES.md).
+  EPL and Apache 2.0 components. See [Third-party licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses).
 - Embedded BusyBox binaries are GPLv2 programs, not linked Java code. The
   corresponding source archives are bundled in the JAR resources. If you
   redistribute the fat JAR or a jpackage image, keep those resources and

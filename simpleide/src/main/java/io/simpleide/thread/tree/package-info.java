@@ -6,11 +6,9 @@
  * identifier, validates parent and level relationships, removes nodes as a cascade and
  * produces breadth-first and depth-first traversals.
  * {@link io.simpleide.thread.tree.TreeNode} is a single tree entry, and
- * {@link io.simpleide.thread.tree.Tree} is the minimal contract implemented by the thread
- * manager.
+ * {@link io.simpleide.thread.tree.ThreadTree} is the minimal contract implemented by the
+ * thread manager.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/reference/THREADMASTER.md">docs/reference/THREADMASTER.md</a>
  */

@@ -29,8 +29,9 @@ Behavior summary:
 - Successful release-metadata lookups are cached for six hours (failures for
   two minutes), so tab switches do not hit the network repeatedly.
 - Servers known to the registry include `jdtls` (Java),
-  `typescript-language-server` (JavaScript) and `csharp-ls` (C#); see the
-  registry file for the complete list and the download source of each entry.
+  `typescript-language-server` (JavaScript) and the Mono build of OmniSharp
+  (C#); see the registry file for the complete list and the download source of
+  each entry. OmniSharp runs on Mono and does not require a .NET SDK.
 - Each server keeps the license of its own upstream project. Simple IDE does
   not redistribute server archives; it only downloads them on your machine.
 
@@ -53,17 +54,17 @@ operating system's package manager. Simple IDE never bundles or downloads them.
 
 A language appears in the run menu only when its tool is found on `PATH`
 (when using the embedded compiler, no external tool is required for that
-language). See [Languages reference](../reference/LANGUAGES.md) for the exact
+language). See [Languages reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages) for the exact
 detection rules.
 
 ## Updating runtime metadata
 
 The registry and its cache are documented in
-[LSP reference](../reference/LSP.md). To change where a server is downloaded
+[LSP reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-LSP). To change where a server is downloaded
 from, edit `registry.json`; the installer reads it on the next start.
 
 See also:
 
-- [Third-party overview](README.md)
-- [Bundled BusyBox](BUSYBOX.md)
-- [License inventory](LICENSES.md)
+- [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party)
+- [Bundled BusyBox](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-BusyBox)
+- [License inventory](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses)

@@ -3,8 +3,9 @@ package io.simpleide.thread.nodes.record;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import io.simpleide.thread.nodes.NodePattern;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Tests {@link io.simpleide.thread.nodes.record.NodeRecordFactory}.

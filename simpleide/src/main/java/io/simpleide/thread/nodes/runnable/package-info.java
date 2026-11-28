@@ -6,8 +6,6 @@
  * {@code false} from {@code isEDT()} and derives its level from its parent. It is the
  * standard node used for background tasks registered with the thread manager.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
  */

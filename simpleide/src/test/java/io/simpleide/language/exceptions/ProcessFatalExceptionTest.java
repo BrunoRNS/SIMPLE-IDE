@@ -1,12 +1,13 @@
 package io.simpleide.language.exceptions;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import org.junit.jupiter.api.Test;
 
 /**

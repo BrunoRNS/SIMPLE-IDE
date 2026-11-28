@@ -31,6 +31,7 @@ tmp/
 *.swp
 *~.nib
 local.properties
+integration-reports/
 .settings/
 .loadpath
 .recommenders
@@ -87,3 +88,6 @@ target/
 .classpath
 
 *.out
+__pycache__/
+*.pyc
+.aider*

@@ -8,6 +8,8 @@ or a jpackage package, with the license that applies.
 
 | Component | License | Upstream |
 | --- | --- | --- |
+| TwelveMonkeys ImageIO plugins | BSD 3-Clause | <https://github.com/haraldk/TwelveMonkeys> |
+| Apache Batik modules | Apache License 2.0 | <https://xmlgraphics.apache.org/batik/> |
 | rsyntaxtextarea, languagesupport, autocomplete (com.fifesoft) | BSD 3-Clause | <https://github.com/bobbylight/RSyntaxTextArea> |
 | flatlaf, flatlaf-extras (com.formdev) | Apache License 2.0 | <https://github.com/JFormDesigner/FlatLaf> |
 | jackson-databind (com.fasterxml.jackson.core) | Apache License 2.0 | <https://github.com/FasterXML/jackson-databind> |
@@ -18,6 +20,7 @@ or a jpackage package, with the license that applies.
 | jakarta.json-api | EDL 1.0 (BSD 3-Clause) | <https://github.com/jakartaee/json-api> |
 | parsson (org.eclipse.parsson) | EDL 1.0 (BSD 3-Clause) | <https://github.com/eclipse-parsson/parsson> |
 | jarchivelib (org.rauschig) | Apache License 2.0 | <https://github.com/thrau/jarchivelib> |
+| dbus-java-core, dbus-java-transport-jnr-unixsocket (com.github.hypfvieh) | MIT License | <https://github.com/hypfvieh/dbus-java> |
 | groovy, groovy-jsr223 (org.apache.groovy) | Apache License 2.0 | <https://groovy-lang.org/> |
 | kotlin-scripting-jsr223 (org.jetbrains.kotlin) | Apache License 2.0 | <https://kotlinlang.org/> |
 | logback-classic (ch.qos.logback) | EPL 1.0 / LGPL 2.1 dual | <https://logback.qos.ch/> |
@@ -39,13 +42,13 @@ or a jpackage package, with the license that applies.
 
 The per-platform `LICENSE.txt` files and the complete GPL source archives live
 under `simpleide/src/main/resources/io/simpleide/ui/terminal/core/busybox/`.
-Details: [Bundled BusyBox](BUSYBOX.md).
+Details: [Bundled BusyBox](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-BusyBox).
 
 ## Downloaded at runtime
 
 | Component | License | Notes |
 | --- | --- | --- |
-| Language servers from `registry.json` | Their own upstream licenses | Downloaded into `~/.simpleide/lsp/` on first use; not redistributed by Simple IDE. Details: [Runtime downloads](RUNTIME.md) |
+| Language servers from `registry.json` | Their own upstream licenses | Downloaded into `~/.simpleide/lsp/` on first use; not redistributed by Simple IDE. Details: [Runtime downloads](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime) |
 
 ## Dual-license choices
 
@@ -58,5 +61,5 @@ Details: [Bundled BusyBox](BUSYBOX.md).
 `go` and `rustc` are programs you install separately. Their licenses are the
 concern of your installation, not of this project.
 
-See also: [Third-party overview](README.md) and
-[Maven dependencies](MAVEN.md).
+See also: [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party) and
+[Maven dependencies](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Maven).

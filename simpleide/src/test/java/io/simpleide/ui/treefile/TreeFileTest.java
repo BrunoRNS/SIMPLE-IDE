@@ -1,28 +1,42 @@
 package io.simpleide.ui.treefile;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import ch.qos.logback.classic.Logger;
-import ch.qos.logback.classic.spi.ILoggingEvent;
-import ch.qos.logback.core.read.ListAppender;
-import io.simpleide.thread.ThreadMaster;
+import java.awt.GraphicsEnvironment;
+import java.awt.Window;
+import java.awt.datatransfer.Transferable;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.imageio.ImageIO;
+import javax.swing.Action;
 import javax.swing.Icon;
+import javax.swing.JDialog;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.awaitility.Awaitility.await;
+
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.api.LargeTextViewer;
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Tests {@link io.simpleide.ui.treefile.TreeFile}.
@@ -41,7 +55,7 @@ class TreeFileTest {
 			Directory directory = new Directory(source);
 
 			assertThat(directory.getChildren()).hasSize(2);
-			File file = (File) directory.getChildren()
+			SimpleIDEFile file = (SimpleIDEFile) directory.getChildren()
 				.stream()
 				.filter(child -> child.getName().equals("Main.java"))
 				.findFirst()
@@ -53,10 +67,14 @@ class TreeFileTest {
 				.orElseThrow();
 
 			assertThat(file.getTypeFile()).isEqualTo(TypeFile.JAVA);
-			assertThat(file.getCode()).hasToString("class Main {}");
+			assertThat(file.isContentLoaded()).isFalse();
+			assertThat(file.getCode()).hasToString("");
 			assertThat(nestedDirectory.areChildrenLoaded()).isFalse();
 			assertThat(nestedDirectory.getChildren()).isEmpty();
 
+			file.loadContent();
+			assertThat(file.isContentLoaded()).isTrue();
+			assertThat(file.getCode()).hasToString("class Main {}");
 			nestedDirectory.loadChildren();
 
 			assertThat(nestedDirectory.getChildren()).extracting(TreeFile::getName).containsExactly("Helper.java");
@@ -67,6 +85,52 @@ class TreeFileTest {
 			Files.deleteIfExists(root.resolve("src/Main.java"));
 			Files.deleteIfExists(root.resolve("src"));
 			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void largeTextIsClassifiedWithoutKeepingTheWholeFileInMemory() throws Exception {
+		Path path = Files.createTempFile("simpleide-large-text-", ".txt");
+		try {
+			String block = "This is a large text file.\n".repeat(8192);
+			try (var writer = Files.newBufferedWriter(path)) {
+				for (int index = 0; index < 12; index++) {
+					writer.write(block);
+				}
+			}
+			SimpleIDEFile file = SimpleIDEFile.lazy(path);
+			file.loadContent();
+
+			assertThat(file.getContentKind()).isEqualTo(FileContentKind.TEXT);
+			assertThat(file.isLargeContent()).isTrue();
+			assertThat(file.getCode()).hasToString("");
+			assertThat(file.getFileSize()).isGreaterThan(2L * 1024 * 1024);
+			try (LargeTextViewer viewer = new LargeTextViewer(path, file.getFileSize())) {
+				assertThat(viewer.pageCapacityBytes()).isEqualTo(256 * 1024);
+			}
+		}
+		finally {
+			Files.deleteIfExists(path);
+		}
+	}
+
+	@Test
+	void largeImagesAreDecodedAsBoundedPreviews() throws Exception {
+		Path path = Files.createTempFile("simpleide-large-image-", ".png");
+		try {
+			BufferedImage source = new BufferedImage(1200, 900, BufferedImage.TYPE_INT_RGB);
+			ImageIO.write(source, "png", path.toFile());
+			SimpleIDEFile file = SimpleIDEFile.lazy(path);
+			file.loadContent();
+
+			assertThat(file.getContentKind()).isEqualTo(FileContentKind.IMAGE);
+			assertThat(file.getImageWidth()).isEqualTo(1200);
+			assertThat(file.getImageHeight()).isEqualTo(900);
+			assertThat((long) file.getImageContent().getWidth() * file.getImageContent().getHeight())
+				.isLessThanOrEqualTo(1_000_000);
+		}
+		finally {
+			Files.deleteIfExists(path);
 		}
 	}
 
@@ -125,6 +189,7 @@ class TreeFileTest {
 			CountDownLatch childrenLoaded = new CountDownLatch(1);
 			AtomicBoolean modelUpdatedOnEdt = new AtomicBoolean();
 			AtomicReference<Tree> treeReference = new AtomicReference<>();
+			AtomicReference<Directory> nestedDirectoryReference = new AtomicReference<>();
 			ThreadMaster.getInstance().initialize();
 
 			SwingUtilities.invokeAndWait(() -> {
@@ -145,13 +210,17 @@ class TreeFileTest {
 
 					@Override
 					public void treeStructureChanged(TreeModelEvent event) {
-						modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
-						childrenLoaded.countDown();
+						Directory nestedDirectory = nestedDirectoryReference.get();
+						if (nestedDirectory != null && nestedDirectory.areChildrenLoaded()) {
+							modelUpdatedOnEdt.set(SwingUtilities.isEventDispatchThread());
+							childrenLoaded.countDown();
+						}
 					}
 				});
 				DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
 				DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
 				Directory nestedDirectory = (Directory) nestedNode.getUserObject();
+				nestedDirectoryReference.set(nestedDirectory);
 
 				assertThat(nestedDirectory.areChildrenLoaded()).isFalse();
 				assertThat(nestedNode.getChildCount()).isEqualTo(1);
@@ -187,6 +256,76 @@ class TreeFileTest {
 	}
 
 	@Test
+	void loadingDirectoryShowsStatusAndKeepsTheEdtResponsive() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-loading-");
+		Path nested = Files.createDirectory(root.resolve("nested"));
+		CountDownLatch loadStarted = new CountDownLatch(1);
+		CountDownLatch allowLoad = new CountDownLatch(1);
+		CountDownLatch childrenLoaded = new CountDownLatch(1);
+		AtomicReference<Tree> treeReference = new AtomicReference<>();
+		try {
+			Files.writeString(nested.resolve("Nested.java"), "class Nested {}");
+			Directory rootDirectory = new Directory(root);
+			BlockingDirectory blocked = new BlockingDirectory(nested, loadStarted, allowLoad);
+			rootDirectory.replaceChildren(List.of(blocked));
+			ThreadMaster.getInstance().initialize();
+
+			SwingUtilities.invokeAndWait(() -> {
+				Tree tree = new Tree(rootDirectory);
+				treeReference.set(tree);
+				tree.getModel().addTreeModelListener(new TreeModelListener() {
+					@Override
+					public void treeNodesChanged(TreeModelEvent event) {
+					}
+
+					@Override
+					public void treeNodesInserted(TreeModelEvent event) {
+					}
+
+					@Override
+					public void treeNodesRemoved(TreeModelEvent event) {
+					}
+
+					@Override
+					public void treeStructureChanged(TreeModelEvent event) {
+						if (blocked.areChildrenLoaded()) {
+							childrenLoaded.countDown();
+						}
+					}
+				});
+				DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+				DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+				tree.expandPath(new TreePath(nestedNode.getPath()));
+
+				assertThat(blocked.isLoading()).isTrue();
+				assertThat(((DefaultMutableTreeNode) nestedNode.getChildAt(0)).getUserObject()).isEqualTo("Loading...");
+			});
+
+			assertThat(loadStarted.await(10, TimeUnit.SECONDS)).isTrue();
+			CountDownLatch edtResponsive = new CountDownLatch(1);
+			SwingUtilities.invokeLater(edtResponsive::countDown);
+			assertThat(edtResponsive.await(2, TimeUnit.SECONDS)).isTrue();
+
+			allowLoad.countDown();
+			assertThat(childrenLoaded.await(10, TimeUnit.SECONDS)).isTrue();
+			SwingUtilities.invokeAndWait(() -> {
+				assertThat(blocked.isLoading()).isFalse();
+				assertThat(blocked.areChildrenLoaded()).isTrue();
+				Tree tree = treeReference.get();
+				DefaultMutableTreeNode nestedNode = childNamed((DefaultMutableTreeNode) tree.getModel().getRoot(),
+						"nested");
+				assertThat(nestedNode.getChildCount()).isEqualTo(1);
+			});
+		}
+		finally {
+			allowLoad.countDown();
+			Files.deleteIfExists(nested.resolve("Nested.java"));
+			Files.deleteIfExists(nested);
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
 	void treeStateTracksSelectedAndCurrentDirectory() throws Exception {
 		Path root = Files.createTempDirectory("simpleide-tree-state-");
 		Logger treeLogger = (Logger) LoggerFactory.getLogger(Tree.class);
@@ -199,27 +338,31 @@ class TreeFileTest {
 			Files.writeString(root.resolve("Main.java"), "class Main {}");
 			Files.writeString(nested.resolve("Helper.java"), "class Helper {}");
 			Directory rootDirectory = new Directory(root);
+			Tree[] treeHolder = new Tree[1];
 
-			SwingUtilities.invokeAndWait(() -> {
-				Tree tree = new Tree(rootDirectory);
-				DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
-				DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
-				DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
+			SwingUtilities.invokeAndWait(() -> treeHolder[0] = new Tree(rootDirectory));
+			flushEdt();
+			Tree tree = treeHolder[0];
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode nestedNode = childNamed(rootNode, "nested");
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "Main.java");
 
-				tree.setSelectionPath(new TreePath(nestedNode.getPath()));
-				assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
-				assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
-				assertThat(appender.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
-					.contains("selected=" + nested, "currentDirectory=" + nested));
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(nestedNode.getPath())));
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isInstanceOf(Directory.class);
+			assertThat(tree.getState().getCurrentDirectory().getName()).isEqualTo("nested");
+			assertThat(appender.list).anySatisfy(event -> assertThat(event.getFormattedMessage())
+				.contains("selected=" + nested, "currentDirectory=" + nested));
 
-				tree.setSelectionPath(new TreePath(fileNode.getPath()));
-				assertThat(tree.getState().getSelected()).isInstanceOf(File.class);
-				assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isInstanceOf(SimpleIDEFile.class);
+			assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 
-				tree.clearSelection();
-				assertThat(tree.getState().getSelected()).isNull();
-				assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
-			});
+			SwingUtilities.invokeAndWait(() -> tree.clearSelection());
+			flushEdt();
+			assertThat(tree.getState().getSelected()).isNull();
+			assertThat(tree.getState().getCurrentDirectory()).isSameAs(rootDirectory);
 		}
 		finally {
 			Files.deleteIfExists(root.resolve("nested/Helper.java"));
@@ -320,6 +463,7 @@ class TreeFileTest {
 			SwingUtilities.invokeAndWait(() -> {
 				try {
 					actions.deleteSelected(new TreePath(fileNode.getPath()), (TreeFile) fileNode.getUserObject());
+					assertThat(tree.getState().getSelected()).isSameAs(rootDirectory);
 				}
 				catch (IOException exception) {
 					throw new AssertionError(exception);
@@ -373,6 +517,67 @@ class TreeFileTest {
 	}
 
 	@Test
+	void creatingFileRunsOnManagedWorkerAndRefreshesTree() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-create-file-");
+		try {
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			TreeFileActions actions = new TreeFileActions(tree, tree.getState());
+
+			SwingUtilities.invokeAndWait(() -> actions.create("created.txt", false, "file"));
+
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(root.resolve("created.txt")));
+			await().atMost(5, TimeUnit.SECONDS)
+				.until(() -> rootDirectory.getChildren()
+					.stream()
+					.anyMatch(child -> "created.txt".equals(child.getName())));
+			flushEdt();
+
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			assertThat(childNamed(rootNode, "created.txt")).isNotNull();
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("created.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void renamingSelectedFileRunsOnManagedWorkerAndSelectsRenamedEntry() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-rename-file-");
+		Path originalPath = Files.writeString(root.resolve("original.txt"), "rename me");
+		try {
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "original.txt");
+			TreeFile selected = (TreeFile) fileNode.getUserObject();
+			TreeFileActions actions = new TreeFileActions(tree, tree.getState());
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getState().select(selected, rootDirectory);
+				actions.renameSelected("renamed.txt");
+			});
+
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(root.resolve("renamed.txt")));
+			await().atMost(5, TimeUnit.SECONDS)
+				.until(() -> rootDirectory.getChildren()
+					.stream()
+					.anyMatch(child -> "renamed.txt".equals(child.getName())));
+			flushEdt();
+
+			assertThat(tree.getState().getSelected()).isNotNull();
+			assertThat(tree.getState().getSelected().getName()).isEqualTo("renamed.txt");
+		}
+		finally {
+			Files.deleteIfExists(originalPath);
+			Files.deleteIfExists(root.resolve("renamed.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
 	void directoryKeepsBinaryFilesWithoutTryingToDecodeThemAsText() throws IOException {
 		Path root = Files.createTempDirectory("simpleide-tree-binary-");
 		try {
@@ -382,7 +587,10 @@ class TreeFileTest {
 			Directory directory = new Directory(root);
 
 			assertThat(directory.getChildren()).hasSize(1);
-			File binary = (File) directory.getChildren().get(0);
+			SimpleIDEFile binary = (SimpleIDEFile) directory.getChildren().get(0);
+			assertThat(binary.isContentLoaded()).isFalse();
+			binary.loadContent();
+			assertThat(binary.isContentLoaded()).isTrue();
 			assertThat(binary.getTypeFile()).isEqualTo(TypeFile.BINARY);
 			assertThat(binary.getCode()).hasToString("");
 		}
@@ -407,16 +615,16 @@ class TreeFileTest {
 			Path groovyPath = Files.writeString(root.resolve("Main.groovy"), "class Main {}");
 			Path goPath = Files.writeString(root.resolve("main.go"), "package main");
 
-			assertThat(new File(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
-			assertThat(new File(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
-			assertThat(new File(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
-			assertThat(new File(cPath).getTypeFile()).isEqualTo(TypeFile.C);
-			assertThat(new File(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
-			assertThat(new File(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
-			assertThat(new File(javaPath).getTypeFile()).isEqualTo(TypeFile.JAVA);
-			assertThat(new File(csharpPath).getTypeFile()).isEqualTo(TypeFile.CSHARP);
-			assertThat(new File(groovyPath).getTypeFile()).isEqualTo(TypeFile.GROOVY);
-			assertThat(new File(goPath).getTypeFile()).isEqualTo(TypeFile.GO);
+			assertThat(new SimpleIDEFile(pythonPath).getTypeFile()).isEqualTo(TypeFile.PYTHON);
+			assertThat(new SimpleIDEFile(javascriptPath).getTypeFile()).isEqualTo(TypeFile.JAVASCRIPT);
+			assertThat(new SimpleIDEFile(kotlinPath).getTypeFile()).isEqualTo(TypeFile.KOTLIN);
+			assertThat(new SimpleIDEFile(cPath).getTypeFile()).isEqualTo(TypeFile.C);
+			assertThat(new SimpleIDEFile(cppPath).getTypeFile()).isEqualTo(TypeFile.CPP);
+			assertThat(new SimpleIDEFile(rustPath).getTypeFile()).isEqualTo(TypeFile.RUST);
+			assertThat(new SimpleIDEFile(javaPath).getTypeFile()).isEqualTo(TypeFile.JAVA);
+			assertThat(new SimpleIDEFile(csharpPath).getTypeFile()).isEqualTo(TypeFile.CSHARP);
+			assertThat(new SimpleIDEFile(groovyPath).getTypeFile()).isEqualTo(TypeFile.GROOVY);
+			assertThat(new SimpleIDEFile(goPath).getTypeFile()).isEqualTo(TypeFile.GO);
 		}
 		finally {
 			Files.deleteIfExists(root.resolve("script.PY"));
@@ -443,9 +651,9 @@ class TreeFileTest {
 			JTree tree = new JTree();
 			DefaultMutableTreeNode directoryNode = new DefaultMutableTreeNode(directory);
 			DefaultMutableTreeNode javaNode = new DefaultMutableTreeNode(
-					new File(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
+					new SimpleIDEFile(root.resolve("Main.java"), "Main.java", TypeFile.JAVA, new StringBuffer()));
 			DefaultMutableTreeNode pythonNode = new DefaultMutableTreeNode(
-					new File(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
+					new SimpleIDEFile(root.resolve("main.py"), "main.py", TypeFile.PYTHON, new StringBuffer()));
 
 			renderer.getTreeCellRendererComponent(tree, directoryNode, false, false, false, 0, false);
 			Icon closedFolderIcon = renderer.getIcon();
@@ -466,6 +674,12 @@ class TreeFileTest {
 		}
 	}
 
+	private static void flushEdt() throws Exception {
+		// Selection listeners are dispatched through ThreadMaster; flush the EDT queue.
+		SwingUtilities.invokeAndWait(() -> {
+		});
+	}
+
 	private DefaultMutableTreeNode childNamed(DefaultMutableTreeNode parent, String name) {
 		for (int i = 0; i < parent.getChildCount(); i++) {
 			DefaultMutableTreeNode child = (DefaultMutableTreeNode) parent.getChildAt(i);
@@ -474,6 +688,301 @@ class TreeFileTest {
 			}
 		}
 		throw new AssertionError("Tree node not found: " + name);
+	}
+
+	private static final class BlockingDirectory extends Directory {
+
+		private final CountDownLatch started;
+
+		private final CountDownLatch release;
+
+		private BlockingDirectory(Path path, CountDownLatch started, CountDownLatch release) throws IOException {
+			super(path, path.getFileName().toString(), false);
+			this.started = started;
+			this.release = release;
+		}
+
+		@Override
+		List<TreeFile> readChildrenFromDisk() throws IOException {
+			started.countDown();
+			try {
+				if (!release.await(10, TimeUnit.SECONDS)) {
+					throw new IOException("Timed out waiting to release directory loading.");
+				}
+			}
+			catch (InterruptedException error) {
+				Thread.currentThread().interrupt();
+				throw new IOException("Directory loading was interrupted.", error);
+			}
+			return super.readChildrenFromDisk();
+		}
+
+	}
+
+	@Test
+	void copyAndPasteFileToDifferentDirectory() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-copy-");
+		try {
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("source.txt"), "content");
+
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getFileActions().copySelected();
+			});
+			flushEdt();
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(dstNode.getPath()));
+				tree.getFileActions().pasteSelected();
+			});
+			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("source.txt")));
+
+			assertThat(Files.readString(root.resolve("source.txt"))).isEqualTo("content");
+			assertThat(Files.readString(dstDir.resolve("source.txt"))).isEqualTo("content");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root.resolve("dst/source.txt"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void cutAndPasteFileToDifferentDirectory() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-cut-");
+		try {
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("move.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "move.txt");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getFileActions().cutSelected();
+			});
+			flushEdt();
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(dstNode.getPath()));
+				tree.getFileActions().pasteSelected();
+			});
+			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("move.txt")));
+
+			assertThat(Files.exists(root.resolve("move.txt"))).isFalse();
+			assertThat(Files.readString(dstDir.resolve("move.txt"))).isEqualTo("content");
+			TreeFileClipboard.getInstance().clear();
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("move.txt"));
+			Files.deleteIfExists(root.resolve("dst/move.txt"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void copyAndPasteDirectory() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-copy-dir-");
+		try {
+			Path srcDir = Files.createDirectory(root.resolve("src"));
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(srcDir.resolve("file.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode srcNode = childNamed(rootNode, "src");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(srcNode.getPath()));
+				tree.getFileActions().copySelected();
+			});
+			flushEdt();
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(dstNode.getPath()));
+				tree.getFileActions().pasteSelected();
+			});
+			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("src/file.txt")));
+
+			assertThat(Files.readString(srcDir.resolve("file.txt"))).isEqualTo("content");
+			assertThat(Files.readString(dstDir.resolve("src/file.txt"))).isEqualTo("content");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("src/file.txt"));
+			Files.deleteIfExists(root.resolve("dst/src/file.txt"));
+			Files.deleteIfExists(root.resolve("dst/src"));
+			Files.deleteIfExists(root.resolve("src"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void pasteIntoExistingTargetShowsWarning() throws Exception {
+		Assumptions.assumeFalse(GraphicsEnvironment.isHeadless(), "The warning dialog needs a display");
+		Path root = Files.createTempDirectory("simpleide-tree-paste-error-");
+		try {
+			Files.writeString(root.resolve("source.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+
+			SwingUtilities.invokeAndWait(() -> {
+				tree.setSelectionPath(new TreePath(fileNode.getPath()));
+				tree.getFileActions().copySelected();
+			});
+			flushEdt();
+
+			Files.writeString(root.resolve("source.txt"), "existing");
+
+			SwingUtilities.invokeAndWait(() -> tree.getFileActions().pasteSelected());
+			await().atMost(5, TimeUnit.SECONDS).until(() -> {
+				for (Window window : Window.getWindows()) {
+					if (window instanceof JDialog dialog && dialog.isVisible()) {
+						SwingUtilities.invokeAndWait(dialog::dispose);
+						return true;
+					}
+				}
+				return false;
+			});
+			flushEdt();
+
+			assertThat(rootDirectory.getChildren()).extracting(TreeFile::getName).containsExactly("source.txt");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void keyboardShortcutsTriggerActions() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-keyboard-");
+		try {
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("source.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+
+			Action copyAction = tree.getActionMap().get("copy");
+			assertThat(copyAction).isNotNull();
+			SwingUtilities.invokeAndWait(() -> copyAction.actionPerformed(null));
+			flushEdt();
+
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(dstNode.getPath())));
+			flushEdt();
+
+			Action pasteAction = tree.getActionMap().get("paste");
+			assertThat(pasteAction).isNotNull();
+			SwingUtilities.invokeAndWait(() -> pasteAction.actionPerformed(null));
+			flushEdt();
+			await().atMost(5, TimeUnit.SECONDS).until(() -> Files.exists(dstDir.resolve("source.txt")));
+
+			assertThat(Files.readString(dstDir.resolve("source.txt"))).isEqualTo("content");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root.resolve("dst/source.txt"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void dragAndDropMovesFile() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-dnd-");
+		try {
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("move.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "move.txt");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+
+			Transferable transferable = ((TreeFileTransferHandler) tree.getTransferHandler()).createTransferable(tree);
+			assertThat(transferable).isNotNull();
+			assertThat(transferable.isDataFlavorSupported(TreeFileTransferable.TREE_FILE_FLAVOR)).isTrue();
+
+			@SuppressWarnings("unchecked")
+			List<TreeFile> files = (List<TreeFile>) transferable.getTransferData(TreeFileTransferable.TREE_FILE_FLAVOR);
+			AtomicBoolean moved = new AtomicBoolean();
+			SwingUtilities.invokeAndWait(() -> moved
+				.set(tree.getDropTargetListener().performDrop(files, (Directory) dstNode.getUserObject(), true)));
+			flushEdt();
+
+			assertThat(moved).isTrue();
+			assertThat(Files.exists(root.resolve("move.txt"))).isFalse();
+			assertThat(Files.readString(dstDir.resolve("move.txt"))).isEqualTo("content");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("move.txt"));
+			Files.deleteIfExists(root.resolve("dst/move.txt"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
+	}
+
+	@Test
+	void dragAndDropCopiesFileWithCtrl() throws Exception {
+		Path root = Files.createTempDirectory("simpleide-tree-dnd-copy-");
+		try {
+			Path dstDir = Files.createDirectory(root.resolve("dst"));
+			Files.writeString(root.resolve("source.txt"), "content");
+			Directory rootDirectory = new Directory(root);
+			Tree tree = new Tree(rootDirectory);
+			DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) tree.getModel().getRoot();
+			DefaultMutableTreeNode fileNode = childNamed(rootNode, "source.txt");
+			DefaultMutableTreeNode dstNode = childNamed(rootNode, "dst");
+
+			SwingUtilities.invokeAndWait(() -> tree.setSelectionPath(new TreePath(fileNode.getPath())));
+			flushEdt();
+
+			Transferable transferable = ((TreeFileTransferHandler) tree.getTransferHandler()).createTransferable(tree);
+			assertThat(transferable).isNotNull();
+
+			@SuppressWarnings("unchecked")
+			List<TreeFile> files = (List<TreeFile>) transferable.getTransferData(TreeFileTransferable.TREE_FILE_FLAVOR);
+			AtomicBoolean copied = new AtomicBoolean();
+			SwingUtilities.invokeAndWait(() -> copied
+				.set(tree.getDropTargetListener().performDrop(files, (Directory) dstNode.getUserObject(), false)));
+			flushEdt();
+
+			assertThat(copied).isTrue();
+			assertThat(Files.readString(root.resolve("source.txt"))).isEqualTo("content");
+			assertThat(Files.readString(dstDir.resolve("source.txt"))).isEqualTo("content");
+		}
+		finally {
+			Files.deleteIfExists(root.resolve("source.txt"));
+			Files.deleteIfExists(root.resolve("dst/source.txt"));
+			Files.deleteIfExists(root.resolve("dst"));
+			Files.deleteIfExists(root);
+		}
 	}
 
 }

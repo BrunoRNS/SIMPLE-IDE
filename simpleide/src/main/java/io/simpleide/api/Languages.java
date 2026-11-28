@@ -1,9 +1,5 @@
 package io.simpleide.api;
 
-import io.simpleide.language.AbstractLanguage;
-import io.simpleide.language.config.LangConfig;
-import io.simpleide.language.config.LangConfigHolder;
-import io.simpleide.language.config.LangSetup;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.Locale;
@@ -11,6 +7,11 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
+
+import io.simpleide.language.AbstractLanguage;
+import io.simpleide.language.config.LangConfig;
+import io.simpleide.language.config.LangConfigHolder;
+import io.simpleide.language.config.LangSetup;
 
 /**
  * Facade for language discovery, configuration and managed execution.
@@ -22,10 +23,10 @@ import java.util.stream.Collectors;
  * <p>
  * Covered by {@code LanguagesTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/languages.md">docs/api/languages.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class Languages {
 

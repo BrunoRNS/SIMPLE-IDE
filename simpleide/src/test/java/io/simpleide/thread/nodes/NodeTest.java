@@ -5,9 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
+import org.junit.jupiter.api.Test;
+
 import io.simpleide.thread.nodes.record.NodeRecord;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
-import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.thread.nodes.Node}.

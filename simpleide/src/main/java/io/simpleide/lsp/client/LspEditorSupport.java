@@ -1,12 +1,13 @@
 package io.simpleide.lsp.client;
 
-import io.simpleide.lsp.core.Document;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.editor.Editor;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import javax.swing.Timer;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import javax.swing.text.BadLocationException;
+
 import org.eclipse.lsp4j.CompletionContext;
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.CompletionList;
@@ -28,6 +29,10 @@ import org.fife.ui.autocomplete.AutoCompletion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.simpleide.lsp.core.Document;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.ui.editor.Editor;
+
 /**
  * Connects one {@link io.simpleide.ui.editor.Editor} to an LSP client.
  *
@@ -38,10 +43,10 @@ import org.slf4j.LoggerFactory;
  * still match the request. Closing the support removes the parser, uninstalls completion
  * and sends {@code didClose}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class LspEditorSupport implements AutoCloseable {
 
@@ -59,7 +64,7 @@ public final class LspEditorSupport implements AutoCloseable {
 
 	private final AutoCompletion autoCompletion;
 
-	private final Timer completionTimer;
+	private ScheduledFuture<?> completionTask;
 
 	private String lastSentText;
 
@@ -80,8 +85,6 @@ public final class LspEditorSupport implements AutoCloseable {
 		autoCompletion.setAutoCompleteSingleChoices(false);
 		autoCompletion.setShowDescWindow(true);
 		autoCompletion.install(editor);
-		completionTimer = new Timer(180, ignored -> ThreadMaster.getInstance().executeOnEDT(this::requestCompletions));
-		completionTimer.setRepeats(false);
 
 		lastSentText = editor.getText();
 		client.didOpen(
@@ -96,10 +99,26 @@ public final class LspEditorSupport implements AutoCloseable {
 			return;
 		}
 
+		diagnosticParser.setDiagnostics(List.of());
 		String currentText = editor.getText();
 		client.didChange(document.getUri(), document.getVersion(), lastSentText, currentText);
 		lastSentText = currentText;
-		completionTimer.restart();
+		scheduleCompletion();
+	}
+
+	private void scheduleCompletion() {
+		ScheduledFuture<?> previous = completionTask;
+		if (previous != null) {
+			previous.cancel(false);
+		}
+		ThreadMaster threadMaster = ThreadMaster.getInstance();
+		try {
+			completionTask = threadMaster.schedule(threadMaster.getROOT(),
+					() -> threadMaster.executeOnEDT(this::requestCompletions), 180, TimeUnit.MILLISECONDS);
+		}
+		catch (RuntimeException error) {
+			LOGGER.debug("Unable to schedule LSP completion for {}.", document.getUri(), error);
+		}
 	}
 
 	/**
@@ -122,6 +141,14 @@ public final class LspEditorSupport implements AutoCloseable {
 		}
 		List<Diagnostic> diagnostics = params.getDiagnostics() == null ? List.of() : params.getDiagnostics();
 		diagnosticParser.setDiagnostics(diagnostics);
+	}
+
+	/**
+	 * Returns the diagnostics most recently published for this document.
+	 * @return the current diagnostics, never {@code null}
+	 */
+	public List<Diagnostic> getDiagnostics() {
+		return diagnosticParser.getDiagnostics();
 	}
 
 	/**
@@ -168,7 +195,7 @@ public final class LspEditorSupport implements AutoCloseable {
 				return;
 			}
 
-			List<CompletionItem> resolvedItems = getCompletionItems(completionResult);
+			List<CompletionItem> resolvedItems = withSnippets(getCompletionItems(completionResult));
 			ThreadMaster.getInstance().executeOnEDT(() -> {
 				if (closed || document.getVersion() != version
 						|| editor.getCaretPosition() != positionToOffset(position)) {
@@ -188,6 +215,36 @@ public final class LspEditorSupport implements AutoCloseable {
 				}
 			});
 		});
+	}
+
+	private List<CompletionItem> withSnippets(List<CompletionItem> items) {
+		return withSnippets(document.getLanguageId(), editor.getText(), editor.getCaretPosition(), items);
+	}
+
+	/**
+	 * Adds the IDE's Java snippets to the items returned by the server.
+	 *
+	 * <p>
+	 * Snippets are only offered when the server answered with completions. Without that
+	 * guard an empty or failed response would leave the popup showing nothing but the
+	 * IDE's own snippets, hiding that the language server did not answer.
+	 * @param languageId LSP language identifier of the open document
+	 * @param text document text
+	 * @param caret caret offset in the document
+	 * @param items completions returned by the language server
+	 * @return the merged completions, or the original list when no snippet applies
+	 */
+	static List<CompletionItem> withSnippets(String languageId, String text, int caret, List<CompletionItem> items) {
+		if (!JavaLspSnippets.supports(languageId) || items == null || items.isEmpty()) {
+			return items;
+		}
+		List<CompletionItem> snippets = JavaLspSnippets.completions(text, caret);
+		if (snippets.isEmpty()) {
+			return items;
+		}
+		List<CompletionItem> merged = new ArrayList<>(snippets);
+		merged.addAll(items);
+		return merged;
 	}
 
 	/**
@@ -266,7 +323,11 @@ public final class LspEditorSupport implements AutoCloseable {
 			return;
 		}
 		closed = true;
-		completionTimer.stop();
+		ScheduledFuture<?> pendingCompletion = completionTask;
+		completionTask = null;
+		if (pendingCompletion != null) {
+			pendingCompletion.cancel(false);
+		}
 		client.didClose(document.getUri());
 		autoCompletion.uninstall();
 		editor.removeParser(diagnosticParser);

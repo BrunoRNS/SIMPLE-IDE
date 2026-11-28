@@ -1,11 +1,12 @@
 package io.simpleide.frame.popup;
 
-import io.simpleide.frame.utils.LoadIcon;
-import io.simpleide.utils.mappeable.Mappeable;
-import io.simpleide.utils.mappeable.MappeableSupport;
 import java.util.Map;
+
 import javax.swing.JComponent;
 import javax.swing.JOptionPane;
+
+import io.simpleide.frame.utils.LoadIcon;
+import io.simpleide.utils.mappeable.MappeableSupport;
 
 /**
  * Success dialog with a success icon.
@@ -13,12 +14,11 @@ import javax.swing.JOptionPane;
  * <p>
  * Covered by {@code SuccessPopUPTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/popups.md">docs/api/ui/popups.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
-@Mappeable
 public class SuccessPopUP extends PopUP implements MappeableSupport {
 
 	/**

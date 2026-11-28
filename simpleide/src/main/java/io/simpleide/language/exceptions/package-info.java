@@ -18,7 +18,5 @@
  * interrupted or could not be force-stopped, and usually needs user attention. Both
  * exceptions preserve the original cause.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language.exceptions;

@@ -1,11 +1,12 @@
 package io.simpleide.ui.treefile;
 
 import java.io.IOException;
-import java.nio.charset.MalformedInputException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -20,13 +21,13 @@ import java.util.stream.Stream;
  * @author LuisOtavio13
  * @since v1.0.0beta
  */
-public final class Directory extends TreeFile {
+public class Directory extends TreeFile {
 
 	private final List<TreeFile> children = new ArrayList<>();
 
-	private boolean childrenLoaded;
+	private final AtomicReference<DirectorySnapshot> state = new AtomicReference<>(new DirectorySnapshot(false, false));
 
-	private Directory(Path path, String name, boolean loadImmediately) throws IOException {
+	Directory(Path path, String name, boolean loadImmediately) throws IOException {
 		super(path, name);
 		if (loadImmediately) {
 			loadChildren();
@@ -66,19 +67,29 @@ public final class Directory extends TreeFile {
 	 */
 	public void addChild(TreeFile child) {
 		children.add(child);
+		sortChildren(children);
 	}
 
 	boolean areChildrenLoaded() {
-		return childrenLoaded;
+		return state.get().childrenLoaded();
 	}
 
-	void loadChildren() throws IOException {
-		if (childrenLoaded) {
+	/** Returns whether this directory's child listing is currently being loaded. */
+	public boolean isLoading() {
+		return state.get().loading();
+	}
+
+	void setLoading(boolean loading) {
+		state.updateAndGet(snapshot -> new DirectorySnapshot(snapshot.childrenLoaded(), loading));
+	}
+
+	final void loadChildren() throws IOException {
+		if (state.get().childrenLoaded()) {
 			return;
 		}
 
-		children.addAll(readChildren(getPath()));
-		childrenLoaded = true;
+		children.addAll(readChildrenFromDisk());
+		state.updateAndGet(snapshot -> new DirectorySnapshot(true, snapshot.loading()));
 	}
 
 	void refreshChildren() throws IOException {
@@ -92,7 +103,10 @@ public final class Directory extends TreeFile {
 	void replaceChildren(List<TreeFile> refreshedChildren) {
 		children.clear();
 		children.addAll(refreshedChildren);
-		childrenLoaded = true;
+		state.updateAndGet(snapshot -> new DirectorySnapshot(true, snapshot.loading()));
+	}
+
+	private record DirectorySnapshot(boolean childrenLoaded, boolean loading) {
 	}
 
 	private List<TreeFile> readChildren(Path path) throws IOException {
@@ -103,17 +117,18 @@ public final class Directory extends TreeFile {
 					loadedChildren.add(new Directory(entry, entry.getFileName().toString(), false));
 				}
 				else {
-					try {
-						loadedChildren.add(new File(entry));
-					}
-					catch (MalformedInputException exception) {
-						loadedChildren
-							.add(new File(entry, entry.getFileName().toString(), TypeFile.BINARY, new StringBuffer()));
-					}
+					loadedChildren.add(SimpleIDEFile.lazy(entry));
 				}
 			}
 		}
+		sortChildren(loadedChildren);
 		return loadedChildren;
+	}
+
+	private static void sortChildren(List<TreeFile> entries) {
+		entries.sort(Comparator.comparing((TreeFile child) -> !(child instanceof Directory))
+			.thenComparing(TreeFile::getName, String.CASE_INSENSITIVE_ORDER)
+			.thenComparing(TreeFile::getName));
 	}
 
 }

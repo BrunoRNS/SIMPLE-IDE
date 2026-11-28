@@ -22,7 +22,7 @@ IDE, `JAVA_HOME`, `simpleide.javaHome` or a JDK on `PATH`.
 | Go | `.go` | Go toolchain on `PATH` |
 | Rust | `.rs` | `rustc` on `PATH` |
 
-See [Languages reference](../reference/LANGUAGES.md) for the exact commands and the
+See [Languages reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages) for the exact commands and the
 toolchain discovery rules.
 
 ## Discover what is available
@@ -132,6 +132,12 @@ producers.
 Output includes merged standard output and standard error because the process
 redirects error into the output stream, and the language runner returns a
 non-zero exit as an error.
+
+For Swing consumers that need typed output, `Output.addListener(...)` delivers
+`OutputLine` values classified as `OUTPUT`, `ERROR` or `DEBUG`. Only `OUTPUT`
+lines are also added to the legacy string queue returned by `get(...)`, so
+diagnostic and error events do not change existing queue consumers' behavior.
+Listeners run on the publishing thread and should return quickly.
 
 ## Send input
 

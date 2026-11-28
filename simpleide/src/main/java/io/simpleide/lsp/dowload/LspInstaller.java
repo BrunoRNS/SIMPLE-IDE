@@ -1,28 +1,34 @@
 package io.simpleide.lsp.dowload;
 
-import io.simpleide.lsp.LspStatus;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
-import org.rauschig.jarchivelib.Archiver;
-import org.rauschig.jarchivelib.ArchiverFactory;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.thread.ManagedThreadPool;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.utils.ArchiveUtil;
+import io.simpleide.utils.DownloadUtil;
+import io.simpleide.utils.FileUtil;
 
 /**
  * Downloads, extracts and installs language servers into the user directory.
@@ -34,19 +40,17 @@ import org.slf4j.LoggerFactory;
  * Failures remove the partial installation and report {@link LspStatus.State#FAILED}. The
  * package name keeps the original misspelling {@code dowload}.
  *
- * @author luisotavio15
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class LspInstaller {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LspInstaller.class);
 
-	private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-		.connectTimeout(Duration.ofSeconds(30))
-		.followRedirects(HttpClient.Redirect.NORMAL)
-		.build();
+	private static final ManagedThreadPool OUTPUT_DRAIN_POOL = ThreadMaster.getInstance()
+		.createThreadPool("lsp-installer-output", 4);
 
 	private static final ConcurrentMap<Path, Object> INSTALL_LOCKS = new ConcurrentHashMap<>();
 
@@ -81,7 +85,7 @@ public final class LspInstaller {
 			if (isInstalled(server)) {
 				return true;
 			}
-			deleteDirectory(lspDirectory);
+			FileUtil.deleteRecursively(lspDirectory);
 			Files.createDirectories(lspDirectory);
 
 			if (server.getInstallCommand() != null) {
@@ -99,7 +103,7 @@ public final class LspInstaller {
 				Path archive = dowloadingByUrl(server, lspDirectory);
 				try {
 					publishStatus(statusListener, statusId, server.getName(), LspStatus.State.EXTRACTING);
-					descompact(archive, lspDirectory);
+					ArchiveUtil.extract(archive, lspDirectory);
 				}
 				finally {
 					Files.deleteIfExists(archive);
@@ -157,7 +161,7 @@ public final class LspInstaller {
 	private static boolean failInstallation(LspServer server, Path directory, String statusId,
 			Consumer<LspStatus> statusListener, Exception error) {
 		try {
-			deleteDirectory(directory);
+			FileUtil.deleteRecursively(directory);
 		}
 		catch (IOException cleanupError) {
 			error.addSuppressed(cleanupError);
@@ -174,50 +178,15 @@ public final class LspInstaller {
 		}
 	}
 
-	private static void deleteDirectory(Path directory) throws IOException {
-		if (!Files.exists(directory)) {
-			return;
-		}
-		try (var paths = Files.walk(directory)) {
-			for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) {
-				Files.deleteIfExists(path);
-			}
-		}
-	}
-
-	private static void descompact(Path path, Path destination) throws IOException {
-		Archiver archiver = ArchiverFactory.createArchiver(path.toFile());
-		archiver.extract(path.toFile(), destination.toFile());
-	}
-
 	private static Path dowloadingByUrl(LspServer lspServer, Path lsp) throws IOException, InterruptedException {
 		if (lspServer.getUrl() == null || lspServer.getUrl().isBlank() || lspServer.getTypeFile() == null
 				|| lspServer.getTypeFile().isBlank()) {
 			throw new IOException("LSP URL or archive type is not configured.");
 		}
-		Path destination = Files.createTempFile(lsp, "lsp-download.", "." + lspServer.getTypeFile());
-
-		HttpRequest request = HttpRequest.newBuilder()
-			.uri(URI.create(lspServer.getUrl()))
-			.timeout(Duration.ofMinutes(5))
-			.header("User-Agent", "SimpleIDE")
-			.GET()
-			.build();
-		try {
-			HttpResponse<Path> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(destination,
-					StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING));
-			if (response.statusCode() < 200 || response.statusCode() >= 300) {
-				throw new IOException("HTTP download failed: " + response.statusCode());
-			}
-
-			LOGGER.info("LSP downloaded successfully: {}", destination);
-			return destination;
-
-		}
-		catch (IOException | InterruptedException | RuntimeException e) {
-			Files.deleteIfExists(destination);
-			throw e;
-		}
+		Path destination = DownloadUtil.download(URI.create(lspServer.getUrl()), lsp, "lsp-download.",
+				"." + lspServer.getTypeFile());
+		LOGGER.info("LSP downloaded successfully: {}", destination);
+		return destination;
 	}
 
 	private static void dowloadingByCommand(String command, List<String> params, Path directory, String version,
@@ -233,12 +202,19 @@ public final class LspInstaller {
 				.map(argument -> argument.replace("${installDir}", installDirectory).replace("${version}", version))
 				.forEach(full::add);
 		}
-		ProcessBuilder processBuilder = new ProcessBuilder(full).directory(directory.toFile()).inheritIO();
+		// The install command must not inherit the IDE's standard streams. A child
+		// sharing them writes straight into the native channel of the running JVM:
+		// under Surefire that corrupts the forked JVM's protocol streams, and in the
+		// IDE it lets a package manager steal the terminal input. The output is
+		// captured and logged instead.
+		ProcessBuilder processBuilder = new ProcessBuilder(full).directory(directory.toFile())
+			.redirectErrorStream(true);
 		if (environment != null) {
 			environment.forEach((key, value) -> processBuilder.environment()
 				.put(key, value.replace("${installDir}", installDirectory).replace("${version}", version)));
 		}
 		Process process = processBuilder.start();
+		CompletableFuture<Void> outputDrain = startOutputDrain(process, command);
 		try {
 			if (!process.waitFor(5, TimeUnit.MINUTES)) {
 				process.destroyForcibly();
@@ -249,9 +225,38 @@ public final class LspInstaller {
 			process.destroyForcibly();
 			throw e;
 		}
+		try {
+			outputDrain.get(5, TimeUnit.SECONDS);
+		}
+		catch (TimeoutException error) {
+			LOGGER.debug("Timed out waiting for LSP install output to drain: {}", command);
+		}
+		catch (ExecutionException error) {
+			LOGGER.debug("Could not drain LSP install output: {}", command, error.getCause());
+		}
 		if (process.exitValue() != 0) {
 			throw new IOException("LSP install command failed with exit code " + process.exitValue() + ": " + command);
 		}
+	}
+
+	private static CompletableFuture<Void> startOutputDrain(Process process, String command) {
+		CompletableFuture<Void> drained = new CompletableFuture<>();
+		OUTPUT_DRAIN_POOL.execute(() -> {
+			try (BufferedReader reader = new BufferedReader(
+					new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+				String line;
+				while ((line = reader.readLine()) != null) {
+					LOGGER.debug("[LSP install {}] {}", command, line);
+				}
+			}
+			catch (IOException error) {
+				LOGGER.debug("Could not read the output of the LSP install command {}.", command, error);
+			}
+			finally {
+				drained.complete(null);
+			}
+		});
+		return drained;
 	}
 
 }

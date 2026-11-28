@@ -1,15 +1,17 @@
 package io.simpleide.language.jvmbytecode;
 
-import io.simpleide.language.AbstractLanguage;
-import io.simpleide.utils.JavaRuntime;
-import io.simpleide.utils.ResourceUtil;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Optional;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.language.AbstractLanguage;
+import io.simpleide.utils.JavaRuntime;
+import io.simpleide.utils.ResourceUtil;
 
 /**
  * Base class for JVM languages executed through the embedded bytecode compiler.

@@ -8,12 +8,12 @@ import javax.swing.UIManager;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Test;
 
 import com.formdev.flatlaf.FlatDarkLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.FlatPropertiesLaf;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests {@link io.simpleide.ui.menubar.menus.ThemeMenu}.
@@ -32,7 +32,7 @@ class ThemeMenuTest {
 		SwingUtilities.invokeAndWait(() -> themeMenu[0] = new ThemeMenu());
 
 		selectThemeAndAssert(themeMenu[0], "Light", FlatLightLaf.class);
-		selectThemeAndAssert(themeMenu[0], "Darcula", FlatPropertiesLaf.class);
+		selectThemeAndAssert(themeMenu[0], "Dracula", FlatPropertiesLaf.class);
 		selectThemeAndAssert(themeMenu[0], "Brown", FlatPropertiesLaf.class);
 		selectThemeAndAssert(themeMenu[0], "Brown Light", FlatPropertiesLaf.class);
 		selectThemeAndAssert(themeMenu[0], "Dark", FlatDarkLaf.class);

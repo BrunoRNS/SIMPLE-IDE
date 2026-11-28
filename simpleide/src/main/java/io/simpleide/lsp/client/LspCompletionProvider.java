@@ -2,8 +2,10 @@ package io.simpleide.lsp.client;
 
 import java.util.ArrayList;
 import java.util.List;
+
 import javax.swing.text.BadLocationException;
 import javax.swing.text.JTextComponent;
+
 import org.eclipse.lsp4j.CompletionItem;
 import org.eclipse.lsp4j.InsertReplaceEdit;
 import org.eclipse.lsp4j.Position;
@@ -30,10 +32,10 @@ import org.slf4j.LoggerFactory;
  * <p>
  * Covered by {@code LspCompletionProviderTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class LspCompletionProvider extends DefaultCompletionProvider {
 
@@ -139,6 +141,29 @@ public class LspCompletionProvider extends DefaultCompletionProvider {
 		@Override
 		public String getInputText() {
 			return filterText;
+		}
+
+		/**
+		 * Orders completions by the text they are filtered on.
+		 *
+		 * <p>
+		 * The inherited ordering compares the description too, which is not transitive
+		 * when two entries share a label and have different descriptions. That makes the
+		 * sort throw and leaves the provider with a list the binary search cannot read,
+		 * so completions disappear from the popup. Ordering by the input text matches the
+		 * comparator used to filter the completions.
+		 * @param other completion to compare with
+		 * @return the comparison result
+		 */
+		@Override
+		public int compareTo(Completion other) {
+			if (other == this) {
+				return 0;
+			}
+			if (other == null) {
+				return -1;
+			}
+			return String.CASE_INSENSITIVE_ORDER.compare(getInputText(), other.getInputText());
 		}
 
 		@Override

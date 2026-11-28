@@ -1,20 +1,25 @@
 package io.simpleide.language;
 
-import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
-import io.simpleide.language.exceptions.ProcessFatalException;
-import io.simpleide.language.io.Output;
-import io.simpleide.language.io.holder.InputHolder;
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.runnable.RunnableNode;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.util.List;
 import java.util.Scanner;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.language.exceptions.ProcessAlreadyExistsException;
+import io.simpleide.language.exceptions.ProcessFatalException;
+import io.simpleide.language.io.Output;
+import io.simpleide.language.io.OutputType;
+import io.simpleide.language.io.holder.InputHolder;
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.runnable.RunnableNode;
 
 /**
  * Base class for executable languages in Simple IDE.
@@ -53,6 +58,10 @@ public abstract class AbstractLanguage implements Runnable {
 
 	private volatile RunnableNode inputForwarder;
 
+	private final List<Runnable> executionListeners = new CopyOnWriteArrayList<>();
+
+	private final AtomicBoolean executionFinishedNotified = new AtomicBoolean();
+
 	protected String langFriendly = null;
 
 	protected String langConstant = null;
@@ -81,12 +90,6 @@ public abstract class AbstractLanguage implements Runnable {
 	 */
 	@Override
 	public void run() {
-		List<ProcessBuilder> builders = getProcessBuilders();
-		if (builders.isEmpty()) {
-			LOGGER.error("[IDE] Cannot run language process because its command was not configured.");
-			return;
-		}
-
 		synchronized (this) {
 			if (this.p != null && this.p.isAlive()) {
 				throw new ProcessAlreadyExistsException("Impossible to Run the script while still running another",
@@ -95,6 +98,15 @@ public abstract class AbstractLanguage implements Runnable {
 		}
 
 		stopped = false;
+		executionFinishedNotified.set(false);
+		List<ProcessBuilder> builders = getProcessBuilders();
+		if (builders.isEmpty()) {
+			String message = "Cannot run language process because its command was not configured.";
+			LOGGER.error("[IDE] {}", message);
+			Output.getInstance().publish(OutputType.ERROR, message);
+			notifyExecutionFinished();
+			return;
+		}
 		try {
 			for (int index = 0; index < builders.size(); index++) {
 				Process process = builders.get(index).redirectErrorStream(true).start();
@@ -125,13 +137,23 @@ public abstract class AbstractLanguage implements Runnable {
 			}
 		}
 		catch (IOException e) {
+			if (stopped) {
+				// The user stopped the process, which closes its output stream while the
+				// reader thread may still be blocked on it. This is an expected shutdown,
+				// not a process startup failure.
+				LOGGER.info("[IDE] Process manually interrupted by the user.");
+				finishExecution();
+				return;
+			}
 			stopCurrentProcess();
-			onExecutionFinished();
+			Output.getInstance().publish(OutputType.ERROR, "Process did not finish successfully at startup.");
+			notifyExecutionFinished();
 			throw new ProcessFatalException("Process Did not Finish Successfully at startup", e);
 		}
 		catch (InterruptedException e) {
 			stopCurrentProcess();
-			onExecutionFinished();
+			Output.getInstance().publish(OutputType.ERROR, "Interrupted while waiting for the language process.");
+			notifyExecutionFinished();
 			Thread.currentThread().interrupt();
 			throw new ProcessFatalException("Interrupted while waiting for the language process.", new IOException(e));
 		}
@@ -155,6 +177,7 @@ public abstract class AbstractLanguage implements Runnable {
 
 	private void startInputForwarder(Process process) {
 		RunnableNode forwarder = new RunnableNode(() -> {
+			boolean waitingForStdin = false;
 			try (BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()))) {
 				while (process.isAlive()) {
 					String line = InputHolder.INSTANCE.get(1);
@@ -162,6 +185,11 @@ public abstract class AbstractLanguage implements Runnable {
 						writer.write(line);
 						writer.newLine();
 						writer.flush();
+						waitingForStdin = false;
+					}
+					else if (!waitingForStdin && process.isAlive()) {
+						waitingForStdin = true;
+						Output.getInstance().publish(OutputType.OUTPUT, Output.WAITING_FOR_STDIN);
 					}
 				}
 			}
@@ -220,24 +248,76 @@ public abstract class AbstractLanguage implements Runnable {
 			if (exitCode != 0) {
 				if (stopped) {
 					LOGGER.info("[IDE] Process manually interrupted by the user.");
+					Output.getInstance().publish(OutputType.DEBUG, "Process interrupted by the user.");
 					return;
 				}
 				LOGGER.error("[OUTPUT] RUNTIME ERROR: {}", exitCode);
 				LOGGER.error("[Runtime Error] The developer's program broke with code: {}", exitCode);
+				Output.getInstance().publish(OutputType.ERROR, "RUNTIME ERROR: " + exitCode);
 			}
 			else {
 				LOGGER.info("[IDE] Process completed successfully.");
+				Output.getInstance().publish(OutputType.DEBUG, "Process completed successfully.");
 			}
 		}
 		finally {
-			RunnableNode forwarder = inputForwarder;
-			inputForwarder = null;
-			if (forwarder != null) {
-				ThreadMaster.getInstance().removeNodeCascade(forwarder);
+			finishExecution();
+		}
+	}
+
+	private void notifyExecutionFinished() {
+		if (!executionFinishedNotified.compareAndSet(false, true)) {
+			return;
+		}
+		for (Runnable listener : executionListeners) {
+			try {
+				listener.run();
 			}
-			this.p = null;
-			this.stopped = false;
+			catch (RuntimeException error) {
+				LOGGER.warn("[IDE] An execution listener failed while finishing the language process.", error);
+			}
+		}
+	}
+
+	/**
+	 * Registers a listener invoked once when the current execution finishes.
+	 *
+	 * <p>
+	 * The listener runs on the language worker thread after the process exits or fails to
+	 * start. It is used by the I/O tab to release its input forwarder and to restore the
+	 * execution controls. Registering the same listener more than once is allowed; it is
+	 * called once per registration.
+	 * @param listener listener to invoke, ignored when {@code null}
+	 */
+	public void addExecutionListener(Runnable listener) {
+		if (listener != null) {
+			executionListeners.add(listener);
+		}
+	}
+
+	/**
+	 * Removes a previously registered execution listener.
+	 * @param listener listener to remove, ignored when {@code null}
+	 */
+	public void removeExecutionListener(Runnable listener) {
+		if (listener != null) {
+			executionListeners.remove(listener);
+		}
+	}
+
+	private void finishExecution() {
+		RunnableNode forwarder = inputForwarder;
+		inputForwarder = null;
+		if (forwarder != null) {
+			ThreadMaster.getInstance().removeNodeCascade(forwarder);
+		}
+		this.p = null;
+		this.stopped = false;
+		try {
 			onExecutionFinished();
+		}
+		finally {
+			notifyExecutionFinished();
 		}
 	}
 

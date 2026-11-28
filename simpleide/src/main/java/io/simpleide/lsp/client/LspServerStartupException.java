@@ -13,10 +13,10 @@ import java.io.IOException;
  * <p>
  * Covered by {@code LspServerStartupExceptionTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class LspServerStartupException extends IOException {
 

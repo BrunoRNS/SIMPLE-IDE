@@ -1,9 +1,10 @@
 package io.simplebytecode.compiler.groovy;
 
+import java.util.Objects;
+
 import groovy.lang.GroovyShell;
 import groovy.lang.Script;
 import io.simplebytecode.compiler.RunnerInterface;
-import java.util.Objects;
 
 /**
  * Compiles and runs Groovy scripts.

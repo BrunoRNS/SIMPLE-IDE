@@ -1,8 +1,9 @@
 package io.simpleide.lsp.dowload;
 
-import io.simpleide.language.config.LangPlatform;
 import java.util.List;
 import java.util.Map;
+
+import io.simpleide.language.config.LangPlatform;
 
 /**
  * Registry entry describing how to install, version and launch a language server.
@@ -14,10 +15,10 @@ import java.util.Map;
  * newer versions. Optional placeholders in commands are resolved by {@link LspManager}
  * against the installation and workspace directories.
  *
- * @author luisotavio15
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class LspServer {
 

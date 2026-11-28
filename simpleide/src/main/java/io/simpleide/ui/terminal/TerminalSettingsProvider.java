@@ -1,11 +1,16 @@
 package io.simpleide.ui.terminal;
 
+import java.awt.Font;
+import java.util.Locale;
+
+import javax.swing.UIManager;
+
 import com.jediterm.core.Color;
 import com.jediterm.terminal.TerminalColor;
 import com.jediterm.terminal.TextStyle;
+import com.jediterm.terminal.emulator.ColorPalette;
+import com.jediterm.terminal.emulator.ColorPaletteImpl;
 import com.jediterm.terminal.ui.settings.DefaultSettingsProvider;
-import java.awt.Font;
-import javax.swing.UIManager;
 
 /**
  * JediTerm settings derived from the active Swing theme.
@@ -21,6 +26,35 @@ import javax.swing.UIManager;
  * @since v1.0.0beta
  */
 public final class TerminalSettingsProvider extends DefaultSettingsProvider {
+
+	private final boolean macOs;
+
+	/**
+	 * Creates a provider for the current operating system.
+	 */
+	public TerminalSettingsProvider() {
+		this(System.getProperty("os.name", ""));
+	}
+
+	TerminalSettingsProvider(String osName) {
+		this.macOs = osName != null && osName.toLowerCase(Locale.ROOT).startsWith("mac");
+	}
+
+	/**
+	 * Returns whether the Option key should send an escape prefix.
+	 *
+	 * <p>
+	 * On macOS, Option is used to compose accented and dead-key characters ({@code ~},
+	 * {@code ´}, {@code á} and so on). Sending an escape prefix for Option would both
+	 * leak an extra character to the shell and suppress the composed character. Option
+	 * therefore behaves as a compose key on macOS, while other platforms keep the usual
+	 * {@code Alt} escape behavior.
+	 * @return {@code false} on macOS, {@code true} elsewhere
+	 */
+	@Override
+	public boolean altSendsEscape() {
+		return !macOs;
+	}
 
 	/**
 	 * Returns the monospaced terminal font, based on the UI text font when available.
@@ -72,6 +106,34 @@ public final class TerminalSettingsProvider extends DefaultSettingsProvider {
 	@Override
 	public TextStyle getDefaultStyle() {
 		return new TextStyle(getDefaultForeground(), getDefaultBackground());
+	}
+
+	/**
+	 * Returns the standard xterm palette.
+	 * @return the xterm terminal palette
+	 */
+	@Override
+	public ColorPalette getTerminalColorPalette() {
+		return ColorPaletteImpl.XTERM_PALETTE;
+	}
+
+	/**
+	 * Returns a selection style derived from the active theme selection colours.
+	 * @return the selection text style
+	 */
+	@Override
+	public TextStyle getSelectionColor() {
+		java.awt.Color foreground = UIManager.getColor("TextArea.selectionForeground");
+		java.awt.Color background = UIManager.getColor("TextArea.selectionBackground");
+		if (foreground == null || background == null) {
+			return super.getSelectionColor();
+		}
+		return new TextStyle(TerminalColor.color(toTerminalColor(foreground)),
+				TerminalColor.color(toTerminalColor(background)));
+	}
+
+	private static Color toTerminalColor(java.awt.Color color) {
+		return new Color(color.getRed(), color.getGreen(), color.getBlue(), color.getAlpha());
 	}
 
 	private static Color getThemeColor(String key, java.awt.Color fallback) {

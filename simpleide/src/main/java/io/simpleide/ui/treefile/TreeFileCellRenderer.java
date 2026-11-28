@@ -1,5 +1,6 @@
 package io.simpleide.ui.treefile;
 
+import java.awt.Color;
 import java.awt.Component;
 import java.io.IOException;
 import java.util.EnumMap;
@@ -11,14 +12,18 @@ import javax.swing.JTree;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
+import io.simpleide.ui.ThemeColors;
+import io.simpleide.ui.icon.MaterialIcons;
 import io.simpleide.utils.ResourceUtil;
 
 /**
  * Tree cell renderer that draws folders and per-language file icons.
  *
  * <p>
- * Open and closed folders use different icons, and files use the icon registered for
- * their {@link TypeFile}. Types without an icon keep the default renderer icon.
+ * Icons come from the bundled Material Icon Theme manifest, matched by file name,
+ * compound extension or extension, with a default file icon when no mapping exists.
+ * Foreground and selection colours are taken from the active look and feel and adjusted
+ * when necessary so names remain readable on every theme.
  *
  * @author LuisOtavio13
  * @since v1.0.0beta
@@ -27,30 +32,73 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 
 	private static final long serialVersionUID = 1L;
 
-	private static final Icon CLOSED_FOLDER_ICON = loadIcon("folder.png");
-
-	private static final Icon OPEN_FOLDER_ICON = loadIcon("folder-open.png");
-
-	private static final Map<TypeFile, Icon> FILE_ICONS = loadFileIcons();
-
 	@Override
 	public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded,
 			boolean leaf, int row, boolean hasFocus) {
 		super.getTreeCellRendererComponent(tree, value, selected, expanded, leaf, row, hasFocus);
+		if (tree != null) {
+			setFont(tree.getFont());
+		}
+		applyTextColors(tree, selected);
 		if (value instanceof DefaultMutableTreeNode node && node.getUserObject() instanceof TreeFile file) {
-			if (file instanceof Directory) {
-				setIcon(expanded ? OPEN_FOLDER_ICON : CLOSED_FOLDER_ICON);
-			}
-			else if (file instanceof File fileEntry) {
-				Icon icon = FILE_ICONS.get(fileEntry.getTypeFile());
-				if (icon != null) {
-					setIcon(icon);
-				}
-			}
+			Icon icon = file instanceof Directory directory ? MaterialIcons.forDirectory(directory.getPath(), expanded)
+					: MaterialIcons.forFile(file.getPath());
+			setIcon(icon);
 		}
 		return this;
 	}
 
+	private void applyTextColors(JTree tree, boolean selected) {
+		Color treeBackground = ThemeColors.ui("Tree.background");
+		Color selectionBackground = ThemeColors.ui("Tree.selectionBackground");
+		Color treeForeground = ThemeColors.ui("Tree.foreground");
+		Color selectionForeground = ThemeColors.ui("Tree.selectionForeground");
+		if (tree != null) {
+			treeBackground = treeBackground == null ? tree.getBackground() : treeBackground;
+			treeForeground = treeForeground == null ? tree.getForeground() : treeForeground;
+		}
+		setBackgroundNonSelectionColor(treeBackground);
+		setTextNonSelectionColor(treeForeground);
+		setBackgroundSelectionColor(selectionBackground == null ? treeBackground : selectionBackground);
+		setTextSelectionColor(selectionForeground == null ? treeForeground : selectionForeground);
+		setBorderSelectionColor(selectionBackground == null ? treeBackground : selectionBackground);
+		setForeground(selected ? selectionForeground : treeForeground);
+		setOpaque(false);
+	}
+
+	/**
+	 * Loads the legacy per-language file icon from the {@code io.simpleide.icon} package.
+	 *
+	 * <p>
+	 * This helper and the old PNG files are kept only for legacy integrations built
+	 * against v1.0.0beta. New code must use
+	 * {@link MaterialIcons#forFile(java.nio.file.Path)} and
+	 * {@link MaterialIcons#forDirectory(java.nio.file.Path, boolean)}.
+	 * @param fileName icon file name, for example {@code "java.png"}
+	 * @return the loaded icon
+	 * @throws IllegalStateException when the icon cannot be loaded
+	 * @deprecated since v1.1.0, use {@link MaterialIcons} instead; the old PNG icons are
+	 * shipped only for legacy systems
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
+	private static Icon loadIcon(String fileName) {
+		try {
+			return new ImageIcon(ResourceUtil.getResourcePath("io.simpleide.icon", fileName).toString());
+		}
+		catch (IOException exception) {
+			throw new IllegalStateException("Unable to load file icon: " + fileName, exception);
+		}
+	}
+
+	/**
+	 * Builds the legacy per-language icon map used by v1.0.0beta.
+	 * @return the legacy icon map
+	 * @deprecated since v1.1.0, use {@link MaterialIcons#forFile(java.nio.file.Path)}
+	 * instead; this map is kept only for legacy systems
+	 */
+	@Deprecated
+	@SuppressWarnings("unused")
 	private static Map<TypeFile, Icon> loadFileIcons() {
 		Map<TypeFile, Icon> icons = new EnumMap<>(TypeFile.class);
 		icons.put(TypeFile.JAVA, loadIcon("java.png"));
@@ -61,15 +109,6 @@ public final class TreeFileCellRenderer extends DefaultTreeCellRenderer {
 		icons.put(TypeFile.CPP, loadIcon("cpp.png"));
 		icons.put(TypeFile.C, loadIcon("c.png"));
 		return icons;
-	}
-
-	private static Icon loadIcon(String fileName) {
-		try {
-			return new ImageIcon(ResourceUtil.getResourcePath("io.simpleide.icon", fileName).toString());
-		}
-		catch (IOException exception) {
-			throw new IllegalStateException("Unable to load file icon: " + fileName, exception);
-		}
 	}
 
 }

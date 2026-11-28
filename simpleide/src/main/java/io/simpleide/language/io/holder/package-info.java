@@ -19,7 +19,5 @@
  * runner. Reference the Input and Output facades instead of these fields. The instances
  * live for the lifetime of the JVM and are never replaced.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language.io.holder;

@@ -17,8 +17,6 @@
  * {@link io.simpleide.ui.terminal.ForceCloseConfirmationPopUP} asks before forcing a
  * running process to exit.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/terminal.md">docs/api/terminal.md</a>
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/third-

@@ -1,17 +1,20 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-
-import io.simpleide.thread.ThreadMaster;
 import java.awt.event.ActionEvent;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.swing.SwingUtilities;
 import javax.swing.event.ChangeEvent;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.thread.ThreadMaster;
 
 /**
  * Tests {@link io.simpleide.thread.nodes.edt.listeners.ActionNode},

@@ -1,9 +1,7 @@
 package io.simpleide.ui.editor;
 
-import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
-import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.IOException;
 import java.net.URI;
@@ -11,7 +9,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 
-import javax.swing.AbstractAction;
 import javax.swing.JComponent;
 import javax.swing.KeyStroke;
 
@@ -26,7 +23,9 @@ import io.simpleide.frame.popup.ErrorPopUP;
 import io.simpleide.frame.popup.InfoPopUP;
 import io.simpleide.frame.popup.utils.ErrorTypePopUp;
 import io.simpleide.thread.ThreadMaster;
-import io.simpleide.ui.treefile.File;
+import io.simpleide.thread.nodes.edt.listeners.MouseNode;
+import io.simpleide.thread.nodes.edt.listeners.SwingActionNode;
+import io.simpleide.ui.treefile.SimpleIDEFile;
 
 /**
  * Keyboard and mouse actions shared by editor tabs.
@@ -52,39 +51,34 @@ public final class EditorActions {
 
 	void configure(EditorTab tab) {
 		Editor editor = tab.getEditor();
+		if (editor == null) {
+			return;
+		}
 		bindEditorAction(editor, "simpleide.save", KeyStroke.getKeyStroke(KeyEvent.VK_S, InputEvent.CTRL_DOWN_MASK),
 				() -> editorManager.saveTab(tab));
 		bindEditorAction(editor, "simpleide.find", KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_DOWN_MASK),
 				() -> tab.showSearchPanel(false));
 		bindEditorAction(editor, "simpleide.replace", KeyStroke.getKeyStroke(KeyEvent.VK_H, InputEvent.CTRL_DOWN_MASK),
 				() -> tab.showSearchPanel(true));
-		bindEditorAction(editor, "simpleide.goToDefinition",
-				KeyStroke.getKeyStroke(KeyEvent.VK_B, InputEvent.CTRL_DOWN_MASK), () -> goToDefinition(tab));
 		bindEditorAction(editor, "simpleide.goToDefinitionF12", KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0),
 				() -> goToDefinition(tab));
-		editor.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent event) {
-				if (event.getButton() != MouseEvent.BUTTON1 || !event.isControlDown()) {
-					return;
-				}
-				int offset = editor.viewToModel2D(event.getPoint());
-				if (offset >= 0 && offset <= editor.getDocument().getLength()) {
-					editor.setCaretPosition(offset);
-					goToDefinition(tab);
-				}
+		bindEditorAction(editor, "simpleide.toggleBreakpoint", KeyStroke.getKeyStroke(KeyEvent.VK_F9, 0),
+				editor::toggleBreakpointAtCaret);
+		editor.addMouseListener(new MouseNode().onClick(event -> {
+			if (event.getButton() != MouseEvent.BUTTON1 || !event.isControlDown()) {
+				return;
 			}
-		});
+			int offset = editor.viewToModel2D(event.getPoint());
+			if (offset >= 0 && offset <= editor.getDocument().getLength()) {
+				editor.setCaretPosition(offset);
+				goToDefinition(tab);
+			}
+		}));
 	}
 
 	private void bindEditorAction(Editor editor, String name, KeyStroke keyStroke, Runnable action) {
 		editor.getInputMap(JComponent.WHEN_FOCUSED).put(keyStroke, name);
-		editor.getActionMap().put(name, new AbstractAction() {
-			@Override
-			public void actionPerformed(ActionEvent event) {
-				action.run();
-			}
-		});
+		editor.getActionMap().put(name, new SwingActionNode(name, action));
 	}
 
 	@SuppressWarnings("")
@@ -164,7 +158,7 @@ public final class EditorActions {
 			Path path = Path.of(uri).toAbsolutePath().normalize();
 			EditorTab targetTab = editorManager.getOpenedEditor(path);
 			if (targetTab == null) {
-				editorManager.openFile(new File(path));
+				editorManager.openFile(new SimpleIDEFile(path));
 				targetTab = editorManager.getOpenedEditor(path);
 			}
 			if (targetTab != null) {

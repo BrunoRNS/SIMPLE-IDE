@@ -1,16 +1,18 @@
 package io.simpleide.utils.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import io.simpleide.ui.treefile.Directory;
-import io.simpleide.ui.treefile.File;
-import io.simpleide.ui.treefile.TreeFile;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import io.simpleide.ui.treefile.Directory;
+import io.simpleide.ui.treefile.SimpleIDEFile;
+import io.simpleide.ui.treefile.TreeFile;
 
 /**
  * Tests {@link io.simpleide.utils.service.FileService}.
@@ -38,7 +40,7 @@ class FileServiceTest {
 
 		TreeFile created = fileService.createNewFile(parent, "Main.java", false);
 
-		assertThat(created).isInstanceOf(File.class);
+		assertThat(created).isInstanceOf(SimpleIDEFile.class);
 		assertThat(created.getPath()).isEqualTo(root.resolve("Main.java"));
 		assertThat(Files.exists(created.getPath())).isTrue();
 	}

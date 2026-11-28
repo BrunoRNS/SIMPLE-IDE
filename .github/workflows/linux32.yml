@@ -15,6 +15,7 @@ jobs:
 
     env:
       SIMPLEIDE_EXPECTED_PLATFORM: linux-x86
+      SIMPLEIDE_DEBIAN_IMAGE: debian:10
 
     steps:
       - name: Check out repository
@@ -37,4 +38,9 @@ jobs:
         run: |
           set -eu
 
-          bash scripts/ci/run-linux-debian.sh linux/386 test pkg
+          bash scripts/ci/run-linux-debian.sh linux/386 test consumer pkg
+
+      - name: Report failed tests
+        if: failure()
+        shell: bash
+        run: python3 scripts/ci/report-surefire.py

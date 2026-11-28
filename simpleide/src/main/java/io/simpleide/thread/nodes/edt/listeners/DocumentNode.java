@@ -1,12 +1,16 @@
 package io.simpleide.thread.nodes.edt.listeners;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.edt.EDTNode;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.edt.EDTNode;
 
 /**
  * {@link javax.swing.event.DocumentListener} that coalesces changes into an EDT task.
@@ -28,7 +32,7 @@ public final class DocumentNode extends EDTNode implements DocumentListener, Aut
 
 	private final Runnable onChange;
 
-	private volatile boolean closed;
+	private final AtomicBoolean closed = new AtomicBoolean();
 
 	/**
 	 * Creates a node that invokes a callback after any document change.
@@ -54,12 +58,12 @@ public final class DocumentNode extends EDTNode implements DocumentListener, Aut
 	}
 
 	private void dispatchChange() {
-		if (closed) {
+		if (closed.get()) {
 			return;
 		}
 		try {
 			ThreadMaster.getInstance().executeOnEDT(() -> {
-				if (!closed) {
+				if (!closed.get()) {
 					onChange.run();
 				}
 			});
@@ -71,7 +75,7 @@ public final class DocumentNode extends EDTNode implements DocumentListener, Aut
 
 	@Override
 	public void close() {
-		closed = true;
+		closed.set(true);
 	}
 
 }

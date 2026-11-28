@@ -15,9 +15,6 @@
  * Thread. Downloads and release metadata are cached under {@code ~/.simpleide/lsp}; the
  * cache is bounded in time and is refreshed only when an entry is missing or expired.
  *
- * @author LuisOtavio13
- * @author luisotavio15
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
  * @see <a href=

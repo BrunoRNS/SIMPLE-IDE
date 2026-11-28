@@ -5,9 +5,9 @@
 
 ## Building the menu bar
 
-`MenuBarFactory.createMenuBar(frame, createFile, createFolder, setDirectory,
-saveFile)` installs an `IdeMenuBar` on the frame. Each callback is a `Runnable`
-supplied by the frame.
+`MenuBarFactory.createMenuBar(frame, createFile, createFolder, openFolder,
+closeFolder, saveFile, run, debug)` installs an `IdeMenuBar` on the frame. Each
+callback is a `Runnable` supplied by the frame.
 
 ```java
 import io.simpleide.ui.menubar.MenuBarFactory;
@@ -16,16 +16,28 @@ MenuBarFactory.createMenuBar(
     frame,
     () -> tree.createNewFile(),
     () -> tree.createNewDirectory(),
-    this::chooseDirectory,
-    editorManager::saveSelectedFile);
+    () -> tree.chooseDirectory(),
+    this::closeDirectory,
+    editorManager::saveSelectedFile,
+    this::runProgram,
+    this::debugProgram);
 ```
+
+The five-argument `IdeMenuBar` constructor and six-argument
+`MenuBarFactory.createMenuBar` overload remain available for hosts that do not
+offer the Execute menu.
 
 | Menu | Items |
 | --- | --- |
 | `FileMenu` | New File, Save (Ctrl+S), New Folder, Set directory |
 | `SettingsMenu` | Theme submenu and a global font size spinner |
+| `ExecuteMenu` | Run (F5), Debug (Ctrl+F5) |
 | `HelpMenu` | Keyboard Shortcuts, Machine Information, About Simple IDE |
-| `ThemeMenu` | Light, Dark, Darcula, Brown, Brown Light radio items |
+| `ThemeMenu` | Light, Dark, Dracula, Dracula Light, Brown and Brown Light radio items |
+
+Execute is inserted between Settings and Help. `ExecuteMenu.setDebugEnabled(false)`
+disables the Debug item and explains the reason in its tooltip; the frame calls
+this when no compatible debug adapter is registered or when installation fails.
 
 File and theme menu items dispatch through `ActionNode`, so the callbacks are
 tracked EDT nodes. The font size spinner uses `ChangeNode` and rewrites every
@@ -53,6 +65,7 @@ themes.setTheme(ThemeType.DRACULA);
 | `LIGHT` | `FlatLightLaf` | `default.xml` with readable syntax overrides |
 | `DARK` | `FlatDarkLaf` | `dark.xml` with readable syntax overrides |
 | `DRACULA` | `dracula.properties` | `dracula.xml` with the Dracula palette |
+| `DRACULA_LIGHT` | `dracula-light.properties` | `default.xml` with the light Dracula palette |
 | `BROWN` | `brown.properties` | `dark.xml` with brown accents |
 | `BROWN_LIGHT` | `brown-light.properties` | `dark.xml` with light brown accents |
 
@@ -62,6 +75,21 @@ before discarding an editor that will not be reused.
 
 Theme changes run on the EDT through `ThreadMaster`. The manager reads bundled
 resources and is not headless-safe because it updates open windows.
+
+When embedding or launching the application from the fat JAR, keep the bundled
+resources on the runtime classpath. `ThemeManager` loads FlatLaf properties,
+RSyntaxTextArea XML themes, theme palettes and welcome screen SVG logos from
+those resources. The application icon is bundled at
+`/io/simpleide/icon/simpleide_icon.png`. `SimpleIDE.launch()` starts the complete
+application with these resources; custom Swing applications can use the manager
+directly as shown above.
+
+The welcome screen logo has a separate SVG for each theme. Its canvas, primary
+mark and accent use the selected palette, and its detail fills use the theme
+foreground so small shapes remain visible on light and dark backgrounds. The
+canvas and inner counters of the P and D are transparent, so they reveal the
+welcome page's actual background color. The logo scales proportionally into the
+space between the welcome text and its action buttons.
 
 ## Testing
 

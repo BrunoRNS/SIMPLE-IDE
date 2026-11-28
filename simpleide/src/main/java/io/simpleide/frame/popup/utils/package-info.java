@@ -13,8 +13,6 @@
  * safe to reference from any thread; the dialog itself is still created on the EDT by
  * {@code ErrorPopUP}.
  *
- * @author LuisOtavio
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/popups.md">docs/api/ui/popups.md</a>
  */

@@ -2,16 +2,17 @@ package io.simpleide.frame.utils;
 
 import java.net.URL;
 import java.util.MissingResourceException;
+
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
 
 /**
  * Loads image icons bundled with the application.
  *
- * @author LuisOtavio
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public final class LoadIcon {
 

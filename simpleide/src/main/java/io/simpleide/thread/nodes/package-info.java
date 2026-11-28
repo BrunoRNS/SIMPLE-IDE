@@ -8,8 +8,6 @@
  * tracking and stable identity, and {@link io.simpleide.thread.nodes.NodeIdGenerator}
  * provides process-wide identifiers.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
  */

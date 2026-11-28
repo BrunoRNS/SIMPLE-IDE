@@ -7,35 +7,44 @@ not cover a use case.
 
 ## Contents
 
-- [Getting started](getting-started.md) — add the dependency and run the first
+- [Getting started](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Getting-Started) — add the dependency and run the first
   integration.
-- [Artifacts and imports](artifacts.md) — release JAR, JitPack and manual
+- [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts) — release JAR, JitPack and manual
   installation.
-- [Isolated modules](isolated-modules.md) — use only one subsystem.
-- [Standalone RSyntaxTextArea](rsyntax.md) — editor without threads or LSP.
-- [Embedded editor](editor.md) — search, line numbers, local completion and LSP.
-- [Threading](threading.md) — EDT tasks, background tasks and managed pools.
-- [Languages](languages.md) — discovery, execution, input and output.
-- [Language Server Protocol](lsp.md) — server discovery, installation and use.
-- [Terminal](terminal.md) — embedded BusyBox terminal.
-- [UI helpers](ui.md) — popups, icons, themes and layouts.
-- [Application bootstrap and frame](ui/application.md) — `MainFrame`, layout helpers and startup.
-- [Logging console](ui/logging.md) — Swing log panel and Logback appender.
-- [Popups](ui/popups.md) — info, success, warning, error and input dialogs.
-- [Menu bar and themes](ui/menubar.md) — File, Settings and Help menus, theme manager.
-- [Project file tree](ui/file-tree.md) — tree model, icons, context actions and watcher.
-- [Shared utilities](util/utilities.md) — files, resources, `PATH` lookup, map conversion.
-- [Bytecode compiler](compiler/README.md) — standalone Java, Kotlin and Groovy execution.
-- [Examples](examples.md) — complete copy-paste examples.
+- [Isolated modules](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Isolated-Modules) — use only one subsystem.
+- [Standalone RSyntaxTextArea](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-RSyntax) — editor without threads or LSP.
+- [Embedded editor](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor) — search, line numbers, local completion and LSP.
+- [Audio and video](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Editor#audio-and-video) — optional JavaFX media playback, platform support and fallback. See also [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media) for the `nojavafx`/`javafx22`/`javafx23` consumer contract.
+- [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading) — EDT tasks, background tasks and managed pools.
+- [Languages](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages) — discovery, execution, input and output.
+- [Language Server Protocol](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP) — server discovery, installation and use.
+- [Terminal](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Terminal) — embedded BusyBox terminal and I/O tab.
+- [Debug Adapter Protocol](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-DAP) — adapter registry, installation and debug sessions.
+- [UI helpers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI) — popups, icons, themes and layouts.
+- [Application bootstrap and frame](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Application) — `MainFrame`, layout helpers and startup.
+- [Logging console](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Logging) — Swing log panel and Logback appender.
+- [Popups](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Popups) — info, success, warning, error and input dialogs.
+- [Menu bar and themes](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Menubar) — File, Settings, Execute and Help menus, theme manager.
+- [Project file tree](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-File-Tree) — tree model, icons, context actions and watcher.
+- [Shared utilities](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Utilities) — files, resources, `PATH` lookup, map conversion.
+- [Bytecode compiler](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Compiler) — standalone Java, Kotlin and Groovy execution.
+- [Examples](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Examples) — complete copy-paste examples.
 
 ## API at a glance
 
 | Facade | Responsibility | Starts threads? | Starts Swing? |
 | --- | --- | --- | --- |
 | `io.simpleide.api.Editors` | Creates RSyntaxTextArea-based editors | No | Creates Swing components |
-| `io.simpleide.api.SimpleEditor` | Full editor tab with local support and LSP | Only when LSP starts | Creates Swing components |
+| `io.simpleide.api.SimpleEditor` | Text, paged large-text, image, audio, video and binary editor tab | Only when LSP starts | Creates Swing components |
+| `io.simpleide.api.ImageViewer` | ImageIO image viewer with zoom and scrolling | No | Creates Swing components |
+| `io.simpleide.api.MediaPlayback` | Platform-neutral audio/video player interface | No | Creates Swing components |
+| `io.simpleide.api.MediaPlaybacks` | Creates the JavaFX media players, or reports them unavailable | No | Creates Swing components |
+| `io.simpleide.api.LargeTextViewer` | Read-only paged viewer for large UTF-8 files | Page reads on demand | Creates Swing components |
+| `io.simpleide.api.HexEditor` | Chunked binary/hex editor with visible ASCII rows | No | Creates Swing components |
 | `io.simpleide.api.Threads` | Manages EDT and background tasks | Yes | No application frame |
 | `io.simpleide.api.Languages` | Language discovery and execution | Yes | No |
+| `io.simpleide.api.LanguageServers` | Connects files to shared language servers and delivers diagnostics | Yes | No |
+| `io.simpleide.api.Debugger` | Starts standalone and language-server debug sessions | Yes, on start | No |
 | `io.simpleide.api.Terminals` | BusyBox terminal panel and controller | Yes | Creates Swing components |
 | `io.simpleide.api.SimpleIDE` | Convenience entry point | Yes, on demand | Launches full IDE |
 
@@ -46,6 +55,8 @@ not cover a use case.
 | `Editor` | `io.simpleide.ui.editor` | RSyntaxTextArea subclass with Simple IDE defaults |
 | `EditorTab` | `io.simpleide.ui.editor` | Editor plus search panel, line numbers and tab state |
 | `SimpleEditor` | `io.simpleide.api` | Embeddable wrapper around `EditorTab` and LSP |
+| `MediaPlayback` | `io.simpleide.api` | Audio/video player contract used by `SimpleEditor` |
+| `MediaPlaybacks` | `io.simpleide.api` | JavaFX media factory with platform availability detection |
 | `ThreadMaster` | `io.simpleide.thread` | Singleton thread tree and schedulers |
 | `RunnableNode` | `io.simpleide.thread.nodes.runnable` | Background task node |
 | `EDTNode` | `io.simpleide.thread.nodes.edt` | Swing EDT task node |
@@ -56,6 +67,9 @@ not cover a use case.
 | `LspClient` | `io.simpleide.lsp.client` | LSP4J client connected to one server |
 | `TerminalPanel` | `io.simpleide.ui.terminal` | Terminal tabs and controls |
 | `BusyBoxTerminalController` | `io.simpleide.ui.terminal` | Session and terminal lifecycle |
+| `IOPanel` | `io.simpleide.ui.io` | Program input, coloured output and debug controls |
+| `DapRegistry` | `io.simpleide.dap` | Debug adapter registry and platform matching |
+| `DapSession` | `io.simpleide.dap` | Running debug adapter connection and execution controls |
 | `Tree` | `io.simpleide.ui.treefile` | Project file tree component |
 | `TreeFile` | `io.simpleide.ui.treefile` | Base entry of the project tree |
 | `ThemeManager` | `io.simpleide.ui.menubar` | Look and feel and editor theme singleton |
@@ -89,8 +103,8 @@ through Swing's event queue, and background nodes run on a small managed worker
 pool. Registering a node does not necessarily run it immediately; `initialize()`
 starts the tree, and later registrations are scheduled as they arrive. The
 manager has a bounded queue and a small worker count, so a task must not wait for
-another task in the same pool to finish. See [Threading](threading.md) and
-[THREADMASTER.md](../reference/THREADMASTER.md).
+another task in the same pool to finish. See [Threading](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading) and
+[THREADMASTER.md](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-ThreadMaster).
 
 ## Lifecycle summary
 
@@ -100,6 +114,7 @@ another task in the same pool to finish. See [Threading](threading.md) and
 | Open a standalone editor | `SimpleEditor.open(path)` | Creates an editor tab; no LSP until requested |
 | Start an editor language server | `SimpleEditor.startLanguageServer()` | Filters registry, installs if needed, starts server |
 | Run a source file | `Languages.start(path)` | Resolves the language and starts a managed process |
+| Start debugging | `DapManager.start(path, breakpoints, listener)` | Installs an adapter and launches a DAP session |
 | Send input to a running program | `Input.getInstance().set(line)` | Queues a line for the active language process |
 | Read program output | `Output.getInstance().get(seconds)` | Polls the shared output queue |
 | Add a background task | `Threads.background(action)` | Registers a `RunnableNode` |

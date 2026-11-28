@@ -1,14 +1,5 @@
 package io.simpleide.ui.terminal.core.busybox;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
-
-import com.pty4j.PtyProcess;
-import com.pty4j.PtyProcessBuilder;
-import io.simpleide.language.config.LangPlatform;
-import io.simpleide.ui.terminal.Pty4jCompatibility;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -18,7 +9,18 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import com.pty4j.PtyProcess;
+import com.pty4j.PtyProcessBuilder;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.language.config.LangPlatform;
+import io.simpleide.ui.terminal.Pty4jCompatibility;
 
 /**
  * Tests {@link io.simpleide.ui.terminal.core.busybox.BusyBoxPlatform}.

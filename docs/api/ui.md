@@ -7,7 +7,7 @@ itself, but a few are useful when embedding Simple IDE components.
 ## Themes
 
 `io.simpleide.ui.menubar.ThemeManager` applies a FlatLaf look and feel and an
-RSyntaxTextArea theme. See [Menu bar and themes](ui/menubar.md) for the menu
+RSyntaxTextArea theme. See [Menu bar and themes](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Menubar) for the menu
 structure and theme table.
 
 ```java
@@ -29,6 +29,7 @@ Available themes:
 | `LIGHT` | FlatLightLaf | `default.xml` plus readable syntax overrides |
 | `DARK` | FlatDarkLaf | `dark.xml` plus readable syntax overrides |
 | `DRACULA` | Flat properties | `dracula.xml` with Dracula palette |
+| `DRACULA_LIGHT` | Flat properties | `default.xml` with light Dracula palette |
 | `BROWN` | Flat properties | dark palette with brown accents |
 | `BROWN_LIGHT` | Flat properties | light palette with brown accents |
 
@@ -39,9 +40,16 @@ tracks an editor so later theme changes apply to it. Call
 Theme changes run on the EDT through `ThreadMaster`. The manager is a singleton
 and reads bundled resources. It is not headless-safe because it updates windows.
 
+For the complete application, `SimpleIDE.launch(args)` loads bundled look-and-feel
+properties, editor themes, palettes and per-theme welcome SVGs from the fat JAR.
+When constructing a custom frame, include the Simple IDE resources and runtime
+dependencies on the classpath, then register the frame and editors with
+`ThemeManager` before calling `setTheme`. See [Artifacts and imports](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Artifacts)
+for packaging details.
+
 ## Popups
 
-The popup classes wrap modal dialogs. See [Popups](ui/popups.md) for lifecycle,
+The popup classes wrap modal dialogs. See [Popups](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Popups) for lifecycle,
 threading and callback details:
 
 | Class | Purpose |
@@ -75,7 +83,7 @@ new InputPopUP("Name", "Enter a name", parent, value -> System.out.println(value
 ## File tree
 
 The `io.simpleide.ui.treefile` package contains the project tree model. See
-[Project file tree](ui/file-tree.md) for the full model, watcher and context
+[Project file tree](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-File-Tree) for the full model, watcher and context
 actions:
 
 | Class | Purpose |
@@ -83,7 +91,7 @@ actions:
 | `Tree` | Swing tree component |
 | `TreeFile` | Base node |
 | `Directory` | Directory node |
-| `File` | File node and `typeOf(Path)` |
+| `SimpleIDEFile` | Source file node and `typeOf(Path)` |
 | `TypeFile` | File type enum |
 | `Watcher` | Directory change watcher |
 | `TreeState` | Expansion/selection state |
@@ -105,6 +113,23 @@ directly instead.
 filesystem when running from a source checkout. The terminal panel uses FlatLaf
 SVG icons and adjusts their color for contrast. If you reuse the terminal panel
 with a custom theme, verify the icon contrast with your background colors.
+
+The left activity bar in `io.simpleide.ui.sidebar` contains Explorer,
+Search, Source Control and Settings. Its SVGs are organized by theme, state and type under
+`io/simpleide/ui/sidebar/icons/<theme>/<state>/<type>.svg`; each of the six
+themes has idle, hover and selected assets for all four icons.
+
+Source Control resolves the Git repository containing the folder open in Explorer.
+Its status list omits ignored files and Git metadata; selecting a file opens it in
+the editor. Enter a message to stage all non-ignored repository changes with
+`git add .` and commit them. Optional
+`user.name` and `user.email` fields write only to that repository's local Git
+configuration; leaving a field blank leaves its local value unchanged. The graph
+shows branch lanes and refs from the repository's local and remote branch heads.
+`SidebarIconResources` resolves this mapping through `ResourceUtil`. The
+diagnostics Debug Console is a separate `io.simpleide.ui.debug` component hosted
+in the bottom output pane, with severity filters and navigation to a diagnostic's
+source range.
 
 ## Headless environments
 

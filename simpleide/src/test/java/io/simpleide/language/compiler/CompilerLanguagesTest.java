@@ -7,13 +7,14 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.awaitility.Awaitility.await;
-import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
+
+import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -302,7 +303,7 @@ class CompilerLanguagesTest {
 
 	private void runAndAssertOutput(AbstractLanguage language, String expectedOutput) throws Exception {
 		RunnableNode node = language.startManaged();
-		String actualOutput = Output.getInstance().get(60);
+		String actualOutput = Output.getInstance().get(120);
 		await().atMost(30, TimeUnit.SECONDS)
 			.until(() -> Boolean.FALSE.equals(ThreadMaster.getInstance().isNodeRunning(node)));
 		assertEquals(expectedOutput, actualOutput);

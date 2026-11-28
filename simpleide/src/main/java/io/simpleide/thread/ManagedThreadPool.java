@@ -1,5 +1,7 @@
 package io.simpleide.thread;
 
+import java.util.concurrent.ExecutorService;
+
 import io.simpleide.thread.nodes.NodePattern;
 
 /**
@@ -44,6 +46,14 @@ public final class ManagedThreadPool implements AutoCloseable {
 	 */
 	public NodePattern execute(Runnable action, Runnable onClose) {
 		return owner.executeOnPool(this, action, onClose);
+	}
+
+	/**
+	 * Creates a managed executor whose tasks run on this pool's workers.
+	 * @return executor service scoped to this pool
+	 */
+	public ExecutorService createExecutorService() {
+		return owner.createExecutorService(node);
 	}
 
 	@Override

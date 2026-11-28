@@ -1,0 +1,120 @@
+# Releases
+
+Every push to `main` triggers `.github/workflows/release.yml`, which builds and
+publishes a GitHub release from the version in
+`simpleide/src/main/resources/simpleide.properties`.
+
+## Artifact naming
+
+| Artifact | Produced by | Naming |
+| --- | --- | --- |
+| Executable fat JAR | Each OS/architecture/variant release build | `simpleide-v<version>-<os>-<arch>-<variant>-with-deps.jar` |
+| Portable static package (zipped jpackage app image, no install required) | `make pkg` on Linux and Windows CI | `simpleide-v<version>-<os>-<arch>-<variant>.zip` |
+| Linux `.deb` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>-<variant>.deb` |
+| Linux `.rpm` installer | `make pkg` on Linux CI | `simpleide-v<version>-linux-<arch>-<variant>.rpm` |
+| macOS `.dmg` installer | `make pkg` on macOS CI | `simpleide-v<version>-macos-<arch>-<variant>.dmg` |
+| Windows `.msi` installer (x64 only) | `make pkg` on Windows CI | `simpleide-v<version>-windows-x64-<variant>.msi` |
+
+`<os>` is `linux`, `macos` or `windows`; `<arch>` is `x64` (also called
+`amd64`), `x86` or `arm64`. `<variant>` identifies the optional media build:
+`javafx22`, `javafx23` or `nojavafx`. For example,
+`simpleide-v1.1.0-linux-x64-javafx23.deb` is the JDK 21 build with JavaFX 23,
+`simpleide-v1.1.0-linux-arm64-javafx22.deb` is the Debian 12 build with JavaFX
+22, and `simpleide-v1.1.0-linux-arm64-nojavafx.deb` opens media files in the
+hex editor. Linux `x86`, Windows `x86` and Windows `arm64` always produce
+`nojavafx`. `make pkg` builds the full set for the current OS: Linux produces
+the static zip, the `.deb` and the `.rpm`; macOS produces only the `.dmg`; Windows
+produces the static zip (whose launcher is the `SimpleIDE.exe` inside the app
+image) and, on `x64` only, the `.msi` installer. Windows `x86` and `arm64`
+release the static zip alone.
+
+Before a release, every CI platform validates what it produces with
+`make pkg-verify`. The validation extracts the static zip and checks its
+launcher, bundled runtime architecture, bundled Java launcher and the
+`jdk.compiler` module, and asks `dpkg-deb`, `rpm`, `hdiutil` or the Windows
+Installer database to read the installer metadata. Packages keep jpackage's
+native commands so the bundled JDK can run the embedded compiler and the Java
+language server without an external JDK.
+On `x64` the Windows check also confirms that the `.msi` declares `SimpleIDE`
+as its `ProductName` and that its Summary Information platform is `x64`. No
+MSI is built or validated for `x86` or `arm64`, which release the static zip
+only. A failed job stops at the failing step.
+
+CI jobs do not upload the generated packages as workflow artifacts. The
+release workflow rebuilds every platform, passes the packages between its jobs
+with `actions/upload-artifact`/`actions/download-artifact`, and attaches them
+to the GitHub release tag with `gh release upload`.
+
+The release uses the Maven media profiles to build the variants. The Linux
+matrix sets `SIMPLEIDE_MEDIA_VARIANT` explicitly rather than relying only on the
+automatic JDK rule:
+
+| Linux build | Base image | glibc floor of the package | JavaFX native floor |
+| --- | --- | --- | --- |
+| `x64` `javafx22` (JDK 17) | `debian:10` | 2.28 | 2.17 |
+| `x64` `javafx23` (JDK 21) | `debian:10` | 2.28 | 2.17 |
+| `x64` `nojavafx` (JDK 17) | `debian:10` | 2.28 | none |
+| `arm64` `nojavafx` (JDK 17) | `debian:10` | 2.28 | none |
+| `arm64` `javafx22` (JDK 17) | `debian:12` | 2.36 (Debian 12+) | 2.36 supported runtime floor |
+| `arm64` `javafx23` (JDK 21) | `debian:12` | 2.36 (Debian 12+) | 2.36 supported runtime floor |
+| `x86` `nojavafx` (JDK 17) | `debian:10` | 2.28 | none |
+
+Native release jobs publish `nojavafx`, `javafx22` and `javafx23` for macOS
+`x64`/`arm64` and Windows `x64`. `javafx22` uses JDK 17; `javafx23` uses JDK
+21. Linux `x86`, Windows `x86` and Windows `arm64` publish only `nojavafx`,
+which opens media files in the hex editor. Each system/architecture/variant also
+gets its own executable fat JAR. The JavaFX `arm64` Linux builds use Debian 12
+(glibc 2.36; the supported runtime floor is glibc 2.36+); Linux `x86` keeps Debian 10/glibc
+2.28. macOS JavaFX 23 packages require macOS 12+, while JavaFX 22 and nojavafx
+packages require macOS 11+. Windows JavaFX variants require Windows 10 on x64.
+Consumers can force a variant with
+`-Dsimpleide.media.variant=nojavafx|javafx22|javafx23`; see
+[JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media).
+
+Linux packages are built and validated inside an explicit Debian container.
+Debian 10 (`buster`) provides the overall minimum supported glibc (2.28), so a
+baseline package that passes CI is known to run on every supported Linux
+distribution. The JavaFX `arm64` packages use Debian 12 (glibc 2.36), which is also their
+supported runtime floor. Alpine is not used. See
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
+
+## Version types
+
+- A version containing `beta` (for example `1.0.0beta`) is published as a
+  GitHub **pre-release**.
+- Any other version is published as a **normal release**.
+- The release tag is `v<version>`; pushing the same version again updates the
+  existing release and re-uploads its artifacts.
+
+## Package types
+
+The portable zip is the default. A native installer can be built locally by
+setting the package type:
+
+```sh
+SIMPLEIDE_PKG_TYPE=deb make pkg    # Linux .deb
+SIMPLEIDE_PKG_TYPE=rpm make pkg    # Linux .rpm
+SIMPLEIDE_PKG_TYPE=dmg make pkg    # macOS .dmg
+SIMPLEIDE_PKG_TYPE=exe make pkg    # Windows .exe
+SIMPLEIDE_PKG_TYPE=msi make pkg    # Windows .msi (x64 only)
+```
+
+The release job uploads every artifact produced on each CI platform, including
+one fat JAR and one set of packages for each supported media variant. This lets
+users select JavaFX or nojavafx independently of the automatically preferred
+variant.
+
+## Downloading a release from a script
+
+`scripts/install-simpleide.sh` (Linux/macOS) and `scripts/install-simpleide.ps1`
+(Windows) query the latest GitHub release, validate the host and download the
+best published package: `javafx23`, then `javafx22`, then `nojavafx`. They leave
+the `.tar.gz`, `.zip` or `.dmg` file in the chosen directory without extracting
+or executing it. The exact procedure is in
+[Script installation](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Install).
+
+See also:
+
+- [Build, test and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile)
+- [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux)
+- [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party)

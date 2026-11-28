@@ -1,41 +1,6 @@
-package io.simpleide.ui.editor;
-
-import io.simpleide.frame.popup.ErrorPopUP;
-import io.simpleide.frame.popup.utils.ErrorTypePopUp;
-import io.simpleide.lsp.client.LspClient;
-import io.simpleide.lsp.client.LspEditorSupport;
-import io.simpleide.lsp.core.Document;
-import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
-import io.simpleide.ui.treefile.File;
-import io.simpleide.utils.ResourceUtil;
-import io.simpleide.utils.service.FileService;
-import java.awt.BorderLayout;
-import java.awt.GraphicsEnvironment;
-import java.io.IOException;
-import java.util.List;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicBoolean;
-import javax.swing.Icon;
-import javax.swing.ImageIcon;
-import javax.swing.JPanel;
-import javax.swing.text.BadLocationException;
-import org.eclipse.lsp4j.Location;
-import org.eclipse.lsp4j.LocationLink;
-import org.eclipse.lsp4j.Position;
-import org.eclipse.lsp4j.PublishDiagnosticsParams;
-import org.eclipse.lsp4j.Range;
-import org.eclipse.lsp4j.jsonrpc.messages.Either;
-import org.fife.rsta.ac.LanguageSupport;
-import org.fife.rsta.ac.LanguageSupportFactory;
-import org.fife.rsta.ac.java.JavaLanguageSupport;
-import org.fife.ui.autocomplete.AutoCompletion;
-import org.fife.ui.autocomplete.CompletionProvider;
-import org.fife.ui.rtextarea.RTextScrollPane;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
- * Editor tab combining an {@link Editor}, a search panel and save tracking.
+ * File tab showing editable text, an image viewer, or a binary hex editor with shared
+ * save tracking.
  *
  * <p>
  * The tab loads a file into the editor, enables line numbers, marks itself edited when
@@ -46,40 +11,74 @@ import org.slf4j.LoggerFactory;
  * <p>
  * Covered by {@code EditorTabTest}.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
+ * @see <a href="https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
+ */
+
+package io.simpleide.ui.editor;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
+import javax.swing.Icon;
+import javax.swing.JPanel;
+import javax.swing.text.BadLocationException;
+
+import org.eclipse.lsp4j.Diagnostic;
+import org.eclipse.lsp4j.Location;
+import org.eclipse.lsp4j.LocationLink;
+import org.eclipse.lsp4j.Position;
+import org.eclipse.lsp4j.PublishDiagnosticsParams;
+import org.eclipse.lsp4j.Range;
+import org.eclipse.lsp4j.jsonrpc.messages.Either;
+import org.fife.ui.autocomplete.CompletionProvider;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.simpleide.api.HexEditor;
+import io.simpleide.api.ImageViewer;
+import io.simpleide.api.LargeTextViewer;
+import io.simpleide.api.MediaPlayback;
+import io.simpleide.frame.popup.ErrorPopUP;
+import io.simpleide.frame.popup.utils.ErrorTypePopUp;
+import io.simpleide.lsp.client.LspClient;
+import io.simpleide.lsp.core.Document;
+import io.simpleide.thread.nodes.edt.listeners.DocumentNode;
+import io.simpleide.ui.treefile.SimpleIDEFile;
+import io.simpleide.utils.service.FileService;
+
+/**
+ * File tab showing editable text, an image viewer, or a binary hex editor with shared
+ * save tracking.
+ *
+ * <p>
+ * The tab loads a file into the editor, enables line numbers, marks itself edited when
+ * the document changes, saves through {@link FileService}, and switches between local
+ * completion and a connected language server. Closing the tab releases local support, the
+ * LSP binding and the document listener.
+ *
+ * <p>
+ * Covered by {@code EditorTabTest}.
+ *
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class EditorTab extends JPanel {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(EditorTab.class);
 
-	private static final AtomicBoolean JAVA_JRE_CLASS_SOURCE_REGISTERED = new AtomicBoolean();
-
-	private final Editor editor;
-
 	private final Document document;
 
-	private final EditorSearchPanel searchPanel;
-
 	private final FileService fileService = new FileService();
-
-	private LspEditorSupport lspSupport;
-
-	private boolean localLanguageSupportRegistered;
-
-	private AutoCompletion localAutoCompletion;
-
-	private CompletionProvider localCompletionProvider;
 
 	private boolean closed;
 
 	private final ButtonExit buttonExit;
 
-	private final File file;
-
-	private final RTextScrollPane scrollPane;
+	private final SimpleIDEFile file;
 
 	private final String name;
 
@@ -87,25 +86,51 @@ public class EditorTab extends JPanel {
 
 	private DocumentNode documentNode;
 
+	private final EditorTabContent content;
+
+	private final EditorTabLanguageSupport languageSupport;
+
 	/**
-	 * Creates a tab for a file and its LSP document.
+	 * Creates a tab for a file and its document metadata.
 	 * @param file file shown in the tab
 	 * @param document document metadata tracked by the language server manager
 	 */
-	public EditorTab(File file, Document document) {
-		this.editor = new Editor();
-		this.searchPanel = new EditorSearchPanel(editor);
+	public EditorTab(SimpleIDEFile file, Document document) {
 		this.isEdit = false;
 		this.file = file;
 		this.document = document;
 		this.name = file.getName();
-		this.scrollPane = new RTextScrollPane(editor);
 		this.buttonExit = new ButtonExit(this);
-		setLayout(new BorderLayout());
-		add(searchPanel, BorderLayout.NORTH);
-		add(this.scrollPane, BorderLayout.CENTER);
-		editor.loadFile(file);
-		configIsEdit();
+		this.content = new EditorTabContent(this);
+		this.languageSupport = new EditorTabLanguageSupport(this);
+		setLayout(new java.awt.BorderLayout());
+		if (file.isContentLoaded()) {
+			showLoadedContent();
+		}
+		else {
+			content.showLoading();
+		}
+	}
+
+	/** Returns whether this tab is waiting for its file content to load. */
+	public boolean isLoading() {
+		return content.isLoading();
+	}
+
+	/** Returns whether this tab has already been closed. */
+	public boolean isClosed() {
+		return closed;
+	}
+
+	/**
+	 * Creates the read-only viewer or editable text component after the file is loaded.
+	 */
+	public final void showLoadedContent() {
+		content.showLoadedContent();
+	}
+
+	void showLoadError(Throwable error) {
+		content.showLoadError(error);
 	}
 
 	/**
@@ -137,20 +162,86 @@ public class EditorTab extends JPanel {
 	 * Returns the file displayed by this tab.
 	 * @return the source file
 	 */
-	public File getFile() {
+	public SimpleIDEFile getFile() {
 		return file;
 	}
 
 	/**
 	 * Returns the text area of this tab.
-	 * @return the editor component
+	 * @return the editor component, or {@code null} while loading and for image/binary
+	 * tabs
 	 */
 	public Editor getEditor() {
-		return editor;
+		return content.getEditor();
+	}
+
+	/**
+	 * Returns the one-based line numbers with a breakpoint in this tab.
+	 * @return an immutable snapshot of the breakpoint lines, or an empty list for
+	 * non-text tabs
+	 */
+	public List<Integer> getBreakpoints() {
+		Editor editor = content.getEditor();
+		return editor == null ? List.of() : editor.getBreakpointLines();
+	}
+
+	/**
+	 * Toggles a breakpoint on a one-based line of this tab.
+	 * @param line one-based line number
+	 * @return {@code true} when a breakpoint now exists on the line
+	 */
+	public boolean toggleBreakpoint(int line) {
+		Editor editor = content.getEditor();
+		return editor != null && editor.toggleBreakpoint(line);
+	}
+
+	/**
+	 * Removes every breakpoint from this tab.
+	 */
+	public void clearBreakpoints() {
+		Editor editor = content.getEditor();
+		if (editor != null) {
+			editor.clearBreakpoints();
+		}
+	}
+
+	/**
+	 * Returns the image viewer when this tab displays an image, otherwise {@code null}.
+	 */
+	public ImageViewer getImageViewer() {
+		return content.getImageViewer();
+	}
+
+	/**
+	 * Returns the hex editor when this tab displays binary data, otherwise {@code null}.
+	 */
+	public HexEditor getHexEditor() {
+		return content.getHexEditor();
+	}
+
+	/** Returns the paged, read-only view for large text files, otherwise {@code null}. */
+	public LargeTextViewer getLargeTextViewer() {
+		return content.getLargeTextViewer();
+	}
+
+	/**
+	 * Returns the audio player for this tab, or {@code null} for other content kinds.
+	 * @return the audio player, or {@code null} when the tab does not play audio
+	 */
+	public MediaPlayback getAudioViewer() {
+		return content.getAudioViewer();
+	}
+
+	/**
+	 * Returns the video player for this tab, or {@code null} for other content kinds.
+	 * @return the video player, or {@code null} when the tab does not play video
+	 */
+	public MediaPlayback getVideoViewer() {
+		return content.getVideoViewer();
 	}
 
 	void showSearchPanel(boolean showReplacement) {
-		searchPanel.open(showReplacement);
+		content.showSearchPanel(showReplacement);
 	}
 
 	/**
@@ -158,12 +249,16 @@ public class EditorTab extends JPanel {
 	 * @param client connected language server client
 	 */
 	public void connectLanguageServer(LspClient client) {
-		if (closed) {
-			client.didClose(document.getUri());
-			return;
-		}
-		unregisterLocalLanguageSupport();
-		lspSupport = new LspEditorSupport(editor, document, client);
+		languageSupport.connectLanguageServer(client);
+	}
+
+	/**
+	 * Returns the language server connected to this tab, or {@code null} when none is
+	 * connected yet.
+	 * @return the connected language server client
+	 */
+	public LspClient getLanguageServer() {
+		return languageSupport.getLanguageServer();
 	}
 
 	/**
@@ -175,57 +270,15 @@ public class EditorTab extends JPanel {
 	 * no-op when support is already active.
 	 */
 	public void enableLocalLanguageSupport() {
-		if (closed || lspSupport != null || hasLocalLanguageSupport()) {
-			return;
-		}
-		if (!GraphicsEnvironment.isHeadless()) {
-			String syntaxStyle = editor.getSyntaxEditingStyle();
-			if (LanguageSupportFactory.get().getSupportFor(syntaxStyle) != null) {
-				try {
-					if ("text/java".equals(syntaxStyle)) {
-						ensureJreClassesAvailable();
-					}
-					LanguageSupportFactory.get().register(editor);
-					localLanguageSupportRegistered = true;
-					return;
-				}
-				catch (RuntimeException error) {
-					LOGGER.warn("Unable to register local language support for {}; using keyword completion.",
-							file.getPath(), error);
-				}
-			}
-		}
-		enableKeywordCompletion();
-	}
-
-	/**
-	 * RSTA's Java completion provider only knows about the classpath it is explicitly
-	 * given. Without the current JRE it cannot even resolve {@code java.lang.Object},
-	 * which produces the "Couldn't find ClassFile for: java.lang.Object" warnings and
-	 * leaves completion empty.
-	 */
-	private static void ensureJreClassesAvailable() {
-		if (!JAVA_JRE_CLASS_SOURCE_REGISTERED.compareAndSet(false, true)) {
-			return;
-		}
-		LanguageSupport support = LanguageSupportFactory.get().getSupportFor("text/java");
-		if (!(support instanceof JavaLanguageSupport javaSupport)) {
-			return;
-		}
-		try {
-			javaSupport.getJarManager().addCurrentJreClassFileSource();
-		}
-		catch (IOException | RuntimeException error) {
-			LOGGER.warn("Unable to add the current JRE to local Java completion.", error);
-		}
+		languageSupport.enableLocalLanguageSupport();
 	}
 
 	boolean hasLocalLanguageSupport() {
-		return localLanguageSupportRegistered || localAutoCompletion != null;
+		return languageSupport.hasLocalLanguageSupport();
 	}
 
 	CompletionProvider getLocalCompletionProvider() {
-		return localCompletionProvider;
+		return languageSupport.getLocalCompletionProvider();
 	}
 
 	/**
@@ -233,32 +286,15 @@ public class EditorTab extends JPanel {
 	 * @return the definition locations, or a failed future when no server is connected
 	 */
 	public CompletableFuture<Either<List<? extends Location>, List<? extends LocationLink>>> definitionAtCaret() {
-		if (lspSupport == null) {
-			return CompletableFuture.failedFuture(new IllegalStateException("No language server is connected."));
-		}
-		return lspSupport.definitionAtCaret();
+		return languageSupport.definitionAtCaret();
 	}
 
-	@SuppressWarnings("")
 	/**
 	 * Selects an LSP range in the editor.
 	 * @param range range to select, ignored when {@code null}
 	 */
 	public void goToRange(Range range) {
-		if (range == null || range.getStart() == null) {
-			return;
-		}
-
-		try {
-			int start = toOffset(range.getStart());
-			int end = range.getEnd() == null ? start : toOffset(range.getEnd());
-			editor.setCaretPosition(start);
-			editor.moveCaretPosition(Math.max(start, end));
-			editor.requestFocusInWindow();
-		}
-		catch (BadLocationException error) {
-			LOGGER.warn("Unable to navigate to a location in {}.", file.getPath(), error);
-		}
+		languageSupport.goToRange(range);
 	}
 
 	/**
@@ -266,9 +302,34 @@ public class EditorTab extends JPanel {
 	 * @param params diagnostics published by the server
 	 */
 	public void publishDiagnostics(PublishDiagnosticsParams params) {
-		if (lspSupport != null) {
-			lspSupport.publishDiagnostics(params);
-		}
+		languageSupport.publishDiagnostics(params);
+	}
+
+	/**
+	 * Returns the diagnostics most recently published for this document.
+	 * @return the current diagnostics, never {@code null}
+	 */
+	public List<Diagnostic> getDiagnostics() {
+		return languageSupport.getDiagnostics();
+	}
+
+	/**
+	 * Registers a listener notified when diagnostics for this tab change.
+	 * @param listener listener invoked with this tab, or {@code null} to clear it
+	 */
+	public void setDiagnosticsListener(Consumer<EditorTab> listener) {
+		languageSupport.setDiagnosticsListener(listener);
+	}
+
+	/**
+	 * Applies the configurable editor behavior options.
+	 * @param tabSize number of spaces used for a tab
+	 * @param wordWrap whether long lines wrap
+	 * @param lineNumbers whether the line number gutter is shown
+	 * @param showWhitespace whether whitespace characters are painted
+	 */
+	public void applyEditorOptions(int tabSize, boolean wordWrap, boolean lineNumbers, boolean showWhitespace) {
+		content.applyEditorOptions(tabSize, wordWrap, lineNumbers, showWhitespace);
 	}
 
 	/**
@@ -276,30 +337,7 @@ public class EditorTab extends JPanel {
 	 * @return the type icon, or {@code null} when the type has no icon
 	 */
 	public Icon getFileIcon() {
-		// TODO: Move icon selection into per-language metadata.
-		String iconName = switch (file.getTypeFile()) {
-			case JAVA -> "java.png";
-			case CSHARP -> null;
-			case GROOVY -> "groovy.png";
-			case KOTLIN -> "kotlin.png";
-			case JAVASCRIPT -> "javascript.png";
-			case PYTHON -> "python.png";
-			case CPP -> "cpp.png";
-			case C -> "c.png";
-			case TXT, BINARY -> null;
-			default -> null;
-		};
-		if (iconName == null) {
-			return null;
-		}
-
-		try {
-			return new ImageIcon(ResourceUtil.getResourcePath("io.simpleide.icon", iconName).toString());
-		}
-		catch (IOException exception) {
-			LOGGER.warn("Unable to load file icon {}; using the default icon.", iconName, exception);
-			return null;
-		}
+		return io.simpleide.ui.icon.MaterialIcons.forFile(file.getPath());
 	}
 
 	/**
@@ -319,9 +357,28 @@ public class EditorTab extends JPanel {
 	 * @throws IOException when the file cannot be written
 	 */
 	public void save() throws IOException {
-		String content = editor.getText();
+		if (content.isLoading()) {
+			throw new IOException("File is still loading: " + file.getPath());
+		}
+		LargeTextViewer largeTextViewer = content.getLargeTextViewer();
+		if (largeTextViewer != null) {
+			throw new IOException("Large text files are open in a read-only paged view: " + file.getPath());
+		}
+		HexEditor hexEditor = content.getHexEditor();
+		if (hexEditor != null) {
+			hexEditor.save(file.getPath());
+			buttonExit.setNotEdited();
+			isEdit = false;
+			document.setModified(false);
+			return;
+		}
+		Editor editor = content.getEditor();
+		if (editor == null) {
+			return;
+		}
+		String text = editor.getText();
 		try {
-			fileService.saveFile(file.getPath(), content);
+			fileService.saveFile(file.getPath(), text);
 		}
 		catch (IOException error) {
 			LOGGER.error("Unable to save file {}.", file.getPath(), error);
@@ -336,11 +393,9 @@ public class EditorTab extends JPanel {
 			}
 			throw error;
 		}
-		file.getCode().replace(0, file.getCode().length(), content);
+		file.getCode().replace(0, file.getCode().length(), text);
 		this.buttonExit.setNotEdited();
-		if (lspSupport != null) {
-			lspSupport.documentSaved();
-		}
+		languageSupport.documentSaved();
 		isEdit = false;
 		document.setModified(false);
 	}
@@ -354,67 +409,64 @@ public class EditorTab extends JPanel {
 			return;
 		}
 		closed = true;
-		if (lspSupport != null) {
-			lspSupport.close();
-		}
-		unregisterLocalLanguageSupport();
+		content.close();
+		languageSupport.close();
 		if (documentNode != null) {
 			documentNode.close();
-			editor.getDocument().removeDocumentListener(documentNode);
+			content.getEditor().getDocument().removeDocumentListener(documentNode);
 		}
 		document.setOpened(false);
 	}
 
-	private void enableKeywordCompletion() {
-		CompletionProvider provider = LocalCompletionProviders.forSyntaxStyle(editor.getSyntaxEditingStyle());
-		if (provider == null) {
-			return;
-		}
-		AutoCompletion autoCompletion = new AutoCompletion(provider);
-		autoCompletion.setAutoActivationEnabled(true);
-		autoCompletion.setAutoActivationDelay(300);
-		autoCompletion.install(editor);
-		localAutoCompletion = autoCompletion;
-		localCompletionProvider = provider;
+	void initializeEditor() {
+		configIsEdit();
+		content.applyEditorOptions();
+		content.getEditor().attachGutter(content.getScrollPane().getGutter());
+		content.installBreakpointMouseListener();
 	}
 
-	private void unregisterLocalLanguageSupport() {
-		if (localAutoCompletion != null) {
-			localAutoCompletion.uninstall();
-			localAutoCompletion = null;
-			localCompletionProvider = null;
+	void onBinaryChanged() {
+		if (closed) {
+			return;
 		}
-		if (localLanguageSupportRegistered) {
-			try {
-				LanguageSupportFactory.get().unregister(editor);
-			}
-			catch (RuntimeException error) {
-				LOGGER.warn("Unable to unregister local language support for {}.", file.getPath(), error);
-			}
-			localLanguageSupportRegistered = false;
+		isEdit = content.getHexEditor().isModified();
+		document.setModified(isEdit);
+		if (isEdit) {
+			buttonExit.setEdited();
+		}
+		else {
+			buttonExit.setNotEdited();
 		}
 	}
 
 	private void configIsEdit() {
 		documentNode = new DocumentNode(this::onDocumentChanged);
-		editor.getDocument().addDocumentListener(documentNode);
-		scrollPane.setLineNumbersEnabled(true);
+		content.getEditor().getDocument().addDocumentListener(documentNode);
+		content.getScrollPane().setLineNumbersEnabled(true);
 	}
 
 	private void onDocumentChanged() {
 		if (closed) {
 			return;
 		}
-		this.isEdit = true;
-		document.setModified(true);
-		document.incrementVersion();
-		this.buttonExit.setEdited();
-		if (lspSupport != null) {
-			lspSupport.documentChanged();
+		Editor editor = content.getEditor();
+		if (java.util.Objects.equals(file.getCode().toString(), editor.getText())) {
+			this.isEdit = false;
+			document.setModified(false);
+			this.buttonExit.setNotEdited();
 		}
+		else {
+			this.isEdit = true;
+			document.setModified(true);
+			this.buttonExit.setEdited();
+		}
+		document.incrementVersion();
+		languageSupport.documentChanged();
+		languageSupport.notifyDiagnostics();
 	}
 
-	private int toOffset(Position position) throws BadLocationException {
+	int toOffset(Position position) throws BadLocationException {
+		Editor editor = content.getEditor();
 		if (position.getLine() < 0 || position.getLine() >= editor.getLineCount() || position.getCharacter() < 0) {
 			throw new BadLocationException("LSP position is outside the document.", -1);
 		}

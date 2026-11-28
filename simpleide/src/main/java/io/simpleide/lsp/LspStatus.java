@@ -12,10 +12,10 @@ package io.simpleide.lsp;
  * @param id identifier of the server instance, usually language id and workspace root
  * @param serverName human-readable name of the language server
  * @param state current phase of the installation or startup sequence
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public record LspStatus(String id, String serverName, State state) {
 

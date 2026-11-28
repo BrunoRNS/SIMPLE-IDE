@@ -5,8 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import io.simpleide.thread.nodes.NodePattern;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Tests {@link io.simpleide.thread.tree.TreeNode}.

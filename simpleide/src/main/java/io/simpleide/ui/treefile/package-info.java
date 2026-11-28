@@ -12,8 +12,6 @@
  * entries, {@link io.simpleide.ui.treefile.TreeState} tracks the selection, and
  * {@link io.simpleide.ui.treefile.Watcher} keeps the tree synchronized with disk changes.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/file-tree.md">docs/api/ui/file-tree.md</a>
  */

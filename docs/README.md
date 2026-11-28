@@ -1,36 +1,46 @@
 # Simple IDE documentation
 
 This is the entry point for all project documentation. The documentation is
-split by audience instead of being kept in one large file.
+split by audience instead of being kept in one large file. Changes under
+`docs/` are synced to the GitHub Wiki by CI.
 
 ## Shortcuts
 
+## v1.1.0 feature guides
+
+- [Run I/O tab, Execute menu and DAP](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Io-tab)
+- [Git Source Control side panel](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Git-sidepanel)
+- [Audio and video viewers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Features-Mediaviewer)
+
+
 | I need to... | Read |
 | --- | --- |
-| Build, test or package the IDE | [Build and packaging](build/MAKEFILE.md) |
-| Understand the release process and artifact names | [Releases](build/RELEASES.md) |
-| Contribute a change | [Contributing](development/CONTRIBUTING.md) |
-| Follow the branch model | [Branch model](development/BRANCHING.md) |
-| Format code | [Code style](development/CODE_STYLE.md) |
-| Understand the tests | [Testing](development/TESTING.md) |
-| Embed the editor or another component | [API reference](api/README.md) |
-| Use only RSyntaxTextArea | [Standalone editor](api/rsyntax.md) |
-| Use only the thread system | [Threading API](api/threading.md) |
-| Use only the language runner | [Languages API](api/languages.md) |
-| Use only the LSP client | [LSP API](api/lsp.md) |
-| Use the terminal | [Terminal API](api/terminal.md) |
-| Use the file tree, menus, popups or log console | [UI component guides](api/ui/application.md) |
-| Use the standalone bytecode compiler | [Compiler guide](api/compiler/README.md) |
-| Reuse file, resource and map helpers | [Shared utilities](api/util/utilities.md) |
-| See the IDE in pictures | [Screenshots](screenshots/README.md) |
-| Add or understand a language | [Languages reference](reference/LANGUAGES.md) |
-| Understand language servers | [LSP reference](reference/LSP.md) |
-| Understand thread management | [Thread reference](reference/THREADMASTER.md) |
-| Check whether a Linux distribution is supported | [Linux compatibility](reference/LINUX.md) |
-| Check whether a Windows version is supported | [Windows compatibility](reference/WINDOWS.md) |
-| Check whether a macOS version is supported | [macOS compatibility](reference/MACOS.md) |
-| Know what is bundled or downloaded | [Third-party overview](third-party/README.md) |
-| Read the license inventory | [Third-party licenses](third-party/LICENSES.md) |
+| Build, test or package the IDE | [Build and packaging](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Makefile) |
+| Understand the release process and artifact names | [Releases](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Releases) |
+| Contribute a change | [Contributing](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Contributing) |
+| Follow the branch model | [Branch model](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Branching) |
+| Format code | [Code style](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Code-Style) |
+| Understand the tests | [Testing](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Testing) |
+| Embed the editor or another component | [API reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API) |
+| Use only RSyntaxTextArea | [Standalone editor](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-RSyntax) |
+| Use only the thread system | [Threading API](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Threading) |
+| Use only the language runner | [Languages API](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Languages) |
+| Use only the LSP client | [LSP API](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-LSP) |
+| Use the terminal | [Terminal API](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Terminal) |
+| Use the file tree, menus, popups or log console | [UI component guides](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI-Application) |
+| Use the standalone bytecode compiler | [Compiler guide](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Compiler) |
+| Reuse file, resource and map helpers | [Shared utilities](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-Utilities) |
+| See the IDE in pictures | [Screenshots](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Screenshots) |
+| Add or understand a language | [Languages reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Languages) |
+| Understand language servers | [LSP reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-LSP) |
+| Understand thread management | [Thread reference](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-ThreadMaster) |
+| Choose or force a JavaFX media variant | [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media) |
+| Check whether a Linux distribution is supported | [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux) |
+| Check whether a Windows version is supported | [Windows compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Windows) |
+| Check whether a macOS version is supported | [macOS compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-macOS) |
+| Download the best release package with a script | [Script installation](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Install) |
+| Know what is bundled or downloaded | [Third-party overview](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party) |
+| Read the license inventory | [Third-party licenses](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Licenses) |
 
 ## Documentation map
 
@@ -60,6 +70,10 @@ docs/
 │   │   └── README.md             Java, Kotlin and Groovy execution
 │   └── util/
 │       └── utilities.md          Files, resources, PATH lookup, map conversion
+├── features/                     v1.1.0 end-user feature guides
+│   ├── io-tab.md                  Run I/O, Execute menu and DAP
+│   ├── git-sidepanel.md           Git Source Control side panel
+│   └── mediaviewer.md             Audio and video viewers
 ├── build/                        Build, package and release documentation
 │   ├── MAKEFILE.md               Make targets and CI usage
 │   └── RELEASES.md               Release automation and artifact names
@@ -70,6 +84,8 @@ docs/
 │   └── TESTING.md                Test layout and tags
 ├── reference/                    Subsystem references
 │   ├── LANGUAGES.md              Language support reference
+│   ├── INSTALL.md                Download scripts, validation and variant selection
+│   ├── JAVAFX-MEDIA.md           Optional media variants and Maven consumer contract
 │   ├── LINUX.md                  Linux distributions, glibc and architecture support
 │   ├── LSP.md                    Language Server Protocol reference
 │   ├── MACOS.md                  macOS versions and JDK-dependent minimums
@@ -83,6 +99,27 @@ docs/
 │   └── LICENSES.md               Complete license inventory
 └── screenshots/                  UI screenshots with descriptions
 ```
+
+## GitHub Wiki publishing
+
+The Markdown files in this directory are the source for the repository Wiki.
+`../scripts/export_wiki.py` flattens these nested source files into `docs/wiki/`
+using stable page names and converts internal Markdown links to Wiki links. The
+flat export is required by the `victor-public/wiki-automation` Marketplace
+action, which copies the contents of its configured folder into the Wiki.
+
+The GitHub Actions workflow runs only when documentation changes are pushed to
+`main`. It generates the export and syncs `docs/wiki/` to the Wiki. `_Sidebar.md`
+and `_Footer.md` in that export configure Wiki navigation and its footer. Enable
+the repository Wiki and create its first page once so the Wiki Git repository
+exists. Allow the workflow's `GITHUB_TOKEN` to write repository contents; the
+action needs access to the Wiki Git repository to publish pages.
+Images remain in `docs/screenshots/` and are linked from Wiki pages using
+repository-hosted URLs.
+
+Edit the organized source files above, not the generated files in `docs/wiki/`;
+the workflow regenerates the export before publishing. The root README links
+directly to Wiki pages.
 
 ## Documentation conventions
 

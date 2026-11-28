@@ -1,6 +1,7 @@
 package io.simpleide.frame.layout;
 
 import java.awt.FlowLayout;
+
 import javax.swing.JComponent;
 
 /**
@@ -10,10 +11,10 @@ import javax.swing.JComponent;
  * Each helper changes the current alignment before adding the component, so components
  * added later continue to use the last selected alignment.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public class SimpleLayout extends FlowLayout {
 

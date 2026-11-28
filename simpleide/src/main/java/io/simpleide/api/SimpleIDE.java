@@ -15,11 +15,11 @@ import io.simpleide.thread.ThreadMaster;
  * <p>
  * Covered by {@code SimpleIDETest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/getting-started.md">
  * docs/api/getting-started.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class SimpleIDE {
 

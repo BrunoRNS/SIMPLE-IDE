@@ -1,13 +1,15 @@
 package io.simpleide.ui.terminal;
 
+import java.awt.Font;
+import java.util.Objects;
+
+import javax.swing.UIManager;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.jediterm.core.Color;
 import com.jediterm.terminal.TerminalColor;
 import com.jediterm.terminal.TextStyle;
-import java.awt.Font;
-import java.util.Objects;
-import javax.swing.UIManager;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -42,6 +44,16 @@ class TerminalSettingsProviderTest {
 			restoreUiValue("TextArea.foreground", originalForeground);
 			restoreUiValue("TextArea.background", originalBackground);
 		}
+	}
+
+	@Test
+	void keepsOptionAsAComposeKeyOnMacOs() {
+		TerminalSettingsProvider macOS = new TerminalSettingsProvider("Mac OS X");
+		assertEquals(false, macOS.altSendsEscape(),
+				"Option must compose dead keys on macOS instead of sending an escape prefix");
+
+		assertEquals(true, new TerminalSettingsProvider("Linux").altSendsEscape());
+		assertEquals(true, new TerminalSettingsProvider("Windows 11").altSendsEscape());
 	}
 
 	private static int resolveColor(TerminalColor terminalColor) {

@@ -23,7 +23,5 @@
  * required compiler commands are present on the PATH, so registering it is safe on
  * systems without the toolchain.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language.compiler;

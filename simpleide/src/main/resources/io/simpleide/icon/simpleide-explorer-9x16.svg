@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="90" height="160" viewBox="0 0 90 160" fill="none" role="img" aria-labelledby="title">
+  <title id="title">Workspace Explorer</title>
+  <g transform="translate(0 37)" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 25a9 9 0 0 1 9-9h19l11 11h25a9 9 0 0 1 9 9v34a11 11 0 0 1-11 11H20A11 11 0 0 1 9 70V25Z"/>
+    <path d="M29 45h32M29 61h22"/>
+  </g>
+</svg>

@@ -12,10 +12,10 @@ import java.lang.annotation.Target;
  * The marker is read at runtime by tooling that works with {@link MappeableSupport}. It
  * has no effect on its own.
  *
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/util/utilities.md">docs/api/util/utilities.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)

@@ -1,12 +1,13 @@
 package io.simpleide.api;
 
+import java.util.Objects;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+
 import io.simpleide.thread.ManagedThreadPool;
 import io.simpleide.thread.ThreadMaster;
 import io.simpleide.thread.nodes.NodePattern;
 import io.simpleide.thread.nodes.runnable.RunnableNode;
-import java.util.Objects;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Small facade over {@link ThreadMaster}.
@@ -19,10 +20,10 @@ import java.util.concurrent.TimeUnit;
  * <p>
  * Covered by {@code ThreadsTest}.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/threading.md">docs/api/threading.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public final class Threads {
 

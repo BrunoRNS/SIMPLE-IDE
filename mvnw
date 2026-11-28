@@ -18,6 +18,7 @@
 # under the License.
 # ----------------------------------------------------------------------------
 
+maven_wrapper_main() {
 # ----------------------------------------------------------------------------
 # Apache Maven Wrapper startup batch script, version 3.3.4
 #
@@ -193,10 +194,10 @@ esac
 
 if [ -z "${MVNW_USERNAME-}" ] && command -v wget >/dev/null; then
   verbose "Found wget ... using wget"
-  wget ${__MVNW_QUIET_WGET:+"$__MVNW_QUIET_WGET"} "$distributionUrl" -O "$TMP_DOWNLOAD_DIR/$distributionUrlName" || die "wget: Failed to fetch $distributionUrl"
+  wget ${__MVNW_QUIET_WGET:+"$__MVNW_QUIET_WGET"} --tries=6 --waitretry=2 "$distributionUrl" -O "$TMP_DOWNLOAD_DIR/$distributionUrlName" || die "wget: Failed to fetch $distributionUrl"
 elif [ -z "${MVNW_USERNAME-}" ] && command -v curl >/dev/null; then
   verbose "Found curl ... using curl"
-  curl ${__MVNW_QUIET_CURL:+"$__MVNW_QUIET_CURL"} -f -L -o "$TMP_DOWNLOAD_DIR/$distributionUrlName" "$distributionUrl" || die "curl: Failed to fetch $distributionUrl"
+  curl ${__MVNW_QUIET_CURL:+"$__MVNW_QUIET_CURL"} --retry 5 --retry-delay 2 --retry-connrefused -f -L -o "$TMP_DOWNLOAD_DIR/$distributionUrlName" "$distributionUrl" || die "curl: Failed to fetch $distributionUrl"
 elif set_java_home; then
   verbose "Falling back to use Java to download"
   javaSource="$TMP_DOWNLOAD_DIR/Downloader.java"
@@ -293,3 +294,70 @@ mv -- "$TMP_DOWNLOAD_DIR/$actualDistributionDir" "$MAVEN_HOME" || [ -d "$MAVEN_H
 
 clean || :
 exec_maven "$@"
+}
+
+is_linux_32bit() {
+  [ "$(uname -s)" = Linux ] || return 1
+  if command -v getconf >/dev/null 2>&1; then
+    [ "$(getconf LONG_BIT 2>/dev/null)" = 32 ]
+    return
+  fi
+  case "$(uname -m)" in
+  i?86 | armv[5-7]* | mips | ppc) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+run_apache_maven_fallback() {
+  fallback_version=3.9.16
+  fallback_home="${HOME}/.m2/fallback/apache-maven-${fallback_version}"
+  fallback_url="https://dlcdn.apache.org/maven/maven-3/${fallback_version}/binaries/apache-maven-${fallback_version}-bin.tar.gz"
+
+  if [ ! -x "$fallback_home/bin/mvn" ]; then
+    if ! command -v wget >/dev/null 2>&1; then
+      echo "mvnw failed; Linux 32-bit fallback requires wget." >&2
+      return 1
+    fi
+    if ! command -v tar >/dev/null 2>&1; then
+      echo "mvnw failed; Linux 32-bit fallback requires tar." >&2
+      return 1
+    fi
+    fallback_tmp="$(mktemp -d)" || return 1
+    echo "mvnw failed on 32-bit Linux; downloading Apache Maven ${fallback_version}." >&2
+    if ! wget --tries=6 --waitretry=2 "$fallback_url" -O "$fallback_tmp/apache-maven.tar.gz"; then
+      rm -rf -- "$fallback_tmp"
+      echo "Unable to download Apache Maven from $fallback_url." >&2
+      return 1
+    fi
+    if ! tar -xzf "$fallback_tmp/apache-maven.tar.gz" -C "$fallback_tmp"; then
+      rm -rf -- "$fallback_tmp"
+      echo "Unable to extract the Apache Maven ${fallback_version} archive." >&2
+      return 1
+    fi
+    mkdir -p "${HOME}/.m2/fallback" || {
+      rm -rf -- "$fallback_tmp"
+      return 1
+    }
+    mv "$fallback_tmp/apache-maven-${fallback_version}" "$fallback_home" || {
+      rm -rf -- "$fallback_tmp"
+      return 1
+    }
+    rm -rf -- "$fallback_tmp"
+  fi
+
+  PATH="$fallback_home/bin:$PATH"
+  export PATH
+  echo "Retrying with Apache Maven ${fallback_version} from $fallback_home/bin/mvn." >&2
+  mvn "$@"
+}
+
+if (maven_wrapper_main "$@"); then
+  exit 0
+else
+  wrapper_status=$?
+  if is_linux_32bit; then
+    run_apache_maven_fallback "$@"
+    exit $?
+  fi
+  exit "$wrapper_status"
+fi

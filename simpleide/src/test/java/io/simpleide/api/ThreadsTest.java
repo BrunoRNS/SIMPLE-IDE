@@ -1,13 +1,15 @@
 package io.simpleide.api;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
-import io.simpleide.thread.nodes.NodePattern;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
+
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Tests {@link io.simpleide.api.Threads}.

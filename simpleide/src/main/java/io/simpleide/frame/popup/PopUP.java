@@ -1,12 +1,14 @@
 package io.simpleide.frame.popup;
 
-import io.simpleide.thread.ThreadMaster;
-import io.simpleide.thread.nodes.NodePattern;
 import java.util.Map;
+
 import javax.swing.Icon;
 import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JOptionPane;
+
+import io.simpleide.thread.ThreadMaster;
+import io.simpleide.thread.nodes.NodePattern;
 
 /**
  * Base class for managed modal dialogs.
@@ -16,10 +18,10 @@ import javax.swing.JOptionPane;
  * through {@link #startManaged()}, which registers the dialog with the shared thread
  * manager and returns a node. Only one instance of a popup may be visible at a time.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/popups.md">docs/api/ui/popups.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public abstract class PopUP implements Runnable {
 

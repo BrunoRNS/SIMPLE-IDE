@@ -1,71 +1,75 @@
-# Simple IDE screenshots — version 1.0.0beta
+# Simple IDE screenshots
 
-All screenshots below were captured at approximately Full HD resolution
-(1920 × 1080 class) on the 1.0.0beta build. File names describe the theme,
-state and panel shown. Use them when writing articles, reviews or issues.
+Screenshots are grouped in one directory per release (`<version>/`) so each
+release keeps its own visual record. File names follow
+`simpleide-<panel>-theme<theme>[-<detail>]-v<version>.png`: the panel, the theme
+and the version are enough to identify the image without opening it.
 
-## Startup — home page, default dark theme
+## Current version — 1.1.0
 
-![Home page, default dark theme](simpleide-homepage-default-dark-v1.0.0beta.png)
+Captured at approximately Full HD resolution (1920 × 1080 class) on the 1.1.0
+build.
 
-What it shows: the first screen after launching the IDE with no file open —
-project tree, editor area, status bar and the embedded terminal ready.
+### Editor, dark theme, Java completion
 
-## Editor with an open file, dark theme
+![Editor with Java member completion in the dark theme](1.1.0/simpleide-editor-themedark-v1.1.0.png)
 
-![Editor with an opened file, dark theme](simpleide-nolangfileopenededitor-dark-v1.0.0beta.png)
+What it shows: a Java file open in the editor with the dark theme, the language
+server running (status bar) and the member completion popup above the caret.
 
-What it shows: a source file opened in the RSyntaxTextArea editor with
-line numbers, syntax highlighting and the search panel, without any language
-server connected (local highlighting only).
+### Settings, dark theme
 
-## Autocomplete, light theme, Java
+![Settings panel in the dark theme](1.1.0/simpleide-config-themedark-v1.1.0.png)
 
-![Autocomplete in the light theme with Java](simpleide-lighttheme-autocomplete-javalang-v1.0.0beta.png)
+What it shows: the Settings page with appearance (theme, interface and editor
+fonts, sizes), editor options (tab size, word wrap, line numbers, whitespace)
+and the keyboard shortcut list.
 
-What it shows: local Java completion in action while typing in the light
-theme.
+### Source Control, Dracula theme
 
-## Theme selector, light theme
+![Source Control panel with the commit graph in the Dracula theme](1.1.0/simpleide-git-themedracula-v1.1.0.png)
 
-![Theme selector open over the light theme](simpleide-themeselector-lighttheme-file-nolangeditor-v1.0.0beta.png)
+What it shows: the Git panel with branch switching, pull/fetch/push/stage
+actions, commit message box and the commit graph with merge entries.
 
-What it shows: the theme menu open with a file loaded, before switching
-themes.
+### Debug console, light theme, Python
 
-## Brown theme
+![Debug console with a Python debug session in the light theme](1.1.0/simpleide-debug-themedraculalight-v1.1.0.png)
 
-![Brown theme with a file open](simpleide-browntheme-file-nolang-editor-v1.0.0beta.png)
+What it shows: a Python file paused in a debug session, with the Output, Debug
+Console, Terminal and I/O tabs and the input/output panes below them.
 
-What it shows: one of the FlatLaf-based themes with a file open and no
-language server.
+### Search, Brown theme
 
-## Dracula theme, debug console
+![Search panel in the Brown theme](1.1.0/simpleide-search-themebrown-v1.1.0.png)
 
-![Dracula theme with the debug console and a file open](simpleide-draculatheme-debugconsole-filenolang-editor-v1.0.0beta.png)
+What it shows: the workspace search panel with match case / regex / open
+editors only / use .gitignore options, include and exclude filters, and the
+match list grouped by file.
 
-What it shows: the Dracula theme with the debug/log console visible while a
-file is open.
+### Terminal, Brown light theme
 
-## Dracula theme, terminal
+![Terminal in use in the Brown light theme](1.1.0/simpleide-terminal-themebrownlight-v1.1.0.png)
 
-![Dracula theme with the terminal in use](simpleide-draculatheme-terminal-v1.0.0beta.png)
+What it shows: the embedded terminal with an active shell session over the
+light Brown theme, together with the search results panel.
 
-What it shows: the embedded BusyBox terminal with an active session under the
-Dracula theme.
+## Previous version — 1.0.0beta
 
-## Help → About, dark theme, Java language
+The 1.0.0beta screenshots are kept in [`1.0.0/`](1.0.0/), and the documented
+tour of that release — startup, open editor, autocomplete, theme selector,
+Brown and Dracula themes, terminal and Help → About — is on its own page:
 
-![Help About dialog in the dark theme with Java open](simpleide-help-about-dark-openededitor-javalang-dark-terminal-v1.0.0beta.png)
+- [1.0.0beta screenshots](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Screenshots-1.0.0)
 
-What it shows: the About dialog over a Java file and a running terminal, with
-the dark theme applied.
+## Adding new screenshots
 
-## Notes
-
-- These images are the visual record of the 1.0.0beta interface. When the UI
-  changes significantly, capture new screenshots and add them next to these
-  files, keeping the naming convention
-  `simpleide-<theme>-<state>-v<version>.png`.
-- Keep the resolution near Full HD so the images are readable both in the
-  repository and in the README.
+- Capture the image at approximately Full HD (1920 × 1080 class) so it stays
+  readable in the repository and in the README.
+- Put it in the directory of the release it documents and name it
+  `simpleide-<panel>-theme<theme>[-<detail>]-v<version>.png`.
+- Add a short section here describing which panel and theme it shows, with a
+  relative image link.
+- When the release changes, keep the old directory untouched and create a new
+  one; the README section of the previous version should point to its own page
+  or directory instead of repeating every image.

@@ -8,14 +8,22 @@ target names and keeps the fat JAR and package paths in one place.
 - JDK 17 or newer. CI covers 17, 21, 25 and 27.
 - On Linux, GNU glibc 2.28 or newer (Debian 10+, Ubuntu 18.10+, Fedora 29+,
   RHEL 8+). Alpine and other musl-based distributions cannot run the bundled
-  JDK and native libraries. See [Linux compatibility](../reference/LINUX.md).
+  JDK and native libraries. See [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).
 - GNU Make on Linux and macOS. On Windows, use Git Bash, MSYS2 or the
   `mvnw.cmd` commands directly.
 - `jpackage` from the JDK for `make pkg`.
 - `zip` on Linux and macOS for the portable app image. PowerShell's
   `Compress-Archive` is used on Windows.
 - External language toolchains for the full test suite. See
-  [Runtime tools](../third-party/RUNTIME.md).
+  [Runtime tools](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Third-Party-Runtime).
+- Optional audio/video support on Linux: GTK 3, ALSA and FFmpeg. `make` selects
+  JavaFX 22 on JDK 17–20 and JavaFX 23 on JDK 21+ on supported platforms.
+  Automatic Linux `arm64` builds stay `nojavafx` for the glibc 2.28 baseline;
+  forced JavaFX variants there need glibc 2.34+ (Debian 12+). Linux `x86`,
+  Windows `x86` and Windows `arm64` always build `nojavafx`. See
+  [JavaFX media variants](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-JavaFX-Media)
+  and
+  [Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux#audio-and-video-playback).
 
 Check the environment:
 
@@ -33,15 +41,16 @@ make help
 | `make build` | Compile all modules, no tests, no packages | `target/classes` |
 | `make test` | Full test suite | Surefire reports |
 | `make test-nolang` | Tests without the `language-tools` tag | Surefire reports |
+| `make test-consumer` | Install the reactor and validate the Maven consumer media variants (`auto`, `nojavafx`, `javafx22`, `javafx23`) | Exit status |
 | `make jar` | Package the executable fat JAR, skip tests | `simpleide/target/simpleide.jar` |
-| `make pkg` | `jar` plus every package type for the current OS/arch (Linux: zip + deb + rpm; macOS: dmg; Windows: zip, plus msi on x64 only) | `simpleide/target/pkg/` |
+| `make pkg` | `jar` plus every package type for the current OS/arch (Linux: zip + deb + rpm; macOS: dmg; Windows: zip, plus msi on x64 only). Artifacts carry the `javafx22`, `javafx23` or `nojavafx` variant suffix | `simpleide/target/pkg/` |
 | `make pkg-verify` | `pkg` plus validation of every produced package | Exit status |
 | `make change-version VERSAO` | Validate and change the project version after confirmation | Updated pom and properties files |
 | `make run` | `jar` then launch the fat JAR | A running IDE |
 | `make format` | Apply Spring Java Format | Formatted Java files |
 | `make check-format` | Verify formatting | Exit status |
 | `make format-check` | Alias for `check-format` | Exit status |
-| `make verify` | `check-format`, `test`, `jar` | Validated JAR |
+| `make verify` | `check-format`, `test`, `test-consumer`, `jar` | Validated JAR |
 | `make clean` | Maven clean and remove package output | Clean tree |
 | `make help` | Print targets, version and paths | Text |
 
@@ -55,7 +64,21 @@ make help
 | `APP_JAR` | `simpleide/target/simpleide.jar` | Fat JAR path |
 | `PKG_DIR` | `simpleide/target/pkg` | Package output |
 | `VERSION` | Read from `simpleide.properties` | Release version |
+| `MEDIA_VARIANT` | Output of `scripts/javafx-version.sh` | `nojavafx`, `javafx22` or `javafx23`, forwarded to Maven as `-Dsimpleide.media.variant` |
 | `JAVA_OPTS` | `-Dfile.encoding=UTF-8 --enable-native-access=ALL-UNNAMED` | Runtime options for `make run` |
+
+Media variant environment variables read by `scripts/javafx-version.sh`:
+
+| Variable | Values | Meaning |
+| --- | --- | --- |
+| `SIMPLEIDE_MEDIA_VARIANT` | `auto`, `nojavafx`, `javafx22`, `javafx23` | Override the automatic variant |
+| `SIMPLEIDE_JAVAFX_DISABLE` | `1` | Legacy alias for `nojavafx` |
+| `SIMPLEIDE_JAVAFX_VERSION` | `22.*`, `23.*`, `none` | Legacy version override mapped to the variant |
+
+On 32-bit Linux, if the wrapper exits with an error, `mvnw` automatically
+downloads Apache Maven 3.9.16 with `wget`, extracts it into the user's Maven
+cache, prepends its `bin` directory to `PATH`, and retries the same command.
+This fallback is not used on other platforms.
 
 Packaging environment variables:
 
@@ -79,6 +102,19 @@ Run tests without external toolchains:
 make test-nolang
 ```
 
+Validate the consumer media variants:
+
+```sh
+make test-consumer
+```
+
+Build with a forced media variant:
+
+```sh
+SIMPLEIDE_MEDIA_VARIANT=javafx23 make jar
+SIMPLEIDE_MEDIA_VARIANT=nojavafx make pkg
+```
+
 Build the executable JAR and run it:
 
 ```sh
@@ -99,7 +135,10 @@ bytecode compiler and the Java language server then work without an external
 JDK. The `.msi` installer is only built on `windows-x64`; `windows-x86` and
 `windows-arm64` produce the static zip only. Windows x86 builds still pass
 `-J-Dos.arch=x86` so jpackage derives its metadata from the 32-bit runtime
-rather than the host `os.arch`.
+rather than the host `os.arch`. The package scripts pass the native app icon to
+`jpackage` for every build: a 256-pixel PNG for Linux, a multi-size ICO for
+Windows and an ICNS image for macOS. The native files are proportionally resized
+from the bundled `simpleide_icon.png`.
 
 Build only one package type:
 
@@ -136,6 +175,7 @@ The Make targets map directly:
 | `make build` | `./mvnw -B -DskipTests compile` |
 | `make test` | `./mvnw -B test` |
 | `make test-nolang` | `./mvnw -B -DexcludedGroups=language-tools test` |
+| `make test-consumer` | `./mvnw -B -DskipTests install` then `python3 scripts/ci/test-consumer-profiles.py --skip-install` |
 | `make jar` | `./mvnw -B -DskipTests package` |
 | `make format` | `./mvnw -B spring-javaformat:apply` |
 | `make check-format` | `./mvnw -B spring-javaformat:validate` |
@@ -173,7 +213,7 @@ make format
 `make format-check` is kept as an alias. The formatter uses the Java 17 baseline
 declared in `.springjavaformatconfig`, tab indentation and a 120-column line
 limit. Do not disable the check. See
-[Code style](../development/CODE_STYLE.md).
+[Code style](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Development-Code-Style).
 
 ## Native access
 
@@ -216,9 +256,13 @@ language server caches under `~/.cache/simpleide`.
 
 ## Continuous integration
 
-CI workflows run `make test` and, on JDK 17, `make pkg-verify` with the expected
-OS and architecture. See [Releases](RELEASES.md) and the workflow files under
-`.github/workflows/`.
+CI workflows run `make test` and, on selected JDKs, `make pkg-verify` with the
+expected OS and architecture. Representative JDK 17 and JDK 25 entries also run
+`make test-consumer`, which validates the automatic and forced media variants on
+every supported OS/architecture. A failing job prints the Surefire failures and
+GitHub annotations through `scripts/ci/report-surefire.py`. See
+[Releases](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Build-Releases) and the
+workflow files under `.github/workflows/`.
 
 The Linux workflows check out the repository on the runner and run the build
 inside an explicit Debian 10 container, so the oldest supported glibc is tested
@@ -238,4 +282,4 @@ default seccomp profile on newer runner images blocks `socketcall(2)`; Debian's
 i386 glibc still uses that syscall to create sockets, so without the override
 the container has no network and apt fails to reach `archive.debian.org`. The
 64-bit and ARM64 containers use the default profile and `--network host`. See
-[Linux compatibility](../reference/LINUX.md).
+[Linux compatibility](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/Reference-Linux).

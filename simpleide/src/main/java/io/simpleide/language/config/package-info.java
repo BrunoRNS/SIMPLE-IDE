@@ -17,7 +17,5 @@
  * IDE/blob/main/docs/reference/LANGUAGES.md">docs/reference/LANGUAGES.md</a>
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/languages.md">docs/api/languages.md</a>
- * @author BrunoRNS
- * @since v1.0.0beta
  */
 package io.simpleide.language.config;

@@ -55,17 +55,26 @@ jobs:
           command -v python3
           test "$(go env GOOS)" = darwin
           test "$(go env GOARCH)" = amd64
-          rustc -vV | grep -Eq '^host: x86_64-apple-darwin$'
+          rustc -vV | grep -E '^host: x86_64-apple-darwin$' >/dev/null
           test "$(node -p 'process.arch')" = x64
           python3 -c 'import platform; assert platform.machine().lower() in ("x86_64", "amd64")'
-          file -L "$(command -v mono)" | grep -Eq 'Mach-O 64-bit.*(x86_64|x86_64h)'
+          file -L "$(command -v mono)" | grep -E 'Mach-O 64-bit.*(x86_64|x86_64h)' >/dev/null
 
       - name: Run tests
         run: make test
 
+      - name: Validate Maven consumer media variants
+        if: matrix.java == '17' || matrix.java == '25'
+        run: make test-consumer
+
       - name: Validate fat JAR and generated packages
-        if: matrix.java == '17'
+        if: matrix.java == '17' || matrix.java == '21'
         env:
           SIMPLEIDE_PKG_OS: macos
           SIMPLEIDE_PKG_ARCH: x64
         run: make pkg-verify
+
+      - name: Report failed tests
+        if: failure()
+        shell: bash
+        run: python3 scripts/ci/report-surefire.py

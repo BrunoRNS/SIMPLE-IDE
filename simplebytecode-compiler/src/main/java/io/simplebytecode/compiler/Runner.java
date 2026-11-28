@@ -1,8 +1,9 @@
 package io.simplebytecode.compiler;
 
-import io.simplebytecode.compiler.utils.MatchExtension;
 import java.nio.file.Path;
 import java.util.Objects;
+
+import io.simplebytecode.compiler.utils.MatchExtension;
 
 /**
  * Dispatches a source file to the runner that supports its extension.

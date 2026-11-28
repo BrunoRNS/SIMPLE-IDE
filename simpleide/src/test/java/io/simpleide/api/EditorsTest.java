@@ -1,19 +1,22 @@
 package io.simpleide.api;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+import javax.swing.JScrollPane;
+import javax.swing.SwingUtilities;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIOException;
 import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
-import io.simpleide.ui.editor.Editor;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import javax.swing.JScrollPane;
-import javax.swing.SwingUtilities;
 import org.fife.ui.rsyntaxtextarea.SyntaxConstants;
 import org.fife.ui.rtextarea.RTextScrollPane;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+
+import io.simpleide.ui.editor.Editor;
 
 /**
  * Tests {@link io.simpleide.api.Editors}.

@@ -16,9 +16,6 @@
  * {@link io.simpleide.ui.editor.LspStatusBar} reports language server progress, and
  * {@link io.simpleide.ui.editor.EditorWelcomeScreen} is the empty-state page.
  *
- * @author BrunoRNS
- * @author LuisOtavio13
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/editor.md">docs/api/editor.md</a>
  * @see <a href=

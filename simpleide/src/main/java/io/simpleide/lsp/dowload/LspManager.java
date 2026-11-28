@@ -1,15 +1,6 @@
 package io.simpleide.lsp.dowload;
 
-import io.simpleide.language.config.LangPlatform;
-import io.simpleide.utils.JavaRuntime;
-import io.simpleide.lsp.LspStatus;
-import jakarta.json.Json;
-import jakarta.json.JsonArray;
-import jakarta.json.JsonObject;
-import jakarta.json.JsonReader;
-import jakarta.json.JsonString;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -22,11 +13,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import io.simpleide.language.config.LangPlatform;
+import io.simpleide.lsp.LspStatus;
+import io.simpleide.utils.JavaRuntime;
 
 /**
  * Reads the language server registry and resolves launch commands.
@@ -41,18 +36,20 @@ import org.slf4j.LoggerFactory;
  * <p>
  * Covered by {@code LspManagerTest}.
  *
- * @author luisotavio15
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/lsp.md">docs/api/lsp.md</a>
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/reference/LSP.md">docs/reference/LSP.md</a>
+ * @author LuisOtavio13
+ * @since v1.0.0beta
  */
 public class LspManager {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(LspManager.class);
 
-	private static final Pattern VERSION_PATTERN = Pattern.compile("(?<!\\d)(\\d+(?:\\.\\d+)*)(?!\\d)");
+	private static final String RUST_PROJECT_FILE = "rust-project.json";
+
+	private static final AtomicBoolean RUST_SOURCES_WARNING = new AtomicBoolean();
 
 	/**
 	 * Returns the launch command for a language without a workspace root or status
@@ -99,7 +96,7 @@ public class LspManager {
 		}
 
 		publishStatus(statusListener, statusId, server.getName(), LspStatus.State.CHECKING_VERSION);
-		String detectedVersion = checkMinimumVersion(server);
+		String detectedVersion = LspVersionChecker.checkMinimumVersion(server);
 		LspReleaseResolver.refresh(server);
 		if (LspInstaller.isInstalled(server)) {
 			return createCommand(server, workspaceRoot);
@@ -144,7 +141,8 @@ public class LspManager {
 			return new ArrayList<>();
 		}
 
-		LspServer fallback = selectFallbackServer(candidates, runVersionCommand(versionProbe), primary);
+		LspServer fallback = selectFallbackServer(candidates, LspVersionChecker.runVersionCommand(versionProbe),
+				primary);
 		if (fallback == null) {
 			return new ArrayList<>();
 		}
@@ -189,7 +187,7 @@ public class LspManager {
 			return candidates.get(0);
 		}
 
-		return selectClosestCompatibleServer(versionedCandidates, runVersionCommand(versionProbe));
+		return selectClosestCompatibleServer(versionedCandidates, LspVersionChecker.runVersionCommand(versionProbe));
 	}
 
 	static LspServer selectClosestCompatibleServer(List<LspServer> candidates, String detectedVersion) {
@@ -229,9 +227,108 @@ public class LspManager {
 					|| server.getVersionCommand() == null || server.getVersionCommand().isBlank()) {
 				continue;
 			}
-			return Optional.of(runVersionCommand(server));
+			return Optional.of(LspVersionChecker.runVersionCommand(server));
 		}
 		return Optional.empty();
+	}
+
+	/**
+	 * Returns the extra initialization options a language server needs.
+	 *
+	 * <p>
+	 * rust-analyzer only discovers Cargo projects, so a standalone {@code .rs} file
+	 * outside one initializes without offering completion. When the workspace has no
+	 * {@code Cargo.toml} or {@code rust-project.json}, the loose {@code .rs} files are
+	 * passed as {@code linkedProjects}; rust-analyzer treats each of them as a standalone
+	 * file and resolves the standard library from the toolchain.
+	 * @param language LSP language identifier
+	 * @param workspaceRoot workspace root passed to the server, may be {@code null}
+	 * @return initialization options, empty when the server needs none
+	 */
+	public static Map<String, Object> getInitializationOptions(String language, Path workspaceRoot) {
+		if (!"rust".equals(language) || workspaceRoot == null) {
+			return Map.of();
+		}
+		Path root = workspaceRoot.toAbsolutePath().normalize();
+		if (Files.exists(root.resolve("Cargo.toml")) || Files.isRegularFile(root.resolve(RUST_PROJECT_FILE))) {
+			return Map.of();
+		}
+
+		List<String> sources;
+		try (var paths = Files.list(root)) {
+			sources = paths.filter(Files::isRegularFile)
+				.filter(path -> path.getFileName().toString().endsWith(".rs"))
+				.map(path -> path.toAbsolutePath().normalize().toString())
+				.sorted()
+				.toList();
+		}
+		catch (IOException error) {
+			LOGGER.warn("Unable to list the standalone Rust files in {}.", root, error);
+			return Map.of();
+		}
+		if (sources.isEmpty()) {
+			return Map.of();
+		}
+		warnWhenRustSourcesAreMissing();
+		return Map.of("linkedProjects", sources);
+	}
+
+	private static void warnWhenRustSourcesAreMissing() {
+		if (!RUST_SOURCES_WARNING.compareAndSet(false, true)) {
+			return;
+		}
+		Path sysroot = rustcSysroot();
+		if (sysroot != null && Files
+			.isDirectory(sysroot.resolve("lib").resolve("rustlib").resolve("src").resolve("rust").resolve("library"))) {
+			return;
+		}
+		LOGGER.warn("The rust-src component is missing; Rust completions for standalone files will be limited. "
+				+ "Install it with 'rustup component add rust-src'.");
+	}
+
+	private static Path rustcSysroot() {
+		Path outputFile;
+		try {
+			outputFile = Files.createTempFile("simpleide-rustc-sysroot-", ".log");
+		}
+		catch (IOException error) {
+			return null;
+		}
+		Process process = null;
+		try {
+			process = new ProcessBuilder("rustc", "--print", "sysroot").redirectErrorStream(true)
+				.redirectOutput(outputFile.toFile())
+				.start();
+			if (!process.waitFor(10, TimeUnit.SECONDS) || process.exitValue() != 0) {
+				return null;
+			}
+			String output = Files.readString(outputFile, StandardCharsets.UTF_8).trim();
+			return output.isBlank() ? null : Paths.get(output);
+		}
+		catch (InterruptedException error) {
+			Thread.currentThread().interrupt();
+			return null;
+		}
+		catch (IOException error) {
+			return null;
+		}
+		finally {
+			if (process != null && process.isAlive()) {
+				process.destroyForcibly();
+			}
+			try {
+				Files.deleteIfExists(outputFile);
+			}
+			catch (IOException error) {
+				outputFile.toFile().deleteOnExit();
+			}
+		}
+	}
+
+	private static Path workspaceDataDirectory(Path workspaceRoot) {
+		String workspaceKey = workspaceRoot == null ? "default" : workspaceRoot.toAbsolutePath().normalize().toString();
+		return Paths.get(System.getProperty("user.home"), ".cache", "simpleide", "lsp",
+				UUID.nameUUIDFromBytes(workspaceKey.getBytes(StandardCharsets.UTF_8)).toString());
 	}
 
 	static List<String> createCommand(LspServer server, Path workspaceRoot) {
@@ -239,9 +336,11 @@ public class LspManager {
 			throw new IllegalStateException("No launch command configured for " + server.getName());
 		}
 		Path installDirectory = LspInstaller.getInstallDirectory(server);
-		String workspaceKey = workspaceRoot == null ? "default" : workspaceRoot.toAbsolutePath().normalize().toString();
-		Path workspaceData = Paths.get(System.getProperty("user.home"), ".cache", "simpleide", "lsp",
-				UUID.nameUUIDFromBytes(workspaceKey.getBytes(StandardCharsets.UTF_8)).toString());
+		String workspacePath = workspaceRoot == null ? "" : workspaceRoot.toAbsolutePath().normalize().toString();
+		Path workspaceData = workspaceDataDirectory(workspaceRoot);
+		if ("csharp".equals(server.getLanguageId())) {
+			CSharpWorkspaceProject.createIfNeeded(workspaceRoot);
+		}
 		String platformConfiguration = switch (LangPlatform.getCurrentPlatform().getOs()) {
 			case "windows" -> "config_win";
 			case "macos" -> "config_mac";
@@ -251,11 +350,11 @@ public class LspManager {
 
 		List<String> command = new ArrayList<>();
 		command.addAll(resolveArgument(resolveJavaCommand(server.getCommand()), installDirectory, workspaceData,
-				server.getVersion(), platformConfiguration));
+				workspacePath, server.getVersion(), platformConfiguration));
 		if (server.getArguments() != null) {
 			for (String argument : server.getArguments()) {
-				command.addAll(resolveArgument(argument, installDirectory, workspaceData, server.getVersion(),
-						platformConfiguration));
+				command.addAll(resolveArgument(argument, installDirectory, workspaceData, workspacePath,
+						server.getVersion(), platformConfiguration));
 			}
 		}
 		return command;
@@ -269,7 +368,7 @@ public class LspManager {
 	}
 
 	private static List<String> resolveArgument(String argument, Path installDirectory, Path workspaceData,
-			String version, String platformConfiguration) {
+			String workspacePath, String version, String platformConfiguration) {
 		if (argument.contains("${workspaceData}")) {
 			try {
 				Files.createDirectories(workspaceData);
@@ -280,6 +379,7 @@ public class LspManager {
 		}
 		String resolved = argument.replace("${installDir}", installDirectory.toAbsolutePath().toString())
 			.replace("${workspaceData}", workspaceData.toString())
+			.replace("${workspaceRoot}", workspacePath)
 			.replace("${version}", version)
 			.replace("${platformConfig}", platformConfiguration);
 		if (resolved.contains("${")) {
@@ -362,102 +462,8 @@ public class LspManager {
 		}
 	}
 
-	private static String checkMinimumVersion(LspServer server) {
-		String minimumVersion = server.getMinimumVersion();
-		String versionCommand = server.getVersionCommand();
-		if (minimumVersion == null || minimumVersion.isBlank() || versionCommand == null || versionCommand.isBlank()) {
-			return null;
-		}
-
-		String detectedVersion = runVersionCommand(server);
-		if (compareVersions(detectedVersion, minimumVersion) < 0) {
-			throw new IllegalStateException(server.getName() + " requires language version " + minimumVersion
-					+ " or newer; detected " + detectedVersion + ".");
-		}
-		return detectedVersion;
-	}
-
-	private static String runVersionCommand(LspServer server) {
-		List<String> command = new ArrayList<>();
-		command.add(resolveJavaCommand(server.getVersionCommand()));
-		if (server.getVersionArguments() != null) {
-			command.addAll(server.getVersionArguments());
-		}
-
-		Path outputFile;
-		try {
-			outputFile = Files.createTempFile("simpleide-lsp-version-", ".log");
-		}
-		catch (IOException e) {
-			throw new IllegalStateException("Unable to create output file for language version command: " + command, e);
-		}
-
-		Process process = null;
-		try {
-			process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(outputFile.toFile()).start();
-			if (!process.waitFor(10, TimeUnit.SECONDS)) {
-				throw new IllegalStateException("Language version command timed out: " + command);
-			}
-			String result = Files.readString(outputFile, StandardCharsets.UTF_8).trim();
-			if (process.exitValue() != 0) {
-				throw new IllegalStateException(
-						"Language version command failed with exit code " + process.exitValue() + ": " + result);
-			}
-			if (result.isBlank()) {
-				throw new IllegalStateException("Language version command returned no output: " + command);
-			}
-			return result;
-		}
-		catch (InterruptedException e) {
-			Thread.currentThread().interrupt();
-			throw new IllegalStateException("Interrupted while checking language version.", e);
-		}
-		catch (IOException e) {
-			throw new IllegalStateException("Unable to read language version command output.", e);
-		}
-		finally {
-			if (process != null && process.isAlive()) {
-				process.destroyForcibly();
-			}
-			try {
-				Files.deleteIfExists(outputFile);
-			}
-			catch (IOException error) {
-				outputFile.toFile().deleteOnExit();
-				LOGGER.warn("Unable to delete language version output file {}.", outputFile, error);
-			}
-		}
-	}
-
 	static int compareVersions(String actual, String minimum) {
-		int[] actualParts = extractVersion(actual);
-		int[] minimumParts = extractVersion(minimum);
-		for (int index = 0; index < Math.max(actualParts.length, minimumParts.length); index++) {
-			int actualPart = index < actualParts.length ? actualParts[index] : 0;
-			int minimumPart = index < minimumParts.length ? minimumParts[index] : 0;
-			if (actualPart != minimumPart) {
-				return Integer.compare(actualPart, minimumPart);
-			}
-		}
-		return 0;
-	}
-
-	private static int[] extractVersion(String value) {
-		Matcher matcher = VERSION_PATTERN.matcher(value);
-		if (!matcher.find()) {
-			throw new IllegalArgumentException("No numeric version found in: " + value);
-		}
-		String[] parts = matcher.group(1).split("\\.");
-		int[] version = new int[parts.length];
-		try {
-			for (int index = 0; index < parts.length; index++) {
-				version[index] = Integer.parseInt(parts[index]);
-			}
-		}
-		catch (NumberFormatException e) {
-			throw new IllegalArgumentException("Invalid version: " + value, e);
-		}
-		return version;
+		return LspVersionChecker.compareVersions(actual, minimum);
 	}
 
 	/**
@@ -466,76 +472,7 @@ public class LspManager {
 	 * @throws RuntimeException when the registry resource is missing or malformed
 	 */
 	public static LspRegistry getRegistry() {
-		try (InputStream inputStream = LspManager.class
-			.getResourceAsStream("/io/simpleide/lsp/dowload/registry.json")) {
-
-			if (inputStream == null) {
-				throw new IllegalStateException("registry.json not found!");
-			}
-
-			try (JsonReader reader = Json.createReader(inputStream)) {
-
-				JsonObject root = reader.readObject();
-				JsonArray servers = root.getJsonArray("servers");
-
-				List<LspServer> serverList = new ArrayList<>();
-
-				for (JsonObject server : servers.getValuesAs(JsonObject.class)) {
-
-					List<String> os = readStringList(server, "os");
-					List<String> arch = readStringList(server, "arch");
-					List<String> arguments = readStringList(server, "arguments");
-					List<String> installArguments = readStringList(server, "installArguments");
-					List<String> postInstallArguments = readStringList(server, "postInstallArguments");
-					List<String> versionArguments = readStringList(server, "versionArguments");
-					List<String> paramsArchiverCommand = readStringList(server, "paramsArchiverCommand");
-
-					LspServer lsp = new LspServer(server.getString("id"), server.getString("version"),
-							server.getString("name"), server.getString("languageId"), os, arch,
-							server.getString("minimumVersion", null), server.getString("url", null),
-							server.getString("command", null), arguments, server.getString("installCommand", null),
-							installArguments, server.getString("typeFile", null),
-							server.getString("versionCommand", null), versionArguments, paramsArchiverCommand,
-							server.getString("archiverCommand", null));
-
-					lsp.setInstallKey(server.getString("installKey", null));
-					lsp.setPostInstallCommand(server.getString("postInstallCommand", null));
-					lsp.setPostInstallArguments(postInstallArguments);
-					lsp.setLatestVersionApi(server.getString("latestVersionApi", null));
-					lsp.setLatestVersionPath(server.getString("latestVersionPath", null));
-					lsp.setLatestVersionListPath(server.getString("latestVersionListPath", null));
-					lsp.setLatestAssetName(server.getString("latestAssetName", null));
-					lsp.setLatestVersionUrlTemplate(server.getString("latestVersionUrlTemplate", null));
-					lsp.setInstallEnvironment(readStringMap(server, "installEnvironment"));
-
-					serverList.add(lsp);
-				}
-
-				return new LspRegistry(serverList);
-			}
-
-		}
-		catch (Exception e) {
-			throw new RuntimeException("Error to load registry.json", e);
-		}
-	}
-
-	private static List<String> readStringList(JsonObject object, String key) {
-		if (!object.containsKey(key) || object.isNull(key)) {
-			return new ArrayList<>();
-		}
-
-		return object.getJsonArray(key).getValuesAs(JsonString.class).stream().map(JsonString::getString).toList();
-	}
-
-	private static Map<String, String> readStringMap(JsonObject object, String key) {
-		JsonObject values = object.getJsonObject(key);
-		if (values == null) {
-			return Map.of();
-		}
-		return values.keySet()
-			.stream()
-			.collect(java.util.stream.Collectors.toUnmodifiableMap(keyName -> keyName, values::getString));
+		return LspRegistryLoader.load();
 	}
 
 }

@@ -19,8 +19,6 @@
  * per JVM. Do not call {@code App.main} twice in the same process, and do not shut the
  * thread manager down from a library that does not own the application.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href= "https://github.com/BrunoRNS/SIMPLE-
  * IDE/blob/main/docs/api/ui/application.md">docs/api/ui/application.md</a>
  */

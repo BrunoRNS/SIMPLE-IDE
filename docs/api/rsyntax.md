@@ -42,7 +42,7 @@ import java.nio.file.Path;
 Editor editor = Editors.open(Path.of("src/main/java/Example.java"));
 ```
 
-`Editors.open` reads the whole file into memory with `File.getCode()`. It is
+`Editors.open` reads the whole file into memory with `SimpleIDEFile.getCode()`. It is
 intended for source files, not for very large logs or binary files.
 
 ## Set the syntax style
@@ -101,7 +101,7 @@ editor.setCaretPosition(0);
 String text = editor.getText();
 ```
 
-Simple IDE's higher-level `EditorTab` handles saving through its `File` model.
+Simple IDE's higher-level `EditorTab` handles saving through its `SimpleIDEFile` model.
 For a standalone editor, write the text yourself or use `EditorTab`.
 
 ## Themes and fonts
@@ -118,7 +118,10 @@ Editor editor = Editors.create();
 ```
 
 `Editor.updateUI()` reapplies the `TextArea.font` after a look-and-feel change.
-See [UI helpers](ui.md) for the application theme manager.
+`refreshUiFont()` does the same after a host application changes global fonts
+without rebuilding the look and feel. The application calls it when applying
+its global font-size setting. See [UI helpers](https://github.com/BrunoRNS/SIMPLE-IDE/wiki/API-UI) for the application theme
+manager.
 
 ## Local completion
 

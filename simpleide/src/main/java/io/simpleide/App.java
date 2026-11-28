@@ -1,6 +1,7 @@
 package io.simpleide;
 
-import io.simpleide.frame.MainFrame;
+import io.simpleide.frame.MainFrameHolder;
+import io.simpleide.frame.utils.ApplicationIcon;
 import io.simpleide.language.config.LangConfigHolder;
 import io.simpleide.language.config.LangSetup;
 import io.simpleide.thread.ThreadMaster;
@@ -15,11 +16,11 @@ import io.simpleide.thread.nodes.edt.EDTNode;
  * {@code EDTNode}, so the application follows the same lifecycle rules as the rest of the
  * IDE.
  *
- * @author BrunoRNS
- * @since v1.0.0beta
  * @see <a href=
  * "https://github.com/BrunoRNS/SIMPLE-IDE/blob/main/docs/api/ui/application.md">
  * docs/api/ui/application.md</a>
+ * @author BrunoRNS
+ * @since v1.0.0beta
  */
 public class App {
 
@@ -28,10 +29,11 @@ public class App {
 	 * @param args command-line arguments passed to the application
 	 */
 	public static void main(String[] args) {
+		ApplicationIcon.setTaskbarIcon();
 		new LangSetup(LangConfigHolder.LANG_CONFIG).run();
 
 		ThreadMaster threadMaster = ThreadMaster.getInstance();
-		threadMaster.register(new EDTNode(() -> new MainFrame().run()));
+		threadMaster.register(new EDTNode(() -> MainFrameHolder.getMainFrame().run()));
 		threadMaster.initialize();
 	}
 

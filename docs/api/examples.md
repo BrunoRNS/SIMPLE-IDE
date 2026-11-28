@@ -62,8 +62,8 @@ public final class EditorWindow {
 Build and run:
 
 ```sh
-javac -cp simpleide-v1.0.0beta-any-with-deps.jar EditorWindow.java
-java -cp .:simpleide-v1.0.0beta-any-with-deps.jar EditorWindow src/main/java/Example.java
+javac -cp simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar EditorWindow.java
+java -cp .:simpleide-v1.1.0-linux-x64-javafx23-with-deps.jar EditorWindow src/main/java/Example.java
 ```
 
 On Windows use `;` as the classpath separator.
@@ -76,6 +76,7 @@ On Windows use `;` as the classpath separator.
 import io.simpleide.api.Languages;
 import io.simpleide.language.AbstractLanguage;
 import io.simpleide.language.io.Output;
+import io.simpleide.thread.ThreadMaster;
 import java.nio.file.Path;
 
 public final class RunSource {
@@ -86,7 +87,7 @@ public final class RunSource {
     }
 
     AbstractLanguage language = Languages.start(Path.of(args[0]));
-    Runtime.getRuntime().addShutdownHook(new Thread(() -> Languages.stop(language)));
+    ThreadMaster.getInstance().registerShutdownAction("language runner", () -> Languages.stop(language));
 
     String line;
     while ((line = Output.getInstance().get(30)) != null) {
@@ -233,9 +234,9 @@ public final class CodeViewer {
 
   <dependencies>
     <dependency>
-      <groupId>com.github.BrunoRNS.SIMPLE-IDE</groupId>
-      <artifactId>simpleide</artifactId>
-      <version>v1.0.0beta</version>
+      <groupId>com.github.BrunoRNS</groupId>
+      <artifactId>SIMPLE-IDE</artifactId>
+      <version>v1.1.0</version>
     </dependency>
   </dependencies>
 
